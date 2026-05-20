@@ -1,0 +1,30 @@
+{
+  "sensors": [],
+  "lenses": [
+    {
+      "name": "Kowa LM16HC (16 mm C-mount)",
+      "focal_length_m": 0.016,
+      "max_aperture_f": 1.4,
+      "mount": { "type": "c_mount" },
+      "fov_diagonal_deg": 46.6,
+      "mtf": { "mtf50_lp_per_mm": 140.0 }
+    },
+    {
+      "name": "Kowa LM25HC (25 mm C-mount)",
+      "focal_length_m": 0.025,
+      "max_aperture_f": 1.4,
+      "mount": { "type": "c_mount" },
+      "fov_diagonal_deg": 30.4,
+      "mtf": { "mtf50_lp_per_mm": 160.0 }
+    },
+    {
+      "name": "Computar M5018-MP2 (50 mm C-mount)",
+      "focal_length_m": 0.050,
+      "max_aperture_f": 1.8,
+      "mount": { "type": "c_mount" },
+      "fov_diagonal_deg": 15.3,
+      "mtf": null
+    }
+  ],
+  "lasers": []
+}

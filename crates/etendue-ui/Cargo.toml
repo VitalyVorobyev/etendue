@@ -1,0 +1,34 @@
+[package]
+name = "etendue-ui"
+description = "Desktop application for the etendue optical-design tool"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "etendue"
+path = "src/main.rs"
+
+[dependencies]
+etendue-core = { path = "../etendue-core" }
+# Same workspace pin as etendue-core: the viewport's camera and GPU-packing
+# math (view/projection matrices, vertex narrowing) use nalgebra directly.
+# Sharing the one pinned 0.34 keeps a single nalgebra in the tree.
+nalgebra = { workspace = true }
+egui = { workspace = true }
+egui-wgpu = { workspace = true }
+egui-winit = { workspace = true }
+egui_plot = { workspace = true }
+wgpu = { workspace = true }
+winit = { workspace = true }
+pollster = { workspace = true }
+bytemuck = { workspace = true }
+log = { workspace = true }
+env_logger = { workspace = true }
+serde_json = { workspace = true }
+rfd = { workspace = true }
+
+[dev-dependencies]
+# Float-comparison assertions for the orbit-camera unit tests.
+approx = { workspace = true }

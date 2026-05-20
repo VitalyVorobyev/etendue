@@ -1,0 +1,30 @@
+{
+  "sensors": [
+    {
+      "name": "Sony IMX174 (global shutter, 1/1.2\")",
+      "pixel_pitch_m": 5.86e-6,
+      "resolution": [1936, 1216],
+      "well_depth_e": 32000.0,
+      "read_noise_e": 6.0,
+      "peak_qe": 0.78
+    },
+    {
+      "name": "Sony IMX249 (global shutter, 1/1.2\")",
+      "pixel_pitch_m": 5.86e-6,
+      "resolution": [1920, 1200],
+      "well_depth_e": 33000.0,
+      "read_noise_e": 7.0,
+      "peak_qe": 0.72
+    },
+    {
+      "name": "ON Semiconductor Python 1300 (global shutter)",
+      "pixel_pitch_m": 4.8e-6,
+      "resolution": [1280, 1024],
+      "well_depth_e": 10000.0,
+      "read_noise_e": 6.0,
+      "peak_qe": 0.55
+    }
+  ],
+  "lenses": [],
+  "lasers": []
+}

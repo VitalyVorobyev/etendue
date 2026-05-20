@@ -1,0 +1,33 @@
+{
+  "sensors": [],
+  "lenses": [],
+  "lasers": [
+    {
+      "name": "Coherent StingRay 660-30 (red, 30 mW)",
+      "wavelength_nm": 660.0,
+      "fan_half_angle": 0.2618,
+      "power_mw": 30.0,
+      "line_width": {
+        "type": "gaussian",
+        "w0": 50e-6
+      }
+    },
+    {
+      "name": "Z-LASER ZM18 532 nm (green, 10 mW)",
+      "wavelength_nm": 532.0,
+      "fan_half_angle": 0.3491,
+      "power_mw": 10.0,
+      "line_width": {
+        "type": "gaussian",
+        "w0": 60e-6
+      }
+    },
+    {
+      "name": "Osram PLT5 450B (blue, 1.6 W diode, narrow fan)",
+      "wavelength_nm": 450.0,
+      "fan_half_angle": 0.1745,
+      "power_mw": 1600.0,
+      "line_width": null
+    }
+  ]
+}

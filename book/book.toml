@@ -1,0 +1,13 @@
+[book]
+authors = ["Vitaly Vorobyev"]
+language = "en"
+src = "src"
+title = "etendue Book"
+
+[preprocessor.katex]
+
+[output.html]
+default-theme = "light"
+preferred-dark-theme = "navy"
+git-repository-url = "https://github.com/VitalyVorobyev/etendue"
+mathjax-support = false

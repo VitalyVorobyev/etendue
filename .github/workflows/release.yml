@@ -1,0 +1,146 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  gates:
+    name: Release quality gates
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache cargo artifacts
+        uses: Swatinem/rust-cache@v2
+
+      - name: Format check
+        run: cargo fmt --all --check
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Tests (release mode)
+        run: cargo test --workspace --release
+
+  build:
+    name: Build ${{ matrix.target }}
+    needs: gates
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            archive_ext: tar.gz
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            archive_ext: tar.gz
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            archive_ext: zip
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo artifacts
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build release binary
+        run: cargo build --release -p etendue-ui
+
+      - name: Package archive (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          TARGET="${{ matrix.target }}"
+          ARCHIVE="etendue-${VERSION}-${TARGET}.tar.gz"
+          mkdir -p dist
+          cp target/release/etendue dist/
+          tar -czf "dist/${ARCHIVE}" -C dist etendue
+          rm dist/etendue
+          echo "ARCHIVE=${ARCHIVE}" >> "$GITHUB_ENV"
+
+      - name: Package archive (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $VERSION = $env:GITHUB_REF_NAME -replace '^v', ''
+          $TARGET  = "${{ matrix.target }}"
+          $ARCHIVE = "etendue-${VERSION}-${TARGET}.zip"
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Copy-Item target\release\etendue.exe dist\
+          Compress-Archive -Path dist\etendue.exe -DestinationPath "dist\${ARCHIVE}"
+          Remove-Item dist\etendue.exe
+          "ARCHIVE=${ARCHIVE}" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.target }}
+          path: dist/${{ env.ARCHIVE }}
+          if-no-files-found: error
+
+  release:
+    name: Create GitHub Release
+    needs: [gates, build]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout (for CHANGELOG.md)
+        uses: actions/checkout@v6
+
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Extract CHANGELOG section for this tag
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          awk -v ver="$VERSION" '
+            $0 ~ "^## \\[" ver "\\]" { found=1; next }
+            found && /^## \[/ { exit }
+            found { print }
+          ' CHANGELOG.md > release-notes.md
+          # Fall back to auto-generated notes if extraction produced nothing meaningful
+          if [ ! -s release-notes.md ] || ! grep -q '[^[:space:]]' release-notes.md; then
+            echo "AUTO_NOTES=true" >> "$GITHUB_ENV"
+          else
+            echo "AUTO_NOTES=false" >> "$GITHUB_ENV"
+          fi
+
+      - name: Create release (with CHANGELOG body)
+        if: env.AUTO_NOTES == 'false'
+        uses: softprops/action-gh-release@v3
+        with:
+          body_path: release-notes.md
+          files: dist/**
+
+      - name: Create release (auto-generated notes fallback)
+        if: env.AUTO_NOTES == 'true'
+        uses: softprops/action-gh-release@v3
+        with:
+          generate_release_notes: true
+          files: dist/**

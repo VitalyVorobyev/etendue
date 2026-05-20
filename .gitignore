@@ -1,0 +1,12 @@
+# Build artifacts
+/target
+
+# This workspace ships a binary (etendue-ui), so Cargo.lock IS committed.
+# Do not add Cargo.lock here.
+
+# mdBook build output (book/ sources are committed; book/book/ is generated)
+book/book/
+
+# Editor / OS noise
+*.swp
+.DS_Store
