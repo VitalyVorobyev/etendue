@@ -13,6 +13,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+      - name: Clone calibration-rs sibling (path dependency)
+        run: git clone --depth 1 https://github.com/VitalyVorobyev/calibration-rs.git ../calibration-rs
       - uses: EmbarkStudios/cargo-deny-action@v2
         with:
           # deny.toml lists RUSTSEC-2024-0436 (paste, upstream-blocked via

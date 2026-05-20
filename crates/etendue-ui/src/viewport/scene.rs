@@ -28,7 +28,8 @@
 
 use etendue_core::analysis::WorkingVolume;
 use etendue_core::geom::TriMesh;
-use etendue_core::laser::{GaussianBeamWidth, LaserPlane, stripe_on_target};
+use etendue_core::laser::{GaussianBeamWidth, LaserPlane, WidthModel, stripe_on_target};
+use etendue_core::optics::sensor_distance;
 use etendue_core::scene::{CameraEntity, LaserEntity, Scene, TargetEntity};
 use nalgebra::{Isometry3, Matrix4, Point2, Point3, Vector3};
 
@@ -160,47 +161,214 @@ pub fn camera_frustum_edges(
     edges.iter().map(|&(a, b)| (c[a], c[b], color)).collect()
 }
 
-/// A [`LaserEntity`]'s fan as a thin triangle wedge, in **laser-local**
+/// A double-sided rectangular sheet at a given local `z`, in **camera-local**
 /// coordinates.
 ///
-/// The fan lies in the laser-local `x = 0` plane and opens symmetrically about
-/// the local `+z` axis: the apex is at the local origin, and the two far
-/// corners are at `±fan_half_angle` from `+z`, a `fan_length` away along each
-/// edge ray. The wedge is built as two triangles with **opposite** winding and
-/// normals — one facing local `+x`, one facing local `-x` — so the translucent
-/// fan shades consistently whichever side the viewer is on (the renderer
-/// disables back-face culling, but a single normal would still leave one face
-/// dark).
+/// Used by the M8 camera-anatomy helpers ([`camera_imager_mesh`],
+/// [`camera_principal_plane_meshes`]) to render the sensor plane and the two
+/// principal planes as flat translucent quads. Two coplanar triangles per face,
+/// one face normal `+z` (object side), the other `-z` (sensor side), so the
+/// sheet shades consistently whichever side the orbit camera is on (the
+/// renderer disables back-face culling, but a single normal would still leave
+/// one face dark under the directional light).
+fn double_sided_rect_mesh(half_w: f64, half_h: f64, z: f64) -> TriMesh {
+    let tl = Point3::new(-half_w, half_h, z);
+    let tr = Point3::new(half_w, half_h, z);
+    let br = Point3::new(half_w, -half_h, z);
+    let bl = Point3::new(-half_w, -half_h, z);
+    let plus_z = Vector3::z();
+    let minus_z = -plus_z;
+    // Two distinct vertex blocks (one per face) so each carries the correct
+    // per-vertex normal — `TriMesh` is a per-vertex-normal mesh, so sharing
+    // vertices between front and back would average to a zero normal.
+    let vertices = vec![bl, br, tr, tl, bl, tl, tr, br];
+    let normals = vec![
+        plus_z, plus_z, plus_z, plus_z, minus_z, minus_z, minus_z, minus_z,
+    ];
+    let indices = vec![[0, 1, 2], [0, 2, 3], [4, 5, 6], [4, 6, 7]];
+    TriMesh::new(vertices, normals, indices)
+        .expect("double-sided rect is non-degenerate for positive half-extents")
+}
+
+/// The image sensor plane as a translucent rectangle, in **camera-local**
+/// coordinates.
+///
+/// Placed at `z = -v0` where `v0 = sensor_distance(s_o, g, f)` is the on-axis
+/// image-side conjugate of the focus plane (see
+/// [`etendue_core::optics::sensor_distance`]). The rectangle is sized to the
+/// physical sensor extent (`resolution * pixel_pitch_m`).
+///
+/// Currently rendered **fronto-parallel** — the Scheimpflug tilt is not
+/// applied to the visualization. The tilt is captured by the projection model
+/// and the M4 plane-of-best-focus; rendering a tilted sensor here is a
+/// follow-up.
+///
+/// Returns `None` when `sensor_distance` cannot be computed (focus distance
+/// at/inside the focal point); the caller then adds no sensor drawable.
+#[must_use]
+pub fn camera_imager_mesh(camera: &CameraEntity) -> Option<TriMesh> {
+    let v0 = sensor_distance(
+        camera.focus_distance_m,
+        camera.principal_gap_m,
+        camera.effective_focal_length_m,
+    )
+    .ok()?;
+    let (rx, ry) = camera.resolution_f64();
+    let half_w = 0.5 * rx * camera.pixel_pitch_m;
+    let half_h = 0.5 * ry * camera.pixel_pitch_m;
+    Some(double_sided_rect_mesh(half_w, half_h, -v0))
+}
+
+/// The two principal planes `H` and `H'` as translucent squares, in
+/// **camera-local** coordinates.
+///
+/// `H'` sits at the camera-local origin (`z = 0`); `H` at `z = -principal_gap_m`
+/// — the convention adopted by the M4 CoC physics (an object at camera depth
+/// `Z` is at object distance `Z + g` from `H`, see
+/// [`etendue_core::optics::coc::coc_diameter_at_sensor`]). Returns the pair as
+/// `(h_mesh, h_prime_mesh)`.
+///
+/// Each plane is sized as a square `1.4 × aperture_diameter` on a side so the
+/// aperture ring sits visually inside it. For a thin lens (`g = 0`) the two
+/// planes coincide; the renderer is free to draw both — only one will be
+/// visible.
+#[must_use]
+pub fn camera_principal_plane_meshes(camera: &CameraEntity) -> (TriMesh, TriMesh) {
+    let aperture_diam = camera.effective_focal_length_m / camera.f_number;
+    let half_side = 0.5 * 1.4 * aperture_diam;
+    let g = camera.principal_gap_m;
+    let h = double_sided_rect_mesh(half_side, half_side, -g);
+    let h_prime = double_sided_rect_mesh(half_side, half_side, 0.0);
+    (h, h_prime)
+}
+
+/// The lens aperture as a colored line-list ring, in **camera-local**
+/// coordinates.
+///
+/// Drawn as a 48-segment polygon approximating a circle of diameter
+/// `effective_focal_length_m / f_number` (the geometric aperture diameter).
+/// Centred on the optical axis at `z = -principal_gap_m / 2` — midway between
+/// `H` (`z = -g`) and `H'` (`z = 0`), where the physical aperture stop of a
+/// thick lens conventionally sits. For a thin lens (`g = 0`) the ring lies in
+/// the plane of the coincident principal planes.
+#[must_use]
+pub fn camera_aperture_ring(
+    camera: &CameraEntity,
+    color: [f32; 3],
+) -> Vec<(Point3<f64>, Point3<f64>, [f32; 3])> {
+    const SEGMENTS: usize = 48;
+    let radius = 0.5 * camera.effective_focal_length_m / camera.f_number;
+    let z = -0.5 * camera.principal_gap_m;
+    (0..SEGMENTS)
+        .map(|i| {
+            let t0 = (i as f64 / SEGMENTS as f64) * std::f64::consts::TAU;
+            let t1 = ((i + 1) as f64 / SEGMENTS as f64) * std::f64::consts::TAU;
+            (
+                Point3::new(radius * t0.cos(), radius * t0.sin(), z),
+                Point3::new(radius * t1.cos(), radius * t1.sin(), z),
+                color,
+            )
+        })
+        .collect()
+}
+
+/// Number of axial samples (rings) used to tessellate the M8 laser-fan ribbon.
+///
+/// Each ring contributes two vertices per sheet (at the negative-y and
+/// positive-y edge of the fan); 24 rings give the Gaussian thickness a smooth,
+/// visible curve at typical scene scales without producing a heavy mesh
+/// (≈ 4·N − 2 triangles per fan = 94 triangles).
+const LASER_FAN_AXIAL_SAMPLES: usize = 24;
+
+/// A [`LaserEntity`]'s fan as a thickness-varying ribbon, in **laser-local**
+/// coordinates.
+///
+/// The fan opens about the laser-local `+z` axis within the `y–z` plane: the
+/// apex sits at the local origin, and the two far corners at
+/// `±fan_half_angle` from `+z`, a `fan_length` along each edge ray. The
+/// rendered ribbon extrudes that fan triangle along the laser-local `±x` axis
+/// with a half-thickness `t(s) = GaussianBeamWidth::width_at(s) / 2`, where
+/// `s` is the radial distance from the apex (the laser waist sits at the
+/// apex). The thickness reflects the depth-varying beam width: the ribbon is
+/// narrowest at the apex (where `t = w₀`) and widens with distance.
+///
+/// Topology: two parallel sheets, one at `x = +t(s)` (normal `+x`) and one at
+/// `x = -t(s)` (normal `-x`). Each sheet is a triangle fan from the apex to
+/// `LASER_FAN_AXIAL_SAMPLES` axial rings, so adjacent rings are connected by
+/// two triangles each (and the apex by one), producing
+/// `2 · (2N − 1)` triangles total. The two sheets do not connect at the side
+/// edges — the ribbon is open along its rim — so the orbit camera sees the
+/// divergence as two slightly diverging films.
 ///
 /// # Panics
 ///
 /// Does not panic for a valid [`LaserEntity`]: `LaserEntity::new` guarantees a
-/// finite half-angle in `(0, π/2)` and a finite positive length, so the
-/// triangle is always non-degenerate and `TriMesh::new`'s invariants hold.
+/// finite half-angle in `(0, π/2)`, a finite positive length, a positive
+/// wavelength, and a positive beam waist, which together make the ribbon
+/// non-degenerate and satisfy `TriMesh::new`'s invariants.
 #[must_use]
 pub fn laser_fan_mesh(laser: &LaserEntity) -> TriMesh {
-    let (s, c) = laser.fan_half_angle.sin_cos();
+    let width = GaussianBeamWidth::from_laser(laser)
+        .expect("GaussianBeamWidth cannot fail for a valid LaserEntity");
+    let n = LASER_FAN_AXIAL_SAMPLES;
+    let (sin_a, cos_a) = laser.fan_half_angle.sin_cos();
     let l = laser.fan_length;
 
-    // Apex at the origin; the two far corners straddle +z in the y–z plane.
-    let apex = Point3::origin();
-    let far_neg = Point3::new(0.0, -l * s, l * c);
-    let far_pos = Point3::new(0.0, l * s, l * c);
+    let s_of = |i: usize| (i as f64 / n as f64) * l;
+    let t_of = |s: f64| 0.5 * width.width_at(s);
 
-    // Front face (normal toward local +x): apex → far_neg → far_pos winds CCW
-    // seen from +x. Back face reverses the winding and the normal.
-    let plus_x = Vector3::new(1.0, 0.0, 0.0);
-    let minus_x = Vector3::new(-1.0, 0.0, 0.0);
-    let vertices = vec![
-        // Front triangle.
-        apex, far_neg, far_pos, // Back triangle.
-        apex, far_pos, far_neg,
-    ];
-    let normals = vec![plus_x, plus_x, plus_x, minus_x, minus_x, minus_x];
-    let indices = vec![[0, 1, 2], [3, 4, 5]];
+    let plus_x = Vector3::x();
+    let minus_x = -plus_x;
+    let mut vertices: Vec<Point3<f64>> = Vec::with_capacity(4 * n + 2);
+    let mut normals: Vec<Vector3<f64>> = Vec::with_capacity(4 * n + 2);
+    let mut indices: Vec<[u32; 3]> = Vec::with_capacity(4 * n - 2);
+
+    // Build one sheet (front or back) at x = sign · t(s), with the given
+    // per-vertex shading normal. Returns the vertex indices of the rings so
+    // the caller can stitch the apex and trapezoid triangles.
+    let mut emit_sheet = |sign: f64, normal: Vector3<f64>| {
+        let apex_idx = vertices.len() as u32;
+        vertices.push(Point3::new(sign * t_of(0.0), 0.0, 0.0));
+        normals.push(normal);
+        let mut rings: Vec<(u32, u32)> = Vec::with_capacity(n);
+        for i in 1..=n {
+            let s = s_of(i);
+            let t = t_of(s);
+            let y_ext = s * sin_a;
+            let z = s * cos_a;
+            let neg = vertices.len() as u32;
+            vertices.push(Point3::new(sign * t, -y_ext, z));
+            normals.push(normal);
+            let pos = vertices.len() as u32;
+            vertices.push(Point3::new(sign * t, y_ext, z));
+            normals.push(normal);
+            rings.push((neg, pos));
+        }
+        (apex_idx, rings)
+    };
+
+    // Front sheet (normal +x).
+    let (front_apex, front_rings) = emit_sheet(1.0, plus_x);
+    indices.push([front_apex, front_rings[0].0, front_rings[0].1]);
+    for i in 0..(n - 1) {
+        let (a_neg, a_pos) = front_rings[i];
+        let (b_neg, b_pos) = front_rings[i + 1];
+        indices.push([a_neg, a_pos, b_pos]);
+        indices.push([a_neg, b_pos, b_neg]);
+    }
+
+    // Back sheet (normal -x), reversed winding.
+    let (back_apex, back_rings) = emit_sheet(-1.0, minus_x);
+    indices.push([back_apex, back_rings[0].1, back_rings[0].0]);
+    for i in 0..(n - 1) {
+        let (a_neg, a_pos) = back_rings[i];
+        let (b_neg, b_pos) = back_rings[i + 1];
+        indices.push([a_neg, b_pos, a_pos]);
+        indices.push([a_neg, b_neg, b_pos]);
+    }
 
     TriMesh::new(vertices, normals, indices)
-        .expect("laser fan triangle is non-degenerate for a valid LaserEntity")
+        .expect("laser fan ribbon is non-degenerate for a valid LaserEntity")
 }
 
 /// A [`TargetEntity`]'s plane as a shaded quad, in **target-local**
@@ -221,57 +389,57 @@ pub fn target_quad_mesh(target: &TargetEntity) -> TriMesh {
     TriMesh::quad(target.width, target.height)
 }
 
-/// The M5 laser stripe — where the first laser's fan strikes the first
-/// target — as colored line segments in **world** coordinates.
+/// All M5 laser stripes — every laser × every target intersection — as
+/// colored line segments in **world** coordinates.
 ///
-/// Builds a [`LaserPlane`] for `scene`'s
-/// first laser, intersects it with `scene`'s first target via
-/// [`stripe_on_target`], and returns
-/// the resulting 3D polyline as consecutive `(start, end, color)` segments.
-///
-/// Returns an empty `Vec` when there is no stripe to draw: the scene has no
-/// laser or no target, or the fan simply misses the target (parallel planes,
-/// or the intersection line never enters both the fan extent and the target
-/// rectangle). The caller then contributes no stripe geometry.
+/// For an M10 multi-pair rig, each laser independently strikes the shared
+/// target(s), so the rendered geometry is the *union* of all stripe
+/// polylines. For a single-pair scene this reduces to the original M5
+/// behaviour (one stripe). Missing intersections, missing entities, and
+/// invalid beam-width models are silently skipped — each pair contributes
+/// segments only if its stripe exists.
 ///
 /// Unlike the entity-local helpers, the result is already in world
-/// coordinates — the stripe is a derived curve spanning the laser *and* the
-/// target, so it cannot live in a single entity's local frame. The caller
-/// draws it with an identity model matrix (as it does the ground grid).
+/// coordinates — each stripe spans the laser *and* the target, so it cannot
+/// live in a single entity's local frame. The caller draws the whole vec
+/// with an identity model matrix.
 #[must_use]
 pub fn laser_stripe_segments(
     scene: &Scene,
     color: [f32; 3],
 ) -> Vec<(Point3<f64>, Point3<f64>, [f32; 3])> {
-    let (Some(laser), Some(target)) = (scene.lasers.first(), scene.targets.first()) else {
-        return Vec::new();
-    };
-    let plane = LaserPlane::from_entity(laser);
-    let Ok(width_model) = GaussianBeamWidth::from_laser(laser) else {
-        return Vec::new();
-    };
-    let Some(stripe) = stripe_on_target(&plane, target, &width_model, STRIPE_SAMPLES) else {
-        return Vec::new();
-    };
+    let mut out = Vec::new();
+    for laser in &scene.lasers {
+        let plane = LaserPlane::from_entity(laser);
+        let Ok(width_model) = GaussianBeamWidth::from_laser(laser) else {
+            continue;
+        };
+        for target in &scene.targets {
+            let Some(stripe) = stripe_on_target(&plane, target, &width_model, STRIPE_SAMPLES)
+            else {
+                continue;
+            };
+            // Lift the stripe a hair off the target surface so it does not
+            // z-fight the coplanar target quad / heatmap grid. The lift is
+            // along the target's outward normal toward the laser side (the
+            // laser illuminates the front face, so the dot-product sign
+            // picks the correct direction).
+            let mut surface_normal = target.pose * Vector3::z();
+            let to_laser = (plane.origin() - (target.pose * Point3::origin())).normalize();
+            if surface_normal.dot(&to_laser) < 0.0 {
+                surface_normal = -surface_normal;
+            }
+            let lift = surface_normal * STRIPE_SURFACE_LIFT_M;
 
-    // Lift the stripe a hair off the target surface so it does not z-fight
-    // the coplanar target quad / heatmap grid. The lift is along the target's
-    // outward normal toward the laser side (the laser illuminates the front
-    // face, so the dot-product sign picks the correct direction).
-    let mut surface_normal = target.pose * Vector3::z();
-    let to_laser = (plane.origin() - (target.pose * Point3::origin())).normalize();
-    if surface_normal.dot(&to_laser) < 0.0 {
-        surface_normal = -surface_normal;
+            let samples = stripe.samples();
+            out.extend(
+                samples
+                    .windows(2)
+                    .map(|w| (w[0].point + lift, w[1].point + lift, color)),
+            );
+        }
     }
-    let lift = surface_normal * STRIPE_SURFACE_LIFT_M;
-
-    // Consecutive samples -> line-list segments, each vertex lifted off the
-    // surface.
-    let samples = stripe.samples();
-    samples
-        .windows(2)
-        .map(|w| (w[0].point + lift, w[1].point + lift, color))
-        .collect()
+    out
 }
 
 /// RGB color of the working-volume patch — a saturated cyan/teal.
@@ -510,49 +678,236 @@ mod tests {
     }
 
     #[test]
-    fn laser_fan_mesh_has_two_triangles() {
-        let laser = LaserEntity::new(Isometry3::identity(), 0.25, 1.2, 660.0, 0.25e-3).unwrap();
-        let mesh = laser_fan_mesh(&laser);
-        assert_eq!(mesh.triangle_count(), 2);
-        assert_eq!(mesh.vertices().len(), 6);
-    }
-
-    #[test]
-    fn laser_fan_mesh_lies_in_the_local_x_plane() {
-        // The fan is a flat sheet in the laser-local x = 0 plane.
-        let laser = LaserEntity::new(Isometry3::identity(), 0.25, 1.2, 660.0, 0.25e-3).unwrap();
-        let mesh = laser_fan_mesh(&laser);
+    fn camera_imager_lies_at_minus_sensor_distance() {
+        // With g=0 and a far-field focus, v0 ≈ f to better than 0.1 %, so the
+        // imager rectangle sits at z ≈ -f. We just assert it matches the
+        // exact `sensor_distance` value to within float epsilon.
+        let cam = centred_camera();
+        let mesh = camera_imager_mesh(&cam).expect("imager mesh for a valid lens");
+        let v0 = etendue_core::optics::sensor_distance(
+            cam.focus_distance_m,
+            cam.principal_gap_m,
+            cam.effective_focal_length_m,
+        )
+        .expect("sensor_distance for a valid lens");
         for v in mesh.vertices() {
-            assert_relative_eq!(v.x, 0.0, epsilon = 1e-12);
+            assert_relative_eq!(v.z, -v0, epsilon = 1e-12);
         }
     }
 
     #[test]
-    fn laser_fan_half_angle_matches_the_far_corners() {
-        // The far corners must subtend exactly the configured half-angle from
-        // the local +z axis.
+    fn camera_imager_size_matches_resolution_times_pixel_pitch() {
+        let cam = centred_camera();
+        let mesh = camera_imager_mesh(&cam).expect("imager mesh");
+        let (rx, ry) = cam.resolution_f64();
+        let half_w = 0.5 * rx * cam.pixel_pitch_m;
+        let half_h = 0.5 * ry * cam.pixel_pitch_m;
+        for v in mesh.vertices() {
+            assert_relative_eq!(v.x.abs(), half_w, epsilon = 1e-12);
+            assert_relative_eq!(v.y.abs(), half_h, epsilon = 1e-12);
+        }
+    }
+
+    #[test]
+    fn principal_plane_meshes_are_separated_by_the_inter_principal_gap() {
+        // For a thick-lens camera with g > 0, the H mesh sits at z = -g and the
+        // H' mesh at z = 0. Build a camera with non-zero gap and check.
+        let g = 5e-3; // 5 mm gap
+        let params = CameraParams {
+            projection: ProjectionParams::Pinhole,
+            distortion: DistortionParams::None,
+            sensor: SensorParams::Identity,
+            intrinsics: IntrinsicsParams::FxFyCxCySkew {
+                params: FxFyCxCySkew {
+                    fx: 0.0,
+                    fy: 0.0,
+                    cx: 640.0,
+                    cy: 360.0,
+                    skew: 0.0,
+                },
+            },
+        };
+        let cam = CameraEntity::new(
+            Isometry3::identity(),
+            params,
+            (1280, 720),
+            0.025,
+            4.0,
+            0.3,
+            g,
+            5e-6,
+            0.1,
+            1.0,
+        )
+        .expect("valid thick-lens camera");
+        let (h, h_prime) = camera_principal_plane_meshes(&cam);
+        for v in h.vertices() {
+            assert_relative_eq!(v.z, -g, epsilon = 1e-12);
+        }
+        for v in h_prime.vertices() {
+            assert_relative_eq!(v.z, 0.0, epsilon = 1e-12);
+        }
+    }
+
+    #[test]
+    fn aperture_ring_has_radius_half_f_over_n() {
+        let cam = centred_camera();
+        let segments = camera_aperture_ring(&cam, [1.0, 1.0, 0.0]);
+        let expected_radius = 0.5 * cam.effective_focal_length_m / cam.f_number;
+        // 48 segments → 48 line segments.
+        assert_eq!(segments.len(), 48);
+        for (a, b, _) in &segments {
+            let ra = (a.x * a.x + a.y * a.y).sqrt();
+            let rb = (b.x * b.x + b.y * b.y).sqrt();
+            assert_relative_eq!(ra, expected_radius, epsilon = 1e-12);
+            assert_relative_eq!(rb, expected_radius, epsilon = 1e-12);
+        }
+    }
+
+    #[test]
+    fn aperture_ring_z_is_midway_between_principal_planes() {
+        // For a thick lens, the aperture sits at z = -g/2.
+        let g = 4e-3;
+        let params = CameraParams {
+            projection: ProjectionParams::Pinhole,
+            distortion: DistortionParams::None,
+            sensor: SensorParams::Identity,
+            intrinsics: IntrinsicsParams::FxFyCxCySkew {
+                params: FxFyCxCySkew {
+                    fx: 0.0,
+                    fy: 0.0,
+                    cx: 640.0,
+                    cy: 360.0,
+                    skew: 0.0,
+                },
+            },
+        };
+        let cam = CameraEntity::new(
+            Isometry3::identity(),
+            params,
+            (1280, 720),
+            0.025,
+            4.0,
+            0.3,
+            g,
+            5e-6,
+            0.1,
+            1.0,
+        )
+        .expect("valid thick-lens camera");
+        let segments = camera_aperture_ring(&cam, [1.0; 3]);
+        for (a, _, _) in &segments {
+            assert_relative_eq!(a.z, -0.5 * g, epsilon = 1e-12);
+        }
+    }
+
+    #[test]
+    fn aperture_ring_closes_on_itself() {
+        // The last segment's endpoint must coincide with the first segment's
+        // start — the ring is a closed polygon.
+        let cam = centred_camera();
+        let segments = camera_aperture_ring(&cam, [1.0; 3]);
+        let first_start = segments.first().expect("ring is non-empty").0;
+        let last_end = segments.last().expect("ring is non-empty").1;
+        assert_relative_eq!(first_start.x, last_end.x, epsilon = 1e-12);
+        assert_relative_eq!(first_start.y, last_end.y, epsilon = 1e-12);
+    }
+
+    #[test]
+    fn laser_fan_mesh_is_a_thick_ribbon() {
+        // The M8 ribbon has `2 · (2N − 1)` triangles where N is the axial
+        // sample count; with N = 24 that's 94 triangles.
+        let laser = LaserEntity::new(Isometry3::identity(), 0.25, 1.2, 660.0, 0.25e-3).unwrap();
+        let mesh = laser_fan_mesh(&laser);
+        let expected = 2 * (2 * super::LASER_FAN_AXIAL_SAMPLES as i32 - 1);
+        assert_eq!(mesh.triangle_count() as i32, expected);
+        assert!(
+            mesh.vertices().len() > 6,
+            "ribbon must have more vertices than the old 6-vertex flat fan, got {}",
+            mesh.vertices().len()
+        );
+    }
+
+    #[test]
+    fn laser_fan_apex_thickness_is_the_beam_waist_diameter() {
+        // At the apex (s = 0) the half-thickness is `width_at(0) / 2 = w₀`,
+        // so the apex straddles `x = ±w₀`. Every vertex with `y = z = 0` is
+        // an apex vertex.
+        let w0 = 0.25e-3;
+        let laser = LaserEntity::new(Isometry3::identity(), 0.25, 1.2, 660.0, w0).unwrap();
+        let mesh = laser_fan_mesh(&laser);
+        let apex_vertices: Vec<_> = mesh
+            .vertices()
+            .iter()
+            .filter(|v| v.y.abs() < 1e-12 && v.z.abs() < 1e-12)
+            .collect();
+        assert_eq!(apex_vertices.len(), 2, "front and back apex");
+        for v in apex_vertices {
+            assert_relative_eq!(v.x.abs(), w0, epsilon = 1e-12);
+        }
+    }
+
+    #[test]
+    fn laser_fan_thickness_grows_with_axial_distance() {
+        // The Gaussian beam diverges, so a vertex on the front sheet farther
+        // from the apex must have a larger `|x|` than a vertex closer in.
+        let laser = LaserEntity::new(Isometry3::identity(), 0.25, 1.2, 660.0, 0.25e-3).unwrap();
+        let mesh = laser_fan_mesh(&laser);
+        // Front-sheet vertex closest to the apex: the smallest non-zero z.
+        let mut near = f64::INFINITY;
+        let mut near_x = 0.0;
+        let mut far = 0.0_f64;
+        let mut far_x = 0.0;
+        for v in mesh.vertices() {
+            if v.x > 0.0 && v.z > 0.0 {
+                if v.z < near {
+                    near = v.z;
+                    near_x = v.x;
+                }
+                if v.z > far {
+                    far = v.z;
+                    far_x = v.x;
+                }
+            }
+        }
+        assert!(far_x > near_x, "thickness must grow with distance");
+    }
+
+    #[test]
+    fn laser_fan_far_corners_match_the_half_angle() {
+        // The far corners (at the last ring) still subtend exactly the
+        // configured half-angle from the local +z axis. Their y/z component
+        // is independent of the extruded x thickness.
         let half_angle = 0.3;
         let length = 2.0;
         let laser =
             LaserEntity::new(Isometry3::identity(), half_angle, length, 660.0, 0.25e-3).unwrap();
         let mesh = laser_fan_mesh(&laser);
-        // Vertex 2 is a far corner; angle from +z is atan2(|y|, z).
-        let corner = mesh.vertices()[2];
-        let angle = corner.y.abs().atan2(corner.z);
+        // Find the vertex with the largest z (a far corner).
+        let far = mesh
+            .vertices()
+            .iter()
+            .max_by(|a, b| a.z.partial_cmp(&b.z).unwrap())
+            .unwrap();
+        let angle = far.y.abs().atan2(far.z);
         assert_relative_eq!(angle, half_angle, epsilon = 1e-9);
-        // And the corner is `length` away from the apex along its edge ray.
-        assert_relative_eq!(corner.coords.norm(), length, epsilon = 1e-9);
+        // And the far corner's (y, z) component is `length` from the apex
+        // along its edge ray; only the extruded x is added on top of that.
+        let yz_norm = (far.y * far.y + far.z * far.z).sqrt();
+        assert_relative_eq!(yz_norm, length, epsilon = 1e-9);
     }
 
     #[test]
-    fn laser_fan_faces_point_opposite_ways() {
-        // The two triangles carry opposite normals so the translucent fan
-        // shades from both sides.
+    fn laser_fan_sheets_have_opposite_normals() {
+        // The two sheets carry opposite +x / -x normals so the translucent
+        // ribbon shades from both sides.
         let laser = LaserEntity::new(Isometry3::identity(), 0.25, 1.2, 660.0, 0.25e-3).unwrap();
         let mesh = laser_fan_mesh(&laser);
-        let n_front = mesh.normals()[0];
-        let n_back = mesh.normals()[3];
-        assert_relative_eq!(n_front.dot(&n_back), -1.0, epsilon = 1e-12);
+        let plus = mesh.normals().iter().find(|n| n.x > 0.5).copied();
+        let minus = mesh.normals().iter().find(|n| n.x < -0.5).copied();
+        let plus = plus.expect("front sheet must have +x normals");
+        let minus = minus.expect("back sheet must have -x normals");
+        assert_relative_eq!(plus.dot(&minus), -1.0, epsilon = 1e-12);
     }
 
     #[test]
@@ -574,7 +929,9 @@ mod tests {
         // scene without panicking and produce non-empty geometry.
         let scene = Scene::default_mvp();
         assert_eq!(camera_frustum_edges(&scene.cameras[0], [1.0; 3]).len(), 12);
-        assert_eq!(laser_fan_mesh(&scene.lasers[0]).triangle_count(), 2);
+        // The M8 ribbon fan has more than the old 2 triangles; just confirm
+        // a non-empty, well-formed mesh.
+        assert!(laser_fan_mesh(&scene.lasers[0]).triangle_count() > 2);
         assert_eq!(target_quad_mesh(&scene.targets[0]).triangle_count(), 2);
     }
 

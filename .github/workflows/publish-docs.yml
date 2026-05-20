@@ -23,6 +23,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Clone calibration-rs sibling (path dependency)
+        run: git clone --depth 1 https://github.com/VitalyVorobyev/calibration-rs.git ../calibration-rs
+
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:

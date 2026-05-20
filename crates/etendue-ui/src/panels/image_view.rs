@@ -82,24 +82,40 @@ pub fn simulated_image_panel(
             };
             let (res_x, res_y) = camera.resolution_f64();
 
-            // A short status line above the plot.
-            match projected {
-                Some(p) if p.len() >= 2 => {
-                    let max_w = p.max_total_px().unwrap_or(0.0);
-                    ui.label(format!(
-                        "Projected laser line — {} pts, peak width {max_w:.2} px \
-                         (geometric ⊕ defocus)",
-                        p.len()
-                    ));
-                }
-                _ => {
-                    ui.colored_label(
-                        egui::Color32::LIGHT_YELLOW,
-                        "The laser line is not visible to the camera \
-                         (it misses the target or falls outside the frame).",
-                    );
-                }
-            }
+            // A two-line status block above the plot: width summary on row 1,
+            // mm/px resolution summary on row 2. Reserve worst-case height so
+            // the plot doesn't jump as the user moves sliders and the laser
+            // visibility transitions between visible (2 rows) and not (1 row).
+            let row_h = ui.text_style_height(&egui::TextStyle::Body);
+            let status_height = 2.0 * row_h + ui.spacing().item_spacing.y;
+            ui.allocate_ui_with_layout(
+                egui::vec2(ui.available_width(), status_height),
+                egui::Layout::top_down(egui::Align::LEFT),
+                |ui| match projected {
+                    Some(p) if p.len() >= 2 => {
+                        let max_w = p.max_total_px().unwrap_or(0.0);
+                        ui.label(format!(
+                            "Projected laser line — {} pts, peak width {max_w:.2} px \
+                             (geometric ⊕ defocus)",
+                            p.len()
+                        ));
+                        match p.resolution_summary_mm_per_px() {
+                            Some((mn, md, mx)) => ui.label(format!(
+                                "Resolution along stripe: min {mn:.3} / median {md:.3} \
+                                 / max {mx:.3} mm/px"
+                            )),
+                            None => ui.label("Resolution: — (need ≥ 2 projected vertices)"),
+                        };
+                    }
+                    _ => {
+                        ui.colored_label(
+                            egui::Color32::LIGHT_YELLOW,
+                            "The laser line is not visible to the camera \
+                             (it misses the target or falls outside the frame).",
+                        );
+                    }
+                },
+            );
 
             // The plot: pixel axes, y inverted so (0,0) is top-left like the
             // sensor, a fixed 1:1 data aspect so the line is not distorted.
@@ -241,12 +257,15 @@ fn vertex_normals(points: &[etendue_core::laser::ProjectedPoint]) -> Vec<Vector2
 mod tests {
     use super::*;
     use etendue_core::laser::ProjectedPoint;
-    use nalgebra::Point2;
+    use nalgebra::{Point2, Point3};
 
     /// A projected vertex at `(x, y)` with a given total imaged width.
+    /// `world_m` is set to the origin — these tests exercise the band-drawing
+    /// helpers, which only read `pixel` and `total_px`.
     fn pt(x: f64, y: f64, total: f64) -> ProjectedPoint {
         ProjectedPoint {
             pixel: Point2::new(x, y),
+            world_m: Point3::origin(),
             geom_px: total * 0.5,
             defocus_px: total * 0.5,
             total_px: total,

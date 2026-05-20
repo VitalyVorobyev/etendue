@@ -195,6 +195,89 @@ impl Scene {
             targets: vec![target],
         }
     }
+
+    /// Generate **N triangulation pairs** arranged symmetrically around a
+    /// world-space axis through `target_center`.
+    ///
+    /// Each pair is a rigid-body rotation of `(camera_template, laser_template)`
+    /// about the line `(target_center, axis)` by `2π · i / n`, for `i ∈ 0..n`.
+    /// Pair `0` is the unchanged template; later pairs preserve the template's
+    /// baseline, lens spec, laser fan geometry, and target-facing orientation —
+    /// only the position around the axis differs. The function returns the
+    /// vectors of N cameras and N lasers; the caller assembles them into a
+    /// scene with whatever target(s) the rig inspects.
+    ///
+    /// This is the M10 "symmetric inspection rig" builder: industrial setups
+    /// frequently view a tool from 3, 6, or 8 sides at once, with each side a
+    /// camera + line-laser pair. The same lens and laser are replicated, so
+    /// every pair has the same metrology resolution and depth of field — only
+    /// the viewing angle differs.
+    ///
+    /// # Parameters
+    ///
+    /// - `n`: number of pairs (`>= 2`).
+    /// - `axis`: the rotation axis in world coordinates. Need not be a unit
+    ///   vector; it is normalised internally. A zero vector is rejected.
+    /// - `target_center`: the world point the rotation pivots through. For a
+    ///   TCP-Z robot inspection setup this is the tool's centre; for an
+    ///   external rig it is the inspection target's centroid.
+    /// - `camera_template`: the pose-and-parameters of pair 0's camera. Its
+    ///   pose-relative-to-`target_center` is preserved across all pairs.
+    /// - `laser_template`: the pose-and-parameters of pair 0's laser.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::InvalidInput`](crate::Error::InvalidInput) if `n < 2`,
+    /// if `axis` is a zero or non-finite vector, or if `target_center` has any
+    /// non-finite component.
+    pub fn triangulation_ring(
+        n: usize,
+        axis: Vector3<f64>,
+        target_center: Point3<f64>,
+        camera_template: &CameraEntity,
+        laser_template: &LaserEntity,
+    ) -> crate::Result<(Vec<CameraEntity>, Vec<LaserEntity>)> {
+        if n < 2 {
+            return Err(crate::Error::InvalidInput {
+                reason: format!("triangulation ring needs N >= 2, got {n}"),
+            });
+        }
+        let axis_norm = axis.norm();
+        if !(axis_norm.is_finite() && axis_norm > 1e-12) {
+            return Err(crate::Error::InvalidInput {
+                reason: format!(
+                    "ring axis must be a finite, non-zero vector, got norm {axis_norm}"
+                ),
+            });
+        }
+        let axis_unit = nalgebra::Unit::new_unchecked(axis / axis_norm);
+        if !target_center.coords.iter().all(|c| c.is_finite()) {
+            return Err(crate::Error::InvalidInput {
+                reason: format!("ring target_center must be finite, got {target_center:?}"),
+            });
+        }
+
+        let mut cameras = Vec::with_capacity(n);
+        let mut lasers = Vec::with_capacity(n);
+        for i in 0..n {
+            let angle = (i as f64) / (n as f64) * std::f64::consts::TAU;
+            let rotation = UnitQuaternion::from_axis_angle(&axis_unit, angle);
+            // Rotation about `target_center`: `q ↦ target_center + R · (q - target_center)`.
+            // As an Isometry3 this is `Translation(target_center - R · target_center) ∘ R`,
+            // so the composition with the template pose still maps local → world.
+            let pivot_offset = target_center.coords - rotation * target_center.coords;
+            let pivot = Isometry3::from_parts(Translation3::from(pivot_offset), rotation);
+
+            let mut cam = camera_template.clone();
+            cam.pose = pivot * cam.pose;
+            cameras.push(cam);
+
+            let mut laser = laser_template.clone();
+            laser.pose = pivot * laser.pose;
+            lasers.push(laser);
+        }
+        Ok((cameras, lasers))
+    }
 }
 
 /// The rotation that takes a frame's local `+z` axis onto the unit vector
@@ -363,6 +446,150 @@ mod tests {
             "the default scene should put the target edges out of focus so \
              the heatmap shows a band; peak CoC was only {max} px"
         );
+    }
+
+    #[test]
+    fn triangulation_ring_rejects_degenerate_inputs() {
+        let scene = Scene::default_mvp();
+        let cam = &scene.cameras[0];
+        let laser = &scene.lasers[0];
+        let centre = scene.targets[0].pose * Point3::origin();
+        // n < 2.
+        assert!(
+            Scene::triangulation_ring(1, Vector3::z(), centre, cam, laser).is_err(),
+            "N < 2 must be rejected"
+        );
+        // Zero axis.
+        assert!(
+            Scene::triangulation_ring(3, Vector3::zeros(), centre, cam, laser).is_err(),
+            "zero axis must be rejected"
+        );
+        // Non-finite axis.
+        assert!(
+            Scene::triangulation_ring(3, Vector3::new(f64::NAN, 0.0, 0.0), centre, cam, laser)
+                .is_err(),
+            "non-finite axis must be rejected"
+        );
+        // Non-finite centre.
+        let bad_centre = Point3::new(f64::NAN, 0.0, 0.0);
+        assert!(
+            Scene::triangulation_ring(3, Vector3::z(), bad_centre, cam, laser).is_err(),
+            "non-finite centre must be rejected"
+        );
+    }
+
+    #[test]
+    fn triangulation_ring_returns_n_cameras_and_n_lasers() {
+        let scene = Scene::default_mvp();
+        let centre = scene.targets[0].pose * Point3::origin();
+        let (cams, lasers) =
+            Scene::triangulation_ring(6, Vector3::z(), centre, &scene.cameras[0], &scene.lasers[0])
+                .expect("valid ring");
+        assert_eq!(cams.len(), 6);
+        assert_eq!(lasers.len(), 6);
+    }
+
+    #[test]
+    fn triangulation_ring_preserves_pair_zero_pose() {
+        // The i = 0 pair is the template rotated by 0 — i.e., unchanged.
+        let scene = Scene::default_mvp();
+        let centre = scene.targets[0].pose * Point3::origin();
+        let (cams, lasers) =
+            Scene::triangulation_ring(4, Vector3::z(), centre, &scene.cameras[0], &scene.lasers[0])
+                .unwrap();
+        let cam0 = &cams[0];
+        let laser0 = &lasers[0];
+        assert_relative_eq!(
+            cam0.pose.translation.vector,
+            scene.cameras[0].pose.translation.vector,
+            epsilon = 1e-12,
+        );
+        assert_relative_eq!(
+            laser0.pose.translation.vector,
+            scene.lasers[0].pose.translation.vector,
+            epsilon = 1e-12,
+        );
+        // Lens / sensor / laser specs identical to template (the function
+        // clones the template and replaces only the pose).
+        assert_eq!(cam0.resolution, scene.cameras[0].resolution);
+        assert_relative_eq!(
+            cam0.effective_focal_length_m,
+            scene.cameras[0].effective_focal_length_m,
+            epsilon = 1e-12,
+        );
+        assert_relative_eq!(
+            laser0.fan_half_angle,
+            scene.lasers[0].fan_half_angle,
+            epsilon = 1e-12,
+        );
+    }
+
+    #[test]
+    fn triangulation_ring_preserves_distance_to_target_centre() {
+        // Every pair sits on the same ring: the camera-to-target-centre and
+        // laser-to-target-centre distances must be invariant under the
+        // rotation. This is the geometric property a "symmetric ring" must
+        // satisfy.
+        let scene = Scene::default_mvp();
+        let centre = scene.targets[0].pose * Point3::origin();
+        let (cams, lasers) =
+            Scene::triangulation_ring(8, Vector3::z(), centre, &scene.cameras[0], &scene.lasers[0])
+                .unwrap();
+        let r_cam_0 = (scene.cameras[0].pose * Point3::origin() - centre).norm();
+        let r_laser_0 = (scene.lasers[0].pose * Point3::origin() - centre).norm();
+        for (cam, laser) in cams.iter().zip(lasers.iter()) {
+            let r_cam = (cam.pose * Point3::origin() - centre).norm();
+            let r_laser = (laser.pose * Point3::origin() - centre).norm();
+            assert_relative_eq!(r_cam, r_cam_0, epsilon = 1e-9);
+            assert_relative_eq!(r_laser, r_laser_0, epsilon = 1e-9);
+        }
+    }
+
+    #[test]
+    fn triangulation_ring_has_n_fold_rotational_symmetry() {
+        // The 6-pair ring's pair 1 must equal pair 0 rotated by 60° about +Z.
+        // Specifically, taking pair 1's camera-eye, rotating it by -60° about
+        // +Z (i.e., undoing the ring rotation), must land on pair 0's eye.
+        let scene = Scene::default_mvp();
+        let centre = scene.targets[0].pose * Point3::origin();
+        let (cams, _lasers) =
+            Scene::triangulation_ring(6, Vector3::z(), centre, &scene.cameras[0], &scene.lasers[0])
+                .unwrap();
+        let cam0_eye = cams[0].pose * Point3::origin();
+        let cam1_eye = cams[1].pose * Point3::origin();
+        let undo =
+            UnitQuaternion::from_axis_angle(&Vector3::z_axis(), -std::f64::consts::TAU / 6.0);
+        // Rotate cam1's offset from centre by -60° and add back the centre.
+        let cam1_rolled_back = centre + undo * (cam1_eye - centre);
+        assert_relative_eq!(cam1_rolled_back, cam0_eye, epsilon = 1e-9);
+    }
+
+    #[test]
+    fn triangulation_ring_pairs_all_look_at_the_target_centre() {
+        // Every camera's optical axis (local +z mapped to world) should point
+        // at the target centre after the rotation — same property the default
+        // scene's single camera enjoys, replicated across the ring.
+        let scene = Scene::default_mvp();
+        let centre = scene.targets[0].pose * Point3::origin();
+        let (cams, lasers) =
+            Scene::triangulation_ring(4, Vector3::z(), centre, &scene.cameras[0], &scene.lasers[0])
+                .unwrap();
+        for cam in &cams {
+            let eye = cam.pose * Point3::origin();
+            let optical_axis = (cam.pose * Point3::new(0.0, 0.0, 1.0)) - eye;
+            let to_centre = (centre - eye).normalize();
+            assert_relative_eq!(
+                optical_axis.normalize().dot(&to_centre),
+                1.0,
+                epsilon = 1e-9,
+            );
+        }
+        for laser in &lasers {
+            let origin = laser.pose * Point3::origin();
+            let central = (laser.pose * Point3::new(0.0, 0.0, 1.0)) - origin;
+            let to_centre = (centre - origin).normalize();
+            assert_relative_eq!(central.normalize().dot(&to_centre), 1.0, epsilon = 1e-9,);
+        }
     }
 
     #[test]

@@ -79,16 +79,16 @@ const PROJECTED_STRIPE_SAMPLES: usize = 96;
 /// operations plus one projection through the camera).
 const WORKING_VOLUME_RESOLUTION: usize = 128;
 
-/// Compute the M4 defocus map for a scene's first camera against its first
-/// target, or `None` if the scene has no camera/target or the map could not
-/// be computed.
+/// Compute the M4 defocus map for the **displayed** camera + first target,
+/// or `None` if the scene has no camera/target or the map could not be
+/// computed.
 ///
 /// The `etendue-core` `defocus_map` analysis pairs one camera with one
-/// target; the MVP scene has exactly one of each, so this drives the heatmap
-/// off `cameras[0]` / `targets[0]`. A `None` result simply leaves the target
-/// drawn as the plain quad — it never aborts a frame.
-fn compute_defocus_map(scene: &Scene) -> Option<DefocusMap> {
-    let camera = scene.cameras.first()?;
+/// target. For the M10 multi-pair rig, the displayed pair (set by the panel
+/// selector) picks which camera drives the heatmap; the target stays as
+/// `targets[0]` since the heatmap visual is painted on that single quad.
+fn compute_defocus_map(scene: &Scene, pair_idx: usize) -> Option<DefocusMap> {
+    let camera = scene.cameras.get(pair_idx)?;
     let target = scene.targets.first()?;
     defocus_map(
         camera,
@@ -99,17 +99,17 @@ fn compute_defocus_map(scene: &Scene) -> Option<DefocusMap> {
     .ok()
 }
 
-/// Compute the M6 working volume for a scene's first camera + first laser,
+/// Compute the M6 working volume for the **displayed** pair's camera + laser,
 /// or `None` if either is missing or the analysis cannot be set up.
 ///
 /// The working volume is the set of points on the laser fan plane that are
 /// simultaneously illuminated by the laser, visible to the camera, and in
-/// focus (CoC ≤ [`DEFAULT_COC_THRESHOLD_PX`]). It backs both the M6
-/// translucent patch on the laser fan and the area / depth-range readouts
-/// in the parameter panel.
-fn compute_working_volume(scene: &Scene) -> Option<WorkingVolume> {
-    let camera = scene.cameras.first()?;
-    let laser = scene.lasers.first()?;
+/// focus (CoC ≤ [`DEFAULT_COC_THRESHOLD_PX`]). For the M10 multi-pair rig
+/// the user picks which pair drives both the rendered patch on the fan and
+/// the area / depth-range readout in the parameter panel.
+fn compute_working_volume(scene: &Scene, pair_idx: usize) -> Option<WorkingVolume> {
+    let camera = scene.cameras.get(pair_idx)?;
+    let laser = scene.lasers.get(pair_idx)?;
     working_volume(
         camera,
         laser,
@@ -120,17 +120,17 @@ fn compute_working_volume(scene: &Scene) -> Option<WorkingVolume> {
     .ok()
 }
 
-/// Compute the M5 projected laser line for a scene's first laser/target,
-/// imaged by its first camera — the data behind the simulated-image panel.
+/// Compute the M5 projected laser line for the **displayed** pair's laser +
+/// first target, imaged by the displayed camera — the data behind the
+/// simulated-image panel.
 ///
-/// Builds the laser fan plane, intersects it with the target to get the 3D
-/// stripe, and projects that stripe through the camera (geometric ⊕ defocus
-/// width in quadrature). Returns `None` when the scene lacks a camera, laser,
-/// or target, when the fan misses the target, or when the projection cannot
-/// be set up — in every case the panel simply shows an empty sensor frame.
-fn compute_projected_stripe(scene: &Scene) -> Option<ProjectedStripe> {
-    let camera = scene.cameras.first()?;
-    let laser = scene.lasers.first()?;
+/// Returns `None` when the displayed pair has no camera or laser, when the
+/// scene has no target, when the fan misses the target, or when the
+/// projection cannot be set up — in every case the panel simply shows an
+/// empty sensor frame.
+fn compute_projected_stripe(scene: &Scene, pair_idx: usize) -> Option<ProjectedStripe> {
+    let camera = scene.cameras.get(pair_idx)?;
+    let laser = scene.lasers.get(pair_idx)?;
     let target = scene.targets.first()?;
 
     let plane = LaserPlane::from_entity(laser);
@@ -269,13 +269,14 @@ impl Graphics {
         // would draw a plain quad and no working-volume patch until the
         // first slider edit.
         let panel_state = PanelState::default();
+        let initial_pair = panel_state.displayed_pair;
         let initial_map = if panel_state.show_heatmap {
-            compute_defocus_map(&scene)
+            compute_defocus_map(&scene, initial_pair)
         } else {
             None
         };
         let initial_volume = if panel_state.show_working_volume {
-            compute_working_volume(&scene)
+            compute_working_volume(&scene, initial_pair)
         } else {
             None
         };
@@ -288,7 +289,7 @@ impl Graphics {
 
         // The M5 projected laser line backing the simulated-image panel.
         // Computed once up front so the panel is populated on the first frame.
-        let projected_stripe = compute_projected_stripe(&scene);
+        let projected_stripe = compute_projected_stripe(&scene, initial_pair);
         // Move the initial working volume into the persistent cache so the
         // panel's status readout is populated on the first frame.
         let working_volume_cache = initial_volume;
@@ -452,7 +453,7 @@ impl Graphics {
         // legend only next frame — imperceptible, and the heatmap geometry
         // itself is rebuilt from a fresh post-edit map below.
         let legend_map = if panel_state_ref.show_heatmap {
-            compute_defocus_map(&scene_ref)
+            compute_defocus_map(&scene_ref, panel_state_ref.displayed_pair)
         } else {
             None
         };
@@ -488,7 +489,11 @@ impl Graphics {
             // the imaged line width (geometric ⊕ defocus). The sensor frame
             // is read from the live (post-edit) scene so a resolution edit
             // would reflect immediately.
-            simulated_image_panel(ui, projected_stripe_ref, scene_ref.cameras.first());
+            simulated_image_panel(
+                ui,
+                projected_stripe_ref,
+                scene_ref.cameras.get(panel_state_ref.displayed_pair),
+            );
         });
 
         // Restore mutably-borrowed fields.
@@ -511,13 +516,14 @@ impl Graphics {
         // Both are recomputed here from the *post-edit* scene so the heatmap
         // and the patch reflect this frame's slider changes.
         if scene_changed {
+            let pair_idx = self.panel_state.displayed_pair;
             let map = if self.panel_state.show_heatmap {
-                compute_defocus_map(&self.scene)
+                compute_defocus_map(&self.scene, pair_idx)
             } else {
                 None
             };
             let volume = if self.panel_state.show_working_volume {
-                compute_working_volume(&self.scene)
+                compute_working_volume(&self.scene, pair_idx)
             } else {
                 None
             };
@@ -527,7 +533,7 @@ impl Graphics {
             // simulated-image panel on the same reactivity path as the
             // heatmap. The 2D panel reads `self.projected_stripe` next frame,
             // so the line broadens/shifts in step with the 3D stripe.
-            self.projected_stripe = compute_projected_stripe(&self.scene);
+            self.projected_stripe = compute_projected_stripe(&self.scene, pair_idx);
             // M6: cache the recomputed working volume so the panel's status
             // readout (area, depth range) reads the post-edit numbers on the
             // next frame, on the same reactivity path.

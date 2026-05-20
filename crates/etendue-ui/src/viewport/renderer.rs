@@ -690,6 +690,23 @@ const TARGET_COLOR: [f32; 3] = [0.62, 0.64, 0.68];
 /// the defocus heatmap.
 const LASER_STRIPE_COLOR: [f32; 3] = [1.0, 0.42, 0.38];
 
+/// RGB color of the M8 imager (sensor plane) — a cool blue distinct from the
+/// amber frustum and the warm origin marker.
+const IMAGER_COLOR: [f32; 3] = [0.30, 0.50, 0.85];
+/// RGB color of the M8 front principal plane `H` — a pale cyan.
+const PRINCIPAL_H_COLOR: [f32; 3] = [0.55, 0.85, 0.95];
+/// RGB color of the M8 rear principal plane `H'` — a pale lavender, distinct
+/// from `H` so the two read as separate planes when the inter-principal gap is
+/// non-zero.
+const PRINCIPAL_HPRIME_COLOR: [f32; 3] = [0.80, 0.78, 0.95];
+/// Alpha of the M8 translucent camera-anatomy quads (imager + principal
+/// planes). Slightly lower than the laser fan so the camera body never reads
+/// as the dominant volume.
+const CAMERA_ANATOMY_ALPHA: f32 = 0.35;
+/// RGB color of the M8 lens aperture ring — a warm gold, distinct from both
+/// `CAMERA_COLOR` (more orange/amber) and `ORIGIN_MARKER_COLOR` (creamier).
+const APERTURE_COLOR: [f32; 3] = [0.95, 0.85, 0.40];
+
 /// Build every [`Drawable`] for a scene: the ground grid + world axes, then
 /// one drawable per camera / laser / target entity.
 ///
@@ -733,8 +750,9 @@ fn build_scene(
     working_volume: Option<&WorkingVolume>,
 ) -> Vec<Drawable> {
     use crate::viewport::scene::{
-        WORKING_VOLUME_ALPHA, WORKING_VOLUME_COLOR, camera_frustum_edges, isometry_to_matrix4,
-        laser_fan_mesh, laser_stripe_segments, target_quad_mesh, working_volume_mesh,
+        WORKING_VOLUME_ALPHA, WORKING_VOLUME_COLOR, camera_aperture_ring, camera_frustum_edges,
+        camera_imager_mesh, camera_principal_plane_meshes, isometry_to_matrix4, laser_fan_mesh,
+        laser_stripe_segments, target_quad_mesh, working_volume_mesh,
     };
 
     let mut drawables = Vec::new();
@@ -777,6 +795,56 @@ fn build_scene(
         // where the camera body sits — so the sensor stays locatable when its
         // frustum is viewed edge-on.
         drawables.push(origin_marker(device, model_layout, model));
+
+        // --- M8 camera anatomy: imager + principal planes + aperture -------
+        // The imager (sensor plane) is drawn at z = -sensor_distance in camera
+        // local; the two principal planes at z = -g (H) and z = 0 (H'); and a
+        // thin aperture ring at z = -g/2 with diameter f/N. All translucent
+        // except the ring (a line list), all using the existing pipelines.
+        if let Some(imager) = camera_imager_mesh(camera) {
+            let local_centroid = mesh_centroid(&imager);
+            let gpu = GpuMesh::from_trimesh(device, &imager, IMAGER_COLOR);
+            drawables.push(Drawable::new(
+                device,
+                model_layout,
+                Geometry::Mesh(gpu),
+                model,
+                [1.0, 1.0, 1.0, CAMERA_ANATOMY_ALPHA],
+                Pass::Translucent,
+                local_centroid,
+            ));
+        }
+        let (h_mesh, h_prime_mesh) = camera_principal_plane_meshes(camera);
+        for (mesh, color) in [
+            (h_mesh, PRINCIPAL_H_COLOR),
+            (h_prime_mesh, PRINCIPAL_HPRIME_COLOR),
+        ] {
+            let local_centroid = mesh_centroid(&mesh);
+            let gpu = GpuMesh::from_trimesh(device, &mesh, color);
+            drawables.push(Drawable::new(
+                device,
+                model_layout,
+                Geometry::Mesh(gpu),
+                model,
+                [1.0, 1.0, 1.0, CAMERA_ANATOMY_ALPHA],
+                Pass::Translucent,
+                local_centroid,
+            ));
+        }
+        let aperture_segments = camera_aperture_ring(camera, APERTURE_COLOR);
+        if !aperture_segments.is_empty() {
+            let local_centroid = segment_centroid(&aperture_segments);
+            let aperture_gpu = GpuLines::from_segments(device, &aperture_segments);
+            drawables.push(Drawable::new(
+                device,
+                model_layout,
+                Geometry::Lines(aperture_gpu),
+                model,
+                white,
+                Pass::Opaque,
+                local_centroid,
+            ));
+        }
     }
 
     // --- Lasers: translucent fans + an origin marker --------------------

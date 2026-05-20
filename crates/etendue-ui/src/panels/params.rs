@@ -71,8 +71,10 @@
 //! the panel (never panic). The caller owns the `Scene` mutation.
 
 use etendue_core::analysis::{DefocusMap, WorkingVolume};
+use etendue_core::optics::scheimpflug_tilt;
 use etendue_core::scene::{CameraEntity, LaserEntity, Scene, TargetEntity};
-use nalgebra::{Isometry3, Rotation3, Translation3, UnitQuaternion};
+use etendue_core::solver::{SampleGrid, SolverResult, SolverSpec, solve_scheimpflug};
+use nalgebra::{Isometry3, Rotation3, Translation3, UnitQuaternion, Vector3};
 
 use etendue_core::calibration::{IntrinsicsParams, ScheimpflugParams, SensorParams};
 
@@ -101,6 +103,84 @@ pub struct PanelState {
     /// visual (heatmap on target + working-volume patch on the fan + the
     /// 2D simulated-image panel below).
     pub show_working_volume: bool,
+    /// M9 Scheimpflug-solver UI state: input fields, last result, error.
+    pub solver: SolverPanelState,
+    /// M10 symmetric-rig builder UI state: N selector + rotation axis.
+    pub rig: RigPanelState,
+    /// M10 displayed pair index for the heatmap, working volume, and the
+    /// simulated-image panel. Clamped to `< scene.cameras.len()` on each
+    /// `sync_to_scene` so a scene rebuild never leaves the selector dangling.
+    pub displayed_pair: usize,
+}
+
+/// Rotation axis selector for the M10 symmetric rig.
+///
+/// Three cardinal world-axis choices cover the common industrial cases:
+/// `+Z` for a TCP-Z robot inspection rig, `+X` / `+Y` for table-mounted rings.
+/// A free user-entered axis is a follow-up.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RigAxis {
+    /// World `+X` axis.
+    X,
+    /// World `+Y` axis.
+    Y,
+    /// World `+Z` axis (the default — matches a vertical robot TCP).
+    Z,
+}
+
+impl RigAxis {
+    /// Convert to a `nalgebra` direction vector.
+    pub fn to_vector(self) -> Vector3<f64> {
+        match self {
+            RigAxis::X => Vector3::x(),
+            RigAxis::Y => Vector3::y(),
+            RigAxis::Z => Vector3::z(),
+        }
+    }
+}
+
+/// UI state for the M10 symmetric-rig builder section.
+#[derive(Debug, Clone, Copy)]
+pub struct RigPanelState {
+    /// Number of pairs to generate when the user clicks **Generate**.
+    pub n: usize,
+    /// World axis the pairs rotate around.
+    pub axis: RigAxis,
+}
+
+impl Default for RigPanelState {
+    fn default() -> Self {
+        // 6-fold symmetric inspection rigs are the canonical industrial case
+        // (six cameras at 60° around a tool); default to that.
+        Self {
+            n: 6,
+            axis: RigAxis::Z,
+        }
+    }
+}
+
+/// UI state for the M9 Scheimpflug solver section.
+///
+/// All three depth fields are `Option<f64>` so the section can lazily
+/// initialise them from the camera's current focus on first display, without
+/// hard-coding a default at panel construction (which would happen before any
+/// `Scene` is available).
+#[derive(Debug, Default)]
+pub struct SolverPanelState {
+    /// User-entered optimal working distance, in metres. `None` until the
+    /// solver section has been displayed once — then initialised from the
+    /// camera's current `focus_distance_m`.
+    pub d_opt_m: Option<f64>,
+    /// User-entered depth-window minimum, in metres.
+    pub d_min_m: Option<f64>,
+    /// User-entered depth-window maximum, in metres.
+    pub d_max_m: Option<f64>,
+    /// The most recent solver result, kept until the user applies or
+    /// discards it.
+    pub last_result: Option<SolverResult>,
+    /// The most recent solver error message, kept until the user re-solves
+    /// or applies a successful result.
+    pub error: Option<String>,
 }
 
 impl Default for PanelState {
@@ -115,16 +195,34 @@ impl Default for PanelState {
             // Open showing the working-volume patch — it is the M6 MVP
             // capstone's headline.
             show_working_volume: true,
+            solver: SolverPanelState::default(),
+            rig: RigPanelState::default(),
+            displayed_pair: 0,
         }
     }
 }
 
 impl PanelState {
-    /// Ensure the open-state vecs are long enough for the current scene.
+    /// Ensure the open-state vecs are long enough for the current scene, and
+    /// clamp the M10 displayed-pair selector into the current camera/laser
+    /// range.
     pub fn sync_to_scene(&mut self, scene: &Scene) {
         sync_open_vec(&mut self.camera_open, scene.cameras.len());
         sync_open_vec(&mut self.laser_open, scene.lasers.len());
         sync_open_vec(&mut self.target_open, scene.targets.len());
+        // Pair selector: the heatmap / sim-image / working-volume readouts
+        // pick `cameras[displayed_pair]` and `lasers[displayed_pair]`, so the
+        // index must be a valid pair index. If the scene has no cameras /
+        // lasers the selector is meaningless but we still want a sane value
+        // for storage (`0`).
+        let max_pair = scene
+            .cameras
+            .len()
+            .min(scene.lasers.len())
+            .saturating_sub(1);
+        if self.displayed_pair > max_pair {
+            self.displayed_pair = max_pair;
+        }
     }
 }
 
@@ -183,6 +281,23 @@ pub fn scene_panel(
                 }
                 ui.separator();
 
+                // --- Symmetric rig builder + pair selector (M10) -----------
+                let rig_changed = symmetric_rig_section(ui, scene, &mut state.rig);
+                changed |= rig_changed;
+                // After a Generate the camera/laser vecs may have grown; resync
+                // the open-state vecs and the displayed-pair clamp before we
+                // hand the scene to the per-camera collapsibles.
+                if rig_changed {
+                    state.sync_to_scene(scene);
+                }
+                let pair_changed = displayed_pair_selector(
+                    ui,
+                    &mut state.displayed_pair,
+                    scene.cameras.len().min(scene.lasers.len()),
+                );
+                changed |= pair_changed;
+                ui.separator();
+
                 // --- Defocus heatmap toggle + legend (M4) ------------------
                 let toggle = ui.checkbox(&mut state.show_heatmap, "Defocus heatmap");
                 // A flipped toggle swaps the target geometry, so it must
@@ -200,6 +315,18 @@ pub fn scene_panel(
                 changed |= wv_toggle.changed();
                 working_volume_readout(ui, working_volume, state.show_working_volume);
                 ui.separator();
+
+                // --- Scheimpflug solver (M9) -------------------------------
+                // Solves for optimal sensor tilt + focus distance given a
+                // depth-of-field window. Applied result mutates the first
+                // camera; like any slider edit it sets `changed` so the
+                // viewport + heatmap rebuild.
+                if let Some(cam) = scene.cameras.first_mut() {
+                    let laser = scene.lasers.first();
+                    let applied = scheimpflug_solver_section(ui, cam, laser, &mut state.solver);
+                    changed |= applied;
+                    ui.separator();
+                }
 
                 // --- Camera sections ---------------------------------------
                 for (i, camera) in scene.cameras.iter_mut().enumerate() {
@@ -231,6 +358,254 @@ pub fn scene_panel(
         });
 
     (changed, loaded_scene)
+}
+
+// ---------------------------------------------------------------------------
+// Symmetric rig builder + displayed-pair selector (M10)
+// ---------------------------------------------------------------------------
+
+/// Draw the M10 symmetric-rig builder: N selector, axis, and **Generate**.
+///
+/// "Generate" replaces the scene's cameras and lasers with N rotated copies
+/// of pair 0 (the first camera + first laser), pivoting around the chosen
+/// world axis through the first target's centre. Returns `true` if the click
+/// landed and the scene was mutated this frame, so the caller can trigger
+/// the same viewport-rebuild path a slider edit does.
+fn symmetric_rig_section(ui: &mut egui::Ui, scene: &mut Scene, state: &mut RigPanelState) -> bool {
+    let mut applied = false;
+    ui.collapsing("Symmetric rig (M10)", |ui| {
+        ui.horizontal(|ui| {
+            ui.label("N pairs:");
+            ui.add(egui::Slider::new(&mut state.n, 2..=8));
+        });
+        ui.horizontal(|ui| {
+            ui.label("Axis:");
+            ui.radio_value(&mut state.axis, RigAxis::X, "+X");
+            ui.radio_value(&mut state.axis, RigAxis::Y, "+Y");
+            ui.radio_value(&mut state.axis, RigAxis::Z, "+Z");
+        });
+        let can_generate =
+            !scene.cameras.is_empty() && !scene.lasers.is_empty() && !scene.targets.is_empty();
+        ui.add_enabled_ui(can_generate, |ui| {
+            if ui
+                .button("Generate ring (replaces pairs)")
+                .on_hover_text(
+                    "Replaces every camera and laser with N rotated copies of pair 0, \
+                     pivoting around the chosen axis through the first target's centre.",
+                )
+                .clicked()
+            {
+                let target_center = scene.targets[0].pose * nalgebra::Point3::origin();
+                let axis = state.axis.to_vector();
+                if let Ok((cams, lasers)) = Scene::triangulation_ring(
+                    state.n,
+                    axis,
+                    target_center,
+                    &scene.cameras[0],
+                    &scene.lasers[0],
+                ) {
+                    scene.cameras = cams;
+                    scene.lasers = lasers;
+                    applied = true;
+                }
+            }
+        });
+        if !can_generate {
+            ui.colored_label(
+                ui.visuals().weak_text_color(),
+                "Needs at least one camera, laser, and target as templates.",
+            );
+        }
+    });
+    applied
+}
+
+/// Selector for the M10 "displayed pair" — which (camera, laser) drives the
+/// heatmap, simulated-image panel, and working-volume readouts.
+///
+/// Returns `true` if the user moved the selector this frame, so the caller
+/// can trigger the same recompute path a slider edit does (the heatmap,
+/// working volume, and projected stripe all switch with the index).
+///
+/// Renders nothing when the scene has at most one pair (the index is then
+/// trivially 0 and the selector would just be noise).
+fn displayed_pair_selector(ui: &mut egui::Ui, displayed_pair: &mut usize, n_pairs: usize) -> bool {
+    if n_pairs <= 1 {
+        return false;
+    }
+    let max_idx = n_pairs - 1;
+    if *displayed_pair > max_idx {
+        *displayed_pair = max_idx;
+    }
+    let mut changed = false;
+    ui.horizontal(|ui| {
+        ui.label("Displayed pair:");
+        let r = ui.add(egui::Slider::new(displayed_pair, 0..=max_idx));
+        changed = r.changed();
+    });
+    changed
+}
+
+// ---------------------------------------------------------------------------
+// Scheimpflug solver section (M9)
+// ---------------------------------------------------------------------------
+
+/// Draw the M9 Scheimpflug-solver section: depth-window inputs, "Solve"
+/// button, last-result readout, and Apply / Discard.
+///
+/// Returns `true` if the user clicked **Apply** this frame — the camera was
+/// mutated, the caller should rebuild the viewport drawables (the same path
+/// any slider edit triggers).
+///
+/// The solver runs **synchronously** on the click: with a 32 × 32 grid it
+/// completes in well under one frame on a typical dev machine. Moving it to
+/// a worker thread is an explicit follow-up if solve times grow with future
+/// grid sizes or solver upgrades.
+fn scheimpflug_solver_section(
+    ui: &mut egui::Ui,
+    camera: &mut CameraEntity,
+    laser: Option<&LaserEntity>,
+    state: &mut SolverPanelState,
+) -> bool {
+    let mut applied = false;
+
+    ui.collapsing("Scheimpflug solver (M9)", |ui| {
+        // Lazy initialise the inputs from the camera's current focus the
+        // first time the section is opened. The user can then tune them
+        // freely; subsequent slider edits to the camera's focus do not
+        // override the user's choices here.
+        let d_opt_default = camera.focus_distance_m;
+        let d_opt = state.d_opt_m.get_or_insert(d_opt_default);
+        let d_min = state.d_min_m.get_or_insert(d_opt_default * 0.9);
+        let d_max = state.d_max_m.get_or_insert(d_opt_default * 1.1);
+
+        // Three drag-value inputs in metres. `speed(0.001)` gives a 1 mm
+        // step at the typical mouse-drag rate.
+        ui.horizontal(|ui| {
+            ui.label("Optimal distance (m)");
+            ui.add(egui::DragValue::new(d_opt).speed(0.001).range(0.01..=10.0));
+        });
+        ui.horizontal(|ui| {
+            ui.label("Depth min (m)     ");
+            ui.add(egui::DragValue::new(d_min).speed(0.001).range(0.01..=10.0));
+        });
+        ui.horizontal(|ui| {
+            ui.label("Depth max (m)     ");
+            ui.add(egui::DragValue::new(d_max).speed(0.001).range(0.01..=10.0));
+        });
+
+        let can_solve = laser.is_some();
+        ui.horizontal(|ui| {
+            ui.add_enabled_ui(can_solve, |ui| {
+                if ui.button("Solve").clicked()
+                    && let Some(laser) = laser
+                {
+                    let spec = SolverSpec {
+                        d_opt: *d_opt,
+                        depth_range: (*d_min, *d_max),
+                        grid: SampleGrid::DEFAULT,
+                    };
+                    match solve_scheimpflug(camera, laser, &spec) {
+                        Ok(res) => {
+                            state.last_result = Some(res);
+                            state.error = None;
+                        }
+                        Err(e) => {
+                            state.error = Some(e.to_string());
+                            state.last_result = None;
+                        }
+                    }
+                }
+            });
+            if !can_solve {
+                ui.colored_label(
+                    ui.visuals().weak_text_color(),
+                    "Solver needs a laser in the scene",
+                );
+            }
+        });
+
+        // Reserve worst-case height so the panel doesn't jump as the
+        // result/error blocks come and go. Worst case is the result block:
+        // 4 lines of tau/s_o/CoC/iters + Apply/Discard row = ~5 rows.
+        let row_h = ui.text_style_height(&egui::TextStyle::Body);
+        let block_height = 5.0 * row_h + 4.0 * ui.spacing().item_spacing.y;
+        ui.allocate_ui_with_layout(
+            egui::vec2(ui.available_width(), block_height),
+            egui::Layout::top_down(egui::Align::LEFT),
+            |ui| {
+                if let Some(res) = state.last_result {
+                    let (cur_tau_x, cur_tau_y) = scheimpflug_tilt(&camera.params);
+                    ui.label(format!(
+                        "tau_x: {:+.3}° → {:+.3}°",
+                        cur_tau_x.to_degrees(),
+                        res.tau_x.to_degrees(),
+                    ));
+                    ui.label(format!(
+                        "tau_y: {:+.3}° → {:+.3}°",
+                        cur_tau_y.to_degrees(),
+                        res.tau_y.to_degrees(),
+                    ));
+                    ui.label(format!(
+                        "s_o:    {:.4} m → {:.4} m",
+                        camera.focus_distance_m, res.s_o,
+                    ));
+                    ui.label(format!(
+                        "Max CoC: {:.2} px  ·  {} samples  ·  {} iters{}",
+                        res.max_coc_px,
+                        res.n_valid_samples,
+                        res.iterations,
+                        if res.converged {
+                            ""
+                        } else {
+                            " (max iters hit)"
+                        },
+                    ));
+                    ui.horizontal(|ui| {
+                        if ui.button("Apply").clicked() {
+                            apply_solver_result(camera, res);
+                            state.last_result = None;
+                            applied = true;
+                        }
+                        if ui.button("Discard").clicked() {
+                            state.last_result = None;
+                        }
+                    });
+                } else if let Some(err) = &state.error {
+                    ui.colored_label(egui::Color32::LIGHT_RED, err);
+                } else {
+                    ui.colored_label(
+                        ui.visuals().weak_text_color(),
+                        "No solver result yet. Set the depth window and press Solve.",
+                    );
+                }
+            },
+        );
+    });
+
+    applied
+}
+
+/// Apply a solver result to the camera: write the proposed Scheimpflug tilt
+/// and focus back into the camera entity.
+///
+/// This converts the sensor to [`SensorParams::Scheimpflug`] if it isn't
+/// already — the user may have started from an identity or raw-homography
+/// sensor; the solver's output is always a Scheimpflug tilt, so the camera
+/// must carry the variant that retains the tilt angles (the M4 defocus model
+/// reads them straight from the variant).
+fn apply_solver_result(camera: &mut CameraEntity, result: SolverResult) {
+    camera.focus_distance_m = result.s_o;
+    camera.params.sensor = SensorParams::Scheimpflug {
+        params: ScheimpflugParams {
+            tilt_x: result.tau_x,
+            tilt_y: result.tau_y,
+        },
+    };
+    // Keep the derived pixel-unit intrinsics consistent. (Focus distance does
+    // not feed `fx/fy`, but the call is cheap and matches the convention every
+    // other slider in this panel follows.)
+    camera.sync_intrinsics_from_physical();
 }
 
 // ---------------------------------------------------------------------------
@@ -292,35 +667,43 @@ fn heatmap_legend(ui: &mut egui::Ui, heatmap: Option<&DefocusMap>) {
         );
     }
 
-    // Tick labels under the strip.
-    match max_coc {
-        None => {
-            ui.colored_label(
-                egui::Color32::from_rgb(
-                    (NONE_COLOR[0] * 255.0) as u8,
-                    (NONE_COLOR[1] * 255.0) as u8,
-                    (NONE_COLOR[2] * 255.0) as u8,
-                ),
-                "target not imageable",
-            );
-        }
-        Some(m) if m <= SHARP_THRESHOLD_PX => {
-            ui.label(format!(
-                "all sharp — peak {m:.2} px (≤ {SHARP_THRESHOLD_PX:.0} px in focus)"
-            ));
-        }
-        Some(m) => {
-            ui.horizontal(|ui| {
-                ui.label("0");
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.label(format!("max {m:.1} px"));
+    // Tick labels under the strip. The three match arms render 1, 1, and 2
+    // rows respectively; reserving worst-case height keeps the panel from
+    // jumping when the CoC state transitions between branches as sliders move.
+    let row_h = ui.text_style_height(&egui::TextStyle::Body);
+    let labels_height = 2.0 * row_h + ui.spacing().item_spacing.y;
+    ui.allocate_ui_with_layout(
+        egui::vec2(ui.available_width(), labels_height),
+        egui::Layout::top_down(egui::Align::LEFT),
+        |ui| match max_coc {
+            None => {
+                ui.colored_label(
+                    egui::Color32::from_rgb(
+                        (NONE_COLOR[0] * 255.0) as u8,
+                        (NONE_COLOR[1] * 255.0) as u8,
+                        (NONE_COLOR[2] * 255.0) as u8,
+                    ),
+                    "target not imageable",
+                );
+            }
+            Some(m) if m <= SHARP_THRESHOLD_PX => {
+                ui.label(format!(
+                    "all sharp — peak {m:.2} px (≤ {SHARP_THRESHOLD_PX:.0} px in focus)"
+                ));
+            }
+            Some(m) => {
+                ui.horizontal(|ui| {
+                    ui.label("0");
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        ui.label(format!("max {m:.1} px"));
+                    });
                 });
-            });
-            ui.label(format!(
-                "in-focus band: CoC ≤ {SHARP_THRESHOLD_PX:.0} px (green)"
-            ));
-        }
-    }
+                ui.label(format!(
+                    "in-focus band: CoC ≤ {SHARP_THRESHOLD_PX:.0} px (green)"
+                ));
+            }
+        },
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -351,45 +734,56 @@ fn working_volume_readout(
 ) {
     let dim_color = ui.visuals().weak_text_color();
 
-    let Some(wv) = working_volume else {
-        ui.colored_label(dim_color, "no working volume — check scene");
-        return;
-    };
+    // Reserve two rows so the panel stays put when the working volume
+    // transitions between None (1 row) and Some (2 rows) as sliders move.
+    let row_h = ui.text_style_height(&egui::TextStyle::Body);
+    let readout_height = 2.0 * row_h + ui.spacing().item_spacing.y;
+    ui.allocate_ui_with_layout(
+        egui::vec2(ui.available_width(), readout_height),
+        egui::Layout::top_down(egui::Align::LEFT),
+        |ui| {
+            let Some(wv) = working_volume else {
+                ui.colored_label(dim_color, "no working volume — check scene");
+                return;
+            };
 
-    let area_m2 = wv.area_m2();
-    let area_mm2 = area_m2 * 1.0e6;
+            let area_m2 = wv.area_m2();
+            let area_mm2 = area_m2 * 1.0e6;
 
-    // Area line: report mm² for a sensible 1–10000 reading; switch to cm²
-    // beyond that so the label stays compact for a wide-angle sensor.
-    let area_text = if area_mm2 >= 1.0e4 {
-        format!("Area: {:.2} cm²", area_mm2 * 1.0e-2)
-    } else {
-        format!("Area: {area_mm2:.1} mm²")
-    };
+            // Area line: report mm² for a sensible 1–10000 reading; switch to
+            // cm² beyond that so the label stays compact for a wide-angle
+            // sensor.
+            let area_text = if area_mm2 >= 1.0e4 {
+                format!("Area: {:.2} cm²", area_mm2 * 1.0e-2)
+            } else {
+                format!("Area: {area_mm2:.1} mm²")
+            };
 
-    let depth_text = match wv.depth_range_m() {
-        Some((z_min, z_max)) => {
-            let span_mm = (z_max - z_min) * 1.0e3;
-            format!(
-                "Depth z: {:.1}..{:.1} mm  (Δ {:.1} mm)",
-                z_min * 1.0e3,
-                z_max * 1.0e3,
-                span_mm,
-            )
-        }
-        None => "Depth z: — (empty volume)".to_string(),
-    };
+            let depth_text = match wv.depth_range_m() {
+                Some((z_min, z_max)) => {
+                    let span_mm = (z_max - z_min) * 1.0e3;
+                    format!(
+                        "Depth z: {:.1}..{:.1} mm  (Δ {:.1} mm)",
+                        z_min * 1.0e3,
+                        z_max * 1.0e3,
+                        span_mm,
+                    )
+                }
+                None => "Depth z: — (empty volume)".to_string(),
+            };
 
-    if show_patch {
-        ui.label(area_text);
-        ui.label(depth_text);
-    } else {
-        // Show the numbers in a dimmer colour so the off-state is obvious;
-        // the values themselves are still useful for tuning sliders without
-        // the on-fan overlay.
-        ui.colored_label(dim_color, area_text);
-        ui.colored_label(dim_color, depth_text);
-    }
+            if show_patch {
+                ui.label(area_text);
+                ui.label(depth_text);
+            } else {
+                // Show the numbers in a dimmer colour so the off-state is
+                // obvious; the values themselves are still useful for tuning
+                // sliders without the on-fan overlay.
+                ui.colored_label(dim_color, area_text);
+                ui.colored_label(dim_color, depth_text);
+            }
+        },
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -654,6 +1048,26 @@ fn laser_section(ui: &mut egui::Ui, laser: &mut LaserEntity, label: &str, open: 
                 // Keep w0 strictly positive (the entity's invariant and the
                 // GaussianBeamWidth model both require it).
                 laser.beam_waist_m = (waist_um * 1.0e-6).max(1.0e-7);
+                changed = true;
+            }
+
+            // --- Stripe orientation snap (M8) ------------------------------
+            // The simulated-image-panel projection is data-driven: the laser
+            // pose alone decides whether the stripe lands vertical or
+            // horizontal in the image. Industrial setups often want the line
+            // horizontal (the user's preference). One click rolls the laser
+            // by 90° about its local z (the central ray) — that flips the
+            // fan plane between the laser-local y-z plane and x-z plane and
+            // swaps the imaged-line orientation.
+            if ui.button("Rotate stripe 90°").clicked() {
+                let roll = Isometry3::from_parts(
+                    Translation3::identity(),
+                    UnitQuaternion::from_axis_angle(
+                        &Vector3::z_axis(),
+                        std::f64::consts::FRAC_PI_2,
+                    ),
+                );
+                laser.pose *= roll;
                 changed = true;
             }
 
