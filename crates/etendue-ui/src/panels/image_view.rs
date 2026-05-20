@@ -35,11 +35,21 @@
 
 use egui_plot::{Line, Plot, PlotPoints, Points, Polygon};
 use etendue_core::laser::ProjectedStripe;
+use etendue_core::optics::GAUSSIAN_FWHM_PER_SIGMA;
 use etendue_core::scene::CameraEntity;
 use nalgebra::{Point2, Vector2};
 
-/// Fill color of the simulated laser-line band — a translucent red.
+/// Fill color of the bright **core** of the simulated laser line — a
+/// translucent red matching the M5 hard-edge band's apparent intensity. The
+/// core extends `± geom_px / 2` from the centerline, representing the
+/// laser's *physical* cross-section (the unblurred line).
 const BAND_FILL: egui::Color32 = egui::Color32::from_rgba_premultiplied(150, 40, 36, 90);
+/// Fill color of the Gaussian-PSF **halo** that surrounds the core. Lower
+/// alpha so the wings read as a subtle glow at low defocus and a clear soft
+/// halo at high defocus. The halo extends `± (geom_px/2 + 2·sigma)` from
+/// the centerline, where `sigma = defocus_px / 2.3548` is the FWHM-matched
+/// Gaussian sigma of the M9-follow-up PSF model.
+const HALO_FILL: egui::Color32 = egui::Color32::from_rgba_premultiplied(70, 24, 20, 28);
 /// Color of the centre polyline drawn over the band — a bright red.
 const LINE_COLOR: egui::Color32 = egui::Color32::from_rgb(255, 90, 80);
 /// Color of the sensor-frame rectangle — a dim grey.
@@ -158,18 +168,37 @@ pub fn simulated_image_panel(
         });
 }
 
-/// Draw the projected laser line: the width-encoding band, then the centre
-/// polyline, then the vertex markers.
+/// Draw the projected laser line: the Gaussian-PSF halo, then the bright
+/// core band, then the centre polyline, then the vertex markers.
+///
+/// The hard-edge band of the original M5 panel splits into two nested bands
+/// reflecting the M9 follow-up PSF model: an inner *core* of half-width
+/// `geom_px / 2` (the physical laser cross-section, essentially unblurred)
+/// and an outer *halo* of half-width `geom_px / 2 + 2·sigma`, where
+/// `sigma = defocus_px / 2.3548` is the FWHM-matched Gaussian sigma. The
+/// halo collapses to the core when the stripe is in perfect focus
+/// (`defocus_px ≈ 0`), and widens visibly as the defocus grows — exactly
+/// the physical reading of a Gaussian PSF.
 fn draw_projected_line(plot_ui: &mut egui_plot::PlotUi<'_>, projected: &ProjectedStripe) {
     let points = projected.points();
 
-    // --- The width-encoding band ----------------------------------------
-    // Build the two rails by offsetting each vertex ±half-width along the
-    // projected polyline's local normal, then close them into one ribbon.
-    let band = band_polygon(points);
-    if band.len() >= 3 {
+    // --- Outer halo: Gaussian wings -------------------------------------
+    // Drawn first so the core layer paints on top — alpha-blending then gives
+    // an opacity gradient that visually reads as a soft Gaussian falloff.
+    let halo = band_polygon_with(points, halo_half_width);
+    if halo.len() >= 3 {
         plot_ui.polygon(
-            Polygon::new("laser-line-width", PlotPoints::from(band))
+            Polygon::new("laser-line-halo", PlotPoints::from(halo))
+                .fill_color(HALO_FILL)
+                .stroke(egui::Stroke::NONE),
+        );
+    }
+
+    // --- Inner core: physical line cross-section ------------------------
+    let core = band_polygon_with(points, core_half_width);
+    if core.len() >= 3 {
+        plot_ui.polygon(
+            Polygon::new("laser-line-core", PlotPoints::from(core))
                 .fill_color(BAND_FILL)
                 .stroke(egui::Stroke::NONE),
         );
@@ -193,16 +222,38 @@ fn draw_projected_line(plot_ui: &mut egui_plot::PlotUi<'_>, projected: &Projecte
     );
 }
 
-/// Build the closed band polygon (a ribbon) around the projected polyline.
+/// Half-width of the bright **core** at a projected vertex: `geom_px / 2`,
+/// floored to [`MIN_HALF_WIDTH_PX`] so a tightly-focused sub-pixel beam still
+/// renders a visible line.
+fn core_half_width(p: &etendue_core::laser::ProjectedPoint) -> f64 {
+    (0.5 * p.geom_px).max(MIN_HALF_WIDTH_PX)
+}
+
+/// Half-width of the **Gaussian PSF halo** at a projected vertex:
+/// `geom_px/2 + 2·sigma`, where `sigma = defocus_px / 2.3548` is the
+/// FWHM-matched Gaussian sigma. Two sigmas of wing cover ~95 % of the
+/// Gaussian energy on each side of the core. Floored to
+/// [`MIN_HALF_WIDTH_PX`] for visibility.
+fn halo_half_width(p: &etendue_core::laser::ProjectedPoint) -> f64 {
+    let sigma = p.defocus_px / GAUSSIAN_FWHM_PER_SIGMA;
+    (0.5 * p.geom_px + 2.0 * sigma).max(MIN_HALF_WIDTH_PX)
+}
+
+/// Build the closed band polygon (a ribbon) around the projected polyline,
+/// using a per-vertex `half_width_of` callback to compute each rail's offset.
 ///
 /// At each vertex the across-line normal is the perpendicular of the local
 /// polyline direction (averaged across the vertex for interior points). The
-/// two rails are the vertex `± total_px/2` along that normal; the polygon
-/// traces the `+` rail forward then the `-` rail backward.
+/// two rails are the vertex `± half_width_of(vertex)` along that normal; the
+/// polygon traces the `+` rail forward then the `-` rail backward into a
+/// closed ribbon.
 ///
 /// Returns the polygon's vertices as `[x, y]` pixel pairs, or an empty `Vec`
 /// if the line is too short to form a band.
-fn band_polygon(points: &[etendue_core::laser::ProjectedPoint]) -> Vec<[f64; 2]> {
+fn band_polygon_with(
+    points: &[etendue_core::laser::ProjectedPoint],
+    half_width_of: impl Fn(&etendue_core::laser::ProjectedPoint) -> f64,
+) -> Vec<[f64; 2]> {
     let n = points.len();
     if n < 2 {
         return Vec::new();
@@ -214,8 +265,7 @@ fn band_polygon(points: &[etendue_core::laser::ProjectedPoint]) -> Vec<[f64; 2]>
     let mut positive: Vec<[f64; 2]> = Vec::with_capacity(n);
     let mut negative: Vec<[f64; 2]> = Vec::with_capacity(n);
     for (p, nrm) in points.iter().zip(&normals) {
-        // Half the imaged line width, with a small visibility floor.
-        let half = (0.5 * p.total_px).max(MIN_HALF_WIDTH_PX);
+        let half = half_width_of(p);
         let off = nrm * half;
         positive.push([p.pixel.x + off.x, p.pixel.y + off.y]);
         negative.push([p.pixel.x - off.x, p.pixel.y - off.y]);
@@ -225,6 +275,15 @@ fn band_polygon(points: &[etendue_core::laser::ProjectedPoint]) -> Vec<[f64; 2]>
     let mut ring = positive;
     ring.extend(negative.into_iter().rev());
     ring
+}
+
+/// Build the band polygon using the legacy `total_px`-based half-width — the
+/// M5 hard-edge behaviour. Kept for the unit tests that lock the original
+/// band geometry; production rendering uses the M9 follow-up nested-Gaussian
+/// layers via [`band_polygon_with`].
+#[cfg(test)]
+fn band_polygon(points: &[etendue_core::laser::ProjectedPoint]) -> Vec<[f64; 2]> {
+    band_polygon_with(points, |p| (0.5 * p.total_px).max(MIN_HALF_WIDTH_PX))
 }
 
 /// The per-vertex across-line unit normals of a projected polyline.
@@ -349,5 +408,67 @@ mod tests {
         for nrm in &normals {
             assert!((nrm.norm() - 1.0).abs() < 1e-9);
         }
+    }
+
+    /// A projected vertex with separately controlled `geom_px` and
+    /// `defocus_px` — the M9-follow-up tests need to vary them independently
+    /// since the new nested-Gaussian rendering distinguishes the two.
+    fn pt_gd(x: f64, y: f64, geom_px: f64, defocus_px: f64) -> ProjectedPoint {
+        ProjectedPoint {
+            pixel: Point2::new(x, y),
+            world_m: Point3::origin(),
+            geom_px,
+            defocus_px,
+            total_px: (geom_px * geom_px + defocus_px * defocus_px).sqrt(),
+        }
+    }
+
+    #[test]
+    fn gaussian_halo_collapses_to_core_for_a_sharp_stripe() {
+        // With defocus_px = 0 the halo half-width equals the core half-width:
+        // a perfectly focused stripe shows no Gaussian wings.
+        let sharp = pt_gd(5.0, 5.0, 2.0, 0.0);
+        let core = core_half_width(&sharp);
+        let halo = halo_half_width(&sharp);
+        assert!((halo - core).abs() < 1e-12);
+        assert!(core > 0.0);
+    }
+
+    #[test]
+    fn gaussian_halo_exceeds_core_when_defocus_is_present() {
+        // For a defocused stripe, the halo extends visibly beyond the core
+        // — that's the M9-follow-up visualisation contract.
+        let blurred = pt_gd(5.0, 5.0, 2.0, 6.0);
+        let core = core_half_width(&blurred);
+        let halo = halo_half_width(&blurred);
+        // Halo half-width = geom_px/2 + 2·sigma = 1 + 2·(6/2.3548) ≈ 6.10 px.
+        // Core half-width = geom_px/2 = 1 px.
+        assert!(
+            halo > core + 3.0,
+            "halo {halo} must exceed core {core} by ~5 px"
+        );
+        let expected_halo = 0.5 * 2.0 + 2.0 * 6.0 / GAUSSIAN_FWHM_PER_SIGMA;
+        assert!((halo - expected_halo).abs() < 1e-9);
+    }
+
+    #[test]
+    fn halo_grows_linearly_with_defocus() {
+        // Doubling defocus_px (at fixed geom_px) increases the halo width
+        // by 2·sigma — i.e., the *excess* over the core doubles.
+        let a = pt_gd(0.0, 0.0, 1.0, 3.0);
+        let b = pt_gd(0.0, 0.0, 1.0, 6.0);
+        let excess_a = halo_half_width(&a) - core_half_width(&a);
+        let excess_b = halo_half_width(&b) - core_half_width(&b);
+        assert!((excess_b - 2.0 * excess_a).abs() < 1e-9);
+    }
+
+    #[test]
+    fn halo_respects_the_visibility_floor() {
+        // A sub-pixel-narrow, perfectly focused stripe still rendered: the
+        // floor keeps the halo visible even when geom and defocus are both
+        // essentially zero.
+        let tiny = pt_gd(0.0, 0.0, 0.0, 0.0);
+        assert!((halo_half_width(&tiny) - MIN_HALF_WIDTH_PX).abs() < 1e-12);
+        assert!((core_half_width(&tiny) - MIN_HALF_WIDTH_PX).abs() < 1e-12);
     }
 }

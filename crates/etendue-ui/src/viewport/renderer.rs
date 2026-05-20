@@ -51,7 +51,7 @@ use bytemuck::{Pod, Zeroable};
 use nalgebra::{Matrix4, Point3};
 use wgpu::util::DeviceExt;
 
-use etendue_core::analysis::{DefocusMap, WorkingVolume};
+use etendue_core::analysis::{DefocusMap, VoxelOverlap, WorkingVolume};
 
 use crate::viewport::camera::OrbitCamera;
 use crate::viewport::mesh::{GpuColoredMesh, GpuLines, GpuMesh, GpuPoints, LineVertex, MeshVertex};
@@ -389,7 +389,7 @@ impl Renderer {
         // computed, so the initial scene draws plain target quads with no
         // working-volume overlay; `rebuild_scene` installs the M4 heatmap and
         // the M6 working-volume patch once the application has them.
-        let drawables = build_scene(device, &model_layout, scene, None, None);
+        let drawables = build_scene(device, &model_layout, scene, None, None, None);
 
         Self {
             model_layout,
@@ -555,8 +555,16 @@ impl Renderer {
         scene: &etendue_core::Scene,
         heatmap: Option<&DefocusMap>,
         working_volume: Option<&WorkingVolume>,
+        voxel_overlap: Option<(&VoxelOverlap, u32)>,
     ) {
-        self.drawables = build_scene(device, &self.model_layout, scene, heatmap, working_volume);
+        self.drawables = build_scene(
+            device,
+            &self.model_layout,
+            scene,
+            heatmap,
+            working_volume,
+            voxel_overlap,
+        );
     }
 }
 
@@ -748,11 +756,13 @@ fn build_scene(
     scene: &etendue_core::Scene,
     heatmap: Option<&DefocusMap>,
     working_volume: Option<&WorkingVolume>,
+    voxel_overlap: Option<(&VoxelOverlap, u32)>,
 ) -> Vec<Drawable> {
     use crate::viewport::scene::{
-        WORKING_VOLUME_ALPHA, WORKING_VOLUME_COLOR, camera_aperture_ring, camera_frustum_edges,
-        camera_imager_mesh, camera_principal_plane_meshes, isometry_to_matrix4, laser_fan_mesh,
-        laser_stripe_segments, target_quad_mesh, working_volume_mesh,
+        VOXEL_OVERLAP_ALPHA, VOXEL_OVERLAP_COLOR, WORKING_VOLUME_ALPHA, WORKING_VOLUME_COLOR,
+        camera_aperture_ring, camera_frustum_edges, camera_imager_mesh,
+        camera_principal_plane_meshes, isometry_to_matrix4, laser_fan_mesh, laser_stripe_segments,
+        target_quad_mesh, voxel_overlap_mesh, working_volume_mesh,
     };
 
     let mut drawables = Vec::new();
@@ -943,6 +953,27 @@ fn build_scene(
                 local_centroid,
             ));
         }
+    }
+
+    // --- M10 voxel-overlap: the N-view agreement volume ------------------
+    // Per the M10 plan (N-view voxelized overlap), this draws a translucent
+    // cube cloud over the voxels whose pair-coverage is at or above the
+    // user-chosen `min_overlap` threshold. World-coordinate vertices =>
+    // identity model. Skipped when no voxel meets the threshold.
+    if let Some((voxels, min_overlap)) = voxel_overlap
+        && let Some(mesh) = voxel_overlap_mesh(voxels, min_overlap)
+    {
+        let local_centroid = mesh_centroid(&mesh);
+        let gpu = GpuMesh::from_trimesh(device, &mesh, VOXEL_OVERLAP_COLOR);
+        drawables.push(Drawable::new(
+            device,
+            model_layout,
+            Geometry::Mesh(gpu),
+            Matrix4::identity(),
+            [1.0, 1.0, 1.0, VOXEL_OVERLAP_ALPHA],
+            Pass::Translucent,
+            local_centroid,
+        ));
     }
 
     drawables

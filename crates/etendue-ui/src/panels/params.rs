@@ -111,6 +111,15 @@ pub struct PanelState {
     /// simulated-image panel. Clamped to `< scene.cameras.len()` on each
     /// `sync_to_scene` so a scene rebuild never leaves the selector dangling.
     pub displayed_pair: usize,
+    /// Whether the M10 N-view voxel-overlap volume is shown in the viewport.
+    /// Off by default — the analysis is cheap but the visualisation only
+    /// makes sense with two or more pairs.
+    pub show_voxel_overlap: bool,
+    /// Minimum overlap (count of agreeing pairs) for a voxel to be drawn
+    /// when [`PanelState::show_voxel_overlap`] is on. `1` paints every
+    /// voxel any pair covers; `n_pairs` paints only voxels every pair
+    /// covers. Default `2`: the smallest non-trivial threshold.
+    pub voxel_min_overlap: u32,
 }
 
 /// Rotation axis selector for the M10 symmetric rig.
@@ -198,6 +207,8 @@ impl Default for PanelState {
             solver: SolverPanelState::default(),
             rig: RigPanelState::default(),
             displayed_pair: 0,
+            show_voxel_overlap: false,
+            voxel_min_overlap: 2,
         }
     }
 }
@@ -296,6 +307,27 @@ pub fn scene_panel(
                     scene.cameras.len().min(scene.lasers.len()),
                 );
                 changed |= pair_changed;
+                // --- N-view voxel overlap (M10.4) -------------------------
+                let n_pairs = scene.cameras.len().min(scene.lasers.len());
+                if n_pairs >= 2 {
+                    let voxel_toggle =
+                        ui.checkbox(&mut state.show_voxel_overlap, "N-view voxel overlap");
+                    changed |= voxel_toggle.changed();
+                    if state.show_voxel_overlap {
+                        let max_overlap = n_pairs.max(1) as u32;
+                        if state.voxel_min_overlap > max_overlap {
+                            state.voxel_min_overlap = max_overlap;
+                        }
+                        if state.voxel_min_overlap < 1 {
+                            state.voxel_min_overlap = 1;
+                        }
+                        let r = ui.add(
+                            egui::Slider::new(&mut state.voxel_min_overlap, 1..=max_overlap)
+                                .text("min agreeing pairs"),
+                        );
+                        changed |= r.changed();
+                    }
+                }
                 ui.separator();
 
                 // --- Defocus heatmap toggle + legend (M4) ------------------

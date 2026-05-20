@@ -42,11 +42,13 @@ use std::sync::Arc;
 use egui_wgpu::{Renderer as EguiRenderer, RendererOptions, ScreenDescriptor};
 use etendue_core::Scene;
 use etendue_core::analysis::{
-    DEFAULT_COC_THRESHOLD_PX, DefocusMap, WorkingVolume, defocus_map, working_volume,
+    DEFAULT_COC_THRESHOLD_PX, DefocusMap, VoxelBox, VoxelOverlap, VoxelResolution, WorkingVolume,
+    defocus_map, voxelized_overlap, working_volume,
 };
 use etendue_core::laser::{
     GaussianBeamWidth, LaserPlane, ProjectedStripe, project_stripe, stripe_on_target,
 };
+use nalgebra::Point3;
 use winit::event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent};
 use winit::window::Window;
 
@@ -118,6 +120,61 @@ fn compute_working_volume(scene: &Scene, pair_idx: usize) -> Option<WorkingVolum
         DEFAULT_COC_THRESHOLD_PX,
     )
     .ok()
+}
+
+/// Default voxel-grid resolution per axis for the M10 overlap analysis.
+///
+/// `16³ = 4096` voxels keeps the per-frame analysis cost negligible even with
+/// six pairs in the scene (per-voxel cost is dominated by a single projection
+/// and a CoC evaluation per pair). Higher resolutions are a follow-up — the
+/// UI does not expose the grid size yet.
+const VOXEL_GRID_RESOLUTION: usize = 16;
+
+/// Half-thickness, in metres, of the M10 illumination band used to decide
+/// "this voxel is illuminated by the fan plane". Roughly the worst-case
+/// physical fan thickness on a few-decimetre standoff with a 250 µm waist
+/// and visible-light wavelength.
+const VOXEL_ILLUM_THICKNESS_M: f64 = 2.0e-2;
+
+/// Compute the M10 N-view voxel-overlap field for the scene's pairs. Returns
+/// `None` when the scene has fewer than two paired cameras+lasers (the
+/// single-pair "overlap" is just the working volume and the dedicated
+/// working-volume layer already covers it).
+fn compute_voxel_overlap(scene: &Scene) -> Option<VoxelOverlap> {
+    let n_pairs = scene.cameras.len().min(scene.lasers.len());
+    if n_pairs < 2 {
+        return None;
+    }
+    let bounds = voxel_bounds_for_scene(scene)?;
+    let resolution = VoxelResolution {
+        nx: VOXEL_GRID_RESOLUTION,
+        ny: VOXEL_GRID_RESOLUTION,
+        nz: VOXEL_GRID_RESOLUTION,
+    };
+    voxelized_overlap(
+        scene,
+        bounds,
+        resolution,
+        DEFAULT_COC_THRESHOLD_PX,
+        VOXEL_ILLUM_THICKNESS_M,
+    )
+    .ok()
+}
+
+/// Build the M10 voxel-overlap bounding box for `scene`: a cube centred on
+/// the first target, sized to roughly enclose the rig's working region.
+fn voxel_bounds_for_scene(scene: &Scene) -> Option<VoxelBox> {
+    let target = scene.targets.first()?;
+    let centre = target.pose * Point3::origin();
+    // A 30 cm cube around the target centre — same scale as the default
+    // working-volume box; large enough to cover the typical inspection
+    // volume of a few-decimetre triangulation rig, small enough that 16³
+    // gives ~2 cm voxels.
+    let half = 0.15;
+    Some(VoxelBox {
+        min: Point3::new(centre.x - half, centre.y - half, centre.z - half),
+        max: Point3::new(centre.x + half, centre.y + half, centre.z + half),
+    })
 }
 
 /// Compute the M5 projected laser line for the **displayed** pair's laser +
@@ -206,6 +263,12 @@ struct Graphics {
     /// projected stripe. `None` when the scene has no camera/laser to compute
     /// it from, or when the analysis itself failed.
     working_volume: Option<WorkingVolume>,
+    /// The M10 N-view voxel-overlap field. Cached and refreshed on the same
+    /// reactivity path as the other analyses, but only when the panel's
+    /// `show_voxel_overlap` toggle is on (a 16³ × N-pairs analysis is cheap
+    /// but not free). `None` when the scene has fewer than two pairs or the
+    /// toggle is off.
+    voxel_overlap: Option<VoxelOverlap>,
 }
 
 impl Graphics {
@@ -280,11 +343,19 @@ impl Graphics {
         } else {
             None
         };
+        let initial_voxel_overlap = if panel_state.show_voxel_overlap {
+            compute_voxel_overlap(&scene)
+        } else {
+            None
+        };
         viewport.rebuild_scene(
             &device,
             &scene,
             initial_map.as_ref(),
             initial_volume.as_ref(),
+            initial_voxel_overlap
+                .as_ref()
+                .map(|v| (v, panel_state.voxel_min_overlap.max(1))),
         );
 
         // The M5 projected laser line backing the simulated-image panel.
@@ -293,6 +364,7 @@ impl Graphics {
         // Move the initial working volume into the persistent cache so the
         // panel's status readout is populated on the first frame.
         let working_volume_cache = initial_volume;
+        let voxel_overlap_cache = initial_voxel_overlap;
 
         let egui_ctx = egui::Context::default();
         let egui_state = egui_winit::State::new(
@@ -322,6 +394,7 @@ impl Graphics {
             panel_state,
             projected_stripe,
             working_volume: working_volume_cache,
+            voxel_overlap: voxel_overlap_cache,
         }
     }
 
@@ -527,8 +600,20 @@ impl Graphics {
             } else {
                 None
             };
-            self.viewport
-                .rebuild_scene(&self.device, &self.scene, map.as_ref(), volume.as_ref());
+            let voxels = if self.panel_state.show_voxel_overlap {
+                compute_voxel_overlap(&self.scene)
+            } else {
+                None
+            };
+            self.viewport.rebuild_scene(
+                &self.device,
+                &self.scene,
+                map.as_ref(),
+                volume.as_ref(),
+                voxels
+                    .as_ref()
+                    .map(|v| (v, self.panel_state.voxel_min_overlap.max(1))),
+            );
             // M5: refresh the cached projected laser line for the
             // simulated-image panel on the same reactivity path as the
             // heatmap. The 2D panel reads `self.projected_stripe` next frame,
@@ -538,6 +623,9 @@ impl Graphics {
             // readout (area, depth range) reads the post-edit numbers on the
             // next frame, on the same reactivity path.
             self.working_volume = volume;
+            // M10: cache the recomputed voxel overlap (used only when the
+            // toggle is on; otherwise this is `None`).
+            self.voxel_overlap = voxels;
         }
 
         self.egui_state

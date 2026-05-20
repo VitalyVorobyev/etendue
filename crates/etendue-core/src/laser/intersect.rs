@@ -36,8 +36,9 @@
 //!    points; each records its distance from the laser origin and its
 //!    cross-section width from a [`WidthModel`].
 
-use nalgebra::{Point3, Vector3};
+use nalgebra::{Isometry3, Point3, Vector3};
 
+use crate::geom::TriMesh;
 use crate::laser::plane::LaserPlane;
 use crate::laser::width::WidthModel;
 use crate::scene::TargetEntity;
@@ -215,6 +216,180 @@ pub fn stripe_on_target(
     Some(LaserStripe {
         samples: stripe_samples,
     })
+}
+
+/// Compute the laser stripe(s) where a fan plane cuts a triangle mesh.
+///
+/// Where [`stripe_on_target`] handles a single analytic plane, this handles
+/// a general triangle mesh — the per-triangle intersections of the fan
+/// plane with every triangle are collected, clipped to the fan extent, and
+/// returned as a vector of [`LaserStripe`]s, one per surviving segment.
+///
+/// # Why a vector rather than a single polyline
+///
+/// The fan plane can cross a non-convex mesh in **multiple disconnected
+/// arcs** (think of a fan crossing a ring-shaped object: the cut produces
+/// two arcs, one on each side of the hole). Concatenating them into a
+/// single polyline would draw fake edges across the gaps. A `Vec<LaserStripe>`
+/// preserves the topology: each surviving segment is its own piecewise-linear
+/// run, and the renderer / projection layer can draw or sample each
+/// independently. For a convex watertight mesh the typical result is a
+/// single-element vector — equivalent to the planar case.
+///
+/// # The construction
+///
+/// 1. For every triangle, transform vertices to world (`world_from_mesh`)
+///    and compute their signed distances to the fan plane.
+/// 2. If the three signed distances are all strictly the same sign, the
+///    triangle is wholly on one side of the plane — skip it.
+/// 3. Otherwise the plane crosses exactly two edges of the triangle (for a
+///    non-degenerate triangle and a non-grazing plane); compute the two
+///    edge-crossing points by linear interpolation along each edge.
+/// 4. Treat those two points as the endpoints of a finite segment; clip
+///    that segment to the fan's angular wedge + radial disc (the same clip
+///    [`stripe_on_target`] uses), and sample any surviving sub-segment
+///    into `samples_per_segment` evenly-spaced points.
+///
+/// Per-sample `width_m` comes from `width_model`, as in the planar case.
+///
+/// # Coordinate frames
+///
+/// `mesh` is in its own local frame; `world_from_mesh` maps it into world
+/// coordinates, where the fan plane lives. The returned samples are in
+/// world coordinates.
+///
+/// # Parameters
+///
+/// - `laser`: the laser fan, as a [`LaserPlane`] in world coordinates.
+/// - `mesh`: the inspection mesh, in its local frame.
+/// - `world_from_mesh`: the mesh's pose (`world ← mesh-local`).
+/// - `width_model`: cross-section width versus distance (e.g.
+///   [`GaussianBeamWidth`](crate::laser::GaussianBeamWidth)).
+/// - `samples_per_segment`: samples per surviving sub-segment; clamped up
+///   to 2 so each is representable.
+#[must_use]
+pub fn stripe_segments_on_mesh(
+    laser: &LaserPlane,
+    mesh: &TriMesh,
+    world_from_mesh: &Isometry3<f64>,
+    width_model: &dyn WidthModel,
+    samples_per_segment: usize,
+) -> Vec<LaserStripe> {
+    let n_samples = samples_per_segment.max(2);
+    let plane_origin = laser.origin();
+    let plane_normal = laser.normal();
+    let vertices = mesh.vertices();
+    let mut stripes = Vec::new();
+
+    for [i0, i1, i2] in mesh.indices().iter().copied() {
+        // World-space vertices.
+        let v0 = world_from_mesh * vertices[i0 as usize];
+        let v1 = world_from_mesh * vertices[i1 as usize];
+        let v2 = world_from_mesh * vertices[i2 as usize];
+
+        // Signed distances of each vertex to the fan plane.
+        let d0 = plane_normal.dot(&(v0 - plane_origin));
+        let d1 = plane_normal.dot(&(v1 - plane_origin));
+        let d2 = plane_normal.dot(&(v2 - plane_origin));
+
+        let Some((a, b)) = plane_vs_triangle_segment((v0, d0), (v1, d1), (v2, d2)) else {
+            continue;
+        };
+        if (b - a).norm() < MIN_NORM {
+            // Grazing intersection (a single point or numerically degenerate).
+            continue;
+        }
+
+        // The triangle's intersection segment is a piece of the plane-plane
+        // line shared by `stripe_on_target`. Parameterise as base = a,
+        // dir = unit(b - a), t ∈ [0, seg_len] for the finite segment.
+        let segment = b - a;
+        let seg_len = segment.norm();
+        let dir = segment / seg_len;
+
+        // Clip the infinite parametric line to the fan extent — angular
+        // wedge + radial disc — then intersect with [0, seg_len].
+        let Some((fan_lo, fan_hi)) = clip_line_to_fan(laser, a, dir) else {
+            continue;
+        };
+        let t_lo = fan_lo.max(0.0);
+        let t_hi = fan_hi.min(seg_len);
+        if t_hi <= t_lo {
+            continue;
+        }
+
+        // Sample this surviving sub-segment.
+        let mut samples = Vec::with_capacity(n_samples);
+        for i in 0..n_samples {
+            let s = i as f64 / (n_samples - 1) as f64;
+            let t = t_lo + s * (t_hi - t_lo);
+            let point = a + dir * t;
+            let distance_from_laser_m = (point - laser.origin()).norm();
+            let width_m = width_model.width_at(distance_from_laser_m);
+            samples.push(StripeSample {
+                point,
+                distance_from_laser_m,
+                width_m,
+            });
+        }
+        stripes.push(LaserStripe { samples });
+    }
+
+    stripes
+}
+
+/// Compute the two endpoints of the segment where a plane cuts a triangle,
+/// given each vertex's **signed distance** to the plane.
+///
+/// The plane crosses exactly two edges of a non-degenerate triangle iff the
+/// three signed distances do not all share a sign. The crossings are linear
+/// interpolations along the edges that straddle the plane.
+///
+/// Returns `None` when all three signed distances are strictly the same sign
+/// (the triangle is wholly on one side of the plane), or when the resulting
+/// pair has fewer than two crossings (a grazing case).
+fn plane_vs_triangle_segment(
+    (v0, d0): (Point3<f64>, f64),
+    (v1, d1): (Point3<f64>, f64),
+    (v2, d2): (Point3<f64>, f64),
+) -> Option<(Point3<f64>, Point3<f64>)> {
+    // All three on the same strict side → no crossing.
+    if (d0 > 0.0 && d1 > 0.0 && d2 > 0.0) || (d0 < 0.0 && d1 < 0.0 && d2 < 0.0) {
+        return None;
+    }
+    let edges = [
+        ((v0, d0), (v1, d1)),
+        ((v1, d1), (v2, d2)),
+        ((v2, d2), (v0, d0)),
+    ];
+    let mut crossings: [Option<Point3<f64>>; 2] = [None, None];
+    let mut found = 0usize;
+    for ((va, da), (vb, db)) in edges.iter().copied() {
+        // An edge is crossed if the two signed distances have opposite signs.
+        // Equality at exactly one endpoint counts as a crossing at that
+        // endpoint; equality at both means the whole edge is on the plane
+        // (degenerate — skip, the other two edges' crossings handle it).
+        if (da > 0.0 && db < 0.0) || (da < 0.0 && db > 0.0) {
+            // Strict sign change — linear interp on the edge.
+            let t = da / (da - db);
+            let p = va + (vb - va) * t;
+            if found < 2 {
+                crossings[found] = Some(p);
+                found += 1;
+            }
+        } else if da == 0.0 && db != 0.0 {
+            // Edge starts exactly on the plane.
+            if found < 2 {
+                crossings[found] = Some(va);
+                found += 1;
+            }
+        }
+        // An edge with db == 0.0 will be handled by the next edge's da == 0.0.
+    }
+    if found < 2 {
+        return None;
+    }
+    Some((crossings[0]?, crossings[1]?))
 }
 
 /// A particular point on the line where two planes meet.
@@ -679,6 +854,150 @@ mod tests {
         let (lo, hi) = solve_quadratic_interval(0.0, 2.0, -4.0).unwrap();
         assert!(lo.is_infinite() && lo < 0.0);
         assert_relative_eq!(hi, 2.0, epsilon = 1e-12);
+    }
+
+    /// Build a unit `TriMesh` in the plane `z = 0` covering
+    /// `[-0.5, 0.5] × [-0.5, 0.5]`, split into 2 triangles.
+    fn unit_quad_mesh() -> TriMesh {
+        use nalgebra::Point3 as P;
+        let v = vec![
+            P::new(-0.5, -0.5, 0.0),
+            P::new(0.5, -0.5, 0.0),
+            P::new(0.5, 0.5, 0.0),
+            P::new(-0.5, 0.5, 0.0),
+        ];
+        let n = vec![Vector3::z(); 4];
+        let i = vec![[0, 1, 2], [0, 2, 3]];
+        TriMesh::new(v, n, i).expect("non-degenerate quad")
+    }
+
+    #[test]
+    fn mesh_intersection_total_length_matches_planar_target_for_a_flat_quad() {
+        // A flat 2-triangle quad-mesh at world y = 0 produces **two** stripes
+        // (one per triangle) whose concatenated length equals the analytic-
+        // plane target's single stripe length. This is the contract: the API
+        // returns per-triangle stripes; the consumer treats them as a piecewise
+        // line.
+        let laser = laser_aimed_along_y(0.6, 0.3, 1.5);
+        let target = target_facing_y(1.0, 1.0); // 1×1 m planar target
+        let planar =
+            stripe_on_target(&laser, &target, &default_width(), 11).expect("planar stripe exists");
+
+        let mesh = unit_quad_mesh();
+        let mesh_pose = target.pose;
+        let segments = stripe_segments_on_mesh(&laser, &mesh, &mesh_pose, &default_width(), 11);
+        // Both triangles of the quad are cut by the fan plane.
+        assert_eq!(segments.len(), 2);
+        let mesh_total: f64 = segments.iter().map(LaserStripe::length_m).sum();
+        assert_relative_eq!(mesh_total, planar.length_m(), epsilon = 1e-9);
+    }
+
+    #[test]
+    fn mesh_intersection_endpoints_lie_on_the_fan_plane() {
+        // Every sample of every per-triangle stripe must lie on the fan
+        // plane (signed distance ~ 0): triangle-plane intersection is exact
+        // up to float error.
+        let laser = laser_aimed_along_y(0.6, 0.3, 1.5);
+        let target = target_facing_y(1.0, 1.0);
+        let mesh = unit_quad_mesh();
+        let segments = stripe_segments_on_mesh(&laser, &mesh, &target.pose, &default_width(), 5);
+        assert!(!segments.is_empty());
+        for stripe in &segments {
+            for sample in stripe.samples() {
+                let d = laser.normal().dot(&(sample.point - laser.origin()));
+                assert!(
+                    d.abs() < 1e-9,
+                    "sample must lie on the fan plane, signed dist = {d}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn mesh_intersection_yields_no_stripes_when_the_mesh_is_behind_the_laser() {
+        // Mesh sits at world y = -1.5 (behind the laser which faces +y from
+        // y = -0.6). Every triangle is entirely on the negative-y side of
+        // the fan plane (the fan plane normal is +x — actually no, the fan
+        // opens about +y so its normal is +x in this test setup). Let me
+        // instead place the mesh far off-axis where the radial-disc clip
+        // throws it out.
+        let laser = laser_aimed_along_y(0.6, 0.2, 1.5);
+        let mesh = unit_quad_mesh();
+        // Mesh at world x = 5 m, facing the laser plane: still in the fan
+        // plane (the fan plane is world x = 0), so the cut is a full quad
+        // segment — but it's outside the fan's radial extent.
+        let rot = UnitQuaternion::rotation_between(&Vector3::z(), &Vector3::y()).unwrap();
+        let pose = Isometry3::from_parts(Translation3::new(5.0, 0.0, 0.0), rot);
+        let segments = stripe_segments_on_mesh(&laser, &mesh, &pose, &default_width(), 11);
+        assert!(
+            segments.is_empty(),
+            "mesh outside fan extent yields no stripes"
+        );
+    }
+
+    #[test]
+    fn mesh_intersection_skips_a_mesh_parallel_to_the_fan_plane() {
+        // A mesh entirely in a plane parallel to the fan plane: every triangle
+        // has all 3 vertices at the same signed distance, so no crossings.
+        let laser = laser_aimed_along_y(0.6, 0.3, 1.5);
+        // Mesh whose normal is also world +x (same as fan plane normal),
+        // placed off the fan plane.
+        let mesh = unit_quad_mesh();
+        let rot = UnitQuaternion::rotation_between(&Vector3::z(), &Vector3::x()).unwrap();
+        let pose = Isometry3::from_parts(Translation3::new(0.5, 0.0, 0.0), rot);
+        let segments = stripe_segments_on_mesh(&laser, &mesh, &pose, &default_width(), 11);
+        assert!(segments.is_empty());
+    }
+
+    #[test]
+    fn mesh_intersection_cuts_a_single_tilted_triangle() {
+        // A single tilted triangle that straddles the fan plane in world x:
+        // two vertices at x > 0 and one at x < 0, so the plane crosses two
+        // edges. The result is exactly one stripe whose endpoints lie on
+        // those edges' intersections.
+        use nalgebra::Point3 as P;
+        let v = vec![
+            P::new(-0.2, 0.0, 0.0),
+            P::new(0.2, 0.0, 0.1),
+            P::new(0.2, 0.0, -0.1),
+        ];
+        let n = vec![Vector3::y(); 3];
+        let i = vec![[0, 1, 2]];
+        let mesh = TriMesh::new(v, n, i).expect("non-degenerate triangle");
+
+        let laser = laser_aimed_along_y(0.5, 0.5, 1.0);
+        let pose = Isometry3::identity();
+        let segments = stripe_segments_on_mesh(&laser, &mesh, &pose, &default_width(), 11);
+        assert_eq!(segments.len(), 1, "exactly one cut for a single triangle");
+        let stripe = &segments[0];
+        // Both endpoints sit at world x = 0 (on the fan plane).
+        let (a, b) = stripe.endpoints();
+        assert_relative_eq!(a.x, 0.0, epsilon = 1e-9);
+        assert_relative_eq!(b.x, 0.0, epsilon = 1e-9);
+        // And both endpoints sit on the triangle's edges:
+        // Edge 0→1 from (-0.2, 0, 0) to (0.2, 0, 0.1): at x = 0, z = 0.05.
+        // Edge 0→2 from (-0.2, 0, 0) to (0.2, 0, -0.1): at x = 0, z = -0.05.
+        // The polyline endpoints are these two points (in some order).
+        let zs: Vec<f64> = [a.z, b.z].into_iter().collect();
+        let mut zs_sorted = zs.clone();
+        zs_sorted.sort_by(|x, y| x.partial_cmp(y).unwrap());
+        assert_relative_eq!(zs_sorted[0], -0.05, epsilon = 1e-9);
+        assert_relative_eq!(zs_sorted[1], 0.05, epsilon = 1e-9);
+    }
+
+    #[test]
+    fn mesh_intersection_clamps_sample_count_up_to_two() {
+        let laser = laser_aimed_along_y(0.6, 0.3, 1.5);
+        let target = target_facing_y(1.0, 1.0);
+        let mesh = unit_quad_mesh();
+        for samples in [0, 1, 2] {
+            let stripes =
+                stripe_segments_on_mesh(&laser, &mesh, &target.pose, &default_width(), samples);
+            assert!(!stripes.is_empty());
+            for s in &stripes {
+                assert!(s.len() >= 2, "each stripe must have at least 2 samples");
+            }
+        }
     }
 
     #[test]

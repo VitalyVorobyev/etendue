@@ -26,7 +26,7 @@
 //! in a `Drawable`. The actual GPU upload and the (private) `Drawable` type
 //! stay in `renderer.rs`.
 
-use etendue_core::analysis::WorkingVolume;
+use etendue_core::analysis::{VoxelOverlap, WorkingVolume};
 use etendue_core::geom::TriMesh;
 use etendue_core::laser::{GaussianBeamWidth, LaserPlane, WidthModel, stripe_on_target};
 use etendue_core::optics::sensor_distance;
@@ -569,6 +569,146 @@ pub fn working_volume_mesh(
         return None;
     }
 
+    TriMesh::new(vertices, normals, indices).ok()
+}
+
+/// Default RGB color of the M10 voxel-overlap visualization — a saturated
+/// cyan/teal echoing [`WORKING_VOLUME_COLOR`] so the rig's 3D coverage reads
+/// in the same visual family as the single-pair working volume.
+pub const VOXEL_OVERLAP_COLOR: [f32; 3] = [0.35, 0.85, 0.85];
+
+/// Alpha of the M10 translucent voxel-overlap mesh. Lower than
+/// [`WORKING_VOLUME_ALPHA`] because many overlapping voxels stack visually,
+/// so each individual voxel only contributes a fraction.
+pub const VOXEL_OVERLAP_ALPHA: f32 = 0.18;
+
+/// The fraction of a voxel's edge the rendered cube occupies. Slightly less
+/// than 1 so adjacent voxels read as distinct cubes with a thin gap rather
+/// than fusing into a solid block — the UX wants the user to see which voxels
+/// are covered, not just a smooth volume.
+const VOXEL_RENDER_SCALE: f64 = 0.85;
+
+/// The M10 N-view overlap as a translucent triangle-mesh cube cloud in
+/// **world** coordinates.
+///
+/// Builds one axis-aligned cube per voxel whose overlap count is at least
+/// `min_overlap`, packed into a single [`TriMesh`] for cheap upload. Each
+/// cube has flat per-face normals (the renderer's directional light shades
+/// the +/- faces distinctly so the volume reads as cubes rather than a fog).
+/// The cube edge is [`VOXEL_RENDER_SCALE`] × the voxel edge.
+///
+/// Returns `None` when no voxel meets the threshold — the caller then
+/// contributes no overlap drawable.
+#[must_use]
+pub fn voxel_overlap_mesh(voxels: &VoxelOverlap, min_overlap: u32) -> Option<TriMesh> {
+    let res = voxels.resolution();
+    let (sx, sy, sz) = voxels.bounds().size();
+    let dx = sx / res.nx as f64;
+    let dy = sy / res.ny as f64;
+    let dz = sz / res.nz as f64;
+    let hx = 0.5 * dx * VOXEL_RENDER_SCALE;
+    let hy = 0.5 * dy * VOXEL_RENDER_SCALE;
+    let hz = 0.5 * dz * VOXEL_RENDER_SCALE;
+
+    let counts = voxels.counts();
+    // Cube face data — 6 outward normals × 4 corners CCW from outside.
+    // Corner offsets are unit-edge offsets; multiplied by (hx, hy, hz) below.
+    type CubeFace = (Vector3<f64>, [(f64, f64, f64); 4]);
+    let faces: [CubeFace; 6] = [
+        // +X
+        (
+            Vector3::new(1.0, 0.0, 0.0),
+            [
+                (1.0, -1.0, -1.0),
+                (1.0, 1.0, -1.0),
+                (1.0, 1.0, 1.0),
+                (1.0, -1.0, 1.0),
+            ],
+        ),
+        // -X
+        (
+            Vector3::new(-1.0, 0.0, 0.0),
+            [
+                (-1.0, -1.0, 1.0),
+                (-1.0, 1.0, 1.0),
+                (-1.0, 1.0, -1.0),
+                (-1.0, -1.0, -1.0),
+            ],
+        ),
+        // +Y
+        (
+            Vector3::new(0.0, 1.0, 0.0),
+            [
+                (-1.0, 1.0, -1.0),
+                (-1.0, 1.0, 1.0),
+                (1.0, 1.0, 1.0),
+                (1.0, 1.0, -1.0),
+            ],
+        ),
+        // -Y
+        (
+            Vector3::new(0.0, -1.0, 0.0),
+            [
+                (-1.0, -1.0, 1.0),
+                (-1.0, -1.0, -1.0),
+                (1.0, -1.0, -1.0),
+                (1.0, -1.0, 1.0),
+            ],
+        ),
+        // +Z
+        (
+            Vector3::new(0.0, 0.0, 1.0),
+            [
+                (-1.0, -1.0, 1.0),
+                (1.0, -1.0, 1.0),
+                (1.0, 1.0, 1.0),
+                (-1.0, 1.0, 1.0),
+            ],
+        ),
+        // -Z
+        (
+            Vector3::new(0.0, 0.0, -1.0),
+            [
+                (1.0, -1.0, -1.0),
+                (-1.0, -1.0, -1.0),
+                (-1.0, 1.0, -1.0),
+                (1.0, 1.0, -1.0),
+            ],
+        ),
+    ];
+
+    let mut vertices: Vec<Point3<f64>> = Vec::new();
+    let mut normals: Vec<Vector3<f64>> = Vec::new();
+    let mut indices: Vec<[u32; 3]> = Vec::new();
+
+    for iz in 0..res.nz {
+        for iy in 0..res.ny {
+            for ix in 0..res.nx {
+                let idx = iz * res.nx * res.ny + iy * res.nx + ix;
+                if counts[idx] < min_overlap {
+                    continue;
+                }
+                let centre = voxels.voxel_centre(ix, iy, iz);
+                for (normal, corners) in &faces {
+                    let base = vertices.len() as u32;
+                    for (cx, cy, cz) in corners {
+                        vertices.push(Point3::new(
+                            centre.x + cx * hx,
+                            centre.y + cy * hy,
+                            centre.z + cz * hz,
+                        ));
+                        normals.push(*normal);
+                    }
+                    indices.push([base, base + 1, base + 2]);
+                    indices.push([base, base + 2, base + 3]);
+                }
+            }
+        }
+    }
+
+    if indices.is_empty() {
+        return None;
+    }
     TriMesh::new(vertices, normals, indices).ok()
 }
 
