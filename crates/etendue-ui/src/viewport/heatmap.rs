@@ -1,7 +1,7 @@
 //! The M4 defocus heatmap: a colormap and the tessellated grid mesh that
 //! paints a [`DefocusMap`] onto the target quad.
 //!
-//! [`crate::analysis::defocus_map`](etendue_core::analysis::defocus_map)
+//! [`crate::analysis::defocus_map`](etendue_core::analysis::defocus_map())
 //! produces a `cols × rows` grid of circle-of-confusion values, in pixels,
 //! over a planar target. This module turns that grid into renderable
 //! geometry:

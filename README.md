@@ -19,7 +19,12 @@ on-PoBF cancellation exact to machine epsilon (~1e-18); off-axis regime (b) c = 
 
 ## Screenshot
 
-_TODO: capture during interactive testing._
+![etendue UI — default MVP scene with defocus heatmap and working-volume overlay](docs/ui.png)
+
+Default MVP scene: the 3D viewport shows the camera frustum, laser fan, and target quad;
+the parameter panel (left) exposes focal-length, f-number, Scheimpflug tilt, and pose sliders;
+the defocus heatmap colors the target from sharp green through yellow to blurry red, and the
+translucent working-volume patch on the laser fan marks the in-focus, in-view measurement region.
 
 ## Quick start
 

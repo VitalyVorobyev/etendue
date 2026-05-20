@@ -224,9 +224,9 @@ pub fn target_quad_mesh(target: &TargetEntity) -> TriMesh {
 /// The M5 laser stripe — where the first laser's fan strikes the first
 /// target — as colored line segments in **world** coordinates.
 ///
-/// Builds a [`LaserPlane`](etendue_core::laser::LaserPlane) for `scene`'s
+/// Builds a [`LaserPlane`] for `scene`'s
 /// first laser, intersects it with `scene`'s first target via
-/// [`stripe_on_target`](etendue_core::laser::stripe_on_target), and returns
+/// [`stripe_on_target`], and returns
 /// the resulting 3D polyline as consecutive `(start, end, color)` segments.
 ///
 /// Returns an empty `Vec` when there is no stripe to draw: the scene has no
@@ -364,15 +364,18 @@ pub fn working_volume_mesh(
         indices.push([base, base + 1, base + 2]);
     };
 
+    // Direct slice indexing: all (row, col) pairs with row < rows-1, col < cols-1
+    // are provably in bounds, so we skip the Option round-trip from wv.get().
+    let cells = wv.cells();
+    let at =
+        |r: usize, c: usize| -> &etendue_core::analysis::WorkingVolumeCell { &cells[r * cols + c] };
+
     for row in 0..rows - 1 {
         for col in 0..cols - 1 {
-            let c00 = wv.get(row, col).expect("row/col in range").in_volume;
-            let c01 = wv.get(row, col + 1).expect("row/col in range").in_volume;
-            let c10 = wv.get(row + 1, col).expect("row/col in range").in_volume;
-            let c11 = wv
-                .get(row + 1, col + 1)
-                .expect("row/col in range")
-                .in_volume;
+            let c00 = at(row, col).in_volume;
+            let c01 = at(row, col + 1).in_volume;
+            let c10 = at(row + 1, col).in_volume;
+            let c11 = at(row + 1, col + 1).in_volume;
             // Skip cells with no in-volume corner. The patch's silhouette is
             // a step function on the grid; corners-as-OR keeps the patch's
             // visible footprint slightly **larger** than its strictly
@@ -381,14 +384,10 @@ pub fn working_volume_mesh(
             if !(c00 || c01 || c10 || c11) {
                 continue;
             }
-            let tl = wv.get(row, col).expect("row/col in range").point_world + lift;
-            let tr = wv.get(row, col + 1).expect("row/col in range").point_world + lift;
-            let bl = wv.get(row + 1, col).expect("row/col in range").point_world + lift;
-            let br = wv
-                .get(row + 1, col + 1)
-                .expect("row/col in range")
-                .point_world
-                + lift;
+            let tl = at(row, col).point_world + lift;
+            let tr = at(row, col + 1).point_world + lift;
+            let bl = at(row + 1, col).point_world + lift;
+            let br = at(row + 1, col + 1).point_world + lift;
             // Front face (CCW from front_normal side): (tl, tr, br), (tl, br, bl).
             emit_tri(tl, tr, br, front_normal);
             emit_tri(tl, br, bl, front_normal);

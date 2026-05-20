@@ -1,14 +1,14 @@
 //! Application state and the per-frame render orchestration.
 //!
 //! [`App`] owns the winit window plus the full graphics stack — a wgpu
-//! device/queue/surface, the hand-written 3D [`viewport::Renderer`], and the
+//! device/queue/surface, the hand-written 3D `viewport::Renderer`, and the
 //! egui context/state/renderer.
 //!
 //! # Per-frame structure (M3 / M4)
 //!
 //! Each frame [`Graphics::render`] records, into one command encoder:
 //!
-//! 1. The egui frame — calls [`panels::params::scene_panel`] which draws the
+//! 1. The egui frame — calls `panels::params::scene_panel` which draws the
 //!    parameter side-panel and returns `(changed, maybe_new_scene)`. If
 //!    `changed` is set, the M4 defocus map is recomputed from the (now
 //!    post-edit) scene and `Renderer::rebuild_scene` is called with it, so
@@ -25,9 +25,9 @@
 //! # The M4 defocus heatmap
 //!
 //! When the panel's heatmap toggle is on, [`Graphics`] computes a
-//! [`DefocusMap`](etendue_core::analysis::DefocusMap) from the scene's first
+//! [`DefocusMap`] from the scene's first
 //! camera against its first target via
-//! [`defocus_map`](etendue_core::analysis::defocus_map). The map backs both
+//! [`defocus_map`](etendue_core::analysis::defocus_map()). The map backs both
 //! the legend (drawn by `scene_panel`) and the heatmap grid (built by the
 //! renderer). It is recomputed every frame the scene changes — the scene is
 //! tiny, so this is cheap — and re-fed to `rebuild_scene` alongside the
@@ -165,7 +165,7 @@ struct DragState {
 ///
 /// winit 0.30 only guarantees a usable window after `resumed`, so the GPU
 /// resources cannot be built in `App::new`; they live here behind an
-/// `Option` and are initialized in [`App::resumed`].
+/// `Option` and are initialized in `App`'s `ApplicationHandler::resumed` callback.
 struct Graphics {
     /// The OS window. An `Arc` so the wgpu surface can outlive this struct's
     /// stack frame and borrow the same handle.
@@ -432,7 +432,16 @@ impl Graphics {
         let egui_ctx = self.egui_state.egui_ctx().clone();
 
         // We need &mut self.scene and &mut self.panel_state inside run_ui,
-        // but run_ui takes a Fn, not FnMut. Work around with Option<> swap.
+        // but run_ui takes a Fn, not FnMut. Work around with mem::replace/take.
+        //
+        // Panic contract: if the egui closure panics, self.scene is left as
+        // Scene::empty() and self.panel_state at default — silent data loss.
+        // Today the closure does no risky work: slider edits and JSON dialogs
+        // route errors through state.io_error, and egui itself does not panic
+        // on well-formed UI code. The panic contract is therefore: the closure
+        // must not panic in normal operation. If a panic-producing operation is
+        // ever added inside the closure, restructure to a RefCell<Scene> or add
+        // a panic guard (e.g. scopeguard::defer) that restores state on unwind.
         let mut scene_ref = std::mem::replace(&mut self.scene, Scene::empty());
         let mut panel_state_ref = std::mem::take(&mut self.panel_state);
         let mut scene_changed = false;

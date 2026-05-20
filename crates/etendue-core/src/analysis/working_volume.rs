@@ -46,7 +46,7 @@
 //! depth-of-field band) is exact but considerably more code, and degenerate
 //! configurations (a Scheimpflug-tilted PoBF coincident with the fan plane;
 //! a fan plane edge-on to the camera) need careful handling. The
-//! sample-and-mask pattern is the same one [`crate::analysis::defocus_map`]
+//! sample-and-mask pattern is the same one [`mod@crate::analysis::defocus_map`]
 //! uses for the per-target CoC field — robust, headless, and trivially
 //! testable.
 
@@ -61,7 +61,7 @@ use crate::scene::{CameraEntity, LaserEntity};
 /// A point is considered "in focus" for the working-volume mask when its
 /// geometric circle of confusion is at or below this many pixels — the
 /// classic ~1-pixel depth-of-field criterion. Matches
-/// [`crate::analysis::defocus_map`]'s heatmap green band so the on-target
+/// [`mod@crate::analysis::defocus_map`]'s heatmap green band so the on-target
 /// heatmap and the on-fan working-volume mask read the same scale.
 pub const DEFAULT_COC_THRESHOLD_PX: f64 = 1.0;
 
@@ -299,7 +299,7 @@ impl WorkingVolume {
 /// # Parameters
 ///
 /// - `camera`: the viewing camera; its physical optics drive the focus
-///   predicate, its [`CameraParams`] projection chain drives the visibility
+///   predicate, its [`CameraParams`](crate::calibration::CameraParams) projection chain drives the visibility
 ///   predicate.
 /// - `laser`: the line-projecting laser; its [`LaserPlane`] supplies the
 ///   illumination geometry and the natural `(r, phi)` parameterisation.

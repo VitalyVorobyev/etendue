@@ -13,8 +13,12 @@ env:
 
 jobs:
   gates:
-    name: Release quality gates
-    runs-on: ubuntu-latest
+    name: Release quality gates (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6

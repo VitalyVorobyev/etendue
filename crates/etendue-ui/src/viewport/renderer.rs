@@ -233,8 +233,11 @@ impl Drawable {
 
     /// Overwrite this drawable's model transform and tint in place.
     ///
-    /// Unused by the static M1 demo scene, but it is the hook M2 needs to
-    /// re-pose entities each frame without rebuilding buffers.
+    /// Currently unused: the static scene rebuild path calls `rebuild_scene`
+    /// which replaces all drawables rather than re-posing them. This is the
+    /// re-pose hook for post-MVP work that animates scene poses without a full
+    /// rebuild — specifically the voxelized working-volume overlay and the
+    /// `argmin`-based optimizer (post-MVP queue items 2 and 5 in CLAUDE.md).
     #[allow(dead_code)]
     pub fn set_transform(&mut self, queue: &wgpu::Queue, model: Matrix4<f32>, tint: [f32; 4]) {
         let uniform = ModelUniform::new(model, tint);
@@ -245,8 +248,6 @@ impl Drawable {
 /// The 3D viewport renderer: pipelines, the camera uniform, the depth texture,
 /// and the list of drawables.
 pub struct Renderer {
-    /// Bind group 0 layout (the camera/lighting `GlobalsUniform`).
-    globals_layout: wgpu::BindGroupLayout,
     /// Bind group 1 layout (a per-draw `ModelUniform`).
     model_layout: wgpu::BindGroupLayout,
     /// GPU buffer for the per-frame `GlobalsUniform`.
@@ -391,7 +392,6 @@ impl Renderer {
         let drawables = build_scene(device, &model_layout, scene, None, None);
 
         Self {
-            globals_layout,
             model_layout,
             globals_buffer,
             globals_bind_group,
@@ -527,7 +527,7 @@ impl Renderer {
         }
     }
 
-    /// Rebuild every scene drawable from a mutated [`Scene`].
+    /// Rebuild every scene drawable from a mutated [`Scene`](etendue_core::Scene).
     ///
     /// Called by the application when the M3 parameter panel reports that any
     /// slider or drag-value changed this frame. Because focal-length and
@@ -557,23 +557,6 @@ impl Renderer {
         working_volume: Option<&WorkingVolume>,
     ) {
         self.drawables = build_scene(device, &self.model_layout, scene, heatmap, working_volume);
-    }
-
-    /// The bind group layout for per-draw model uniforms.
-    ///
-    /// Exposed so M2 can build new [`Drawable`]s for scene entities through
-    /// the same layout the renderer's pipelines were created with.
-    #[allow(dead_code)]
-    #[must_use]
-    pub fn model_layout(&self) -> &wgpu::BindGroupLayout {
-        &self.model_layout
-    }
-
-    /// The bind group layout for the camera/lighting globals.
-    #[allow(dead_code)]
-    #[must_use]
-    pub fn globals_layout(&self) -> &wgpu::BindGroupLayout {
-        &self.globals_layout
     }
 }
 

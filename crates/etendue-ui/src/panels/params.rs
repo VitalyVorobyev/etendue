@@ -36,7 +36,7 @@
 //!
 //! # Reactivity
 //!
-//! Every slider/drag-value returns an egui [`Response`]. The function
+//! Every slider/drag-value returns an egui `Response`. The function
 //! [`scene_panel`] accumulates these with bitwise-OR (`|=`) into a single
 //! `changed` bool that it returns. The caller ([`crate::app`]) checks that
 //! flag and calls `Renderer::rebuild_scene` when it is set — and, since M4,
@@ -80,7 +80,7 @@ use crate::viewport::heatmap::{NONE_COLOR, SHARP_THRESHOLD_PX, coc_color};
 
 /// Persistent UI state for the parameter panel.
 ///
-/// Lives in [`crate::app::Graphics`] alongside the `Scene` and is reset to
+/// Lives in `Graphics` (in `crate::app`) alongside the `Scene` and is reset to
 /// `default` on scene load.
 #[derive(Debug)]
 pub struct PanelState {
@@ -545,6 +545,7 @@ fn optics_sliders(ui: &mut egui::Ui, camera: &mut CameraEntity) -> bool {
 
     // Any physical-optics edit invalidates the derived pixel intrinsics —
     // re-derive fx/fy from the (possibly new) focal length and pixel pitch.
+    let mut focus_was_clamped = false;
     if changed {
         // Keep the focus distance strictly above the focal length: dragging
         // the focal length up can raise the `focal * 1.001` floor past the
@@ -555,8 +556,12 @@ fn optics_sliders(ui: &mut egui::Ui, camera: &mut CameraEntity) -> bool {
         let focus_floor = camera.effective_focal_length_m * 1.001;
         if camera.focus_distance_m < focus_floor {
             camera.focus_distance_m = focus_floor;
+            focus_was_clamped = true;
         }
         camera.sync_intrinsics_from_physical();
+    }
+    if focus_was_clamped {
+        ui.colored_label(egui::Color32::from_gray(140), "Focus pinned to >f");
     }
 
     changed

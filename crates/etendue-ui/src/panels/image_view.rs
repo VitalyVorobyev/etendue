@@ -8,7 +8,7 @@
 //! # What is drawn
 //!
 //! [`simulated_image_panel`] takes a
-//! [`ProjectedStripe`](etendue_core::laser::ProjectedStripe) — the projected
+//! [`ProjectedStripe`] — the projected
 //! polyline with a per-vertex `total_px` width — and renders it inside an
 //! [`egui_plot`] plot whose axes span the full camera resolution
 //! (`0..res_x`, `0..res_y` pixels):

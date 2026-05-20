@@ -13,6 +13,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: actions-rust-lang/audit@v1
+      - uses: EmbarkStudios/cargo-deny-action@v2
         with:
-          createIssues: false
+          # deny.toml lists RUSTSEC-2024-0436 (paste, upstream-blocked via
+          # nalgebra 0.34 → simba → paste) in advisories.ignore.
+          command: check advisories licenses bans sources
