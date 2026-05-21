@@ -15,6 +15,10 @@
 //! - [`thick_lens`] — [`ThickLens`], a camera-aware wrapper that pairs a
 //!   `vision-calibration-core` `CameraParams` spec with the four thick-lens
 //!   parameters and exposes a clean `coc_diameter` API.
+//! - [`psf`] — Gaussian point-spread function model: the
+//!   [`coc_to_gaussian_sigma`] conversion from the geometric CoC diameter to a
+//!   FWHM-matched Gaussian sigma, used by the simulated-image panel's
+//!   Gaussian-halo band visualisation.
 //!
 //! # The model, in brief
 //!
@@ -32,10 +36,12 @@
 //! statement of scope.
 
 pub mod coc;
+pub mod psf;
 pub mod thick_lens;
 
 pub use coc::{
     PlaneOfBestFocus, coc_diameter_at_sensor, coc_to_pixels, image_distance, pobf_tilt_tan,
     sensor_distance,
 };
+pub use psf::{GAUSSIAN_FWHM_PER_SIGMA, coc_to_gaussian_sigma};
 pub use thick_lens::{ThickLens, scheimpflug_tilt};

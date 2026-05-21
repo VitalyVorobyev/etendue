@@ -13,6 +13,7 @@
 //! the mesh.
 
 use nalgebra::{Point3, Vector3};
+use serde::{Deserialize, Serialize};
 
 use crate::error::{Error, Result};
 
@@ -25,7 +26,14 @@ use crate::error::{Error, Result};
 /// The primitive constructors ([`TriMesh::unit_cube`], [`TriMesh::quad`])
 /// always satisfy these; [`TriMesh::new`] re-checks them for caller-built
 /// meshes.
-#[derive(Debug, Clone, PartialEq)]
+///
+/// # Serde note
+///
+/// The derived `Deserialize` bypasses [`TriMesh::new`]'s index/normal-count
+/// validation. For v0.1.0 this is acceptable — scene JSON is app-produced and
+/// is expected to be well-formed. If mesh data arrives from untrusted sources,
+/// call [`TriMesh::new`] explicitly after deserialisation.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TriMesh {
     /// Vertex positions, indexed by `indices`.
     vertices: Vec<Point3<f64>>,
@@ -83,6 +91,15 @@ impl TriMesh {
         &self.vertices
     }
 
+    /// Mutable access to vertex positions.
+    ///
+    /// Allows in-place translation or transformation of vertices without
+    /// rebuilding the mesh. The caller is responsible for keeping the vertex
+    /// positions geometrically consistent with the stored normals.
+    pub fn vertices_mut(&mut self) -> &mut [Point3<f64>] {
+        &mut self.vertices
+    }
+
     /// Per-vertex normals, parallel to [`TriMesh::vertices`].
     #[must_use]
     pub fn normals(&self) -> &[Vector3<f64>] {
@@ -103,7 +120,7 @@ impl TriMesh {
 
     /// Iterate the three corner positions of every triangle.
     ///
-    /// Useful for CPU ray-casting against the mesh (see [`crate::geom::ray`]).
+    /// Useful for CPU ray-casting against the mesh.
     pub fn triangles(&self) -> impl Iterator<Item = [Point3<f64>; 3]> + '_ {
         self.indices.iter().map(|&[a, b, c]| {
             [
@@ -217,6 +234,29 @@ impl TriMesh {
             normals,
             indices,
         }
+    }
+
+    /// Append the vertices, normals, and triangles of `other` into `self`.
+    ///
+    /// The triangle indices in `other` are offset by the current vertex count
+    /// of `self` before appending, so every triangle in `other` still
+    /// references the correct (re-based) vertices. After the call `self`
+    /// contains all geometry from both meshes.
+    ///
+    /// This is the building block for multi-cube voxel visualisations:
+    /// construct one cube per voxel via [`TriMesh::unit_cube`], translate its
+    /// vertices to the voxel centre, and merge into an accumulator with
+    /// `extend_with`.
+    pub fn extend_with(&mut self, other: &TriMesh) {
+        let offset = self.vertices.len() as u32;
+        self.vertices.extend_from_slice(&other.vertices);
+        self.normals.extend_from_slice(&other.normals);
+        self.indices.extend(
+            other
+                .indices
+                .iter()
+                .map(|&[a, b, c]| [a + offset, b + offset, c + offset]),
+        );
     }
 
     /// A flat rectangular quad of size `width` x `height`, centred on the
@@ -349,5 +389,43 @@ mod tests {
         assert_eq!(mesh.triangle_count(), 1);
         let tri: Vec<_> = mesh.triangles().collect();
         assert_eq!(tri.len(), 1);
+    }
+
+    #[test]
+    fn extend_with_doubles_the_mesh_size() {
+        // Two quads merged: vertex, triangle, and normal counts must double.
+        let q = TriMesh::quad(1.0, 1.0);
+        let mut combined = q.clone();
+        combined.extend_with(&q);
+        assert_eq!(combined.vertices().len(), q.vertices().len() * 2);
+        assert_eq!(combined.normals().len(), q.normals().len() * 2);
+        assert_eq!(combined.triangle_count(), q.triangle_count() * 2);
+    }
+
+    #[test]
+    fn extend_with_rebases_indices_correctly() {
+        // Two quads merged: the second quad's indices must reference the
+        // second block of vertices, not overlap with the first.
+        let q = TriMesh::quad(1.0, 1.0);
+        let n = q.vertices().len() as u32;
+        let mut combined = q.clone();
+        combined.extend_with(&q);
+        for &[a, b, c] in &combined.indices()[q.triangle_count()..] {
+            assert!(
+                a >= n && b >= n && c >= n,
+                "second block indices must be offset"
+            );
+        }
+    }
+
+    #[test]
+    fn vertices_mut_allows_in_place_translation() {
+        let mut mesh = TriMesh::quad(1.0, 1.0);
+        for v in mesh.vertices_mut() {
+            v.z += 5.0;
+        }
+        for v in mesh.vertices() {
+            assert_relative_eq!(v.z, 5.0, epsilon = 1e-12);
+        }
     }
 }

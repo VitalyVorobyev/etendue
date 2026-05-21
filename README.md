@@ -12,14 +12,22 @@ volume lands, how the laser line projects, and where focus falls off.
 
 ## Status
 
-MVP complete (M0–M6). 172 tests pass. Scheimpflug circle-of-confusion physics derived
-from first principles and validated against hand calculations (M4 kill gate passed):
-on-PoBF cancellation exact to machine epsilon (~1e-18); off-axis regime (b) c = 51.6529 µm
-= 14.97185 px matches the textbook formula independently.
+M0–M10 plus post-MVP features complete. **205** tests pass. Scheimpflug
+circle-of-confusion physics derived from first principles and validated against hand
+calculations (M4 kill gate passed): on-PoBF cancellation exact to machine epsilon
+(~1e-18); off-axis regime (b) c = 51.6529 µm = 14.97185 px matches the textbook
+formula independently. M9 Scheimpflug solver convergence validated against the analytic
+fronto-parallel optimum; M10 N-view voxel overlap and symmetric ring geometry verified.
+Gaussian PSF and triangle-mesh laser intersection shipped in the post-MVP pass.
 
 ## Screenshot
 
-_TODO: capture during interactive testing._
+![etendue UI — default MVP scene with defocus heatmap and working-volume overlay](docs/ui.png)
+
+Default MVP scene: the 3D viewport shows the camera frustum, laser fan, and target quad;
+the parameter panel (left) exposes focal-length, f-number, Scheimpflug tilt, and pose sliders;
+the defocus heatmap colors the target from sharp green through yellow to blurry red, and the
+translucent working-volume patch on the laser fan marks the in-focus, in-view measurement region.
 
 ## Quick start
 
@@ -57,8 +65,8 @@ etendue-ui (binary)
 
 1. Launch `cargo run`. The default scene opens with a camera–laser–target triangulation
    rig, the defocus heatmap, and the working-volume overlay both on.
-2. In the parameter panel, set **Working distance** to your target distance (e.g. 400 mm)
-   and note the depth-range readout.
+2. In the parameter panel, note the **Optimal distance (m)** readout or use the
+   Scheimpflug solver section to solve for tilt + focus given a depth window.
 3. Drag the **Focus distance** slider until the green in-focus band on the heatmap covers
    your target depth range.
 4. Adjust **Focal length** and **f-number** to trade field width against depth of field.
@@ -77,17 +85,11 @@ etendue-ui (binary)
 
 ## Roadmap
 
-Condensed priority order (see the book's roadmap chapter for the full set):
+The following items remain open (all other post-MVP queue items have shipped):
 
-1. Promote `ThickLens` to a first-class `ApertureModel<S>` trait in calibration-rs.
-2. Voxelized working volume (per-voxel: visible, illuminated, triangulation angle,
-   resolution).
-3. Multi-camera overlap — which voxels are visible from N cameras.
-4. Component-picker UI — browse the bank, drag onto scene.
-5. `argmin`-based optimizer — given working distance + depth range, solve for the
-   optimal focal length / f-number / Scheimpflug tilt / baseline.
-6. Gaussian PSF — replace geometric CoC with a depth-dependent Gaussian.
-7. Mesh laser intersection — replace plane∩plane with full triangle-mesh intersection.
+1. Promote `ThickLens` to a first-class `ApertureModel<S>` trait in calibration-rs
+   (upstream PR, requires calibration-rs maintainer review).
+2. Component-picker UI — browse `assets/bank/`, drag components onto the scene.
 
 ## Reuse from calibration-rs
 

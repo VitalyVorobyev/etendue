@@ -245,9 +245,9 @@ mod tests {
         };
         let json = serde_json::to_string(&mount).expect("serialize");
         let back: LensMount = serde_json::from_str(&json).expect("deserialize");
-        match back {
-            LensMount::Other { description } => assert_eq!(description, "Custom bayonet"),
-            _ => panic!("expected Other mount"),
-        }
+        assert!(
+            matches!(back, LensMount::Other { ref description } if description == "Custom bayonet"),
+            "expected LensMount::Other {{ description: \"Custom bayonet\" }}, got {back:?}",
+        );
     }
 }

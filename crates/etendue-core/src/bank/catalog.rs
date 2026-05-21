@@ -50,25 +50,26 @@ impl Catalog {
     ///
     /// # Errors
     ///
-    /// Returns a [`serde_json::Error`] if the string is not valid JSON or
-    /// does not match the catalogue schema.
-    pub fn load_from_str(s: &str) -> Result<Self, serde_json::Error> {
+    /// Returns [`crate::Error::Io`] if the string is not valid JSON or does
+    /// not match the catalogue schema.
+    pub fn load_from_str(s: &str) -> crate::Result<Self> {
         serde_json::from_str(s)
+            .map_err(|e| crate::Error::Io(format!("cannot parse catalog JSON: {e}")))
     }
 
     /// Deserialize a [`Catalog`] from a JSON file at `path`.
     ///
     /// # Errors
     ///
-    /// Returns a [`crate::Error`] if the file cannot be read or its contents
+    /// Returns [`crate::Error::Io`] if the file cannot be read or its contents
     /// do not match the catalogue schema.
     pub fn load_from_path(path: impl AsRef<Path>) -> crate::Result<Self> {
         let path = path.as_ref();
         let text = std::fs::read_to_string(path).map_err(|e| {
-            crate::Error::Numerical(format!("cannot read catalog file {}: {e}", path.display()))
+            crate::Error::Io(format!("cannot read catalog file {}: {e}", path.display()))
         })?;
         serde_json::from_str(&text).map_err(|e| {
-            crate::Error::Numerical(format!(
+            crate::Error::Io(format!(
                 "cannot parse catalog JSON from {}: {e}",
                 path.display()
             ))

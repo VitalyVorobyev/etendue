@@ -16,11 +16,18 @@
 //!   visible to the camera, and in focus. M6's headless deliverable; the UI
 //!   renders it as a translucent patch on the laser fan and surfaces the
 //!   covered measurement area + depth range to the designer.
+//! - [`voxel_overlap`](mod@voxel_overlap) — the [`voxelized_overlap`](voxelized_overlap())
+//!   function and its [`VoxelOverlap`] output: a 3D scalar field counting,
+//!   per voxel, how many `(camera, laser)` pairs of an M10 multi-pair rig
+//!   simultaneously see, illuminate, and focus on that voxel. Headless
+//!   companion to the `voxel_overlap_mesh` viewport overlay in `etendue-ui`.
 
 pub mod defocus_map;
+pub mod voxel_overlap;
 pub mod working_volume;
 
 pub use defocus_map::{DefocusMap, defocus_map};
+pub use voxel_overlap::{VoxelBox, VoxelOverlap, VoxelResolution, voxelized_overlap};
 pub use working_volume::{
     DEFAULT_COC_THRESHOLD_PX, WorkingVolume, WorkingVolumeCell, working_volume,
 };

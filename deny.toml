@@ -1,0 +1,45 @@
+# deny.toml — cargo-deny configuration for the etendue workspace.
+# See https://embarkstudios.github.io/cargo-deny/
+
+[advisories]
+# RUSTSEC-2024-0436: `paste` crate is no longer maintained.
+# Root cause: paste 1.0.15 ← simba 0.9.1 ← nalgebra 0.34.2.
+# This advisory cannot be resolved locally: the project does not depend on
+# `paste` directly, and the nalgebra hard-pin (required to unify types across
+# the vision-calibration-core path boundary) precludes upgrading nalgebra.
+# Re-evaluate when nalgebra ships a release that updates simba past paste, or
+# when calibration-rs's nalgebra hard-pin is bumped.
+ignore = [
+    { id = "RUSTSEC-2024-0436", reason = "upstream-blocked: paste is a transitive dep of nalgebra 0.34 via simba; nalgebra is hard-pinned for cross-crate type unification with vision-calibration-core" },
+]
+
+[licenses]
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-3.0",
+    "Unicode-DFS-2016",
+    "Zlib",
+    "CC0-1.0",
+    "BSL-1.0",
+    "OFL-1.1",
+    "Ubuntu-font-1.0",
+]
+# Any license not listed in `allow` above is denied by default (cargo-deny ≥ 0.15).
+# This already covers copyleft licenses without needing the removed `copyleft` key.
+
+[bans]
+# Only one version of nalgebra is allowed — see Cargo.toml hard-pin comment.
+multiple-versions = "warn"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-git = [
+    # vision-calibration-core is a local path dependency, not a git source,
+    # so no entry is needed here; listed for documentation completeness.
+]

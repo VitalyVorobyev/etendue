@@ -56,6 +56,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   depth-range (mm) readouts; show / hide toggles; default scene opens with both overlays
   on.
 
+- **UI stability and viewport polish (M7)** — egui / wgpu / winit version lock at the
+  current pinned set; camera-anatomy overlay in the 3D viewport (M8 camera body +
+  sensor plane wireframe); render loop hardening for multi-monitor / high-DPI setups.
+
+- **Camera anatomy renderer (M8)** — 3D visualization of the camera's physical body
+  and sensor plane in the viewport; lens principal-plane markers; the anatomy overlay
+  is toggled alongside the frustum wireframe.
+
+- **Scheimpflug solver (M9)** — `solver::solve_scheimpflug` finds the optimal
+  sensor-tilt `(τx, τy)` and focus distance that minimise worst-case circle of
+  confusion across a user-defined `[d_min, d_max]` depth window; Nelder-Mead via
+  `argmin 0.11` with `default-features = false` (no second nalgebra); convergence
+  tests against analytic fronto-parallel optimum; solver section wired into the
+  parameter panel with **Apply** button.
+
+- **Symmetric rigs and N-view voxel overlap (M10)** — `Scene::triangulation_ring`
+  builds N camera+laser pairs rotationally symmetric about a world axis; the M10
+  parameter-panel section exposes N, axis, and **Generate**; `analysis::voxelized_overlap`
+  evaluates per-voxel visible/illuminated/focused predicates across all N pairs and
+  counts how many pairs agree; viewport renders agreeing voxels as a translucent cloud;
+  N-fold symmetry and distance-invariance tests pass.
+
+- **Gaussian PSF model** — `optics::psf::coc_to_gaussian_sigma` converts the
+  geometric circle-of-confusion diameter to a FWHM-matched Gaussian sigma;
+  `GAUSSIAN_FWHM_PER_SIGMA` constant; used by the simulated-image panel to render
+  a physically-motivated Gaussian halo around the laser stripe.
+
+- **Triangle-mesh kernel and mesh laser intersection** — `geom::TriMesh` with
+  `unit_cube` / `quad` primitives and index/normal-count validation; `laser::intersect::
+  stripe_segments_on_mesh` for fan-plane × triangle-mesh intersection (fan-wedge
+  clipping, per-triangle stripe segments); `scene::MeshTarget` entity with serde
+  support; viewport renders mesh targets and mesh laser stripes; parameter panel
+  exposes an "Add cube mesh target" button.
+
 ### Reused from calibration-rs
 
 - `vision-calibration-core` (path dep, no fork or vendor): the four model traits
@@ -67,10 +101,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Verified
 
-- 172 tests pass (129 in `etendue-core`, 42 in `etendue-ui`, 1 doctest).
+- **205** tests pass (**152** in `etendue-core`, **53** in `etendue-ui`, 0 doctests).
 - Scheimpflug CoC and PoBF physics validated against first-principles hand
   calculations: on-PoBF cancellation exact to machine epsilon (~1e-18); off-axis
   regime (b) c = 51.6529 µm = 14.97185 px matches the textbook formula
   `c = D·f·|z − s_o| / (z·(s_o − f))` independently (M4 kill gate passed).
+- M9 solver convergence test: Nelder-Mead reaches τ ≈ 0 and s_o ≈ focus distance for
+  a fronto-parallel target (analytic optimum); worst-case-CoC-improvement test passes.
+- M10 ring builder: N-fold symmetry and distance-invariance to target centre verified
+  for N = 4, 6, 8.
+- Mesh intersection contract: per-triangle stripe segments sum to analytic planar
+  stripe length within tolerance.
 - `cargo build --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`,
   `cargo fmt --all --check`, and `cargo test --workspace` all clean.

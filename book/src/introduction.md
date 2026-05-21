@@ -25,19 +25,24 @@ answers four such questions simultaneously, in one view:
 - **Laser line in pixel space.** What does the projected stripe look like on
   the simulated sensor image? Width is the geometric beam cross-section and
   the defocus blur combined in quadrature.
-- **Multi-camera reasoning** (post-MVP scaffolding). The scene already holds
-  `Vec<CameraEntity>`, so multi-camera overlap is an additive milestone.
+- **Multi-camera coverage.** A symmetric N-pair rig (the M10 builder)
+  rotates a camera/laser pair around an axis; the N-view voxel-overlap
+  analysis then counts, per voxel, how many pairs see, illuminate, and focus
+  on it.
 
-## MVP status (M0–M6)
+## Status
 
-The MVP is complete. Six milestones from the initial workspace bring-up
-through to the working-volume analysis are in: a hand-written winit + wgpu +
-egui render loop, a 3D viewport with depth-tested opaque and translucent
-passes, the posed scene (camera + laser + target) with JSON save/load, the
-thick-lens defocus physics with the on-target heatmap, the laser-line
-projection with the 2D simulated-image panel, and the working-volume analysis
-on the fan plane. **172 tests** pass; the M4 Scheimpflug kill gate (numerical
-agreement with hand-computed circle-of-confusion regimes) is met.
+All milestones M0–M10 are in, plus the post-MVP optics work. The M0–M6 MVP —
+a hand-written winit + wgpu + egui render loop, a 3D viewport with
+depth-tested opaque and translucent passes, the posed scene with JSON
+save/load, the thick-lens defocus physics and on-target heatmap, the
+laser-line projection with the 2D simulated-image panel, and the
+working-volume analysis on the fan plane — is joined by the M8 camera-anatomy
+renderer, the M9 `argmin` Scheimpflug solver, the M10 symmetric-rig builder
+with N-view voxel-overlap analysis, a Gaussian-PSF blur model, and a
+triangle-mesh kernel with mesh laser intersection. **205 tests** pass; the M4
+Scheimpflug kill gate (numerical agreement with hand-computed
+circle-of-confusion regimes) is met.
 
 ## Scope
 
@@ -59,8 +64,6 @@ circle-of-confusion diameter in quadrature.
 - Polarization. Coherent diffraction. Wavelength dependence beyond a single
   nominal wavelength.
 - A database of real lens prescriptions.
-- Mesh-stitched laser intersection (the MVP target is a single analytic
-  plane, so the stripe is one straight segment).
 
 ## Reader assumption
 

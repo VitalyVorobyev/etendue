@@ -25,9 +25,9 @@
 //! occlude one another. With more than one translucent drawable the blend
 //! result still depends on draw order, so the translucent drawables are sorted
 //! **back-to-front** by the distance from their world-space centroid to the
-//! view camera before they are recorded. The M2 scene has a single translucent
-//! drawable (the laser fan) so the sort is currently a no-op, but the hook is
-//! in place for later milestones (the M6 working-volume solid).
+//! view camera before they are recorded. With M8 camera-anatomy quads,
+//! the M6 working-volume patch, and the M10 voxel-overlap cloud, there are
+//! now several translucent drawables; the sort ensures correct blending.
 //!
 //! # Pipelines
 //!
@@ -51,7 +51,7 @@ use bytemuck::{Pod, Zeroable};
 use nalgebra::{Matrix4, Point3};
 use wgpu::util::DeviceExt;
 
-use etendue_core::analysis::{DefocusMap, WorkingVolume};
+use etendue_core::analysis::{DefocusMap, VoxelOverlap, WorkingVolume};
 
 use crate::viewport::camera::OrbitCamera;
 use crate::viewport::mesh::{GpuColoredMesh, GpuLines, GpuMesh, GpuPoints, LineVertex, MeshVertex};
@@ -172,16 +172,13 @@ enum Geometry {
 
 /// One renderable scene item: GPU geometry plus its own model bind group.
 ///
-/// The model uniform is uploaded once at construction. M3 will mutate it
-/// per-frame as scene poses change via [`Drawable::set_transform`]; the buffer
-/// already carries `COPY_DST` so that `queue.write_buffer` needs no
-/// reallocation.
+/// The model uniform is uploaded once at construction via `Drawable::new`.
+/// All scene mutations go through the full [`Renderer::rebuild_scene`] path
+/// which replaces the entire drawable list.
 pub struct Drawable {
     /// The geometry buffers.
     geometry: Geometry,
-    /// GPU buffer backing this drawable's [`ModelUniform`].
-    model_buffer: wgpu::Buffer,
-    /// Bind group 1 wrapping `model_buffer`.
+    /// Bind group 1 wrapping the model uniform buffer.
     model_bind_group: wgpu::BindGroup,
     /// Opaque vs. translucent — selects the pass.
     pass: Pass,
@@ -211,7 +208,7 @@ impl Drawable {
         let model_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("etendue-model-uniform"),
             contents: bytemuck::bytes_of(&uniform),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            usage: wgpu::BufferUsages::UNIFORM,
         });
         let model_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("etendue-model-bind-group"),
@@ -224,29 +221,16 @@ impl Drawable {
         let centroid = model.transform_point(&local_centroid);
         Self {
             geometry,
-            model_buffer,
             model_bind_group,
             pass,
             centroid,
         }
-    }
-
-    /// Overwrite this drawable's model transform and tint in place.
-    ///
-    /// Unused by the static M1 demo scene, but it is the hook M2 needs to
-    /// re-pose entities each frame without rebuilding buffers.
-    #[allow(dead_code)]
-    pub fn set_transform(&mut self, queue: &wgpu::Queue, model: Matrix4<f32>, tint: [f32; 4]) {
-        let uniform = ModelUniform::new(model, tint);
-        queue.write_buffer(&self.model_buffer, 0, bytemuck::bytes_of(&uniform));
     }
 }
 
 /// The 3D viewport renderer: pipelines, the camera uniform, the depth texture,
 /// and the list of drawables.
 pub struct Renderer {
-    /// Bind group 0 layout (the camera/lighting `GlobalsUniform`).
-    globals_layout: wgpu::BindGroupLayout,
     /// Bind group 1 layout (a per-draw `ModelUniform`).
     model_layout: wgpu::BindGroupLayout,
     /// GPU buffer for the per-frame `GlobalsUniform`.
@@ -388,10 +372,9 @@ impl Renderer {
         // computed, so the initial scene draws plain target quads with no
         // working-volume overlay; `rebuild_scene` installs the M4 heatmap and
         // the M6 working-volume patch once the application has them.
-        let drawables = build_scene(device, &model_layout, scene, None, None);
+        let drawables = build_scene(device, &model_layout, scene, None, None, None);
 
         Self {
-            globals_layout,
             model_layout,
             globals_buffer,
             globals_bind_group,
@@ -474,8 +457,8 @@ impl Renderer {
         //
         // Within the pass the translucent drawables are recorded back-to-front
         // — farthest from the eye first — so overlapping alpha blends in the
-        // correct order. With a single translucent drawable (the M2 laser fan)
-        // this sort is a no-op, but it keeps later milestones correct.
+        // correct order. M8 added camera-anatomy quads, M6 the working-volume
+        // patch, and M10 the voxel-overlap cloud — all translucent.
         let eye = camera.eye();
         let mut translucent: Vec<&Drawable> = self
             .drawables
@@ -527,7 +510,7 @@ impl Renderer {
         }
     }
 
-    /// Rebuild every scene drawable from a mutated [`Scene`].
+    /// Rebuild every scene drawable from a mutated [`Scene`](etendue_core::Scene).
     ///
     /// Called by the application when the M3 parameter panel reports that any
     /// slider or drag-value changed this frame. Because focal-length and
@@ -555,25 +538,16 @@ impl Renderer {
         scene: &etendue_core::Scene,
         heatmap: Option<&DefocusMap>,
         working_volume: Option<&WorkingVolume>,
+        voxel_overlap: Option<(&VoxelOverlap, u32)>,
     ) {
-        self.drawables = build_scene(device, &self.model_layout, scene, heatmap, working_volume);
-    }
-
-    /// The bind group layout for per-draw model uniforms.
-    ///
-    /// Exposed so M2 can build new [`Drawable`]s for scene entities through
-    /// the same layout the renderer's pipelines were created with.
-    #[allow(dead_code)]
-    #[must_use]
-    pub fn model_layout(&self) -> &wgpu::BindGroupLayout {
-        &self.model_layout
-    }
-
-    /// The bind group layout for the camera/lighting globals.
-    #[allow(dead_code)]
-    #[must_use]
-    pub fn globals_layout(&self) -> &wgpu::BindGroupLayout {
-        &self.globals_layout
+        self.drawables = build_scene(
+            device,
+            &self.model_layout,
+            scene,
+            heatmap,
+            working_volume,
+            voxel_overlap,
+        );
     }
 }
 
@@ -707,14 +681,36 @@ const TARGET_COLOR: [f32; 3] = [0.62, 0.64, 0.68];
 /// the defocus heatmap.
 const LASER_STRIPE_COLOR: [f32; 3] = [1.0, 0.42, 0.38];
 
+/// RGB color of the M8 imager (sensor plane) — a cool blue distinct from the
+/// amber frustum and the warm origin marker.
+const IMAGER_COLOR: [f32; 3] = [0.30, 0.50, 0.85];
+/// RGB color of the M8 front principal plane `H` — a pale cyan.
+const PRINCIPAL_H_COLOR: [f32; 3] = [0.55, 0.85, 0.95];
+/// RGB color of the M8 rear principal plane `H'` — a pale lavender, distinct
+/// from `H` so the two read as separate planes when the inter-principal gap is
+/// non-zero.
+const PRINCIPAL_HPRIME_COLOR: [f32; 3] = [0.80, 0.78, 0.95];
+/// Alpha of the M8 translucent camera-anatomy quads (imager + principal
+/// planes). Slightly lower than the laser fan so the camera body never reads
+/// as the dominant volume.
+const CAMERA_ANATOMY_ALPHA: f32 = 0.35;
+/// RGB color of the M8 lens aperture ring — a warm gold, distinct from both
+/// `CAMERA_COLOR` (more orange/amber) and `ORIGIN_MARKER_COLOR` (creamier).
+const APERTURE_COLOR: [f32; 3] = [0.95, 0.85, 0.40];
+
+/// RGB color of the F7 mesh-target surface — a slightly warmer mid-green,
+/// distinct from the grey planar `TARGET_COLOR` so mesh and planar targets
+/// read as different entity kinds.
+const MESH_TARGET_COLOR: [f32; 3] = [0.40, 0.70, 0.45];
+
 /// Build every [`Drawable`] for a scene: the ground grid + world axes, then
 /// one drawable per camera / laser / target entity.
 ///
 /// Each entity's geometry is generated in its **entity-local** frame by the
 /// helpers in [`crate::viewport::scene`]; the entity's `pose` is handed to the
 /// renderer as the model matrix, so the GPU does the local→world transform.
-/// This is the same arrangement [`Drawable::set_transform`] re-uses when M3
-/// makes poses editable.
+/// The model matrix is uploaded once at construction; poses are edited via
+/// the parameter panel which rebuilds the scene each frame.
 ///
 /// Mapping from entity to primitive:
 ///
@@ -748,10 +744,13 @@ fn build_scene(
     scene: &etendue_core::Scene,
     heatmap: Option<&DefocusMap>,
     working_volume: Option<&WorkingVolume>,
+    voxel_overlap: Option<(&VoxelOverlap, u32)>,
 ) -> Vec<Drawable> {
     use crate::viewport::scene::{
-        WORKING_VOLUME_ALPHA, WORKING_VOLUME_COLOR, camera_frustum_edges, isometry_to_matrix4,
-        laser_fan_mesh, laser_stripe_segments, target_quad_mesh, working_volume_mesh,
+        VOXEL_OVERLAP_ALPHA, VOXEL_OVERLAP_COLOR, WORKING_VOLUME_ALPHA, WORKING_VOLUME_COLOR,
+        camera_aperture_ring, camera_frustum_edges, camera_imager_mesh,
+        camera_principal_plane_meshes, isometry_to_matrix4, laser_fan_mesh, laser_stripe_segments,
+        mesh_laser_stripe_segments, target_quad_mesh, voxel_overlap_mesh, working_volume_mesh,
     };
 
     let mut drawables = Vec::new();
@@ -794,6 +793,56 @@ fn build_scene(
         // where the camera body sits — so the sensor stays locatable when its
         // frustum is viewed edge-on.
         drawables.push(origin_marker(device, model_layout, model));
+
+        // --- M8 camera anatomy: imager + principal planes + aperture -------
+        // The imager (sensor plane) is drawn at z = -sensor_distance in camera
+        // local; the two principal planes at z = -g (H) and z = 0 (H'); and a
+        // thin aperture ring at z = -g/2 with diameter f/N. All translucent
+        // except the ring (a line list), all using the existing pipelines.
+        if let Some(imager) = camera_imager_mesh(camera) {
+            let local_centroid = mesh_centroid(&imager);
+            let gpu = GpuMesh::from_trimesh(device, &imager, IMAGER_COLOR);
+            drawables.push(Drawable::new(
+                device,
+                model_layout,
+                Geometry::Mesh(gpu),
+                model,
+                [1.0, 1.0, 1.0, CAMERA_ANATOMY_ALPHA],
+                Pass::Translucent,
+                local_centroid,
+            ));
+        }
+        let (h_mesh, h_prime_mesh) = camera_principal_plane_meshes(camera);
+        for (mesh, color) in [
+            (h_mesh, PRINCIPAL_H_COLOR),
+            (h_prime_mesh, PRINCIPAL_HPRIME_COLOR),
+        ] {
+            let local_centroid = mesh_centroid(&mesh);
+            let gpu = GpuMesh::from_trimesh(device, &mesh, color);
+            drawables.push(Drawable::new(
+                device,
+                model_layout,
+                Geometry::Mesh(gpu),
+                model,
+                [1.0, 1.0, 1.0, CAMERA_ANATOMY_ALPHA],
+                Pass::Translucent,
+                local_centroid,
+            ));
+        }
+        let aperture_segments = camera_aperture_ring(camera, APERTURE_COLOR);
+        if !aperture_segments.is_empty() {
+            let local_centroid = segment_centroid(&aperture_segments);
+            let aperture_gpu = GpuLines::from_segments(device, &aperture_segments);
+            drawables.push(Drawable::new(
+                device,
+                model_layout,
+                Geometry::Lines(aperture_gpu),
+                model,
+                white,
+                Pass::Opaque,
+                local_centroid,
+            ));
+        }
     }
 
     // --- Lasers: translucent fans + an origin marker --------------------
@@ -842,6 +891,44 @@ fn build_scene(
                 local_centroid,
             ));
         }
+    }
+
+    // --- F7 mesh targets: opaque shaded meshes ----------------------------
+    // Each `MeshTarget` carries its own `TriMesh`; the mesh is in the target's
+    // local frame, so the entity pose becomes the model matrix — exactly the
+    // same pattern the planar `TargetEntity` uses.  An empty `mesh_targets`
+    // vec (the common case — the MVP default scene has none) simply skips the
+    // loop.
+    for mesh_target in &scene.mesh_targets {
+        let model = isometry_to_matrix4(&mesh_target.pose);
+        let local_centroid = mesh_centroid(&mesh_target.mesh);
+        let gpu = GpuMesh::from_trimesh(device, &mesh_target.mesh, MESH_TARGET_COLOR);
+        drawables.push(Drawable::new(
+            device,
+            model_layout,
+            Geometry::Mesh(gpu),
+            model,
+            white,
+            Pass::Opaque,
+            local_centroid,
+        ));
+    }
+
+    // --- F7 mesh laser stripe: where the fan strikes each mesh target -----
+    // World-coordinate segments (one polyline per per-triangle stripe segment),
+    // drawn with an identity model matrix like the planar stripe above.
+    let mesh_stripe_segments = mesh_laser_stripe_segments(scene, LASER_STRIPE_COLOR);
+    if !mesh_stripe_segments.is_empty() {
+        let mesh_stripe = GpuLines::from_segments(device, &mesh_stripe_segments);
+        drawables.push(Drawable::new(
+            device,
+            model_layout,
+            Geometry::Lines(mesh_stripe),
+            Matrix4::identity(),
+            white,
+            Pass::Opaque,
+            segment_centroid(&mesh_stripe_segments),
+        ));
     }
 
     // --- M5 laser stripe: the line where the fan strikes the target -----
@@ -894,6 +981,27 @@ fn build_scene(
         }
     }
 
+    // --- M10 voxel-overlap: the N-view agreement volume ------------------
+    // Per the M10 plan (N-view voxelized overlap), this draws a translucent
+    // cube cloud over the voxels whose pair-coverage is at or above the
+    // user-chosen `min_overlap` threshold. World-coordinate vertices =>
+    // identity model. Skipped when no voxel meets the threshold.
+    if let Some((voxels, min_overlap)) = voxel_overlap
+        && let Some(mesh) = voxel_overlap_mesh(voxels, min_overlap)
+    {
+        let local_centroid = mesh_centroid(&mesh);
+        let gpu = GpuMesh::from_trimesh(device, &mesh, VOXEL_OVERLAP_COLOR);
+        drawables.push(Drawable::new(
+            device,
+            model_layout,
+            Geometry::Mesh(gpu),
+            Matrix4::identity(),
+            [1.0, 1.0, 1.0, VOXEL_OVERLAP_ALPHA],
+            Pass::Translucent,
+            local_centroid,
+        ));
+    }
+
     drawables
 }
 
@@ -937,8 +1045,7 @@ fn heatmap_drawable(
 ///
 /// Used to mark a camera's frustum apex and a laser's fan apex — the points
 /// where the entity body conceptually sits — and, incidentally, to keep the
-/// point-list pipeline exercised now that the M1 demo's corner points are
-/// gone.
+/// point-list pipeline exercised by every entity-origin marker in the scene.
 fn origin_marker(
     device: &wgpu::Device,
     model_layout: &wgpu::BindGroupLayout,

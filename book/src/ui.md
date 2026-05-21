@@ -57,9 +57,9 @@ translucent pass is depth-tested but **depth-write off**, so translucent
 surfaces are correctly occluded by opaque geometry yet do not occlude one
 another. With more than one translucent drawable the blend result still
 depends on draw order, so translucent drawables are sorted **back-to-front**
-by world-space centroid distance to the view camera. The M2 scene has a
-single translucent drawable (the laser fan); M6 adds a second (the
-working-volume patch) — the sort is in place ready for it.
+by world-space centroid distance to the view camera. The scene now has
+several translucent drawables: the laser fan, the M8 camera-anatomy quads,
+the M6 working-volume patch, and the M10 voxel-overlap cloud.
 
 ## The `f64 → f32` GPU boundary
 
@@ -87,15 +87,13 @@ the four sensor corners (scaled to `frustum_near` and `frustum_far`),
 giving the 8 corners and the 12 familiar edges; see [scene and
 geometry](scene_and_geometry.md).
 
-## Picking via CPU ray-cast
+## Picking
 
-Click-picking is **CPU**: an egui pointer event is back-projected into a
-world ray (orbit camera + sensor pixel → ray), then `Ray3::intersect_mesh`
-is run against the scene's meshes. No GPU entity-ID buffer, no readback. A
-GPU-ID path would be marginally cleaner for a much larger scene, but at the
-handful of scene meshes the MVP draws the CPU path is simpler, has no
-device-readback latency, and reuses the kernel's `geom::ray` primitives
-directly.
+Click-picking is not implemented in v0.1.0 — entity selection and dragging
+are not yet wired. The orbital camera (mouse-drag) is the only pointer
+interaction. CPU picking via ray–mesh intersection is planned; the triangle
+mesh geometry is already available through `TriMesh::vertices()` /
+`TriMesh::indices()`.
 
 ## The `Drawable` abstraction
 

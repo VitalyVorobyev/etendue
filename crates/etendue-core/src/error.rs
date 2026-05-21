@@ -33,6 +33,12 @@ pub enum Error {
     /// A numerical operation failed unexpectedly.
     #[error("numerical failure: {0}")]
     Numerical(String),
+
+    /// A file I/O or parse error — wraps the underlying error message as a
+    /// `String` so callers do not depend on `std::io::Error` or
+    /// `serde_json::Error` directly.
+    #[error("I/O or parse error: {0}")]
+    Io(String),
 }
 
 /// Result type used throughout `etendue-core`.

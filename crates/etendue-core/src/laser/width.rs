@@ -122,7 +122,7 @@ impl GaussianBeamWidth {
         })
     }
 
-    /// Build a Gaussian-beam width model from a [`LaserEntity`].
+    /// Build a Gaussian-beam width model from a [`LaserEntity`](crate::scene::LaserEntity).
     ///
     /// Reads the entity's [`beam_waist_m`](crate::scene::LaserEntity::beam_waist_m)
     /// as the waist radius `w0` and converts its

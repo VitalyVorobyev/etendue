@@ -5,7 +5,7 @@
 ```bash
 cargo build --workspace                                    # build both crates
 cargo run                                                  # launch the GUI (blocks until window closed)
-cargo test --workspace                                     # run all 172 tests
+cargo test --workspace                                     # run all 205 tests
 cargo clippy --workspace --all-targets -- -D warnings      # lint (must be clean)
 cargo fmt --all                                            # format
 cargo fmt --all --check                                    # CI format check
