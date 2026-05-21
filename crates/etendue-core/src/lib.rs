@@ -24,7 +24,7 @@
 //! # Modules
 //!
 //! - [`error`]: the crate's typed [`Error`] enum and [`Result`] alias.
-//! - [`geom`]: pure geometry — triangle meshes and ray–triangle intersection.
+//! - [`geom`]: pure geometry — triangle meshes and primitive constructors.
 //! - [`scene`]: the posed-entity scene — cameras, lasers, and targets.
 //! - [`optics`]: the thick-lens defocus physics — conjugates, the Scheimpflug
 //!   plane of best focus, and the geometric circle of confusion.
@@ -48,7 +48,7 @@ pub mod solver;
 
 pub use error::{Error, Result};
 pub use optics::ThickLens;
-pub use scene::{CameraEntity, LaserEntity, Scene, TargetEntity};
+pub use scene::{CameraEntity, LaserEntity, MeshTarget, PhysicalOptics, Scene, TargetEntity};
 
 /// Re-export of the upstream calibration kernel.
 ///

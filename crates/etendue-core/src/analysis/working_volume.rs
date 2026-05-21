@@ -460,11 +460,13 @@ mod tests {
             pose,
             params,
             (RES_W, RES_H),
-            F_M,
-            FNUM,
-            focus_m,
-            GAP_M,
-            PITCH_M,
+            crate::scene::PhysicalOptics {
+                effective_focal_length_m: F_M,
+                f_number: FNUM,
+                focus_distance_m: focus_m,
+                principal_gap_m: GAP_M,
+                pixel_pitch_m: PITCH_M,
+            },
             0.1,
             2.0,
         )
@@ -597,7 +599,7 @@ mod tests {
         // Move the focus far from the target standoff (the default is ~0.62 m
         // — push it to 2.0 m so the on-target band is squarely out of focus).
         let mut detuned_cam = scene.cameras[0].clone();
-        detuned_cam.focus_distance_m = 2.0;
+        detuned_cam.optics.focus_distance_m = 2.0;
         detuned_cam.sync_intrinsics_from_physical();
         let detuned = working_volume(&detuned_cam, &scene.lasers[0], 64, 64, 1.0).unwrap();
         let area_detuned = detuned.area_m2();

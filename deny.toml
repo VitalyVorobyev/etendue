@@ -25,10 +25,12 @@ allow = [
     "Unicode-DFS-2016",
     "Zlib",
     "CC0-1.0",
+    "BSL-1.0",
+    "OFL-1.1",
+    "Ubuntu-font-1.0",
 ]
-# Unlicense is sometimes used by small helper crates.
-allow-osi-fsf-free = "either"
-copyleft = "deny"
+# Any license not listed in `allow` above is denied by default (cargo-deny ≥ 0.15).
+# This already covers copyleft licenses without needing the removed `copyleft` key.
 
 [bans]
 # Only one version of nalgebra is allowed — see Cargo.toml hard-pin comment.

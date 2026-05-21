@@ -52,7 +52,7 @@ pub struct OrbitCamera {
 
 impl Default for OrbitCamera {
     /// A camera looking at the origin from above and to the side — a good
-    /// default for inspecting the M1 demo scene.
+    /// default for inspecting the default MVP scene.
     fn default() -> Self {
         Self {
             target: Point3::origin(),

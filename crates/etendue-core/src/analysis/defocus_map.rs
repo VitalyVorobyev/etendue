@@ -259,11 +259,13 @@ mod tests {
             Isometry3::identity(),
             params,
             (1280, 1024),
-            F_M,
-            FNUM,
-            FOCUS_M,
-            GAP_M,
-            PITCH_M,
+            crate::scene::PhysicalOptics {
+                effective_focal_length_m: F_M,
+                f_number: FNUM,
+                focus_distance_m: FOCUS_M,
+                principal_gap_m: GAP_M,
+                pixel_pitch_m: PITCH_M,
+            },
             0.05,
             2.0,
         )

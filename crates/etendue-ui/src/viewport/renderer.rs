@@ -25,9 +25,9 @@
 //! occlude one another. With more than one translucent drawable the blend
 //! result still depends on draw order, so the translucent drawables are sorted
 //! **back-to-front** by the distance from their world-space centroid to the
-//! view camera before they are recorded. The M2 scene has a single translucent
-//! drawable (the laser fan) so the sort is currently a no-op, but the hook is
-//! in place for later milestones (the M6 working-volume solid).
+//! view camera before they are recorded. With M8 camera-anatomy quads,
+//! the M6 working-volume patch, and the M10 voxel-overlap cloud, there are
+//! now several translucent drawables; the sort ensures correct blending.
 //!
 //! # Pipelines
 //!
@@ -172,16 +172,13 @@ enum Geometry {
 
 /// One renderable scene item: GPU geometry plus its own model bind group.
 ///
-/// The model uniform is uploaded once at construction. M3 will mutate it
-/// per-frame as scene poses change via [`Drawable::set_transform`]; the buffer
-/// already carries `COPY_DST` so that `queue.write_buffer` needs no
-/// reallocation.
+/// The model uniform is uploaded once at construction via `Drawable::new`.
+/// All scene mutations go through the full [`Renderer::rebuild_scene`] path
+/// which replaces the entire drawable list.
 pub struct Drawable {
     /// The geometry buffers.
     geometry: Geometry,
-    /// GPU buffer backing this drawable's [`ModelUniform`].
-    model_buffer: wgpu::Buffer,
-    /// Bind group 1 wrapping `model_buffer`.
+    /// Bind group 1 wrapping the model uniform buffer.
     model_bind_group: wgpu::BindGroup,
     /// Opaque vs. translucent — selects the pass.
     pass: Pass,
@@ -211,7 +208,7 @@ impl Drawable {
         let model_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("etendue-model-uniform"),
             contents: bytemuck::bytes_of(&uniform),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            usage: wgpu::BufferUsages::UNIFORM,
         });
         let model_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("etendue-model-bind-group"),
@@ -224,24 +221,10 @@ impl Drawable {
         let centroid = model.transform_point(&local_centroid);
         Self {
             geometry,
-            model_buffer,
             model_bind_group,
             pass,
             centroid,
         }
-    }
-
-    /// Overwrite this drawable's model transform and tint in place.
-    ///
-    /// Currently unused: the static scene rebuild path calls `rebuild_scene`
-    /// which replaces all drawables rather than re-posing them. This is the
-    /// re-pose hook for post-MVP work that animates scene poses without a full
-    /// rebuild — specifically the voxelized working-volume overlay and the
-    /// `argmin`-based optimizer (post-MVP queue items 2 and 5 in CLAUDE.md).
-    #[allow(dead_code)]
-    pub fn set_transform(&mut self, queue: &wgpu::Queue, model: Matrix4<f32>, tint: [f32; 4]) {
-        let uniform = ModelUniform::new(model, tint);
-        queue.write_buffer(&self.model_buffer, 0, bytemuck::bytes_of(&uniform));
     }
 }
 
@@ -474,8 +457,8 @@ impl Renderer {
         //
         // Within the pass the translucent drawables are recorded back-to-front
         // — farthest from the eye first — so overlapping alpha blends in the
-        // correct order. With a single translucent drawable (the M2 laser fan)
-        // this sort is a no-op, but it keeps later milestones correct.
+        // correct order. M8 added camera-anatomy quads, M6 the working-volume
+        // patch, and M10 the voxel-overlap cloud — all translucent.
         let eye = camera.eye();
         let mut translucent: Vec<&Drawable> = self
             .drawables
@@ -715,14 +698,19 @@ const CAMERA_ANATOMY_ALPHA: f32 = 0.35;
 /// `CAMERA_COLOR` (more orange/amber) and `ORIGIN_MARKER_COLOR` (creamier).
 const APERTURE_COLOR: [f32; 3] = [0.95, 0.85, 0.40];
 
+/// RGB color of the F7 mesh-target surface — a slightly warmer mid-green,
+/// distinct from the grey planar `TARGET_COLOR` so mesh and planar targets
+/// read as different entity kinds.
+const MESH_TARGET_COLOR: [f32; 3] = [0.40, 0.70, 0.45];
+
 /// Build every [`Drawable`] for a scene: the ground grid + world axes, then
 /// one drawable per camera / laser / target entity.
 ///
 /// Each entity's geometry is generated in its **entity-local** frame by the
 /// helpers in [`crate::viewport::scene`]; the entity's `pose` is handed to the
 /// renderer as the model matrix, so the GPU does the local→world transform.
-/// This is the same arrangement [`Drawable::set_transform`] re-uses when M3
-/// makes poses editable.
+/// The model matrix is uploaded once at construction; poses are edited via
+/// the parameter panel which rebuilds the scene each frame.
 ///
 /// Mapping from entity to primitive:
 ///
@@ -762,7 +750,7 @@ fn build_scene(
         VOXEL_OVERLAP_ALPHA, VOXEL_OVERLAP_COLOR, WORKING_VOLUME_ALPHA, WORKING_VOLUME_COLOR,
         camera_aperture_ring, camera_frustum_edges, camera_imager_mesh,
         camera_principal_plane_meshes, isometry_to_matrix4, laser_fan_mesh, laser_stripe_segments,
-        target_quad_mesh, voxel_overlap_mesh, working_volume_mesh,
+        mesh_laser_stripe_segments, target_quad_mesh, voxel_overlap_mesh, working_volume_mesh,
     };
 
     let mut drawables = Vec::new();
@@ -905,6 +893,44 @@ fn build_scene(
         }
     }
 
+    // --- F7 mesh targets: opaque shaded meshes ----------------------------
+    // Each `MeshTarget` carries its own `TriMesh`; the mesh is in the target's
+    // local frame, so the entity pose becomes the model matrix — exactly the
+    // same pattern the planar `TargetEntity` uses.  An empty `mesh_targets`
+    // vec (the common case — the MVP default scene has none) simply skips the
+    // loop.
+    for mesh_target in &scene.mesh_targets {
+        let model = isometry_to_matrix4(&mesh_target.pose);
+        let local_centroid = mesh_centroid(&mesh_target.mesh);
+        let gpu = GpuMesh::from_trimesh(device, &mesh_target.mesh, MESH_TARGET_COLOR);
+        drawables.push(Drawable::new(
+            device,
+            model_layout,
+            Geometry::Mesh(gpu),
+            model,
+            white,
+            Pass::Opaque,
+            local_centroid,
+        ));
+    }
+
+    // --- F7 mesh laser stripe: where the fan strikes each mesh target -----
+    // World-coordinate segments (one polyline per per-triangle stripe segment),
+    // drawn with an identity model matrix like the planar stripe above.
+    let mesh_stripe_segments = mesh_laser_stripe_segments(scene, LASER_STRIPE_COLOR);
+    if !mesh_stripe_segments.is_empty() {
+        let mesh_stripe = GpuLines::from_segments(device, &mesh_stripe_segments);
+        drawables.push(Drawable::new(
+            device,
+            model_layout,
+            Geometry::Lines(mesh_stripe),
+            Matrix4::identity(),
+            white,
+            Pass::Opaque,
+            segment_centroid(&mesh_stripe_segments),
+        ));
+    }
+
     // --- M5 laser stripe: the line where the fan strikes the target -----
     // A derived curve spanning the first laser and the first target. It is
     // already in world coordinates (see `laser_stripe_segments`), so it draws
@@ -1019,8 +1045,7 @@ fn heatmap_drawable(
 ///
 /// Used to mark a camera's frustum apex and a laser's fan apex — the points
 /// where the entity body conceptually sits — and, incidentally, to keep the
-/// point-list pipeline exercised now that the M1 demo's corner points are
-/// gone.
+/// point-list pipeline exercised by every entity-origin marker in the scene.
 fn origin_marker(
     device: &wgpu::Device,
     model_layout: &wgpu::BindGroupLayout,

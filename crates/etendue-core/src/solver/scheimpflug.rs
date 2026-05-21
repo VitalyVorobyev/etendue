@@ -38,9 +38,8 @@
 //! sample CoC evaluations per call), so a derivative-free simplex method is
 //! the natural choice. The initial simplex is built around the camera's
 //! current `(tau_x, tau_y, s_o)` with small perturbations in each variable.
-//! A smoothed gradient-based pass (log-sum-exp soft-max + L-BFGS) is an
-//! explicit follow-up — see the M9 plan — should the simplex method prove
-//! brittle on real designs.
+//! A smoothed-objective gradient-based pass is an explicit follow-up — see
+//! the M9 plan — should the simplex method prove brittle on real designs.
 
 use std::f64::consts::FRAC_PI_2;
 
@@ -127,6 +126,14 @@ pub struct SolverResult {
 }
 
 /// Errors the Scheimpflug solver can return.
+///
+/// This enum is `#[non_exhaustive]` so adding a new variant in a future
+/// release is non-breaking. Callers must include a wildcard arm when matching
+/// on `SolverError`. The solver carries its own error type rather than folding
+/// into `crate::Error` because solver failures are distinct in kind from
+/// geometry / optics validation errors and are typically matched separately by
+/// the UI.
+#[non_exhaustive]
 #[derive(Clone, Debug, thiserror::Error)]
 pub enum SolverError {
     /// The [`SolverSpec`] is malformed (non-finite numbers, negative depth
@@ -169,7 +176,7 @@ pub fn solve_scheimpflug(
 
     // Initial simplex anchored at the camera's current state.
     let (tau_x0, tau_y0) = scheimpflug_tilt(&camera.params);
-    let s_o0 = camera.focus_distance_m;
+    let s_o0 = camera.optics.focus_distance_m;
     let initial = vec![tau_x0, tau_y0, s_o0];
 
     // Simplex perturbations: 1° in tilt, 5 % of d_opt in focus (or 5 mm,
@@ -324,10 +331,10 @@ impl ScheimpflugCost {
 
         Ok(Self {
             cam_local_samples,
-            f: camera.effective_focal_length_m,
-            n_fnum: camera.f_number,
-            g: camera.principal_gap_m,
-            pixel_pitch_m: camera.pixel_pitch_m,
+            f: camera.optics.effective_focal_length_m,
+            n_fnum: camera.optics.f_number,
+            g: camera.optics.principal_gap_m,
+            pixel_pitch_m: camera.optics.pixel_pitch_m,
             sensor_extent: camera.resolution_f64(),
             principal_point: (cx, cy),
             focal_px: camera.focal_length_px(),
@@ -466,11 +473,13 @@ mod tests {
             pose,
             params,
             (RES_W, RES_H),
-            F_M,
-            FNUM,
-            focus_m,
-            0.0,
-            PITCH_M,
+            crate::scene::PhysicalOptics {
+                effective_focal_length_m: F_M,
+                f_number: FNUM,
+                focus_distance_m: focus_m,
+                principal_gap_m: 0.0,
+                pixel_pitch_m: PITCH_M,
+            },
             0.05,
             3.0,
         )
@@ -621,7 +630,7 @@ mod tests {
         let baseline_cost = ScheimpflugCost::new(&cam, &laser, &spec).unwrap();
         let (tau_x0, tau_y0) = scheimpflug_tilt(&cam.params);
         let baseline = baseline_cost
-            .evaluate(tau_x0, tau_y0, cam.focus_distance_m)
+            .evaluate(tau_x0, tau_y0, cam.optics.focus_distance_m)
             .max_coc_px;
         assert!(
             baseline.is_finite() && baseline > 0.0,
@@ -671,8 +680,11 @@ mod tests {
         let cam = &scene.cameras[0];
         let laser = &scene.lasers[0];
         let spec = SolverSpec {
-            d_opt: cam.focus_distance_m,
-            depth_range: (cam.focus_distance_m * 0.9, cam.focus_distance_m * 1.1),
+            d_opt: cam.optics.focus_distance_m,
+            depth_range: (
+                cam.optics.focus_distance_m * 0.9,
+                cam.optics.focus_distance_m * 1.1,
+            ),
             grid: SampleGrid::DEFAULT,
         };
         let res = solve_scheimpflug(cam, laser, &spec).expect("default scene solves");

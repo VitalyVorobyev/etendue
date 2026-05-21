@@ -16,13 +16,19 @@ use vision_calibration_core::{
     ScheimpflugParams, SensorParams,
 };
 
-use super::entity::{CameraEntity, LaserEntity, TargetEntity};
+use super::entity::{CameraEntity, LaserEntity, MeshTarget, PhysicalOptics, TargetEntity};
 
 /// A complete optical-design scene: every camera, laser, and target.
 ///
 /// M2 constructs scenes in code (see [`Scene::default_mvp`]); M3 adds the
 /// editing UI and JSON load. The `Vec` fields are public so the UI can pose
 /// and append entities directly.
+///
+/// # Serde backwards compatibility
+///
+/// `mesh_targets` uses `#[serde(default)]` so pre-existing scene JSON files
+/// (which do not have the field) load without error and produce an empty
+/// mesh-target list.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Scene {
     /// Simulated triangulation cameras.
@@ -31,6 +37,13 @@ pub struct Scene {
     pub lasers: Vec<LaserEntity>,
     /// Inspection targets.
     pub targets: Vec<TargetEntity>,
+    /// Triangle-mesh inspection targets (post-MVP, defaults to empty).
+    ///
+    /// These are rendered as opaque meshes in the viewport, and each laser
+    /// is intersected against them via
+    /// [`stripe_segments_on_mesh`](crate::laser::stripe_segments_on_mesh).
+    #[serde(default)]
+    pub mesh_targets: Vec<MeshTarget>,
 }
 
 impl Scene {
@@ -179,11 +192,13 @@ impl Scene {
             camera_pose,
             camera_params,
             (1280, 1024),
-            camera_focal_length_m,
-            camera_f_number,
-            camera_focus_distance_m,
-            camera_principal_gap_m,
-            camera_pixel_pitch_m,
+            PhysicalOptics {
+                effective_focal_length_m: camera_focal_length_m,
+                f_number: camera_f_number,
+                focus_distance_m: camera_focus_distance_m,
+                principal_gap_m: camera_principal_gap_m,
+                pixel_pitch_m: camera_pixel_pitch_m,
+            },
             0.30,
             0.95,
         )
@@ -193,6 +208,7 @@ impl Scene {
             cameras: vec![camera],
             lasers: vec![laser],
             targets: vec![target],
+            mesh_targets: Vec::new(),
         }
     }
 
@@ -513,8 +529,8 @@ mod tests {
         // clones the template and replaces only the pose).
         assert_eq!(cam0.resolution, scene.cameras[0].resolution);
         assert_relative_eq!(
-            cam0.effective_focal_length_m,
-            scene.cameras[0].effective_focal_length_m,
+            cam0.optics.effective_focal_length_m,
+            scene.cameras[0].optics.effective_focal_length_m,
             epsilon = 1e-12,
         );
         assert_relative_eq!(

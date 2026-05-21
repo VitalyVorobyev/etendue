@@ -443,11 +443,13 @@ mod tests {
             pose,
             params,
             (1280, 1024),
-            F_M,
-            FNUM,
-            focus_m,
-            0.0,
-            PITCH_M,
+            crate::scene::PhysicalOptics {
+                effective_focal_length_m: F_M,
+                f_number: FNUM,
+                focus_distance_m: focus_m,
+                principal_gap_m: 0.0,
+                pixel_pitch_m: PITCH_M,
+            },
             0.05,
             3.0,
         )

@@ -16,8 +16,7 @@
 //! Every *entity* geometry helper returns its result in the **entity-local**
 //! frame; the caller hands the entity's `pose` to the renderer as the model
 //! matrix, so the GPU does the local→world transform. This keeps the entity
-//! pose in one place and gives M3 a cheap re-pose path
-//! (`Drawable::set_transform`). The laser stripe is the exception — it is a
+//! pose in one place. The laser stripe is the exception — it is a
 //! *derived* curve spanning two entities, so [`laser_stripe_segments`] returns
 //! it directly in **world** coordinates (drawn with an identity model matrix,
 //! like the ground grid).
@@ -28,7 +27,10 @@
 
 use etendue_core::analysis::{VoxelOverlap, WorkingVolume};
 use etendue_core::geom::TriMesh;
-use etendue_core::laser::{GaussianBeamWidth, LaserPlane, WidthModel, stripe_on_target};
+use etendue_core::laser::{
+    GaussianBeamWidth, LaserPlane, LaserStripe, WidthModel, stripe_on_target,
+    stripe_segments_on_mesh,
+};
 use etendue_core::optics::sensor_distance;
 use etendue_core::scene::{CameraEntity, LaserEntity, Scene, TargetEntity};
 use nalgebra::{Isometry3, Matrix4, Point2, Point3, Vector3};
@@ -208,14 +210,14 @@ fn double_sided_rect_mesh(half_w: f64, half_h: f64, z: f64) -> TriMesh {
 #[must_use]
 pub fn camera_imager_mesh(camera: &CameraEntity) -> Option<TriMesh> {
     let v0 = sensor_distance(
-        camera.focus_distance_m,
-        camera.principal_gap_m,
-        camera.effective_focal_length_m,
+        camera.optics.focus_distance_m,
+        camera.optics.principal_gap_m,
+        camera.optics.effective_focal_length_m,
     )
     .ok()?;
     let (rx, ry) = camera.resolution_f64();
-    let half_w = 0.5 * rx * camera.pixel_pitch_m;
-    let half_h = 0.5 * ry * camera.pixel_pitch_m;
+    let half_w = 0.5 * rx * camera.optics.pixel_pitch_m;
+    let half_h = 0.5 * ry * camera.optics.pixel_pitch_m;
     Some(double_sided_rect_mesh(half_w, half_h, -v0))
 }
 
@@ -234,9 +236,9 @@ pub fn camera_imager_mesh(camera: &CameraEntity) -> Option<TriMesh> {
 /// visible.
 #[must_use]
 pub fn camera_principal_plane_meshes(camera: &CameraEntity) -> (TriMesh, TriMesh) {
-    let aperture_diam = camera.effective_focal_length_m / camera.f_number;
+    let aperture_diam = camera.optics.effective_focal_length_m / camera.optics.f_number;
     let half_side = 0.5 * 1.4 * aperture_diam;
-    let g = camera.principal_gap_m;
+    let g = camera.optics.principal_gap_m;
     let h = double_sided_rect_mesh(half_side, half_side, -g);
     let h_prime = double_sided_rect_mesh(half_side, half_side, 0.0);
     (h, h_prime)
@@ -257,8 +259,8 @@ pub fn camera_aperture_ring(
     color: [f32; 3],
 ) -> Vec<(Point3<f64>, Point3<f64>, [f32; 3])> {
     const SEGMENTS: usize = 48;
-    let radius = 0.5 * camera.effective_focal_length_m / camera.f_number;
-    let z = -0.5 * camera.principal_gap_m;
+    let radius = 0.5 * camera.optics.effective_focal_length_m / camera.optics.f_number;
+    let z = -0.5 * camera.optics.principal_gap_m;
     (0..SEGMENTS)
         .map(|i| {
             let t0 = (i as f64 / SEGMENTS as f64) * std::f64::consts::TAU;
@@ -442,6 +444,45 @@ pub fn laser_stripe_segments(
     out
 }
 
+/// Compute world-space line segments for the laser stripes across all mesh
+/// targets, mirroring [`laser_stripe_segments`] for triangle-mesh targets.
+///
+/// For every laser in the scene and every `MeshTarget` in `scene.mesh_targets`, calls
+/// [`stripe_segments_on_mesh`] and converts the resulting [`LaserStripe`]
+/// sample polylines into consecutive segment pairs. The segments are in
+/// **world** coordinates, so the caller renders them with an identity model
+/// matrix (same as [`laser_stripe_segments`]).
+///
+/// Returns an empty `Vec` when there are no mesh targets, no lasers, or every
+/// laser misses every mesh.
+#[must_use]
+pub fn mesh_laser_stripe_segments(
+    scene: &Scene,
+    color: [f32; 3],
+) -> Vec<(Point3<f64>, Point3<f64>, [f32; 3])> {
+    let mut out = Vec::new();
+    for laser in &scene.lasers {
+        let plane = LaserPlane::from_entity(laser);
+        let Ok(width_model) = GaussianBeamWidth::from_laser(laser) else {
+            continue;
+        };
+        for mesh_target in &scene.mesh_targets {
+            let stripes: Vec<LaserStripe> = stripe_segments_on_mesh(
+                &plane,
+                &mesh_target.mesh,
+                &mesh_target.pose,
+                &width_model,
+                STRIPE_SAMPLES,
+            );
+            for stripe in &stripes {
+                let samples = stripe.samples();
+                out.extend(samples.windows(2).map(|w| (w[0].point, w[1].point, color)));
+            }
+        }
+    }
+    out
+}
+
 /// RGB color of the working-volume patch — a saturated cyan/teal.
 ///
 /// Deliberately distinct from both the laser fan red and the heatmap
@@ -611,75 +652,89 @@ pub fn voxel_overlap_mesh(voxels: &VoxelOverlap, min_overlap: u32) -> Option<Tri
     let hz = 0.5 * dz * VOXEL_RENDER_SCALE;
 
     let counts = voxels.counts();
-    // Cube face data — 6 outward normals × 4 corners CCW from outside.
-    // Corner offsets are unit-edge offsets; multiplied by (hx, hy, hz) below.
-    type CubeFace = (Vector3<f64>, [(f64, f64, f64); 4]);
-    let faces: [CubeFace; 6] = [
-        // +X
-        (
-            Vector3::new(1.0, 0.0, 0.0),
-            [
-                (1.0, -1.0, -1.0),
-                (1.0, 1.0, -1.0),
-                (1.0, 1.0, 1.0),
-                (1.0, -1.0, 1.0),
-            ],
-        ),
-        // -X
-        (
-            Vector3::new(-1.0, 0.0, 0.0),
-            [
-                (-1.0, -1.0, 1.0),
-                (-1.0, 1.0, 1.0),
-                (-1.0, 1.0, -1.0),
-                (-1.0, -1.0, -1.0),
-            ],
-        ),
-        // +Y
-        (
-            Vector3::new(0.0, 1.0, 0.0),
-            [
-                (-1.0, 1.0, -1.0),
-                (-1.0, 1.0, 1.0),
-                (1.0, 1.0, 1.0),
-                (1.0, 1.0, -1.0),
-            ],
-        ),
-        // -Y
-        (
-            Vector3::new(0.0, -1.0, 0.0),
-            [
-                (-1.0, -1.0, 1.0),
-                (-1.0, -1.0, -1.0),
-                (1.0, -1.0, -1.0),
-                (1.0, -1.0, 1.0),
-            ],
-        ),
-        // +Z
-        (
-            Vector3::new(0.0, 0.0, 1.0),
-            [
-                (-1.0, -1.0, 1.0),
-                (1.0, -1.0, 1.0),
-                (1.0, 1.0, 1.0),
-                (-1.0, 1.0, 1.0),
-            ],
-        ),
-        // -Z
-        (
-            Vector3::new(0.0, 0.0, -1.0),
-            [
-                (1.0, -1.0, -1.0),
-                (-1.0, -1.0, -1.0),
-                (-1.0, 1.0, -1.0),
-                (1.0, 1.0, -1.0),
-            ],
-        ),
-    ];
 
-    let mut vertices: Vec<Point3<f64>> = Vec::new();
-    let mut normals: Vec<Vector3<f64>> = Vec::new();
-    let mut indices: Vec<[u32; 3]> = Vec::new();
+    // Build the cube template at the rendered half-extents (hx, hy, hz).
+    // `TriMesh::unit_cube` produces a symmetric cube — we need an axis-aligned
+    // box with potentially different per-axis scales. Build the faces directly
+    // using the same winding table as `unit_cube` but with (hx, hy, hz) half-
+    // extents, then merge one translated copy per in-volume voxel into an
+    // accumulator via `TriMesh::extend_with`.
+    //
+    // An axis-aligned box template (origin-centred, half-extents hx, hy, hz):
+    let box_mesh = {
+        use etendue_core::geom::TriMesh as CoreTriMesh;
+        type BoxFace = (Vector3<f64>, [Point3<f64>; 4]);
+        let faces: [BoxFace; 6] = [
+            (
+                Vector3::new(1.0, 0.0, 0.0),
+                [
+                    Point3::new(hx, -hy, -hz),
+                    Point3::new(hx, hy, -hz),
+                    Point3::new(hx, hy, hz),
+                    Point3::new(hx, -hy, hz),
+                ],
+            ),
+            (
+                Vector3::new(-1.0, 0.0, 0.0),
+                [
+                    Point3::new(-hx, -hy, hz),
+                    Point3::new(-hx, hy, hz),
+                    Point3::new(-hx, hy, -hz),
+                    Point3::new(-hx, -hy, -hz),
+                ],
+            ),
+            (
+                Vector3::new(0.0, 1.0, 0.0),
+                [
+                    Point3::new(-hx, hy, -hz),
+                    Point3::new(-hx, hy, hz),
+                    Point3::new(hx, hy, hz),
+                    Point3::new(hx, hy, -hz),
+                ],
+            ),
+            (
+                Vector3::new(0.0, -1.0, 0.0),
+                [
+                    Point3::new(-hx, -hy, hz),
+                    Point3::new(-hx, -hy, -hz),
+                    Point3::new(hx, -hy, -hz),
+                    Point3::new(hx, -hy, hz),
+                ],
+            ),
+            (
+                Vector3::new(0.0, 0.0, 1.0),
+                [
+                    Point3::new(-hx, -hy, hz),
+                    Point3::new(hx, -hy, hz),
+                    Point3::new(hx, hy, hz),
+                    Point3::new(-hx, hy, hz),
+                ],
+            ),
+            (
+                Vector3::new(0.0, 0.0, -1.0),
+                [
+                    Point3::new(hx, -hy, -hz),
+                    Point3::new(-hx, -hy, -hz),
+                    Point3::new(-hx, hy, -hz),
+                    Point3::new(hx, hy, -hz),
+                ],
+            ),
+        ];
+        let mut verts: Vec<Point3<f64>> = Vec::with_capacity(24);
+        let mut norms: Vec<Vector3<f64>> = Vec::with_capacity(24);
+        let mut idxs: Vec<[u32; 3]> = Vec::with_capacity(12);
+        for (normal, corners) in &faces {
+            let base = verts.len() as u32;
+            verts.extend_from_slice(corners);
+            norms.extend(std::iter::repeat_n(*normal, 4));
+            idxs.push([base, base + 1, base + 2]);
+            idxs.push([base, base + 2, base + 3]);
+        }
+        CoreTriMesh::new(verts, norms, idxs)
+            .expect("axis-aligned box is non-degenerate for positive half-extents")
+    };
+
+    let mut accumulator: Option<TriMesh> = None;
 
     for iz in 0..res.nz {
         for iy in 0..res.ny {
@@ -689,27 +744,20 @@ pub fn voxel_overlap_mesh(voxels: &VoxelOverlap, min_overlap: u32) -> Option<Tri
                     continue;
                 }
                 let centre = voxels.voxel_centre(ix, iy, iz);
-                for (normal, corners) in &faces {
-                    let base = vertices.len() as u32;
-                    for (cx, cy, cz) in corners {
-                        vertices.push(Point3::new(
-                            centre.x + cx * hx,
-                            centre.y + cy * hy,
-                            centre.z + cz * hz,
-                        ));
-                        normals.push(*normal);
-                    }
-                    indices.push([base, base + 1, base + 2]);
-                    indices.push([base, base + 2, base + 3]);
+                // Translate the box template to the voxel centre.
+                let mut voxel_mesh = box_mesh.clone();
+                for v in voxel_mesh.vertices_mut() {
+                    *v = Point3::new(v.x + centre.x, v.y + centre.y, v.z + centre.z);
+                }
+                match &mut accumulator {
+                    None => accumulator = Some(voxel_mesh),
+                    Some(acc) => acc.extend_with(&voxel_mesh),
                 }
             }
         }
     }
 
-    if indices.is_empty() {
-        return None;
-    }
-    TriMesh::new(vertices, normals, indices).ok()
+    accumulator
 }
 
 #[cfg(test)]
@@ -753,11 +801,13 @@ mod tests {
             Isometry3::identity(),
             params,
             (1280, 720),
-            0.005,
-            4.0,
-            0.5,
-            0.0,
-            5e-6,
+            etendue_core::scene::PhysicalOptics {
+                effective_focal_length_m: 0.005,
+                f_number: 4.0,
+                focus_distance_m: 0.5,
+                principal_gap_m: 0.0,
+                pixel_pitch_m: 5e-6,
+            },
             0.2,
             1.0,
         )
@@ -825,9 +875,9 @@ mod tests {
         let cam = centred_camera();
         let mesh = camera_imager_mesh(&cam).expect("imager mesh for a valid lens");
         let v0 = etendue_core::optics::sensor_distance(
-            cam.focus_distance_m,
-            cam.principal_gap_m,
-            cam.effective_focal_length_m,
+            cam.optics.focus_distance_m,
+            cam.optics.principal_gap_m,
+            cam.optics.effective_focal_length_m,
         )
         .expect("sensor_distance for a valid lens");
         for v in mesh.vertices() {
@@ -840,8 +890,8 @@ mod tests {
         let cam = centred_camera();
         let mesh = camera_imager_mesh(&cam).expect("imager mesh");
         let (rx, ry) = cam.resolution_f64();
-        let half_w = 0.5 * rx * cam.pixel_pitch_m;
-        let half_h = 0.5 * ry * cam.pixel_pitch_m;
+        let half_w = 0.5 * rx * cam.optics.pixel_pitch_m;
+        let half_h = 0.5 * ry * cam.optics.pixel_pitch_m;
         for v in mesh.vertices() {
             assert_relative_eq!(v.x.abs(), half_w, epsilon = 1e-12);
             assert_relative_eq!(v.y.abs(), half_h, epsilon = 1e-12);
@@ -871,11 +921,13 @@ mod tests {
             Isometry3::identity(),
             params,
             (1280, 720),
-            0.025,
-            4.0,
-            0.3,
-            g,
-            5e-6,
+            etendue_core::scene::PhysicalOptics {
+                effective_focal_length_m: 0.025,
+                f_number: 4.0,
+                focus_distance_m: 0.3,
+                principal_gap_m: g,
+                pixel_pitch_m: 5e-6,
+            },
             0.1,
             1.0,
         )
@@ -893,7 +945,7 @@ mod tests {
     fn aperture_ring_has_radius_half_f_over_n() {
         let cam = centred_camera();
         let segments = camera_aperture_ring(&cam, [1.0, 1.0, 0.0]);
-        let expected_radius = 0.5 * cam.effective_focal_length_m / cam.f_number;
+        let expected_radius = 0.5 * cam.optics.effective_focal_length_m / cam.optics.f_number;
         // 48 segments → 48 line segments.
         assert_eq!(segments.len(), 48);
         for (a, b, _) in &segments {
@@ -926,11 +978,13 @@ mod tests {
             Isometry3::identity(),
             params,
             (1280, 720),
-            0.025,
-            4.0,
-            0.3,
-            g,
-            5e-6,
+            etendue_core::scene::PhysicalOptics {
+                effective_focal_length_m: 0.025,
+                f_number: 4.0,
+                focus_distance_m: 0.3,
+                principal_gap_m: g,
+                pixel_pitch_m: 5e-6,
+            },
             0.1,
             1.0,
         )

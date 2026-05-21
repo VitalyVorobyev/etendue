@@ -71,8 +71,9 @@
 //! the panel (never panic). The caller owns the `Scene` mutation.
 
 use etendue_core::analysis::{DefocusMap, WorkingVolume};
+use etendue_core::geom::TriMesh;
 use etendue_core::optics::scheimpflug_tilt;
-use etendue_core::scene::{CameraEntity, LaserEntity, Scene, TargetEntity};
+use etendue_core::scene::{CameraEntity, LaserEntity, MeshTarget, Scene, TargetEntity};
 use etendue_core::solver::{SampleGrid, SolverResult, SolverSpec, solve_scheimpflug};
 use nalgebra::{Isometry3, Rotation3, Translation3, UnitQuaternion, Vector3};
 
@@ -92,6 +93,8 @@ pub struct PanelState {
     pub laser_open: Vec<bool>,
     /// Collapsible-section open/closed state for each target entity (by index).
     pub target_open: Vec<bool>,
+    /// Collapsible-section open/closed state for each mesh target (by index).
+    pub mesh_target_open: Vec<bool>,
     /// Last load/save error message (shown inline in the panel).
     pub io_error: Option<String>,
     /// Whether the M4 defocus heatmap is shown on the target (vs. the plain
@@ -198,6 +201,7 @@ impl Default for PanelState {
             camera_open: Vec::new(),
             laser_open: Vec::new(),
             target_open: Vec::new(),
+            mesh_target_open: Vec::new(),
             io_error: None,
             // Open showing the heatmap — it is the M4 deliverable's headline.
             show_heatmap: true,
@@ -221,6 +225,7 @@ impl PanelState {
         sync_open_vec(&mut self.camera_open, scene.cameras.len());
         sync_open_vec(&mut self.laser_open, scene.lasers.len());
         sync_open_vec(&mut self.target_open, scene.targets.len());
+        sync_open_vec(&mut self.mesh_target_open, scene.mesh_targets.len());
         // Pair selector: the heatmap / sim-image / working-volume readouts
         // pick `cameras[displayed_pair]` and `lasers[displayed_pair]`, so the
         // index must be a valid pair index. If the scene has no cameras /
@@ -350,11 +355,11 @@ pub fn scene_panel(
 
                 // --- Scheimpflug solver (M9) -------------------------------
                 // Solves for optimal sensor tilt + focus distance given a
-                // depth-of-field window. Applied result mutates the first
-                // camera; like any slider edit it sets `changed` so the
-                // viewport + heatmap rebuild.
-                if let Some(cam) = scene.cameras.first_mut() {
-                    let laser = scene.lasers.first();
+                // depth-of-field window. Applied result mutates the *displayed*
+                // pair's camera (not necessarily camera 0) so the solver acts on
+                // the same pair the heatmap and sim-image panel display.
+                if let Some(cam) = scene.cameras.get_mut(state.displayed_pair) {
+                    let laser = scene.lasers.get(state.displayed_pair);
                     let applied = scheimpflug_solver_section(ui, cam, laser, &mut state.solver);
                     changed |= applied;
                     ui.separator();
@@ -383,6 +388,38 @@ pub fn scene_panel(
                     let open = &mut state.target_open[i];
                     let label = format!("Target {i}");
                     let ch = target_section(ui, target, &label, open);
+                    changed |= ch;
+                    ui.separator();
+                }
+
+                // --- Mesh-target sections (F7) -----------------------------
+                // Separate from planar targets — mesh targets are triangle
+                // meshes used for the fan-plane × mesh-intersection stripe.
+                // The "Add cube" button appends a 10 cm unit cube at the world
+                // origin; the pose editor below lets the user move it.
+                let n_mesh = scene.mesh_targets.len();
+                ui.label(format!(
+                    "Mesh targets: {}",
+                    if n_mesh == 0 {
+                        "none".to_string()
+                    } else {
+                        n_mesh.to_string()
+                    }
+                ));
+                if ui.button("Add cube mesh target").clicked()
+                    && let Ok(mt) =
+                        MeshTarget::new(nalgebra::Isometry3::identity(), TriMesh::unit_cube(0.1))
+                {
+                    scene.mesh_targets.push(mt);
+                    // Extend the open-state vec so the new section renders
+                    // immediately on the next frame (default open).
+                    state.mesh_target_open.push(true);
+                    changed = true;
+                }
+                for (i, mesh_target) in scene.mesh_targets.iter_mut().enumerate() {
+                    let open = &mut state.mesh_target_open[i];
+                    let label = format!("Mesh target {i}");
+                    let ch = mesh_target_section(ui, mesh_target, &label, open);
                     changed |= ch;
                     ui.separator();
                 }
@@ -506,7 +543,7 @@ fn scheimpflug_solver_section(
         // first time the section is opened. The user can then tune them
         // freely; subsequent slider edits to the camera's focus do not
         // override the user's choices here.
-        let d_opt_default = camera.focus_distance_m;
+        let d_opt_default = camera.optics.focus_distance_m;
         let d_opt = state.d_opt_m.get_or_insert(d_opt_default);
         let d_min = state.d_min_m.get_or_insert(d_opt_default * 0.9);
         let d_max = state.d_max_m.get_or_insert(d_opt_default * 1.1);
@@ -580,7 +617,7 @@ fn scheimpflug_solver_section(
                     ));
                     ui.label(format!(
                         "s_o:    {:.4} m → {:.4} m",
-                        camera.focus_distance_m, res.s_o,
+                        camera.optics.focus_distance_m, res.s_o,
                     ));
                     ui.label(format!(
                         "Max CoC: {:.2} px  ·  {} samples  ·  {} iters{}",
@@ -627,7 +664,7 @@ fn scheimpflug_solver_section(
 /// must carry the variant that retains the tilt angles (the M4 defocus model
 /// reads them straight from the variant).
 fn apply_solver_result(camera: &mut CameraEntity, result: SolverResult) {
-    camera.focus_distance_m = result.s_o;
+    camera.optics.focus_distance_m = result.s_o;
     camera.params.sensor = SensorParams::Scheimpflug {
         params: ScheimpflugParams {
             tilt_x: result.tau_x,
@@ -924,20 +961,20 @@ fn optics_sliders(ui: &mut egui::Ui, camera: &mut CameraEntity) -> bool {
     let mut changed = false;
 
     // Effective focal length, edited in mm.
-    let mut focal_mm = camera.effective_focal_length_m * 1000.0;
+    let mut focal_mm = camera.optics.effective_focal_length_m * 1000.0;
     let r = ui.add(
         egui::Slider::new(&mut focal_mm, 2.0..=100.0)
             .text("Focal length (mm)")
             .step_by(0.1),
     );
     if r.changed() {
-        camera.effective_focal_length_m = focal_mm / 1000.0;
+        camera.optics.effective_focal_length_m = focal_mm / 1000.0;
         changed = true;
     }
 
     // f-number.
     let r = ui.add(
-        egui::Slider::new(&mut camera.f_number, 1.0..=22.0)
+        egui::Slider::new(&mut camera.optics.f_number, 1.0..=22.0)
             .text("f-number")
             .step_by(0.1),
     );
@@ -945,27 +982,27 @@ fn optics_sliders(ui: &mut egui::Ui, camera: &mut CameraEntity) -> bool {
 
     // Focus distance, in metres. Held strictly above the focal length so the
     // lens always forms a real image (CameraEntity's invariant).
-    let focus_lower = camera.effective_focal_length_m * 1.001;
-    let mut focus_m = camera.focus_distance_m.max(focus_lower);
+    let focus_lower = camera.optics.effective_focal_length_m * 1.001;
+    let mut focus_m = camera.optics.focus_distance_m.max(focus_lower);
     let r = ui.add(
         egui::Slider::new(&mut focus_m, focus_lower..=5.0)
             .text("Focus distance (m)")
             .step_by(0.001),
     );
     if r.changed() {
-        camera.focus_distance_m = focus_m;
+        camera.optics.focus_distance_m = focus_m;
         changed = true;
     }
 
     // Inter-principal gap H − H′, edited in mm (>= 0).
-    let mut gap_mm = camera.principal_gap_m * 1000.0;
+    let mut gap_mm = camera.optics.principal_gap_m * 1000.0;
     let r = ui.add(
         egui::Slider::new(&mut gap_mm, 0.0..=50.0)
             .text("Principal gap H−H′ (mm)")
             .step_by(0.1),
     );
     if r.changed() {
-        camera.principal_gap_m = (gap_mm / 1000.0).max(0.0);
+        camera.optics.principal_gap_m = (gap_mm / 1000.0).max(0.0);
         changed = true;
     }
 
@@ -979,9 +1016,9 @@ fn optics_sliders(ui: &mut egui::Ui, camera: &mut CameraEntity) -> bool {
         // point forms no real image (a `CameraEntity` invariant). Clamping to
         // the same floor the focus slider uses also stops the displayed value
         // jumping on the next frame.
-        let focus_floor = camera.effective_focal_length_m * 1.001;
-        if camera.focus_distance_m < focus_floor {
-            camera.focus_distance_m = focus_floor;
+        let focus_floor = camera.optics.effective_focal_length_m * 1.001;
+        if camera.optics.focus_distance_m < focus_floor {
+            camera.optics.focus_distance_m = focus_floor;
             focus_was_clamped = true;
         }
         camera.sync_intrinsics_from_physical();
@@ -1140,6 +1177,40 @@ fn target_section(
             }
 
             changed |= pose_editor(ui, &mut target.pose, "Target pose");
+        });
+    changed
+}
+
+// ---------------------------------------------------------------------------
+// Mesh-target section (F7)
+// ---------------------------------------------------------------------------
+
+/// Draw the collapsible mesh-target section; return true if the pose changed.
+///
+/// Shows the mesh's vertex and triangle count (read-only) and a pose editor.
+/// There is no in-app mesh editing UI — meshes are loaded via scene JSON or
+/// added as a 10 cm unit cube via the "Add cube mesh target" button in the
+/// main panel.
+fn mesh_target_section(
+    ui: &mut egui::Ui,
+    mesh_target: &mut MeshTarget,
+    label: &str,
+    open: &mut bool,
+) -> bool {
+    let mut changed = false;
+    egui::CollapsingHeader::new(label)
+        .open(Some(*open))
+        .show(ui, |ui| {
+            *open = true;
+
+            // Read-only mesh stats.
+            ui.label(format!(
+                "Vertices: {}  Triangles: {}",
+                mesh_target.mesh.vertices().len(),
+                mesh_target.mesh.triangle_count(),
+            ));
+
+            changed |= pose_editor(ui, &mut mesh_target.pose, "Mesh target pose");
         });
     changed
 }

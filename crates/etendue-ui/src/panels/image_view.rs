@@ -35,7 +35,7 @@
 
 use egui_plot::{Line, Plot, PlotPoints, Points, Polygon};
 use etendue_core::laser::ProjectedStripe;
-use etendue_core::optics::GAUSSIAN_FWHM_PER_SIGMA;
+use etendue_core::optics::coc_to_gaussian_sigma;
 use etendue_core::scene::CameraEntity;
 use nalgebra::{Point2, Vector2};
 
@@ -230,12 +230,12 @@ fn core_half_width(p: &etendue_core::laser::ProjectedPoint) -> f64 {
 }
 
 /// Half-width of the **Gaussian PSF halo** at a projected vertex:
-/// `geom_px/2 + 2·sigma`, where `sigma = defocus_px / 2.3548` is the
-/// FWHM-matched Gaussian sigma. Two sigmas of wing cover ~95 % of the
+/// `geom_px/2 + 2·sigma`, where `sigma = coc_to_gaussian_sigma(defocus_px)`
+/// is the FWHM-matched Gaussian sigma. Two sigmas of wing cover ~95 % of the
 /// Gaussian energy on each side of the core. Floored to
 /// [`MIN_HALF_WIDTH_PX`] for visibility.
 fn halo_half_width(p: &etendue_core::laser::ProjectedPoint) -> f64 {
-    let sigma = p.defocus_px / GAUSSIAN_FWHM_PER_SIGMA;
+    let sigma = coc_to_gaussian_sigma(p.defocus_px);
     (0.5 * p.geom_px + 2.0 * sigma).max(MIN_HALF_WIDTH_PX)
 }
 
@@ -447,7 +447,7 @@ mod tests {
             halo > core + 3.0,
             "halo {halo} must exceed core {core} by ~5 px"
         );
-        let expected_halo = 0.5 * 2.0 + 2.0 * 6.0 / GAUSSIAN_FWHM_PER_SIGMA;
+        let expected_halo = 0.5 * 2.0 + 2.0 * coc_to_gaussian_sigma(6.0);
         assert!((halo - expected_halo).abs() < 1e-9);
     }
 
