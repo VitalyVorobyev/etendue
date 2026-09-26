@@ -8,13 +8,18 @@ on:
 permissions:
   contents: read
 
+env:
+  # calibration-rs tag the `[patch.crates-io]` sibling is cloned at. Keep in
+  # step with the `vision-calibration-*` version requirement in Cargo.toml.
+  CALIBRATION_RS_REF: v0.8.1
+
 jobs:
   audit:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - name: Clone calibration-rs sibling (path dependency)
-        run: git clone --depth 1 https://github.com/VitalyVorobyev/calibration-rs.git ../calibration-rs
+      - name: Clone calibration-rs sibling ([patch.crates-io] target)
+        run: git clone --depth 1 --branch "$CALIBRATION_RS_REF" https://github.com/VitalyVorobyev/calibration-rs.git ../calibration-rs
       - uses: EmbarkStudios/cargo-deny-action@v2
         with:
           # deny.toml lists RUSTSEC-2024-0436 (paste, upstream-blocked via

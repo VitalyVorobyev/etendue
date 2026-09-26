@@ -189,7 +189,9 @@ impl VoxelOverlap {
 /// are non-finite / non-positive. Propagates
 /// [`CameraEntity::thick_lens`](crate::scene::CameraEntity::thick_lens)'s
 /// errors per pair (cannot fire for entities built through
-/// [`CameraEntity::new`](crate::scene::CameraEntity::new)).
+/// [`CameraEntity::new`](crate::scene::CameraEntity::new)), and returns
+/// [`Error::Calibration`](crate::Error::Calibration) if a camera's
+/// projection spec cannot be built (a singular sensor homography).
 pub fn voxelized_overlap(
     scene: &Scene,
     bounds: VoxelBox,
@@ -207,7 +209,7 @@ pub fn voxelized_overlap(
         let camera = &scene.cameras[i];
         let laser = &scene.lasers[i];
         let lens: ThickLens = camera.thick_lens()?;
-        let camera_model = camera.params.build();
+        let camera_model = camera.params.build()?;
         let (cx, cy) = match &camera.params.intrinsics {
             vision_calibration_core::IntrinsicsParams::FxFyCxCySkew { params } => {
                 (params.cx, params.cy)

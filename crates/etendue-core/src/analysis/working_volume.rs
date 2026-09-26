@@ -316,7 +316,9 @@ impl WorkingVolume {
 /// `cols` is less than 2, or if `coc_threshold_px` is not finite and
 /// strictly positive. Propagates [`CameraEntity::thick_lens`]'s error if the
 /// camera's physical optics parameters are inconsistent (cannot happen for a
-/// camera built through [`CameraEntity::new`]).
+/// camera built through [`CameraEntity::new`]), and returns
+/// [`Error::Calibration`](crate::Error::Calibration) if the camera's
+/// projection spec cannot be built (a singular sensor homography).
 pub fn working_volume(
     camera: &CameraEntity,
     laser: &LaserEntity,
@@ -340,7 +342,7 @@ pub fn working_volume(
 
     let plane = LaserPlane::from_entity(laser);
     let lens: ThickLens = camera.thick_lens()?;
-    let camera_model = camera.params.build();
+    let camera_model = camera.params.build()?;
     let camera_from_world = camera.pose.inverse();
     let (sensor_w, sensor_h) = camera.resolution_f64();
 

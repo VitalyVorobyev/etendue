@@ -9,6 +9,9 @@ permissions:
   contents: write
 
 env:
+  # calibration-rs tag the `[patch.crates-io]` sibling is cloned at. Keep in
+  # step with the `vision-calibration-*` version requirement in Cargo.toml.
+  CALIBRATION_RS_REF: v0.8.1
   CARGO_TERM_COLOR: always
 
 jobs:
@@ -23,9 +26,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Clone calibration-rs sibling (path dependency)
+      - name: Clone calibration-rs sibling ([patch.crates-io] target)
         shell: bash
-        run: git clone --depth 1 https://github.com/VitalyVorobyev/calibration-rs.git ../calibration-rs
+        run: git clone --depth 1 --branch "$CALIBRATION_RS_REF" https://github.com/VitalyVorobyev/calibration-rs.git ../calibration-rs
 
       - name: Set up Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -42,7 +45,7 @@ jobs:
         run: cargo clippy --workspace --all-targets -- -D warnings
 
       - name: Tests (release mode)
-        run: cargo test --workspace --release
+        run: cargo test --workspace --release --locked
 
   build:
     name: Build ${{ matrix.target }}
@@ -66,9 +69,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Clone calibration-rs sibling (path dependency)
+      - name: Clone calibration-rs sibling ([patch.crates-io] target)
         shell: bash
-        run: git clone --depth 1 https://github.com/VitalyVorobyev/calibration-rs.git ../calibration-rs
+        run: git clone --depth 1 --branch "$CALIBRATION_RS_REF" https://github.com/VitalyVorobyev/calibration-rs.git ../calibration-rs
 
       - name: Set up Rust toolchain
         uses: dtolnay/rust-toolchain@stable

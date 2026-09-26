@@ -12,7 +12,7 @@ volume lands, how the laser line projects, and where focus falls off.
 
 ## Status
 
-M0–M10 plus post-MVP features complete. **205** tests pass. Scheimpflug
+M0–M10 plus post-MVP features complete. **209** tests pass. Scheimpflug
 circle-of-confusion physics derived from first principles and validated against hand
 calculations (M4 kill gate passed): on-PoBF cancellation exact to machine epsilon
 (~1e-18); off-axis regime (b) c = 51.6529 µm = 14.97185 px matches the textbook
@@ -32,8 +32,10 @@ translucent working-volume patch on the laser fan marks the in-focus, in-view me
 ## Quick start
 
 ```bash
-# etendue depends on calibration-rs via a path dep — both siblings must live
-# under the same parent directory.
+# etendue depends on the crates.io `vision-calibration-*` crates; for local
+# development the workspace redirects them to a sibling calibration-rs
+# checkout via `[patch.crates-io]`, so both repos must live under the same
+# parent directory to build this workspace.
 git clone https://github.com/VitalyVorobyev/calibration-rs
 git clone https://github.com/VitalyVorobyev/etendue
 cd etendue
@@ -52,8 +54,8 @@ etendue-ui (binary)
                          │  Scheimpflug CoC, laser projection,
                          │  working-volume analysis, bank schema
                          │
-                         └──path dep──► vision-calibration-core
-                                           (from calibration-rs)
+                         └──crates.io dep──► vision-calibration-core
+                                  (patched to ../calibration-rs locally)
 ```
 
 | Crate | Role |

@@ -1,6 +1,9 @@
 # Build artifacts
 /target
 
+# wasm-pack output for etendue-wasm (npm package staging dir)
+crates/etendue-wasm/pkg/
+
 # This workspace ships a binary (etendue-ui), so Cargo.lock IS committed.
 # Do not add Cargo.lock here.
 

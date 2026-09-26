@@ -88,11 +88,13 @@ pub fn isometry_to_matrix4(pose: &Isometry3<f64>) -> Matrix4<f32> {
 /// distances gives the near-plane and far-plane corner. The result is ordered
 /// `[near tl, near tr, near br, near bl, far tl, far tr, far br, far bl]`.
 ///
-/// Returns `None` if any back-projected ray does not have a positive `z`
-/// component (it cannot be scaled onto a `z = const` plane in front of the
-/// camera) — e.g. an extreme distortion that folds a corner behind the lens.
+/// Returns `None` if the camera's projection spec cannot be built (a
+/// singular sensor homography), or if any back-projected ray does not have a
+/// positive `z` component (it cannot be scaled onto a `z = const` plane in
+/// front of the camera) — e.g. an extreme distortion that folds a corner
+/// behind the lens.
 fn frustum_corners(camera: &CameraEntity) -> Option<[Point3<f64>; 8]> {
-    let model = camera.params.build();
+    let model = camera.params.build().ok()?;
     let (w, h) = camera.resolution_f64();
 
     // Image corners, traversed tl → tr → br → bl so the edge lists below wind

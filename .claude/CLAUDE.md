@@ -3,26 +3,49 @@
 ## Commands
 
 ```bash
-cargo build --workspace                                    # build both crates
-cargo run                                                  # launch the GUI (blocks until window closed)
-cargo test --workspace                                     # run all 205 tests
+cargo build --workspace                                    # build all crates
+cargo run                                                  # launch the (frozen) GUI (blocks until window closed)
+cargo test --workspace --locked                            # run all 209 tests
 cargo clippy --workspace --all-targets -- -D warnings      # lint (must be clean)
 cargo fmt --all                                            # format
 cargo fmt --all --check                                    # CI format check
 cargo doc --no-deps --workspace                            # build rustdoc
+
+# etendue-wasm (npm @etendue/wasm) — wasm32 target comes from rust-toolchain.toml
+cargo clippy -p etendue-wasm --target wasm32-unknown-unknown -- -D warnings
+wasm-pack build crates/etendue-wasm --target nodejs --release
+node crates/etendue-wasm/tests/node/g01_parity.mjs > target/g01.json
+cargo run -p etendue-wasm --example g01_verify -- target/g01.json   # gate G0.1: 0 bit mismatches
 ```
 
-Do NOT use `--all-features` — etendue has no feature flags. Do NOT use `cargo run` in
-a non-interactive context; the window blocks the shell.
+Do NOT use `cargo run` in a non-interactive context; the window blocks the shell.
+
+### Feature matrix
+
+`--all-features` is run **per crate** (`cargo test -p <crate> --all-features`), never
+across the whole workspace.
+
+| Crate | Features | Notes |
+|---|---|---|
+| `etendue-core` | none | |
+| `etendue-wasm` | none | wasm32 build + G0.1 parity in CI job `wasm` |
+| `etendue-ui` | none | frozen |
+| `etendue-scene` (P1) | `schemars` | JSON Schema derives; CI runs `--all-features` |
+| `etendue-kinematics` (P1) | `opw` | analytic OPW IK via `rs-opw-kinematics` (`default-features = false`) |
+
+A crate is added to this table in the same change that creates it.
 
 ## Architecture
 
-Two-crate workspace at `/Users/vitalyvorobyev/vision/etendue/`:
+Three-crate workspace at `/Users/vitalyvorobyev/vision/etendue/`. It is pivoting into a
+package family (`docs/pivot/PLAN.md`, `docs/adrs/0001-pivot.md`). New crates are
+created phase by phase, never up front.
 
 ```
-etendue-ui  (binary crate, crates/etendue-ui)
-    └── etendue-core  (library crate, crates/etendue-core)
-            └── vision-calibration-core  (path dep, ../calibration-rs/crates/vision-calibration-core)
+etendue-ui    (binary crate, crates/etendue-ui — FROZEN, publish = false)
+etendue-wasm  (cdylib+rlib, crates/etendue-wasm — npm @etendue/wasm, P0 stub API)
+    └── etendue-core  (library crate, crates/etendue-core — crates.io)
+            └── vision-calibration-core  (crates.io "0.8", patched to ../calibration-rs locally)
 ```
 
 **`etendue-core`** — concrete-`f64` geometric and physical kernel. Modules:
@@ -32,16 +55,29 @@ etendue-ui  (binary crate, crates/etendue-ui)
 - `optics::coc` — Scheimpflug plane-of-best-focus and off-axis CoC
 - `laser` — `LaserPlane`, `GaussianBeamWidth`, `stripe_on_target`, `project_stripe`
 - `analysis` — `defocus_map`, `working_volume`
-- `bank::schema` — `SensorSpec`, `LensSpec`, `LaserSpec` (9 seed JSON files in
-  `assets/bank/`)
+- `bank::schema` — `SensorSpec`, `LensSpec`, `LaserSpec` (seed JSON in
+  `crates/etendue-core/assets/bank/`)
 
 **`etendue-ui`** — binary `etendue`. Hand-written winit + wgpu + egui-wgpu render loop
 (no eframe). Modules: viewport (wgpu pipelines), parameter panel (egui side panel),
-simulated-image panel (egui_plot).
+simulated-image panel (egui_plot). **Frozen** (ADR 0001): it keeps building and passing
+its tests but gets no new features. It is deleted at parity gate G6.3.
 
-**Path dependency constraint**: `vision-calibration-core` is at
-`../calibration-rs/crates/vision-calibration-core` relative to the workspace root.
-Both repos must be siblings under the same parent directory.
+**`etendue-wasm`** — wasm-bindgen facade. The P0 surface (`project_points`,
+`default_mvp_scene_json`) is a spike for gate G0.1; P2-1 replaces it. Its wasm32-only
+`getrandom` 0.3/0.4 `wasm_js` dependencies are backend-selection shims (see its
+`Cargo.toml`). Never call entropy from kernel code.
+
+**calibration-rs dependency: crates.io + `[patch.crates-io]`**
+- `vision-calibration-core = "0.8"` and `vision-calibration-dataset = "0.8"` come from
+  crates.io, so the library crates are publishable.
+- The root `Cargo.toml` `[patch.crates-io]` redirects them to
+  `../calibration-rs/crates/*` for local development. The sibling checkout must exist
+  to build this workspace. Published crates do not need it.
+- CI clones calibration-rs at `CALIBRATION_RS_REF` (a tag). Bump that together with the
+  version requirement.
+- `vision-calibration-dataset` gets its patch line together with its first consumer
+  (P1), because an unused patch makes cargo warn on every command.
 
 ### nalgebra HARD PIN — DO NOT change
 
@@ -50,7 +86,7 @@ nalgebra = { version = "0.34", features = ["serde-serialize"] }
 ```
 
 etendue-core exchanges `Isometry3<f64>`, `Point3<f64>`, `Matrix3<f64>` across the
-path-dep boundary into `vision-calibration-core`. A semver-incompatible second nalgebra
+crate boundary into `vision-calibration-core`. A semver-incompatible second nalgebra
 in the tree makes those distinct types and breaks every cross-crate call. The pin must
 match calibration-rs exactly.
 
@@ -69,9 +105,13 @@ match calibration-rs exactly.
 ### Coordinate frames
 
 - **World**: +Z up, right-handed.
-- **Camera local**: +Z forward (calibration-rs convention). Camera pose is
-  `world_from_camera: Isometry3<f64>`.
-- Laser and target poses are also world-frame isometries.
+- **Camera local**: calibration-rs/OpenCV (+Z forward, +X right, +Y down). Camera pose is
+  `world_se3_camera: Isometry3<f64>`.
+- Laser and target poses are also world-frame isometries. The existing `pose` fields are
+  documented as `world_se3_self`; do not rename them.
+- Transform naming follows calibration-rs ADR 0009: `a_se3_b` maps b → a. SE3 wire format
+  is `{"rotation": [qx,qy,qz,qw], "translation": [tx,ty,tz]}` (nalgebra `Isometry3`
+  serde). The frame tree is defined in `docs/adrs/0002-frame-tree.md`.
 
 ### Physical optics as source of truth
 
@@ -105,7 +145,21 @@ pixel focal lengths as authoritative.
 5. **Cargo.lock is committed** (etendue is a binary, not a library). Do not add it to
    `.gitignore`.
 
-6. **No `--all-features`** in any command — the workspace has no feature flags.
+6. **`--all-features` per crate only**, following the feature matrix above. Never pass
+   it workspace-wide.
+
+7. **Single homes for math.** No FK/IK outside `etendue-kinematics`. No camera-model
+   math outside calibration-rs. No rendering code in `etendue-core`.
+
+8. **Every gate result is written to `docs/measurements/` with the commit SHA.** If a
+   gate is mis-set, report the measured value and ask. Never relax a gate silently.
+
+9. **`etendue-ui` is frozen** (ADR 0001). Keep it building and green, and add no
+   features. It is deleted at parity gate G6.3.
+
+10. **Upstream changes are drafts until the user reviews them.** That covers
+    calibration-rs, calib-targets-rs, and lab-ui. Prepare them in a separate worktree or
+    branch, and never merge or push them unasked.
 
 ## Defocus physics gotchas
 
@@ -130,14 +184,18 @@ distance. Mixing regimes silently produces wrong CoC values — the unit tests g
 
 ## Quality gates — verify before every report
 
-All four must be clean:
+All must be clean:
 
 ```bash
 cargo fmt --all --check
 cargo clippy --workspace --all-targets -- -D warnings
-cargo test --workspace
+cargo test --workspace --locked
 cargo build --workspace
+cargo clippy -p etendue-wasm --target wasm32-unknown-unknown -- -D warnings
 ```
+
+When `etendue-wasm` or anything on the projection path changes, also re-run the G0.1
+parity recipe from Commands.
 
 The CI matrix runs these on ubuntu / macos / windows. A clean local run does not
 guarantee the Windows build is clean (wgpu backend differs), but it is a necessary
@@ -147,22 +205,18 @@ condition.
 
 | Resource | Location |
 |---|---|
-| Original design doc | `docs/handoff.md` |
+| Pivot plan (phases P0–P6, gates) | `docs/pivot/PLAN.md` |
+| ADRs | `docs/adrs/` |
+| Gate measurements | `docs/measurements/` |
+| Original design doc (constraints partly superseded by ADR 0001) | `docs/handoff.md` |
 | Scheimpflug CoC derivation | `docs/derivations/scheimpflug_pobf.md` |
 | mdBook (architecture, chapters) | `book/` |
-| Seed component bank | `assets/bank/*.json` |
+| Seed component bank | `crates/etendue-core/assets/bank/*.json` |
 | calibration-rs source | `../calibration-rs/` |
 
-## Post-MVP queue (priority order)
+## Roadmap
 
-1. Promote `ThickLens` to `ApertureModel<S>` in calibration-rs — upstream PR, user
-   review required.
-2. Voxelized working volume — per-voxel predicates: visible, illuminated, triangulation
-   angle, resolution.
-3. Multi-camera overlap — N-view visible-voxel intersection.
-4. Component-picker UI — browse `assets/bank/`, drag onto scene.
-5. `argmin`-based optimizer — optimize focal length / f-number / tilt / baseline for a
-   given working-distance + depth-range spec.
-6. Gaussian PSF — replace geometric CoC with a depth-dependent Gaussian blur kernel.
-7. Mesh laser intersection — replace the current plane∩plane with full triangle-mesh
-   intersection for non-planar targets.
+`docs/pivot/PLAN.md` is the roadmap, with phases P0–P6 and their gates. ADRs 0001–0006
+were accepted on 2026-09-26; P0 is done and P1 is in progress. One item from the old post-MVP queue remains
+open: promoting `ThickLens` to `ApertureModel<S>` in calibration-rs, as an upstream PR
+with user review.

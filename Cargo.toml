@@ -2,24 +2,30 @@
 members = [
     "crates/etendue-core",
     "crates/etendue-ui",
+    "crates/etendue-wasm",
 ]
 resolver = "3"
 
 [workspace.package]
 edition = "2024"
 version = "0.1.0"
-rust-version = "1.85"
+rust-version = "1.93"
 license = "MIT"
+repository = "https://github.com/VitalyVorobyev/etendue"
 authors = ["Vitaly Vorobyev <vitaly.munchen@gmail.com>"]
 
 [workspace.dependencies]
 # --- Kernel deps -----------------------------------------------------------
 # nalgebra is a HARD PIN: it must match calibration-rs exactly. etendue-core
 # exchanges Isometry3<f64> / Point3<f64> / Matrix3<f64> across the
-# vision-calibration-core path boundary; a semver-incompatible second
+# vision-calibration-core crate boundary; a semver-incompatible second
 # nalgebra would make those distinct types and break every cross-crate call.
 nalgebra = { version = "0.34", features = ["serde-serialize"] }
-vision-calibration-core = { path = "../calibration-rs/crates/vision-calibration-core" }
+# calibration-rs crates come from crates.io so every etendue library crate is
+# publishable. For local development they are redirected to the sibling
+# checkout by `[patch.crates-io]` at the bottom of this file.
+vision-calibration-core = "0.8"
+vision-calibration-dataset = "0.8"
 serde = { version = "1", features = ["derive"] }
 thiserror = "2"
 # Float-comparison assertions for kernel unit tests. 0.5 matches the version
@@ -32,6 +38,9 @@ serde_json = "1"
 # slog-logger and ndarray support we do not need.
 argmin = { version = "0.11", default-features = false }
 argmin-math = { version = "0.5", default-features = false, features = ["primitives", "vec"] }
+
+# --- WASM facade -----------------------------------------------------------
+wasm-bindgen = "0.2"
 
 # --- UI stack --------------------------------------------------------------
 # egui / egui-wgpu / egui-winit are taken from one egui release line (0.34);
@@ -55,3 +64,15 @@ debug = 1
 
 [profile.dev.package."*"]
 opt-level = 2
+
+# Local development: build against the sibling calibration-rs checkout
+# (`../calibration-rs`) instead of the crates.io release. `cargo package` /
+# `cargo publish` ignore patches, so published crates depend on crates.io
+# `vision-calibration-*` only. The sibling must exist for this workspace to
+# build; CI clones it at the tag matching the version requirement above.
+#
+# `vision-calibration-dataset` gets its patch entry together with its first
+# consumer (etendue-scene, P1): cargo warns on every command about a patch
+# that is not used in the crate graph.
+[patch.crates-io]
+vision-calibration-core = { path = "../calibration-rs/crates/vision-calibration-core" }
