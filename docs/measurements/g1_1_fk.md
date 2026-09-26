@@ -6,8 +6,8 @@
   ≤ 1e-9 rad.
 - Result: **PASS**. The worst error is 8.5e-16 m / 1.3e-15 rad, six orders of
   magnitude inside the gate.
-- Measured: 2026-09-26, on etendue `7f89f24-dirty` (the P1 working tree; the
-  SHA is re-recorded once P1 is committed).
+- Measured: 2026-09-26, on etendue commit `4333b1c` (clean tree). The result is
+  identical to the pre-commit run.
 
 ## Fixtures
 

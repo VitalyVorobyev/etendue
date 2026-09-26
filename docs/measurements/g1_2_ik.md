@@ -9,8 +9,8 @@
   - DLS: every success has a residual ≤ 1.0e-10.
   - DLS failure rate: 0 % from nearby seeds; 0.11 % (UR5e) and 0.35 % (ABB)
     from random seeds.
-- Measured: 2026-09-26, on etendue `7f89f24-dirty` (the P1 working tree; the
-  SHA is re-recorded once P1 is committed).
+- Measured: 2026-09-26, on etendue commit `4333b1c` (clean tree). The result is
+  identical to the pre-commit run.
 
 ## Setup
 

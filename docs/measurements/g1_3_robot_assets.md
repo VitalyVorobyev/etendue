@@ -1,7 +1,7 @@
 # G1.3 — Robot asset mesh round-trip
 
 - Date: 2026-09-26
-- etendue commit: `7f89f24-dirty` (`git describe --always --dirty` at measurement time)
+- etendue commit: `4333b1c` (`git describe --always --dirty` at measurement time)
 - Result: **PASS** — overall max abs vertex error 2.980e-08 m (gate ≤ 1e-06 m)
 
 ## Criterion
