@@ -12,11 +12,15 @@ pub struct Scene {
     pub cameras: Vec<CameraEntity>,
     pub lasers: Vec<LaserEntity>,
     pub targets: Vec<TargetEntity>,
+    #[serde(default)]
+    pub mesh_targets: Vec<MeshTarget>,
 }
 ```
 
-A flat record of three entity vectors. The fields are `pub` because the UI
+A flat record of four entity vectors. The fields are `pub` because the UI
 poses and appends entities directly; there is no aggregation logic to wrap.
+`mesh_targets` carries `#[serde(default)]`, so scene files written before
+mesh targets existed still load.
 Save/Load goes through `serde_json::to_string_pretty` / `from_str` — the
 parameter panel uses the [`rfd`](https://crates.io/crates/rfd) native dialog
 crate to pick paths.
@@ -34,15 +38,24 @@ pub struct CameraEntity {
     pub pose: Isometry3<f64>,
     pub params: CameraParams,           // calibration-rs spec — see below
     pub resolution: (u32, u32),
+    pub optics: PhysicalOptics,         // the five physical-optics scalars
+    pub frustum_near: f64,
+    pub frustum_far: f64,
+}
+
+pub struct PhysicalOptics {
     pub effective_focal_length_m: f64,
     pub f_number: f64,
     pub focus_distance_m: f64,
     pub principal_gap_m: f64,           // H - H', >= 0
     pub pixel_pitch_m: f64,
-    pub frustum_near: f64,
-    pub frustum_far: f64,
 }
 ```
+
+The five physical-optics scalars live in the nested `PhysicalOptics` struct;
+they are the source of truth, and the pixel-unit `fx`/`fy` in
+`params.intrinsics` are derived from `effective_focal_length_m` and
+`pixel_pitch_m` by `sync_intrinsics_from_physical`.
 
 Camera-local convention is the calibration-rs convention: **+z forward**, +x
 right, +y down. `Camera::project_point_c` rejects `z ≤ 0`;
@@ -88,8 +101,24 @@ pub struct TargetEntity {
 ```
 
 A finite rectangle in its local `z = 0` plane, outward normal along local
-**+z**. The MVP target geometry. Sphere / cylinder / step primitives are
-post-MVP.
+**+z** — the analytic target the defocus map and the planar laser-stripe
+intersection sample.
+
+### `MeshTarget`
+
+```rust
+pub struct MeshTarget {
+    pub pose: Isometry3<f64>,
+    pub mesh: TriMesh,
+}
+```
+
+A posed triangle mesh, for non-planar inspection surfaces. The scene's
+`mesh_targets` vector holds them; the laser fan intersects each through
+`laser::stripe_segments_on_mesh` (per-triangle plane cuts), and the renderer
+draws the mesh directly. `TriMesh` derives `Serialize`/`Deserialize` so a
+mesh target round-trips through scene JSON. Sphere / cylinder / step
+*parametric* primitives remain post-MVP.
 
 ## `Scene::default_mvp`
 
@@ -134,30 +163,6 @@ smooth-surface primitives reuse vertices. Two constructors:
 `TriMesh::unit_cube(edge)` (six faces × four corners, flat per-face normals)
 and `TriMesh::quad(width, height)` (two triangles, four shared vertices in
 `z = 0`).
-
-### `Ray3` and Möller–Trumbore
-
-```rust
-pub struct Ray3 { pub origin: Point3<f64>, pub direction: Vector3<f64> }
-pub struct RayHit { pub t: f64, pub point: Point3<f64>, pub bary: (f64, f64) }
-
-impl Ray3 {
-    pub fn new(origin: Point3<f64>, direction: Vector3<f64>) -> Option<Self>;
-    pub fn intersect_triangle(&self, a: Point3<f64>, b: Point3<f64>, c: Point3<f64>) -> Option<RayHit>;
-    pub fn intersect_mesh(&self, mesh: &TriMesh) -> Option<RayHit>;
-}
-```
-
-A parametric half-line `origin + t·direction`, `t ≥ 0`. The direction is
-**not** required to be unit length — only a zero direction is rejected at
-construction. `intersect_triangle` is Möller–Trumbore with Cramer's rule and
-a scale-relative epsilon; the triangle is treated as **double-sided** (a hit
-from either face counts), which simplifies the picking path. `intersect_mesh`
-is a linear scan over triangles — adequate at the handful-of-scene-meshes
-scale; no BVH.
-
-This kernel is the basis for the UI's CPU click-picking and could later back
-a laser-vs-mesh intersection when the MVP plane-only restriction is lifted.
 
 ## Frustum geometry
 

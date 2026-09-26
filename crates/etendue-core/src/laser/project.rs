@@ -63,6 +63,12 @@ const MIN_NORM: f64 = 1e-12;
 pub struct ProjectedPoint {
     /// The stripe sample's image coordinate, in pixels.
     pub pixel: Point2<f64>,
+    /// The stripe sample's 3D position in **world** coordinates (metres). The
+    /// M8 `resolution_mm_per_px` summary computes mm/px from polyline
+    /// differences in this field and the pixel field; downstream consumers
+    /// (the Scheimpflug solver, the simulated-image panel) can also read
+    /// world position without re-running the projection.
+    pub world_m: Point3<f64>,
     /// The geometric line width in pixels — the physical cross-section `w(d)`
     /// as seen by the camera (projective, obliquity-aware).
     pub geom_px: f64,
@@ -118,6 +124,72 @@ impl ProjectedStripe {
             .map(|p| p.total_px)
             .filter(|w| w.is_finite())
             .fold(None, |acc, w| Some(acc.map_or(w, |a: f64| a.max(w))))
+    }
+
+    /// Per-vertex stripe resolution, in **millimetres of object-space
+    /// displacement per pixel of imaged-line displacement** (mm/px).
+    ///
+    /// At each vertex this is the local finite-difference Jacobian of the
+    /// projection along the stripe direction: the world-space arc length
+    /// between the vertex's polyline neighbours divided by the pixel-space
+    /// arc length between the same neighbours. Endpoints use one-sided
+    /// differences. Returns an empty `Vec` when the polyline has fewer than
+    /// two vertices (no neighbours, so no resolution defined).
+    ///
+    /// A resolution of, say, 0.05 mm/px means **20 pixels per millimetre** of
+    /// object space along the stripe — the standard metrology figure for a
+    /// triangulation sensor. A larger mm/px means coarser resolution.
+    #[must_use]
+    pub fn resolution_mm_per_px(&self) -> Vec<f64> {
+        let n = self.points.len();
+        if n < 2 {
+            return Vec::new();
+        }
+        let mut out = Vec::with_capacity(n);
+        for i in 0..n {
+            let lo = i.saturating_sub(1);
+            let hi = (i + 1).min(n - 1);
+            let dworld_m = (self.points[hi].world_m - self.points[lo].world_m).norm();
+            let dpix = (self.points[hi].pixel - self.points[lo].pixel).norm();
+            let res = if dpix > MIN_NORM {
+                // metres → millimetres = ×1000.
+                (dworld_m * 1.0e3) / dpix
+            } else {
+                f64::INFINITY
+            };
+            out.push(res);
+        }
+        out
+    }
+
+    /// `(min, median, max)` of [`resolution_mm_per_px`](Self::resolution_mm_per_px)
+    /// across the stripe, in mm/px. `None` if the polyline has fewer than
+    /// two vertices.
+    ///
+    /// The simulated-image panel reports these three numbers so the designer
+    /// can see at a glance whether the stripe's metrology resolution is
+    /// uniform (min ≈ median ≈ max) or varies — e.g., an obliquely viewed
+    /// stripe will have a noticeable spread between the near and far ends.
+    #[must_use]
+    pub fn resolution_summary_mm_per_px(&self) -> Option<(f64, f64, f64)> {
+        let mut res: Vec<f64> = self
+            .resolution_mm_per_px()
+            .into_iter()
+            .filter(|r| r.is_finite())
+            .collect();
+        if res.is_empty() {
+            return None;
+        }
+        res.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        let n = res.len();
+        let min = res[0];
+        let max = res[n - 1];
+        let median = if n.is_multiple_of(2) {
+            0.5 * (res[n / 2 - 1] + res[n / 2])
+        } else {
+            res[n / 2]
+        };
+        Some((min, median, max))
     }
 }
 
@@ -188,6 +260,7 @@ pub fn project_stripe(
 
         points.push(ProjectedPoint {
             pixel,
+            world_m: sample.point,
             geom_px,
             defocus_px,
             total_px,
@@ -370,11 +443,13 @@ mod tests {
             pose,
             params,
             (1280, 1024),
-            F_M,
-            FNUM,
-            focus_m,
-            0.0,
-            PITCH_M,
+            crate::scene::PhysicalOptics {
+                effective_focal_length_m: F_M,
+                f_number: FNUM,
+                focus_distance_m: focus_m,
+                principal_gap_m: 0.0,
+                pixel_pitch_m: PITCH_M,
+            },
             0.05,
             3.0,
         )
@@ -651,6 +726,77 @@ mod tests {
                 "pixel y {} outside [0, {res_y}]",
                 p.pixel.y
             );
+        }
+    }
+
+    #[test]
+    fn resolution_mm_per_px_is_finite_and_positive_for_the_default_scene() {
+        // Sanity: every projected vertex has a finite, strictly positive
+        // mm/px figure for the standard scene, and the summary is non-empty.
+        let scene = crate::scene::Scene::default_mvp();
+        let camera = &scene.cameras[0];
+        let laser = LaserPlane::from_entity(&scene.lasers[0]);
+        let model = GaussianBeamWidth::from_laser(&scene.lasers[0]).unwrap();
+        let stripe = stripe_on_target(&laser, &scene.targets[0], &model, 21)
+            .expect("default laser strikes default target");
+        let projected = project_stripe(&stripe, camera).unwrap();
+        let res = projected.resolution_mm_per_px();
+        assert_eq!(res.len(), projected.len());
+        for &r in &res {
+            assert!(r.is_finite() && r > 0.0, "every vertex needs a real mm/px");
+        }
+        let (mn, md, mx) = projected
+            .resolution_summary_mm_per_px()
+            .expect("non-empty summary");
+        assert!(
+            mn <= md && md <= mx,
+            "summary must be ordered: {mn} {md} {mx}"
+        );
+    }
+
+    #[test]
+    fn resolution_summary_is_uniform_for_a_perpendicular_stripe() {
+        // Camera on the optical axis looking straight at the target, focused
+        // on it: the stripe is fronto-parallel, so mm/px is essentially
+        // constant across its length (within a few percent due to perspective
+        // and stripe-tangent variation).
+        let laser = laser_aimed_along_y(0.6, 0.3, 1.5);
+        let target = target_facing_y(0.5, 0.5, 0.0);
+        let stripe = stripe_on_target(&laser, &target, &width_model(), 21).unwrap();
+        let camera = camera_at(
+            Point3::new(0.0, -0.6, 0.0),
+            Point3::new(0.0, 0.0, 0.0),
+            0.6,
+            0.0,
+        );
+        let projected = project_stripe(&stripe, &camera).unwrap();
+        let (mn, _md, mx) = projected.resolution_summary_mm_per_px().expect("non-empty");
+        // A near-fronto-parallel view should show min/max agreement to better
+        // than 5 % — generous to handle the polyline endpoints' one-sided
+        // differences.
+        assert!(
+            (mx - mn) / mn < 0.05,
+            "uniform stripe should have ≤5 % mm/px spread, got min={mn} max={mx}"
+        );
+    }
+
+    #[test]
+    fn resolution_summary_is_none_for_a_singleton_projection() {
+        // A short stripe whose only sample projects gives a 1-vertex polyline
+        // — no neighbours, no resolution defined.
+        let laser = laser_aimed_along_y(0.6, 0.3, 1.5);
+        let target = target_facing_y(0.3, 0.25, 0.0);
+        let stripe = stripe_on_target(&laser, &target, &width_model(), 1).unwrap();
+        let camera = camera_at(
+            Point3::new(0.0, -0.6, 0.0),
+            Point3::new(0.0, 0.0, 0.0),
+            0.6,
+            0.0,
+        );
+        let projected = project_stripe(&stripe, &camera).unwrap();
+        if projected.len() < 2 {
+            assert!(projected.resolution_summary_mm_per_px().is_none());
+            assert!(projected.resolution_mm_per_px().is_empty());
         }
     }
 

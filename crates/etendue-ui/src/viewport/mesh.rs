@@ -134,32 +134,6 @@ impl GpuMesh {
             index_count: indices.len() as u32,
         }
     }
-
-    /// Build the explicit line-list **edge geometry** of a mesh's triangles.
-    ///
-    /// wgpu's Metal backend does not support `PolygonMode::Line`, so a
-    /// wireframe is drawn as real line primitives: each triangle contributes
-    /// its three edges. Edges are not deduplicated — for the small meshes
-    /// `etendue` renders the redundancy is negligible and dedup would need a
-    /// hashable edge key.
-    ///
-    /// The M2 scene draws no triangle-mesh wireframes — the camera frustum is
-    /// a purpose-built edge list (`viewport::scene::camera_frustum_edges`),
-    /// not a mesh's triangle edges — so this builder is currently unused. It
-    /// is retained as a primitive builder for later milestones (e.g. a
-    /// wireframe working-volume hull in M6).
-    #[allow(dead_code)]
-    #[must_use]
-    pub fn wireframe_lines(device: &wgpu::Device, mesh: &TriMesh, color: [f32; 3]) -> GpuLines {
-        let mut verts: Vec<LineVertex> = Vec::with_capacity(mesh.triangle_count() * 6);
-        for [a, b, c] in mesh.triangles() {
-            for (p, q) in [(a, b), (b, c), (c, a)] {
-                verts.push(LineVertex::from_point(p, color));
-                verts.push(LineVertex::from_point(q, color));
-            }
-        }
-        GpuLines::from_vertices(device, &verts)
-    }
 }
 
 /// An indexed **per-vertex-colored** triangle mesh resident on the GPU.

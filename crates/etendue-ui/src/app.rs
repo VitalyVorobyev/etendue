@@ -1,14 +1,14 @@
 //! Application state and the per-frame render orchestration.
 //!
 //! [`App`] owns the winit window plus the full graphics stack — a wgpu
-//! device/queue/surface, the hand-written 3D [`viewport::Renderer`], and the
+//! device/queue/surface, the hand-written 3D `viewport::Renderer`, and the
 //! egui context/state/renderer.
 //!
 //! # Per-frame structure (M3 / M4)
 //!
 //! Each frame [`Graphics::render`] records, into one command encoder:
 //!
-//! 1. The egui frame — calls [`panels::params::scene_panel`] which draws the
+//! 1. The egui frame — calls `panels::params::scene_panel` which draws the
 //!    parameter side-panel and returns `(changed, maybe_new_scene)`. If
 //!    `changed` is set, the M4 defocus map is recomputed from the (now
 //!    post-edit) scene and `Renderer::rebuild_scene` is called with it, so
@@ -25,9 +25,9 @@
 //! # The M4 defocus heatmap
 //!
 //! When the panel's heatmap toggle is on, [`Graphics`] computes a
-//! [`DefocusMap`](etendue_core::analysis::DefocusMap) from the scene's first
+//! [`DefocusMap`] from the scene's first
 //! camera against its first target via
-//! [`defocus_map`](etendue_core::analysis::defocus_map). The map backs both
+//! [`defocus_map`](etendue_core::analysis::defocus_map()). The map backs both
 //! the legend (drawn by `scene_panel`) and the heatmap grid (built by the
 //! renderer). It is recomputed every frame the scene changes — the scene is
 //! tiny, so this is cheap — and re-fed to `rebuild_scene` alongside the
@@ -42,11 +42,13 @@ use std::sync::Arc;
 use egui_wgpu::{Renderer as EguiRenderer, RendererOptions, ScreenDescriptor};
 use etendue_core::Scene;
 use etendue_core::analysis::{
-    DEFAULT_COC_THRESHOLD_PX, DefocusMap, WorkingVolume, defocus_map, working_volume,
+    DEFAULT_COC_THRESHOLD_PX, DefocusMap, VoxelBox, VoxelOverlap, VoxelResolution, WorkingVolume,
+    defocus_map, voxelized_overlap, working_volume,
 };
 use etendue_core::laser::{
     GaussianBeamWidth, LaserPlane, ProjectedStripe, project_stripe, stripe_on_target,
 };
+use nalgebra::Point3;
 use winit::event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent};
 use winit::window::Window;
 
@@ -79,16 +81,16 @@ const PROJECTED_STRIPE_SAMPLES: usize = 96;
 /// operations plus one projection through the camera).
 const WORKING_VOLUME_RESOLUTION: usize = 128;
 
-/// Compute the M4 defocus map for a scene's first camera against its first
-/// target, or `None` if the scene has no camera/target or the map could not
-/// be computed.
+/// Compute the M4 defocus map for the **displayed** camera + first target,
+/// or `None` if the scene has no camera/target or the map could not be
+/// computed.
 ///
 /// The `etendue-core` `defocus_map` analysis pairs one camera with one
-/// target; the MVP scene has exactly one of each, so this drives the heatmap
-/// off `cameras[0]` / `targets[0]`. A `None` result simply leaves the target
-/// drawn as the plain quad — it never aborts a frame.
-fn compute_defocus_map(scene: &Scene) -> Option<DefocusMap> {
-    let camera = scene.cameras.first()?;
+/// target. For the M10 multi-pair rig, the displayed pair (set by the panel
+/// selector) picks which camera drives the heatmap; the target stays as
+/// `targets[0]` since the heatmap visual is painted on that single quad.
+fn compute_defocus_map(scene: &Scene, pair_idx: usize) -> Option<DefocusMap> {
+    let camera = scene.cameras.get(pair_idx)?;
     let target = scene.targets.first()?;
     defocus_map(
         camera,
@@ -99,17 +101,17 @@ fn compute_defocus_map(scene: &Scene) -> Option<DefocusMap> {
     .ok()
 }
 
-/// Compute the M6 working volume for a scene's first camera + first laser,
+/// Compute the M6 working volume for the **displayed** pair's camera + laser,
 /// or `None` if either is missing or the analysis cannot be set up.
 ///
 /// The working volume is the set of points on the laser fan plane that are
 /// simultaneously illuminated by the laser, visible to the camera, and in
-/// focus (CoC ≤ [`DEFAULT_COC_THRESHOLD_PX`]). It backs both the M6
-/// translucent patch on the laser fan and the area / depth-range readouts
-/// in the parameter panel.
-fn compute_working_volume(scene: &Scene) -> Option<WorkingVolume> {
-    let camera = scene.cameras.first()?;
-    let laser = scene.lasers.first()?;
+/// focus (CoC ≤ [`DEFAULT_COC_THRESHOLD_PX`]). For the M10 multi-pair rig
+/// the user picks which pair drives both the rendered patch on the fan and
+/// the area / depth-range readout in the parameter panel.
+fn compute_working_volume(scene: &Scene, pair_idx: usize) -> Option<WorkingVolume> {
+    let camera = scene.cameras.get(pair_idx)?;
+    let laser = scene.lasers.get(pair_idx)?;
     working_volume(
         camera,
         laser,
@@ -120,17 +122,72 @@ fn compute_working_volume(scene: &Scene) -> Option<WorkingVolume> {
     .ok()
 }
 
-/// Compute the M5 projected laser line for a scene's first laser/target,
-/// imaged by its first camera — the data behind the simulated-image panel.
+/// Default voxel-grid resolution per axis for the M10 overlap analysis.
 ///
-/// Builds the laser fan plane, intersects it with the target to get the 3D
-/// stripe, and projects that stripe through the camera (geometric ⊕ defocus
-/// width in quadrature). Returns `None` when the scene lacks a camera, laser,
-/// or target, when the fan misses the target, or when the projection cannot
-/// be set up — in every case the panel simply shows an empty sensor frame.
-fn compute_projected_stripe(scene: &Scene) -> Option<ProjectedStripe> {
-    let camera = scene.cameras.first()?;
-    let laser = scene.lasers.first()?;
+/// `16³ = 4096` voxels keeps the per-frame analysis cost negligible even with
+/// six pairs in the scene (per-voxel cost is dominated by a single projection
+/// and a CoC evaluation per pair). Higher resolutions are a follow-up — the
+/// UI does not expose the grid size yet.
+const VOXEL_GRID_RESOLUTION: usize = 16;
+
+/// Half-thickness, in metres, of the M10 illumination band used to decide
+/// "this voxel is illuminated by the fan plane". Roughly the worst-case
+/// physical fan thickness on a few-decimetre standoff with a 250 µm waist
+/// and visible-light wavelength.
+const VOXEL_ILLUM_THICKNESS_M: f64 = 2.0e-2;
+
+/// Compute the M10 N-view voxel-overlap field for the scene's pairs. Returns
+/// `None` when the scene has fewer than two paired cameras+lasers (the
+/// single-pair "overlap" is just the working volume and the dedicated
+/// working-volume layer already covers it).
+fn compute_voxel_overlap(scene: &Scene) -> Option<VoxelOverlap> {
+    let n_pairs = scene.cameras.len().min(scene.lasers.len());
+    if n_pairs < 2 {
+        return None;
+    }
+    let bounds = voxel_bounds_for_scene(scene)?;
+    let resolution = VoxelResolution {
+        nx: VOXEL_GRID_RESOLUTION,
+        ny: VOXEL_GRID_RESOLUTION,
+        nz: VOXEL_GRID_RESOLUTION,
+    };
+    voxelized_overlap(
+        scene,
+        bounds,
+        resolution,
+        DEFAULT_COC_THRESHOLD_PX,
+        VOXEL_ILLUM_THICKNESS_M,
+    )
+    .ok()
+}
+
+/// Build the M10 voxel-overlap bounding box for `scene`: a cube centred on
+/// the first target, sized to roughly enclose the rig's working region.
+fn voxel_bounds_for_scene(scene: &Scene) -> Option<VoxelBox> {
+    let target = scene.targets.first()?;
+    let centre = target.pose * Point3::origin();
+    // A 30 cm cube around the target centre — same scale as the default
+    // working-volume box; large enough to cover the typical inspection
+    // volume of a few-decimetre triangulation rig, small enough that 16³
+    // gives ~2 cm voxels.
+    let half = 0.15;
+    Some(VoxelBox {
+        min: Point3::new(centre.x - half, centre.y - half, centre.z - half),
+        max: Point3::new(centre.x + half, centre.y + half, centre.z + half),
+    })
+}
+
+/// Compute the M5 projected laser line for the **displayed** pair's laser +
+/// first target, imaged by the displayed camera — the data behind the
+/// simulated-image panel.
+///
+/// Returns `None` when the displayed pair has no camera or laser, when the
+/// scene has no target, when the fan misses the target, or when the
+/// projection cannot be set up — in every case the panel simply shows an
+/// empty sensor frame.
+fn compute_projected_stripe(scene: &Scene, pair_idx: usize) -> Option<ProjectedStripe> {
+    let camera = scene.cameras.get(pair_idx)?;
+    let laser = scene.lasers.get(pair_idx)?;
     let target = scene.targets.first()?;
 
     let plane = LaserPlane::from_entity(laser);
@@ -165,7 +222,7 @@ struct DragState {
 ///
 /// winit 0.30 only guarantees a usable window after `resumed`, so the GPU
 /// resources cannot be built in `App::new`; they live here behind an
-/// `Option` and are initialized in [`App::resumed`].
+/// `Option` and are initialized in `App`'s `ApplicationHandler::resumed` callback.
 struct Graphics {
     /// The OS window. An `Arc` so the wgpu surface can outlive this struct's
     /// stack frame and borrow the same handle.
@@ -206,6 +263,12 @@ struct Graphics {
     /// projected stripe. `None` when the scene has no camera/laser to compute
     /// it from, or when the analysis itself failed.
     working_volume: Option<WorkingVolume>,
+    /// The M10 N-view voxel-overlap field. Cached and refreshed on the same
+    /// reactivity path as the other analyses, but only when the panel's
+    /// `show_voxel_overlap` toggle is on (a 16³ × N-pairs analysis is cheap
+    /// but not free). `None` when the scene has fewer than two pairs or the
+    /// toggle is off.
+    voxel_overlap: Option<VoxelOverlap>,
 }
 
 impl Graphics {
@@ -269,13 +332,19 @@ impl Graphics {
         // would draw a plain quad and no working-volume patch until the
         // first slider edit.
         let panel_state = PanelState::default();
+        let initial_pair = panel_state.displayed_pair;
         let initial_map = if panel_state.show_heatmap {
-            compute_defocus_map(&scene)
+            compute_defocus_map(&scene, initial_pair)
         } else {
             None
         };
         let initial_volume = if panel_state.show_working_volume {
-            compute_working_volume(&scene)
+            compute_working_volume(&scene, initial_pair)
+        } else {
+            None
+        };
+        let initial_voxel_overlap = if panel_state.show_voxel_overlap {
+            compute_voxel_overlap(&scene)
         } else {
             None
         };
@@ -284,14 +353,18 @@ impl Graphics {
             &scene,
             initial_map.as_ref(),
             initial_volume.as_ref(),
+            initial_voxel_overlap
+                .as_ref()
+                .map(|v| (v, panel_state.voxel_min_overlap.max(1))),
         );
 
         // The M5 projected laser line backing the simulated-image panel.
         // Computed once up front so the panel is populated on the first frame.
-        let projected_stripe = compute_projected_stripe(&scene);
+        let projected_stripe = compute_projected_stripe(&scene, initial_pair);
         // Move the initial working volume into the persistent cache so the
         // panel's status readout is populated on the first frame.
         let working_volume_cache = initial_volume;
+        let voxel_overlap_cache = initial_voxel_overlap;
 
         let egui_ctx = egui::Context::default();
         let egui_state = egui_winit::State::new(
@@ -321,6 +394,7 @@ impl Graphics {
             panel_state,
             projected_stripe,
             working_volume: working_volume_cache,
+            voxel_overlap: voxel_overlap_cache,
         }
     }
 
@@ -432,7 +506,16 @@ impl Graphics {
         let egui_ctx = self.egui_state.egui_ctx().clone();
 
         // We need &mut self.scene and &mut self.panel_state inside run_ui,
-        // but run_ui takes a Fn, not FnMut. Work around with Option<> swap.
+        // but run_ui takes a Fn, not FnMut. Work around with mem::replace/take.
+        //
+        // Panic contract: if the egui closure panics, self.scene is left as
+        // Scene::empty() and self.panel_state at default — silent data loss.
+        // Today the closure does no risky work: slider edits and JSON dialogs
+        // route errors through state.io_error, and egui itself does not panic
+        // on well-formed UI code. The panic contract is therefore: the closure
+        // must not panic in normal operation. If a panic-producing operation is
+        // ever added inside the closure, restructure to a RefCell<Scene> or add
+        // a panic guard (e.g. scopeguard::defer) that restores state on unwind.
         let mut scene_ref = std::mem::replace(&mut self.scene, Scene::empty());
         let mut panel_state_ref = std::mem::take(&mut self.panel_state);
         let mut scene_changed = false;
@@ -443,7 +526,7 @@ impl Graphics {
         // legend only next frame — imperceptible, and the heatmap geometry
         // itself is rebuilt from a fresh post-edit map below.
         let legend_map = if panel_state_ref.show_heatmap {
-            compute_defocus_map(&scene_ref)
+            compute_defocus_map(&scene_ref, panel_state_ref.displayed_pair)
         } else {
             None
         };
@@ -479,7 +562,11 @@ impl Graphics {
             // the imaged line width (geometric ⊕ defocus). The sensor frame
             // is read from the live (post-edit) scene so a resolution edit
             // would reflect immediately.
-            simulated_image_panel(ui, projected_stripe_ref, scene_ref.cameras.first());
+            simulated_image_panel(
+                ui,
+                projected_stripe_ref,
+                scene_ref.cameras.get(panel_state_ref.displayed_pair),
+            );
         });
 
         // Restore mutably-borrowed fields.
@@ -502,27 +589,43 @@ impl Graphics {
         // Both are recomputed here from the *post-edit* scene so the heatmap
         // and the patch reflect this frame's slider changes.
         if scene_changed {
+            let pair_idx = self.panel_state.displayed_pair;
             let map = if self.panel_state.show_heatmap {
-                compute_defocus_map(&self.scene)
+                compute_defocus_map(&self.scene, pair_idx)
             } else {
                 None
             };
             let volume = if self.panel_state.show_working_volume {
-                compute_working_volume(&self.scene)
+                compute_working_volume(&self.scene, pair_idx)
             } else {
                 None
             };
-            self.viewport
-                .rebuild_scene(&self.device, &self.scene, map.as_ref(), volume.as_ref());
+            let voxels = if self.panel_state.show_voxel_overlap {
+                compute_voxel_overlap(&self.scene)
+            } else {
+                None
+            };
+            self.viewport.rebuild_scene(
+                &self.device,
+                &self.scene,
+                map.as_ref(),
+                volume.as_ref(),
+                voxels
+                    .as_ref()
+                    .map(|v| (v, self.panel_state.voxel_min_overlap.max(1))),
+            );
             // M5: refresh the cached projected laser line for the
             // simulated-image panel on the same reactivity path as the
             // heatmap. The 2D panel reads `self.projected_stripe` next frame,
             // so the line broadens/shifts in step with the 3D stripe.
-            self.projected_stripe = compute_projected_stripe(&self.scene);
+            self.projected_stripe = compute_projected_stripe(&self.scene, pair_idx);
             // M6: cache the recomputed working volume so the panel's status
             // readout (area, depth range) reads the post-edit numbers on the
             // next frame, on the same reactivity path.
             self.working_volume = volume;
+            // M10: cache the recomputed voxel overlap (used only when the
+            // toggle is on; otherwise this is `None`).
+            self.voxel_overlap = voxels;
         }
 
         self.egui_state

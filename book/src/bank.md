@@ -184,4 +184,4 @@ catalogue, filter by `LensMount` / wavelength / pixel-pitch range, and let
 the user drag a spec onto the scene to populate a `CameraEntity` /
 `LaserEntity` / `TargetEntity` — all of which already accept the relevant
 spec fields directly (e.g. `LensSpec::focal_length_m` maps straight onto
-`CameraEntity::effective_focal_length_m`).
+`PhysicalOptics::effective_focal_length_m`).

@@ -36,7 +36,40 @@ use nalgebra::Isometry3;
 use serde::{Deserialize, Serialize};
 use vision_calibration_core::{CameraParams, IntrinsicsParams};
 
+use crate::geom::TriMesh;
 use crate::optics::ThickLens;
+
+/// Physical optics parameters for a camera entity.
+///
+/// Groups the five physical lens/sensor parameters that would otherwise be
+/// passed as positional scalars to [`CameraEntity::new`]. Using this struct
+/// makes it a type error to transpose, for example, `focus_distance_m` and
+/// `principal_gap_m` — both are `f64` in metres and the compiler cannot
+/// distinguish them otherwise.
+///
+/// # Fields
+///
+/// All distances are in **metres**; the f-number is dimensionless.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct PhysicalOptics {
+    /// Effective focal length of the lens, in metres (e.g. `0.025` for 25 mm).
+    /// Physical source of truth — `fx`/`fy` in `CameraEntity::params.intrinsics`
+    /// are derived from this and `pixel_pitch_m`.
+    pub effective_focal_length_m: f64,
+    /// Lens f-number `N` (dimensionless, e.g. `4.0`). The entrance-pupil
+    /// diameter is `effective_focal_length_m / f_number`.
+    pub f_number: f64,
+    /// Object-side focus distance, in metres — the distance at which the lens is
+    /// focused, measured from the rear principal plane.
+    pub focus_distance_m: f64,
+    /// Inter-principal-plane separation `H - H'`, in metres, `>= 0`.
+    /// Zero makes the lens optically thin.
+    pub principal_gap_m: f64,
+    /// Sensor pixel pitch (centre-to-centre spacing), in metres (e.g. `3.45e-6`
+    /// for 3.45 µm pixels). Couples the physical focal length to the
+    /// pixel-unit intrinsics.
+    pub pixel_pitch_m: f64,
+}
 
 /// A simulated triangulation camera placed in the world.
 ///
@@ -91,26 +124,11 @@ pub struct CameraEntity {
     pub params: CameraParams,
     /// Image sensor resolution in pixels, `(width, height)`.
     pub resolution: (u32, u32),
-    /// Effective focal length of the lens, in **metres** (e.g. `0.025` for a
-    /// 25 mm lens). Physical source of truth — see the type-level note. The
-    /// pixel-unit `params.intrinsics.fx`/`fy` are derived from this and
-    /// [`pixel_pitch_m`](CameraEntity::pixel_pitch_m).
-    pub effective_focal_length_m: f64,
-    /// Lens f-number `N` (dimensionless, e.g. `4.0`). The aperture diameter is
-    /// `effective_focal_length_m / f_number`. Used by the M4 defocus model.
-    pub f_number: f64,
-    /// Object-side focus distance, in metres — the distance at which the lens
-    /// is focused, measured from the rear principal plane. Used by the M4
-    /// defocus model to place the plane of best focus.
-    pub focus_distance_m: f64,
-    /// Inter-principal-plane separation `H - H'`, in metres, `>= 0`. Zero
-    /// makes the lens optically thin. Used by the M4 thick-lens model.
-    pub principal_gap_m: f64,
-    /// Sensor pixel pitch (centre-to-centre pixel spacing), in metres (e.g.
-    /// `3.45e-6` for a 3.45 µm pixel). Couples the physical focal length to
-    /// the pixel-unit intrinsics, and converts the circle of confusion to
-    /// pixels in the M4 model.
-    pub pixel_pitch_m: f64,
+    /// Physical optics parameters (focal length, f-number, focus distance,
+    /// principal gap, pixel pitch). These are the source of truth; the
+    /// pixel-unit `params.intrinsics.fx`/`fy` are derived from them.
+    /// See [`PhysicalOptics`] for field-level documentation.
+    pub optics: PhysicalOptics,
     /// Near clip distance for the rendered frustum, in metres (camera-local
     /// `+z`). Visualization only — not an optical aperture.
     pub frustum_near: f64,
@@ -119,39 +137,69 @@ pub struct CameraEntity {
     pub frustum_far: f64,
 }
 
+// Convenience accessors that forward to `self.optics` — avoids
+// breaking call sites that read the physical fields directly.
 impl CameraEntity {
-    /// Build a camera entity from a pose, a projection spec, and the physical
-    /// optics parameters.
+    /// Effective focal length in metres. Delegates to `self.optics`.
+    #[inline]
+    pub fn effective_focal_length_m(&self) -> f64 {
+        self.optics.effective_focal_length_m
+    }
+
+    /// Lens f-number. Delegates to `self.optics`.
+    #[inline]
+    pub fn f_number(&self) -> f64 {
+        self.optics.f_number
+    }
+
+    /// Object-side focus distance in metres. Delegates to `self.optics`.
+    #[inline]
+    pub fn focus_distance_m(&self) -> f64 {
+        self.optics.focus_distance_m
+    }
+
+    /// Inter-principal gap in metres. Delegates to `self.optics`.
+    #[inline]
+    pub fn principal_gap_m(&self) -> f64 {
+        self.optics.principal_gap_m
+    }
+
+    /// Sensor pixel pitch in metres. Delegates to `self.optics`.
+    #[inline]
+    pub fn pixel_pitch_m(&self) -> f64 {
+        self.optics.pixel_pitch_m
+    }
+}
+
+impl CameraEntity {
+    /// Build a camera entity from a pose, a projection spec, physical optics,
+    /// and a frustum range.
     ///
     /// The pinhole focal length in `params.intrinsics` is **overwritten** so
-    /// it is consistent with `effective_focal_length_m` and `pixel_pitch_m`
-    /// (`fx = fy = focal / pitch`) — the physical parameters are the source of
-    /// truth (see the type-level note). Any `fx`/`fy` already in `params` is
-    /// therefore discarded; `cx`, `cy`, and `skew` are preserved.
+    /// it is consistent with `optics.effective_focal_length_m` and
+    /// `optics.pixel_pitch_m` (`fx = fy = focal / pitch`) — the physical
+    /// parameters are the source of truth (see the type-level note). Any
+    /// `fx`/`fy` already in `params` is therefore discarded; `cx`, `cy`, and
+    /// `skew` are preserved.
     ///
     /// # Errors
     ///
     /// Returns [`Error::InvalidInput`](crate::Error::InvalidInput) if any of:
     /// - either resolution dimension is zero;
-    /// - `effective_focal_length_m` is not finite and strictly positive;
-    /// - `f_number` is not finite and strictly positive;
-    /// - `focus_distance_m` is not finite, or not strictly greater than
-    ///   `effective_focal_length_m` (an object inside the focal point forms no
-    ///   real image);
-    /// - `principal_gap_m` is not finite or is negative;
-    /// - `pixel_pitch_m` is not finite and strictly positive;
+    /// - `optics.effective_focal_length_m` is not finite and strictly positive;
+    /// - `optics.f_number` is not finite and strictly positive;
+    /// - `optics.focus_distance_m` is not finite, or not strictly greater than
+    ///   `optics.effective_focal_length_m` (an object inside the focal point
+    ///   forms no real image);
+    /// - `optics.principal_gap_m` is not finite or is negative;
+    /// - `optics.pixel_pitch_m` is not finite and strictly positive;
     /// - `frustum_near` is not finite and strictly positive;
     /// - `frustum_far` is not strictly greater than `frustum_near`.
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
         pose: Isometry3<f64>,
         params: CameraParams,
         resolution: (u32, u32),
-        effective_focal_length_m: f64,
-        f_number: f64,
-        focus_distance_m: f64,
-        principal_gap_m: f64,
-        pixel_pitch_m: f64,
+        optics: PhysicalOptics,
         frustum_near: f64,
         frustum_far: f64,
     ) -> crate::Result<Self> {
@@ -163,42 +211,54 @@ impl CameraEntity {
                 ),
             });
         }
-        if !(effective_focal_length_m.is_finite() && effective_focal_length_m > 0.0) {
+        if !(optics.effective_focal_length_m.is_finite() && optics.effective_focal_length_m > 0.0) {
             return Err(crate::Error::InvalidInput {
                 reason: format!(
                     "effective focal length must be finite and positive, got \
-                     {effective_focal_length_m}"
+                     {}",
+                    optics.effective_focal_length_m
                 ),
             });
         }
-        if !(f_number.is_finite() && f_number > 0.0) {
-            return Err(crate::Error::InvalidInput {
-                reason: format!("f-number must be finite and positive, got {f_number}"),
-            });
-        }
-        if !focus_distance_m.is_finite() {
-            return Err(crate::Error::InvalidInput {
-                reason: format!("focus distance must be finite, got {focus_distance_m}"),
-            });
-        }
-        if focus_distance_m <= effective_focal_length_m {
+        if !(optics.f_number.is_finite() && optics.f_number > 0.0) {
             return Err(crate::Error::InvalidInput {
                 reason: format!(
-                    "focus distance ({focus_distance_m} m) must exceed the focal length \
-                     ({effective_focal_length_m} m) to form a real image"
+                    "f-number must be finite and positive, got {}",
+                    optics.f_number
                 ),
             });
         }
-        if !(principal_gap_m.is_finite() && principal_gap_m >= 0.0) {
+        if !optics.focus_distance_m.is_finite() {
             return Err(crate::Error::InvalidInput {
                 reason: format!(
-                    "inter-principal gap must be finite and non-negative, got {principal_gap_m}"
+                    "focus distance must be finite, got {}",
+                    optics.focus_distance_m
                 ),
             });
         }
-        if !(pixel_pitch_m.is_finite() && pixel_pitch_m > 0.0) {
+        if optics.focus_distance_m <= optics.effective_focal_length_m {
             return Err(crate::Error::InvalidInput {
-                reason: format!("pixel pitch must be finite and positive, got {pixel_pitch_m}"),
+                reason: format!(
+                    "focus distance ({} m) must exceed the focal length \
+                     ({} m) to form a real image",
+                    optics.focus_distance_m, optics.effective_focal_length_m
+                ),
+            });
+        }
+        if !(optics.principal_gap_m.is_finite() && optics.principal_gap_m >= 0.0) {
+            return Err(crate::Error::InvalidInput {
+                reason: format!(
+                    "inter-principal gap must be finite and non-negative, got {}",
+                    optics.principal_gap_m
+                ),
+            });
+        }
+        if !(optics.pixel_pitch_m.is_finite() && optics.pixel_pitch_m > 0.0) {
+            return Err(crate::Error::InvalidInput {
+                reason: format!(
+                    "pixel pitch must be finite and positive, got {}",
+                    optics.pixel_pitch_m
+                ),
             });
         }
         if !(frustum_near.is_finite() && frustum_near > 0.0) {
@@ -218,11 +278,7 @@ impl CameraEntity {
             pose,
             params,
             resolution,
-            effective_focal_length_m,
-            f_number,
-            focus_distance_m,
-            principal_gap_m,
-            pixel_pitch_m,
+            optics,
             frustum_near,
             frustum_far,
         };
@@ -240,30 +296,27 @@ impl CameraEntity {
     }
 
     /// The pinhole focal length in pixels derived from the physical optics
-    /// parameters: `effective_focal_length_m / pixel_pitch_m`.
+    /// parameters: `optics.effective_focal_length_m / optics.pixel_pitch_m`.
     ///
     /// This is the single conversion that ties the physical lens to the
     /// pixel-unit `vision-calibration-core` intrinsics. With a 25 mm lens on a
     /// 3.45 µm pixel it is `0.025 / 3.45e-6 ≈ 7246.4` pixels.
     #[must_use]
     pub fn focal_length_px(&self) -> f64 {
-        self.effective_focal_length_m / self.pixel_pitch_m
+        self.optics.effective_focal_length_m / self.optics.pixel_pitch_m
     }
 
     /// Overwrite the pinhole focal length in `params.intrinsics` so it agrees
     /// with the physical optics parameters (`fx = fy = `
     /// [`focal_length_px`](CameraEntity::focal_length_px)).
     ///
-    /// The physical fields ([`effective_focal_length_m`] /
-    /// [`pixel_pitch_m`]) are the source of truth; this helper propagates an
-    /// edit of either of them into the derived intrinsics. `cx`, `cy`, and
-    /// `skew` are left untouched — only `fx` and `fy` are rewritten.
+    /// The physical fields in [`optics`](CameraEntity::optics) are the source
+    /// of truth; this helper propagates an edit of either of them into the
+    /// derived intrinsics. `cx`, `cy`, and `skew` are left untouched — only
+    /// `fx` and `fy` are rewritten.
     ///
     /// [`CameraEntity::new`] calls this once at construction; a UI editing the
     /// physical fields must call it after each edit.
-    ///
-    /// [`effective_focal_length_m`]: CameraEntity::effective_focal_length_m
-    /// [`pixel_pitch_m`]: CameraEntity::pixel_pitch_m
     pub fn sync_intrinsics_from_physical(&mut self) {
         let fx = self.focal_length_px();
         let IntrinsicsParams::FxFyCxCySkew { params } = &mut self.params.intrinsics;
@@ -286,11 +339,11 @@ impl CameraEntity {
     pub fn thick_lens(&self) -> crate::Result<ThickLens> {
         ThickLens::new(
             self.params.clone(),
-            self.effective_focal_length_m,
-            self.f_number,
-            self.focus_distance_m,
-            self.principal_gap_m,
-            self.pixel_pitch_m,
+            self.optics.effective_focal_length_m,
+            self.optics.f_number,
+            self.optics.focus_distance_m,
+            self.optics.principal_gap_m,
+            self.optics.pixel_pitch_m,
         )
     }
 }
@@ -387,8 +440,9 @@ impl LaserEntity {
 
 /// A planar inspection target placed in the world.
 ///
-/// The MVP target is a finite rectangle. Parametric sphere / cylinder / step
-/// primitives are post-MVP (`geom/primitives.rs`) and are not modelled here.
+/// The MVP target is a finite rectangle. For triangle-mesh targets see
+/// [`MeshTarget`] — the F7 addition that supports fan-plane × triangle-mesh
+/// laser-stripe intersection via `laser::stripe_segments_on_mesh`.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TargetEntity {
     /// Pose of the target in the world: maps target-local coordinates into
@@ -424,6 +478,50 @@ impl TargetEntity {
             width,
             height,
         })
+    }
+}
+
+/// A triangle-mesh inspection target placed in the world.
+///
+/// The mesh target complements [`TargetEntity`] (a simple planar rectangle)
+/// with an arbitrary triangle mesh, enabling the laser-fan × mesh
+/// intersection path ([`crate::laser::stripe_segments_on_mesh`]).
+///
+/// The mesh is stored in **mesh-local** coordinates; `pose` maps mesh-local
+/// into the world frame (`world ← mesh-local`). This mirrors the local-frame
+/// convention of [`TargetEntity`].
+///
+/// # Constructing from application code
+///
+/// Use [`MeshTarget::new`] for validated construction, or build the [`TriMesh`]
+/// with one of the primitive constructors ([`TriMesh::unit_cube`],
+/// [`TriMesh::quad`]) and pass it in. A unit-cube mesh target is the
+/// recommended default for "add a mesh target" UI buttons.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct MeshTarget {
+    /// Pose of the mesh in the world: maps mesh-local coordinates into world
+    /// coordinates (`world ← mesh-local`).
+    pub pose: Isometry3<f64>,
+    /// The triangle mesh in mesh-local coordinates.
+    pub mesh: TriMesh,
+}
+
+impl MeshTarget {
+    /// Build a mesh target from a pose and a triangle mesh.
+    ///
+    /// Validates that the mesh has at least one triangle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::InvalidInput`](crate::Error::InvalidInput) if the mesh
+    /// has no triangles.
+    pub fn new(pose: Isometry3<f64>, mesh: TriMesh) -> crate::Result<Self> {
+        if mesh.triangle_count() == 0 {
+            return Err(crate::Error::InvalidInput {
+                reason: "mesh target must have at least one triangle".to_string(),
+            });
+        }
+        Ok(Self { pose, mesh })
     }
 }
 
@@ -475,11 +573,13 @@ mod tests {
             Isometry3::identity(),
             params,
             resolution,
-            TEST_F_M,
-            TEST_FNUM,
-            TEST_FOCUS_M,
-            TEST_GAP_M,
-            TEST_PITCH_M,
+            PhysicalOptics {
+                effective_focal_length_m: TEST_F_M,
+                f_number: TEST_FNUM,
+                focus_distance_m: TEST_FOCUS_M,
+                principal_gap_m: TEST_GAP_M,
+                pixel_pitch_m: TEST_PITCH_M,
+            },
             near,
             far,
         )
@@ -514,7 +614,7 @@ mod tests {
     fn sync_intrinsics_from_physical_tracks_an_edit() {
         let mut cam = camera_entity(pinhole_params(), (1280, 720), 0.1, 1.0).unwrap();
         // Edit the physical focal length, then re-sync.
-        cam.effective_focal_length_m = 0.050;
+        cam.optics.effective_focal_length_m = 0.050;
         cam.sync_intrinsics_from_physical();
         let IntrinsicsParams::FxFyCxCySkew { params } = &cam.params.intrinsics;
         assert_relative_eq!(params.fx, 0.050 / TEST_PITCH_M, epsilon = 1e-9);
@@ -528,6 +628,16 @@ mod tests {
         assert_relative_eq!(lens.focal_length_m(), TEST_F_M, epsilon = 1e-15);
         assert_relative_eq!(lens.f_number(), TEST_FNUM, epsilon = 1e-15);
         assert_relative_eq!(lens.focus_distance_m(), TEST_FOCUS_M, epsilon = 1e-15);
+    }
+
+    #[test]
+    fn camera_entity_accessor_methods_delegate_to_optics() {
+        let cam = camera_entity(pinhole_params(), (1280, 720), 0.1, 1.0).unwrap();
+        assert_relative_eq!(cam.effective_focal_length_m(), TEST_F_M, epsilon = 1e-15);
+        assert_relative_eq!(cam.f_number(), TEST_FNUM, epsilon = 1e-15);
+        assert_relative_eq!(cam.focus_distance_m(), TEST_FOCUS_M, epsilon = 1e-15);
+        assert_relative_eq!(cam.principal_gap_m(), TEST_GAP_M, epsilon = 1e-15);
+        assert_relative_eq!(cam.pixel_pitch_m(), TEST_PITCH_M, epsilon = 1e-15);
     }
 
     #[test]
@@ -557,11 +667,13 @@ mod tests {
                 Isometry3::identity(),
                 p.clone(),
                 (1280, 720),
-                TEST_F_M,
-                TEST_FNUM,
-                0.5 * TEST_F_M,
-                TEST_GAP_M,
-                TEST_PITCH_M,
+                PhysicalOptics {
+                    effective_focal_length_m: TEST_F_M,
+                    f_number: TEST_FNUM,
+                    focus_distance_m: 0.5 * TEST_F_M,
+                    principal_gap_m: TEST_GAP_M,
+                    pixel_pitch_m: TEST_PITCH_M,
+                },
                 0.1,
                 1.0,
             )
@@ -573,11 +685,13 @@ mod tests {
                 Isometry3::identity(),
                 p.clone(),
                 (1280, 720),
-                TEST_F_M,
-                0.0,
-                TEST_FOCUS_M,
-                TEST_GAP_M,
-                TEST_PITCH_M,
+                PhysicalOptics {
+                    effective_focal_length_m: TEST_F_M,
+                    f_number: 0.0,
+                    focus_distance_m: TEST_FOCUS_M,
+                    principal_gap_m: TEST_GAP_M,
+                    pixel_pitch_m: TEST_PITCH_M,
+                },
                 0.1,
                 1.0,
             )
@@ -589,11 +703,13 @@ mod tests {
                 Isometry3::identity(),
                 p,
                 (1280, 720),
-                TEST_F_M,
-                TEST_FNUM,
-                TEST_FOCUS_M,
-                TEST_GAP_M,
-                -1e-6,
+                PhysicalOptics {
+                    effective_focal_length_m: TEST_F_M,
+                    f_number: TEST_FNUM,
+                    focus_distance_m: TEST_FOCUS_M,
+                    principal_gap_m: TEST_GAP_M,
+                    pixel_pitch_m: -1e-6,
+                },
                 0.1,
                 1.0,
             )

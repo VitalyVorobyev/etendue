@@ -31,5 +31,5 @@ pub mod entity;
 #[allow(clippy::module_inception)]
 pub mod scene;
 
-pub use entity::{CameraEntity, LaserEntity, TargetEntity};
+pub use entity::{CameraEntity, LaserEntity, MeshTarget, PhysicalOptics, TargetEntity};
 pub use scene::Scene;

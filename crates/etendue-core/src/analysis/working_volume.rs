@@ -46,7 +46,7 @@
 //! depth-of-field band) is exact but considerably more code, and degenerate
 //! configurations (a Scheimpflug-tilted PoBF coincident with the fan plane;
 //! a fan plane edge-on to the camera) need careful handling. The
-//! sample-and-mask pattern is the same one [`crate::analysis::defocus_map`]
+//! sample-and-mask pattern is the same one [`mod@crate::analysis::defocus_map`]
 //! uses for the per-target CoC field — robust, headless, and trivially
 //! testable.
 
@@ -61,7 +61,7 @@ use crate::scene::{CameraEntity, LaserEntity};
 /// A point is considered "in focus" for the working-volume mask when its
 /// geometric circle of confusion is at or below this many pixels — the
 /// classic ~1-pixel depth-of-field criterion. Matches
-/// [`crate::analysis::defocus_map`]'s heatmap green band so the on-target
+/// [`mod@crate::analysis::defocus_map`]'s heatmap green band so the on-target
 /// heatmap and the on-fan working-volume mask read the same scale.
 pub const DEFAULT_COC_THRESHOLD_PX: f64 = 1.0;
 
@@ -299,7 +299,7 @@ impl WorkingVolume {
 /// # Parameters
 ///
 /// - `camera`: the viewing camera; its physical optics drive the focus
-///   predicate, its [`CameraParams`] projection chain drives the visibility
+///   predicate, its [`CameraParams`](crate::calibration::CameraParams) projection chain drives the visibility
 ///   predicate.
 /// - `laser`: the line-projecting laser; its [`LaserPlane`] supplies the
 ///   illumination geometry and the natural `(r, phi)` parameterisation.
@@ -460,11 +460,13 @@ mod tests {
             pose,
             params,
             (RES_W, RES_H),
-            F_M,
-            FNUM,
-            focus_m,
-            GAP_M,
-            PITCH_M,
+            crate::scene::PhysicalOptics {
+                effective_focal_length_m: F_M,
+                f_number: FNUM,
+                focus_distance_m: focus_m,
+                principal_gap_m: GAP_M,
+                pixel_pitch_m: PITCH_M,
+            },
             0.1,
             2.0,
         )
@@ -597,7 +599,7 @@ mod tests {
         // Move the focus far from the target standoff (the default is ~0.62 m
         // — push it to 2.0 m so the on-target band is squarely out of focus).
         let mut detuned_cam = scene.cameras[0].clone();
-        detuned_cam.focus_distance_m = 2.0;
+        detuned_cam.optics.focus_distance_m = 2.0;
         detuned_cam.sync_intrinsics_from_physical();
         let detuned = working_volume(&detuned_cam, &scene.lasers[0], 64, 64, 1.0).unwrap();
         let area_detuned = detuned.area_m2();

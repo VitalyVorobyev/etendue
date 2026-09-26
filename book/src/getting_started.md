@@ -43,7 +43,7 @@ git clone https://github.com/VitalyVorobyev/calibration-rs
 git clone https://github.com/VitalyVorobyev/etendue
 cd etendue
 cargo build --workspace
-cargo test --workspace      # 172 tests
+cargo test --workspace      # 205 tests
 cargo run                   # launches the desktop app
 ```
 

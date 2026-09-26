@@ -12,6 +12,8 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 vision-calibration-core = { workspace = true }
+argmin = { workspace = true }
+argmin-math = { workspace = true }
 
 [dev-dependencies]
 approx = { workspace = true }

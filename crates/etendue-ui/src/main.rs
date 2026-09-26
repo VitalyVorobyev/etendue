@@ -24,14 +24,13 @@ fn main() {
     // `RUST_LOG=etendue=info` (or similar) controls verbosity at runtime.
     env_logger::init();
 
-    // `etendue-core` is wired in from the binary so the kernel <-> UI crate
-    // boundary is exercised by `cargo build`; this also confirms the shared
-    // nalgebra type set resolves all the way through to the binary.
-    let probe = etendue_core::probe_calibration_link();
+    // Smoke-check the etendue-core link: build the default MVP scene to confirm
+    // that the kernel <-> UI crate boundary (including nalgebra type unification
+    // across the vision-calibration-core path dep) is wired correctly.
+    let scene = etendue_core::Scene::default_mvp();
     log::info!(
-        "etendue-core link check: on-axis pixel = ({:.1}, {:.1})",
-        probe.x,
-        probe.y,
+        "etendue-core link check: default scene has {} camera(s)",
+        scene.cameras.len(),
     );
 
     let event_loop = EventLoop::new().expect("failed to create the winit event loop");
