@@ -3,6 +3,11 @@
 
 mod common;
 
+/// Agreement between two floating-point evaluation paths (different
+/// operation order; the platform libm's `sin`/`cos` differ by ULPs, e.g.
+/// MSVC vs glibc/macOS). Far below every gate (G1.1: 1e-9).
+const TOL: f64 = 1e-12;
+
 use common::{Rng, pose_distance, test_arm};
 use etendue_kinematics::{Error, RobotModel, Trajectory, bake, compile};
 use etendue_scene::{ScenarioSpec, SceneSpec, Step};
@@ -179,12 +184,12 @@ fn bake_composes_the_frame_tree() {
             * Isometry3::translation(0.0, 0.0, 0.05)
             * Isometry3::translation(0.03, 0.0, 0.0);
         let (dt, dr) = pose_distance(&sample.world_se3_frame[cam], &expected);
-        assert!(dt < 1e-14 && dr < 1e-14, "{dt} {dr}");
+        assert!(dt < TOL && dr < TOL, "{dt} {dr}");
         let (dt, _) = pose_distance(
             &sample.world_se3_frame[tool0],
             &(Isometry3::translation(0.0, 0.0, 0.8) * model.tcp_pose(q)),
         );
-        assert!(dt < 1e-14);
+        assert!(dt < TOL);
         assert_eq!(sample.t, k as f64 * baked.dt);
     }
 }

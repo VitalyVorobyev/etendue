@@ -2,6 +2,11 @@
 
 mod common;
 
+/// Agreement between two floating-point evaluation paths (different
+/// operation order; the platform libm's `sin`/`cos` differ by ULPs, e.g.
+/// MSVC vs glibc/macOS). Far below every gate (G1.1: 1e-9).
+const TOL: f64 = 1e-12;
+
 use approx::assert_relative_eq;
 use common::{Rng, pose_distance, test_arm};
 use etendue_kinematics::{Error, IkOptions, RobotModel};
@@ -40,9 +45,9 @@ fn revolute_prismatic_fk_matches_closed_form() {
         assert_relative_eq!(
             pose * Point3::origin(),
             Point3::new(r * q1.cos(), r * q1.sin(), 0.5),
-            epsilon = 1e-15
+            epsilon = TOL
         );
-        assert_relative_eq!(pose.rotation.angle(), q1.abs(), epsilon = 1e-15);
+        assert_relative_eq!(pose.rotation.angle(), q1.abs(), epsilon = TOL);
     }
 }
 
@@ -55,7 +60,7 @@ fn link_poses_are_relative_to_the_base_not_the_urdf_root() {
     assert_relative_eq!(
         poses[base].to_homogeneous(),
         Isometry3::identity().to_homogeneous(),
-        epsilon = 1e-15
+        epsilon = TOL
     );
     // The `world` root sits at the inverse of world_joint's origin.
     let world = model.link_index("world").unwrap();
@@ -66,14 +71,14 @@ fn link_poses_are_relative_to_the_base_not_the_urdf_root() {
     assert_relative_eq!(
         poses[world].to_homogeneous(),
         world_se3_base.inverse().to_homogeneous(),
-        epsilon = 1e-15
+        epsilon = TOL
     );
     // The chain walk and the whole-tree walk agree on the TCP.
     let mut rng = Rng::new(7);
     for _ in 0..100 {
         let q = rng.q(&model, 0.0);
         let (dt, dr) = pose_distance(&model.link_poses(&q)[model.tcp_link()], &model.tcp_pose(&q));
-        assert!(dt < 1e-15 && dr < 1e-14, "{dt} {dr}");
+        assert!(dt < TOL && dr < TOL, "{dt} {dr}");
     }
 }
 
@@ -87,7 +92,7 @@ fn off_chain_movable_joints_are_held_at_zero() {
     assert_relative_eq!(
         (tool.inverse() * finger).to_homogeneous(),
         Isometry3::translation(0.0, 0.0, 0.05).to_homogeneous(),
-        epsilon = 1e-14
+        epsilon = TOL
     );
 }
 
@@ -211,9 +216,9 @@ fn base_may_hang_off_the_chain_through_fixed_joints() {
     let q = [0.4, 0.2];
     let expected = base_se3_ctrl.inverse() * plain.tcp_pose(&q);
     let (dt, dr) = pose_distance(&rep.tcp_pose(&q), &expected);
-    assert!(dt < 1e-15 && dr < 1e-15, "{dt} {dr}");
+    assert!(dt < TOL && dr < TOL, "{dt} {dr}");
     let (dt, dr) = pose_distance(&rep.link_poses(&q)[rep.tcp_link()], &expected);
-    assert!(dt < 1e-15 && dr < 1e-15, "{dt} {dr}");
+    assert!(dt < TOL && dr < TOL, "{dt} {dr}");
     // Jacobians agree after rotating into the controller base frame.
     let (_, j_rep) = rep.tcp_jacobian(&q);
     let (_, j_plain) = plain.tcp_jacobian(&q);
@@ -222,7 +227,7 @@ fn base_may_hang_off_the_chain_through_fixed_joints() {
         assert_relative_eq!(
             j_rep.fixed_view::<3, 1>(0, i).into_owned(),
             r * j_plain.fixed_view::<3, 1>(0, i).into_owned(),
-            epsilon = 1e-15
+            epsilon = TOL
         );
     }
 }
