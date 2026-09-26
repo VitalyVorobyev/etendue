@@ -1,0 +1,194 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RobotManifest",
+  "description": "A robot asset manifest (`robot.json`), version 1.\n\nWritten by `tools/robot-assets/build.py`; consumed by\n`etendue-kinematics` (joint limits, base and TCP links) and by the web\nviewer (per-link meshes).",
+  "type": "object",
+  "properties": {
+    "base_link": {
+      "description": "The robot's base link (the frame a [`RobotSpec`] places).",
+      "type": "string"
+    },
+    "id": {
+      "description": "Robot model id (e.g. `\"ur5e\"`).",
+      "type": "string"
+    },
+    "joints": {
+      "description": "Movable joints on the path `base_link → tcp_link`, in that order. This\norder defines the joint vector `q` everywhere.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ManifestJoint"
+      }
+    },
+    "license": {
+      "description": "Licences of the description and meshes.",
+      "$ref": "#/$defs/ManifestLicense"
+    },
+    "name": {
+      "description": "Human-readable name.",
+      "type": "string"
+    },
+    "source": {
+      "description": "Where the description came from.",
+      "$ref": "#/$defs/ManifestSource"
+    },
+    "tcp_link": {
+      "description": "The link whose pose the controller reports (the calibration-rs\n\"gripper\" frame; `robot_poses` are exported as `base_se3_<tcp_link>`).",
+      "type": "string"
+    },
+    "urdf": {
+      "description": "Expanded URDF, path relative to this manifest. Used for kinematics.",
+      "type": "string"
+    },
+    "version": {
+      "description": "Manifest format version; must be `1`.",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "visuals": {
+      "description": "Per-link visual meshes (links without visual geometry are absent).",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ManifestVisual"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "id",
+    "name",
+    "urdf",
+    "base_link",
+    "tcp_link",
+    "joints",
+    "visuals",
+    "source",
+    "license"
+  ],
+  "$defs": {
+    "ManifestJoint": {
+      "description": "Motion limits of one joint.",
+      "type": "object",
+      "properties": {
+        "limit_source": {
+          "description": "Provenance of the limits (file and key, datasheet, or documented\ndefault).",
+          "type": "string"
+        },
+        "lower": {
+          "description": "Lower position limit (rad or m).",
+          "type": "number",
+          "format": "double"
+        },
+        "max_acceleration": {
+          "description": "Maximum acceleration (rad/s² or m/s²), `> 0`.",
+          "type": "number",
+          "format": "double"
+        },
+        "max_velocity": {
+          "description": "Maximum speed (rad/s or m/s), `> 0`.",
+          "type": "number",
+          "format": "double"
+        },
+        "name": {
+          "description": "URDF joint name.",
+          "type": "string"
+        },
+        "upper": {
+          "description": "Upper position limit (rad or m).",
+          "type": "number",
+          "format": "double"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "lower",
+        "upper",
+        "max_velocity",
+        "max_acceleration",
+        "limit_source"
+      ]
+    },
+    "ManifestLicense": {
+      "description": "Licences of a robot description.",
+      "type": "object",
+      "properties": {
+        "meshes": {
+          "description": "Licence of the meshes (SPDX id or `LicenseRef-…` with a description).",
+          "type": "string"
+        },
+        "meshes_redistributable": {
+          "description": "Whether the meshes may be redistributed (committed / published).",
+          "type": "boolean"
+        },
+        "notes": {
+          "description": "Evidence and remarks.",
+          "type": "string"
+        },
+        "urdf": {
+          "description": "Licence of the URDF / xacro (SPDX id).",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "urdf",
+        "meshes",
+        "meshes_redistributable",
+        "notes"
+      ]
+    },
+    "ManifestSource": {
+      "description": "Upstream source of a robot description, pinned by revision.",
+      "type": "object",
+      "properties": {
+        "entry": {
+          "description": "xacro / URDF entry file inside the repository.",
+          "type": "string"
+        },
+        "repository": {
+          "description": "Repository URL.",
+          "type": "string"
+        },
+        "revision": {
+          "description": "Pinned git commit SHA.",
+          "type": "string"
+        },
+        "xacro_args": {
+          "description": "xacro arguments used for expansion.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "repository",
+        "revision",
+        "entry",
+        "xacro_args"
+      ]
+    },
+    "ManifestVisual": {
+      "description": "A link's visual mesh.",
+      "type": "object",
+      "properties": {
+        "link": {
+          "description": "URDF link name.",
+          "type": "string"
+        },
+        "mesh": {
+          "description": "glTF binary in the **link frame** (URDF visual origin and scale\napplied), path relative to the manifest.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "link",
+        "mesh"
+      ]
+    }
+  }
+}

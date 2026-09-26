@@ -90,9 +90,9 @@ jobs:
           TARGET="${{ matrix.target }}"
           ARCHIVE="etendue-${VERSION}-${TARGET}.tar.gz"
           mkdir -p dist
-          cp target/release/etendue dist/
-          tar -czf "dist/${ARCHIVE}" -C dist etendue
-          rm dist/etendue
+          cp target/release/etendue-ui dist/
+          tar -czf "dist/${ARCHIVE}" -C dist etendue-ui
+          rm dist/etendue-ui
           echo "ARCHIVE=${ARCHIVE}" >> "$GITHUB_ENV"
 
       - name: Package archive (Windows)
@@ -103,9 +103,9 @@ jobs:
           $TARGET  = "${{ matrix.target }}"
           $ARCHIVE = "etendue-${VERSION}-${TARGET}.zip"
           New-Item -ItemType Directory -Force -Path dist | Out-Null
-          Copy-Item target\release\etendue.exe dist\
-          Compress-Archive -Path dist\etendue.exe -DestinationPath "dist\${ARCHIVE}"
-          Remove-Item dist\etendue.exe
+          Copy-Item target\release\etendue-ui.exe dist\
+          Compress-Archive -Path dist\etendue-ui.exe -DestinationPath "dist\${ARCHIVE}"
+          Remove-Item dist\etendue-ui.exe
           "ARCHIVE=${ARCHIVE}" | Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: Upload artifact

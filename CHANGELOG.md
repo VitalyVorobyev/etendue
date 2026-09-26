@@ -7,9 +7,74 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Pivot P1: scene schema, kinematics, baking (headless)
+
+#### Added
+
+- **`etendue-scene`** — versioned JSON documents: `SceneSpec`, `ScenarioSpec`,
+  `BakedScenario`, and `RobotManifest` (`robot.json`).
+  - `SceneSpec` is a frame tree of robots, rigs, cameras, lasers, lights,
+    targets, and parts (ADR 0002). Cameras are calibration-rs `CameraParams`;
+    boards use the calibration-rs dataset `TargetSpec`.
+  - `FrameGraph` checks for dangling parents and cycles, orders frames
+    topologically, and resolves `world_se3_frame`.
+  - Validation collects every issue. Poses must be unit quaternions to 1e-9.
+  - JSON Schemas are behind the `schemars` feature and committed in `schemas/`.
+  - Property tests check the JSON round trip bit-for-bit.
+- **`etendue-kinematics`**, the only home of FK and IK.
+  - `RobotModel` is a URDF (via `urdf-rs` 0.10) bound to a manifest. The base
+    may be a REP-199 `base` link that hangs off the chain.
+  - Custom serial-chain FK on nalgebra 0.34, plus the geometric Jacobian.
+  - Damped-least-squares IK with deterministic restarts.
+  - Analytic OPW IK (`rs-opw-kinematics`, default features off) behind the
+    `opw` feature. It is validated against etendue's own FK.
+  - `compile`/`bake` scenarios: synchronised trapezoidal `ptp_joints` and
+    `ptp_pose`, spline-timed Cartesian `lin` with exact derivative bounds, and
+    stop-and-shoot `capture` and `wait`. Property tests check that joint
+    limits are never exceeded and that captures happen at rest.
+- **`etendue-cli`** (binary `etendue`): `etendue validate <scene> [<scenario>]`
+  and `etendue bake <scene> <scenario> -o <baked.json>`.
+  - Example scenes: `examples/eye_in_hand_ur5e/` and
+    `examples/eye_to_hand_ur5e/`.
+- **Robot assets.** `tools/robot-assets` is a uv project that builds
+  `assets/robots/<id>/` from upstream descriptions pinned by SHA:
+  - UR5e (BSD-3-Clause) and ABB IRB 1200-5/0.90 (Apache-2.0, OPW);
+  - xacro → URDF, per-link GLB meshes (git-ignored, regenerated), and
+    `robot.json` with licences and limit provenance.
+- **Pinocchio FK fixtures** (`tools/fixtures/`).
+- **Gates**, recorded in `docs/measurements/`:
+  - G1.1: FK vs Pinocchio ≤ 1.4e-15 on 10k configurations.
+  - G1.2: OPW 0 failures, max 5.5e-10 m; DLS residuals ≤ 1e-10, with a
+    failure rate of 0 % from near seeds and 0.1–0.35 % from random seeds.
+  - G1.3: mesh round trip ≤ 3e-8 m.
+- **`xtask`**: `cargo xtask emit-schemas [--check]` and
+  `cargo xtask check-layering`, which enforces the ADR 0001 dependency rules
+  and the single nalgebra.
+  - CI job `checks` runs them, plus `--all-features` tests per crate and a CLI
+    smoke test.
+
+#### Changed
+
+- The `etendue-ui` binary is renamed `etendue` → `etendue-ui`, because
+  `etendue` is now the CLI. Run the GUI with `cargo run -p etendue-ui`.
+- `serde_json` has `float_roundtrip` enabled workspace-wide. The default
+  parser can be off by one ULP, which the scene round-trip property test
+  caught.
+- etendue crates are declared as workspace dependencies with path and
+  version, so dependents stay publishable.
+
+#### Security
+
+- `anyhow` 1.0.104 fixes RUSTSEC-2026-0190.
+- RUSTSEC-2026-0194 and -0195 (`quick-xml` 0.39, via `urdf-rs`) are ignored
+  with a reason in `deny.toml`. urdf-rs uses quick-xml only for URDF
+  *serialization*, which etendue never calls.
+
+### Pivot P0: groundwork
+
 Pivot groundwork (P0 of `docs/pivot/PLAN.md`).
 
-### Added
+#### Added
 
 - **ADRs 0001–0006** (`docs/adrs/`, accepted 2026-09-26):
   - the package-family pivot;
@@ -27,7 +92,7 @@ Pivot groundwork (P0 of `docs/pivot/PLAN.md`).
   - CI gains a `wasm` job (wasm32 clippy and the parity check).
 - `etendue_core::Error::Calibration`, which wraps `vision_calibration_core::Error`.
 
-### Changed
+#### Changed
 
 - **calibration-rs from crates.io.** `vision-calibration-core = "0.8"`
   (and `vision-calibration-dataset = "0.8"`, not yet used) replace the path
@@ -47,7 +112,7 @@ Pivot groundwork (P0 of `docs/pivot/PLAN.md`).
 - The out-of-scope list now defers to ADR 0001: realistic rendering is in
   scope only as the Blender backend.
 
-### Security
+#### Security
 
 - Lockfile bumps clear RUSTSEC-2026-0194, RUSTSEC-2026-0195 (`quick-xml`, via
   `wayland-scanner` 0.31.11) and RUSTSEC-2026-0257 (`webbrowser` 1.2.4). The

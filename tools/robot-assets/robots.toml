@@ -1,0 +1,99 @@
+# Robot descriptions built by build.py into assets/robots/<id>/.
+#
+# Every upstream source is pinned by a full 40-hex git commit SHA. The builder
+# refuses to run if the fetched HEAD differs from `revision`.
+#
+# Fields per [[robot]]:
+#   id, name          robot.json id (unique, [A-Za-z0-9_-]+) and display name
+#   repository        upstream git URL
+#   revision          pinned commit SHA
+#   entry             xacro (or URDF) entry file, relative to the repository root
+#   packages          ROS package name -> directory inside the repository; resolves
+#                     both `$(find pkg)` in xacro and `package://pkg/...` mesh URIs
+#   base_link         frame the controller reports TCP poses in: the REP-199 `base` link
+#                     (ADR 0002), NOT `world` and not necessarily an ancestor of tcp_link;
+#                     the path from it to the arm must consist of fixed joints only
+#   tcp_link          flange/tool frame reported by the controller
+#   opw_preset        optional: matching rs-opw-kinematics 3.0.0 `Parameters::<preset>()`
+#   license_files     upstream licence texts copied next to robot.json
+#   [robot.xacro_args]    xacro `name:=value` mappings
+#   [robot.acceleration]  where per-joint acceleration limits come from:
+#       kind = "yaml":    repository/revision/file + dotted `key` (`<joint>` = joint name)
+#       kind = "default": `value` (rad/s^2 or m/s^2) + `reason` (why no upstream number)
+#   [robot.license]       SPDX ids + evidence at the pinned revision
+
+[[robot]]
+id = "ur5e"
+name = "Universal Robots UR5e"
+repository = "https://github.com/UniversalRobots/Universal_Robots_ROS2_Description"
+revision = "ae333289875f9ba5a9ea6649a54036efb5ccabee" # tag 4.3.1 (2026-05-07)
+entry = "urdf/ur.urdf.xacro"
+packages = { ur_description = "." }
+base_link = "base"
+tcp_link = "tool0"
+license_files = ["LICENSE"]
+
+[robot.xacro_args]
+ur_type = "ur5e"
+name = "ur5e"
+
+[robot.acceleration]
+kind = "yaml"
+repository = "https://github.com/UniversalRobots/Universal_Robots_ROS2_Driver"
+revision = "0880202ce10ddb012b4dcac12ebe162a7e498e83" # tag 7.1.0 (2026-09-14)
+file = "ur_moveit_config/config/joint_limits.yaml"
+key = "joint_limits.<joint>.max_acceleration"
+# ur_description config/ur5e/joint_limits.yaml says "acceleration limits are not
+# publicly available" (has_acceleration_limits: false); UR's own MoveIt config
+# supplies values "chosen conservatively to work in most use cases".
+
+[robot.license]
+urdf = "BSD-3-Clause"
+meshes = "BSD-3-Clause"
+meshes_redistributable = true
+notes = """\
+Evidence at ae333289: LICENSE is the BSD-3-Clause text; package.xml declares \
+<license file="LICENSE">BSD-3-Clause</license>; README.md section 'License' states that only the \
+UR8LONG, UR15, UR18, UR20 and UR30 meshes are Universal Robots 'Graphical Documentation' \
+(UR Terms and Conditions, meshes/ur{8long,15,18,20,30}/LICENSE.txt) and that 'All other content is \
+licensed under the BSD-3-Clause license'. meshes/ur5e/ has no LICENSE file and is therefore covered \
+by BSD-3-Clause. The upstream LICENSE has no copyright line; it is copied to LICENSE next to this \
+file. Acceleration source (Universal_Robots_ROS2_Driver ur_moveit_config) is BSD-3-Clause.\
+"""
+
+[[robot]]
+id = "abb_irb1200_5_90"
+name = "ABB IRB 1200-5/0.90"
+repository = "https://github.com/ros-industrial/abb"
+revision = "45f4769d826cf3ac62a65495f2db67b78b0c81df" # noetic-devel HEAD (2025-05-06)
+entry = "abb_irb1200_support/urdf/irb1200_5_90.xacro"
+packages = { abb_irb1200_support = "abb_irb1200_support", abb_resources = "abb_resources" }
+base_link = "base"
+tcp_link = "tool0"
+opw_preset = "irb1200_5_90"
+license_files = ["abb_irb1200_support/LICENSE"]
+
+[robot.xacro_args]
+
+[robot.acceleration]
+kind = "default"
+value = 5.0
+reason = """\
+ABB publishes no per-joint acceleration limits; none in the URDF, and the pinned \
+moveit/abb_irb1200_5_90_moveit_config/config/joint_limits.yaml sets has_acceleration_limits: false \
+(max_acceleration: 0). 5.0 rad/s^2 is a conservative value (the same default UR ships for MoveIt), \
+well below the real arm's capability, so trajectories are slow but always feasible\
+"""
+
+[robot.license]
+urdf = "Apache-2.0"
+meshes = "Apache-2.0"
+meshes_redistributable = true
+notes = """\
+Evidence at 45f4769d: abb_irb1200_support/LICENSE is the Apache-2.0 text and \
+abb_irb1200_support/package.xml declares <license>Apache-2.0</license>; the meshes \
+(abb_irb1200_support/meshes/irb1200_5_90/visual/*.dae) live in that package and carry no separate \
+licence; abb_resources (common_materials.xacro, included by the xacro) is Apache-2.0 as well \
+(identical LICENSE, package.xml). No NOTICE file exists in the repository. The upstream LICENSE \
+is copied to LICENSE next to this file.\
+"""

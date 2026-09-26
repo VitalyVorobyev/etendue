@@ -1,0 +1,71 @@
+{
+  "version": 1,
+  "id": "test_arm",
+  "name": "etendue test arm",
+  "urdf": "test_arm.urdf",
+  "base_link": "base_link",
+  "tcp_link": "tool0",
+  "joints": [
+    {
+      "name": "j1",
+      "lower": -3.141592653589793,
+      "upper": 3.141592653589793,
+      "max_velocity": 2.0,
+      "max_acceleration": 4.0,
+      "limit_source": "test fixture"
+    },
+    {
+      "name": "j2",
+      "lower": -3.141592653589793,
+      "upper": 3.141592653589793,
+      "max_velocity": 2.0,
+      "max_acceleration": 4.0,
+      "limit_source": "test fixture"
+    },
+    {
+      "name": "j3",
+      "lower": -3.141592653589793,
+      "upper": 3.141592653589793,
+      "max_velocity": 2.0,
+      "max_acceleration": 4.0,
+      "limit_source": "test fixture"
+    },
+    {
+      "name": "j4",
+      "lower": -3.141592653589793,
+      "upper": 3.141592653589793,
+      "max_velocity": 3.0,
+      "max_acceleration": 6.0,
+      "limit_source": "test fixture"
+    },
+    {
+      "name": "j5",
+      "lower": -3.141592653589793,
+      "upper": 3.141592653589793,
+      "max_velocity": 3.0,
+      "max_acceleration": 6.0,
+      "limit_source": "test fixture"
+    },
+    {
+      "name": "j6",
+      "lower": -3.141592653589793,
+      "upper": 3.141592653589793,
+      "max_velocity": 3.0,
+      "max_acceleration": 6.0,
+      "limit_source": "test fixture"
+    }
+  ],
+  "visuals": [],
+  "source": {
+    "repository": "https://github.com/VitalyVorobyev/etendue",
+    "revision": "0000000000000000000000000000000000000000",
+    "entry": "crates/etendue-kinematics/tests/data/test_arm.urdf",
+    "xacro_args": {}
+  },
+  "license": {
+    "urdf": "MIT",
+    "meshes": "NONE",
+    "meshes_redistributable": true,
+    "notes": "hand-written test model"
+  }
+}

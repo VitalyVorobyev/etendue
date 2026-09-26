@@ -11,6 +11,14 @@
 # when calibration-rs's nalgebra hard-pin is bumped.
 ignore = [
     { id = "RUSTSEC-2024-0436", reason = "upstream-blocked: paste is a transitive dep of nalgebra 0.34 via simba; nalgebra is hard-pinned for cross-crate type unification with vision-calibration-core" },
+    # RUSTSEC-2026-0194 / -0195: quick-xml < 0.41 reader DoS (duplicate-attribute
+    # check, NsReader namespace allocation). quick-xml 0.39 enters only through
+    # urdf-rs 0.10 (etendue-kinematics), which parses URDF with RustyXML +
+    # serde-xml-rs and uses quick-xml solely for `urdf_rs::write_to_string`
+    # (the serializer). etendue never calls it, so the vulnerable reader is
+    # unreachable. Drop these once urdf-rs moves to quick-xml >= 0.41.
+    { id = "RUSTSEC-2026-0194", reason = "quick-xml reader unreachable: urdf-rs uses quick-xml only for serialization (write_to_string), never called by etendue" },
+    { id = "RUSTSEC-2026-0195", reason = "quick-xml NsReader unreachable: urdf-rs uses quick-xml only for serialization (write_to_string), never called by etendue" },
 ]
 
 [licenses]

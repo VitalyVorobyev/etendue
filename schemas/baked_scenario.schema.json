@@ -1,0 +1,162 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "BakedScenario",
+  "description": "A scenario sampled at a fixed period.",
+  "type": "object",
+  "properties": {
+    "dt": {
+      "description": "Sample period in seconds.",
+      "type": "number",
+      "format": "double"
+    },
+    "frames": {
+      "description": "Frame names, topological order, `\"world\"` first. `world_se3_frame`\nin every sample is index-aligned with this list.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "robots": {
+      "description": "Robots whose joint positions each sample records, in scene order.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/BakedRobot"
+      }
+    },
+    "samples": {
+      "description": "Samples at `t = k · dt`.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/BakedSample"
+      }
+    },
+    "version": {
+      "description": "Format version; `1`.",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "dt",
+    "frames",
+    "robots",
+    "samples"
+  ],
+  "$defs": {
+    "BakedRobot": {
+      "description": "A robot's joint naming, for [`BakedSample::joint_positions`].",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "Robot id.",
+          "type": "string"
+        },
+        "joint_names": {
+          "description": "Joint names in `q` order.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "joint_names"
+      ]
+    },
+    "BakedSample": {
+      "description": "One sample.",
+      "type": "object",
+      "properties": {
+        "capture": {
+          "description": "Set on the stationary sample at which images are captured.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CaptureEvent"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "joint_positions": {
+          "description": "Joint positions per robot, aligned with [`BakedScenario::robots`].\nFor display only.",
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number",
+              "format": "double"
+            }
+          }
+        },
+        "t": {
+          "description": "Time in seconds.",
+          "type": "number",
+          "format": "double"
+        },
+        "world_se3_frame": {
+          "description": "Pose of every frame in the world, aligned with\n[`BakedScenario::frames`].",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Iso3Schema"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "t",
+        "world_se3_frame",
+        "joint_positions"
+      ]
+    },
+    "CaptureEvent": {
+      "description": "A capture marker.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "Capture id (unique within the scenario).",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id"
+      ]
+    },
+    "Iso3Schema": {
+      "description": "JSON Schema proxy for [`Iso3`] (`nalgebra::Isometry3<f64>`).\n\n`nalgebra` does not implement [`schemars::JsonSchema`], so `*Export` and\nparameter types that embed [`Iso3`] annotate the field with\n`#[cfg_attr(feature = \"schemars\", schemars(with = \"Iso3Schema\"))]`\n(or `Vec<Iso3Schema>` / `Option<Iso3Schema>`). This proxy mirrors the exact\nserde wire format of `Isometry3`:\n`{ \"rotation\": [qx, qy, qz, qw], \"translation\": [tx, ty, tz] }`.\n\nIt exists only to describe that shape to `schemars`; it is never\nconstructed at runtime.",
+      "type": "object",
+      "properties": {
+        "rotation": {
+          "description": "Unit quaternion `[qx, qy, qz, qw]` (i, j, k, w order).",
+          "type": "array",
+          "items": {
+            "type": "number",
+            "format": "double"
+          },
+          "maxItems": 4,
+          "minItems": 4
+        },
+        "translation": {
+          "description": "Translation `[tx, ty, tz]` in meters.",
+          "type": "array",
+          "items": {
+            "type": "number",
+            "format": "double"
+          },
+          "maxItems": 3,
+          "minItems": 3
+        }
+      },
+      "required": [
+        "rotation",
+        "translation"
+      ]
+    }
+  }
+}

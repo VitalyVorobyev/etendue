@@ -1,0 +1,28 @@
+[package]
+name = "etendue-kinematics"
+description = "URDF serial-chain kinematics for etendue: forward kinematics, damped-least-squares IK, scenario baking"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+etendue-scene = { workspace = true }
+nalgebra = { workspace = true }
+thiserror = { workspace = true }
+urdf-rs = "0.10"
+# Analytic OPW inverse kinematics (feature `opw`). Default features pull
+# collision checking, planning, and file loaders; none are used here. The
+# crate works in `glam`; conversion to nalgebra happens only at the boundary.
+rs-opw-kinematics = { version = "3", default-features = false, optional = true }
+
+[features]
+# Analytic inverse kinematics for OPW-type arms (spherical wrist).
+opw = ["dep:rs-opw-kinematics"]
+
+[dev-dependencies]
+approx = { workspace = true }
+proptest = { workspace = true }
+serde_json = { workspace = true }

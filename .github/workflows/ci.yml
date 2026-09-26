@@ -49,6 +49,49 @@ jobs:
           RUSTDOCFLAGS: "-D warnings"
         run: cargo doc --no-deps --workspace
 
+  # Workspace policy and per-crate feature matrix (CLAUDE.md): layering rules
+  # (ADR 0001), JSON Schema drift, `--all-features` per crate, CLI smoke test.
+  checks:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Clone calibration-rs sibling ([patch.crates-io] target)
+        run: git clone --depth 1 --branch "$CALIBRATION_RS_REF" https://github.com/VitalyVorobyev/calibration-rs.git ../calibration-rs
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Cache cargo artifacts
+        uses: Swatinem/rust-cache@v2
+
+      - name: Layering (ADR 0001) and single nalgebra
+        run: cargo xtask check-layering
+
+      - name: JSON Schemas up to date
+        run: cargo xtask emit-schemas --check
+
+      - name: Clippy, all features, per crate
+        run: |
+          cargo clippy -p etendue-scene --all-targets --all-features -- -D warnings
+          cargo clippy -p etendue-kinematics --all-targets --all-features -- -D warnings
+
+      - name: Tests, all features, per crate (G1.1, G1.2 incl. OPW)
+        run: |
+          cargo test -p etendue-scene --all-features --locked
+          cargo test -p etendue-kinematics --all-features --locked
+
+      - name: CLI smoke test (P1-6 examples)
+        run: |
+          for ex in eye_in_hand_ur5e eye_to_hand_ur5e; do
+            cargo run -q -p etendue-cli -- validate examples/$ex/scene.json examples/$ex/scenario.json
+            cargo run -q -p etendue-cli -- bake examples/$ex/scene.json examples/$ex/scenario.json -o target/$ex.baked.json
+          done
+
   # etendue-wasm (npm `@etendue/wasm`): wasm32 build + gate G0.1 — the wasm
   # build of the projection chain must match the native build bit-for-bit
   # (docs/measurements/g0_1_wasm_parity.md).

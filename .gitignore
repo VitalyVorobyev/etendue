@@ -13,3 +13,13 @@ book/book/
 # Editor / OS noise
 *.swp
 .DS_Store
+
+# Robot assets (tools/robot-assets/build.py). Converted meshes are NOT committed,
+# even where the upstream licence permits redistribution (ur5e, abb_irb1200_5_90:
+# see license.meshes_redistributable in robot.json): they are ~12 MB and rebuild
+# byte-identically from the pinned upstream SHAs. robot.urdf, robot.json and
+# LICENSE are committed.
+assets/robots/*/meshes/
+# Local state of the robot asset pipeline (uv venv, pinned upstream checkouts)
+tools/robot-assets/.venv/
+tools/robot-assets/.cache/

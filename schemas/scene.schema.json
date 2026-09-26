@@ -1,0 +1,1084 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SceneSpec",
+  "description": "A scene: every frame, robot, and entity, version 1.\n\nAll ids — of frames, robots, rigs, cameras, lasers, lights, targets, and\nparts — share one namespace.",
+  "type": "object",
+  "properties": {
+    "cameras": {
+      "description": "Cameras.",
+      "type": "array",
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/CameraSpec"
+      }
+    },
+    "description": {
+      "description": "Free-text description.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "frames": {
+      "description": "Named auxiliary frames (fixtures, mounting plates, tool offsets).",
+      "type": "array",
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/FrameSpec"
+      }
+    },
+    "lasers": {
+      "description": "Line lasers.",
+      "type": "array",
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/LaserSpec"
+      }
+    },
+    "lights": {
+      "description": "Light sources.",
+      "type": "array",
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/LightSpec"
+      }
+    },
+    "parts": {
+      "description": "Passive mesh parts.",
+      "type": "array",
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/PartSpec"
+      }
+    },
+    "rigs": {
+      "description": "Camera rigs.",
+      "type": "array",
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/RigSpec"
+      }
+    },
+    "robots": {
+      "description": "Robots.",
+      "type": "array",
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/RobotSpec"
+      }
+    },
+    "targets": {
+      "description": "Targets (calibration boards, plain planes).",
+      "type": "array",
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/TargetSpec"
+      }
+    },
+    "version": {
+      "description": "Format version; must be [`SCENE_VERSION`].",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "version"
+  ],
+  "$defs": {
+    "CameraParams": {
+      "description": "Serializable camera parameters for building a runtime model.",
+      "type": "object",
+      "properties": {
+        "distortion": {
+          "description": "Distortion model parameters.",
+          "$ref": "#/$defs/DistortionParams"
+        },
+        "intrinsics": {
+          "description": "Intrinsics model parameters.",
+          "$ref": "#/$defs/IntrinsicsParams"
+        },
+        "projection": {
+          "description": "Projection model parameters.",
+          "$ref": "#/$defs/ProjectionParams"
+        },
+        "sensor": {
+          "description": "Sensor model parameters.",
+          "$ref": "#/$defs/SensorParams"
+        }
+      },
+      "required": [
+        "projection",
+        "distortion",
+        "sensor",
+        "intrinsics"
+      ]
+    },
+    "CameraSpec": {
+      "description": "A camera. Its projection model is a calibration-rs [`CameraParams`] —\nthe same type calibration-rs calibrates and exports.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "Unique id.",
+          "type": "string"
+        },
+        "params": {
+          "description": "Projection / distortion / sensor / intrinsics.",
+          "$ref": "#/$defs/CameraParams"
+        },
+        "parent": {
+          "description": "Parent frame (usually a rig).",
+          "$ref": "#/$defs/FrameRef"
+        },
+        "parent_se3_self": {
+          "description": "Pose of the camera in its parent (maps camera → parent).",
+          "$ref": "#/$defs/Iso3Schema"
+        },
+        "resolution": {
+          "description": "Image size in pixels, `[width, height]`.",
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0
+          },
+          "maxItems": 2,
+          "minItems": 2
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "parent",
+        "parent_se3_self",
+        "params",
+        "resolution"
+      ]
+    },
+    "DistortionParams": {
+      "description": "Serializable distortion model parameters.",
+      "oneOf": [
+        {
+          "description": "No distortion.",
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "none"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "description": "Brown-Conrady 5-parameter radial-tangential model.",
+          "type": "object",
+          "properties": {
+            "iters": {
+              "description": "Iterations for undistortion.",
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "k1": {
+              "description": "Radial coefficient k1.",
+              "type": "number",
+              "format": "double"
+            },
+            "k2": {
+              "description": "Radial coefficient k2.",
+              "type": "number",
+              "format": "double"
+            },
+            "k3": {
+              "description": "Radial coefficient k3.",
+              "type": "number",
+              "format": "double"
+            },
+            "p1": {
+              "description": "Tangential coefficient p1.",
+              "type": "number",
+              "format": "double"
+            },
+            "p2": {
+              "description": "Tangential coefficient p2.",
+              "type": "number",
+              "format": "double"
+            },
+            "type": {
+              "type": "string",
+              "const": "brown_conrady5"
+            }
+          },
+          "required": [
+            "type",
+            "k1",
+            "k2",
+            "k3",
+            "p1",
+            "p2",
+            "iters"
+          ]
+        },
+        {
+          "description": "OpenCV rational polynomial 8-parameter model.",
+          "type": "object",
+          "properties": {
+            "iters": {
+              "description": "Iterations for undistortion (0 → 10).",
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "k1": {
+              "description": "Numerator radial coefficient k1.",
+              "type": "number",
+              "format": "double"
+            },
+            "k2": {
+              "description": "Numerator radial coefficient k2.",
+              "type": "number",
+              "format": "double"
+            },
+            "k3": {
+              "description": "Numerator radial coefficient k3.",
+              "type": "number",
+              "format": "double"
+            },
+            "k4": {
+              "description": "Denominator radial coefficient k4.",
+              "type": "number",
+              "format": "double"
+            },
+            "k5": {
+              "description": "Denominator radial coefficient k5.",
+              "type": "number",
+              "format": "double"
+            },
+            "k6": {
+              "description": "Denominator radial coefficient k6.",
+              "type": "number",
+              "format": "double"
+            },
+            "p1": {
+              "description": "Tangential coefficient p1.",
+              "type": "number",
+              "format": "double"
+            },
+            "p2": {
+              "description": "Tangential coefficient p2.",
+              "type": "number",
+              "format": "double"
+            },
+            "type": {
+              "type": "string",
+              "const": "rational"
+            }
+          },
+          "required": [
+            "type",
+            "k1",
+            "k2",
+            "k3",
+            "k4",
+            "k5",
+            "k6",
+            "p1",
+            "p2",
+            "iters"
+          ]
+        },
+        {
+          "description": "Brown-Conrady + thin-prism 9-parameter model.",
+          "type": "object",
+          "properties": {
+            "iters": {
+              "description": "Iterations for undistortion (0 → 10).",
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "k1": {
+              "description": "Radial coefficient k1.",
+              "type": "number",
+              "format": "double"
+            },
+            "k2": {
+              "description": "Radial coefficient k2.",
+              "type": "number",
+              "format": "double"
+            },
+            "k3": {
+              "description": "Radial coefficient k3.",
+              "type": "number",
+              "format": "double"
+            },
+            "p1": {
+              "description": "Tangential coefficient p1.",
+              "type": "number",
+              "format": "double"
+            },
+            "p2": {
+              "description": "Tangential coefficient p2.",
+              "type": "number",
+              "format": "double"
+            },
+            "s1": {
+              "description": "Thin-prism coefficient s1 (x correction, r²).",
+              "type": "number",
+              "format": "double"
+            },
+            "s2": {
+              "description": "Thin-prism coefficient s2 (x correction, r⁴).",
+              "type": "number",
+              "format": "double"
+            },
+            "s3": {
+              "description": "Thin-prism coefficient s3 (y correction, r²).",
+              "type": "number",
+              "format": "double"
+            },
+            "s4": {
+              "description": "Thin-prism coefficient s4 (y correction, r⁴).",
+              "type": "number",
+              "format": "double"
+            },
+            "type": {
+              "type": "string",
+              "const": "thin_prism"
+            }
+          },
+          "required": [
+            "type",
+            "k1",
+            "k2",
+            "k3",
+            "p1",
+            "p2",
+            "s1",
+            "s2",
+            "s3",
+            "s4",
+            "iters"
+          ]
+        },
+        {
+          "description": "Fitzgibbon single-parameter division model.",
+          "type": "object",
+          "properties": {
+            "lambda": {
+              "description": "Division distortion coefficient.",
+              "type": "number",
+              "format": "double"
+            },
+            "type": {
+              "type": "string",
+              "const": "division"
+            }
+          },
+          "required": [
+            "type",
+            "lambda"
+          ]
+        }
+      ]
+    },
+    "FrameRef": {
+      "description": "A reference to a frame: `\"world\"`, `\"<robot_id>/<link_name>\"`, or\n`\"<entity_id>\"`. Parse it with [`FrameRef::parse`].",
+      "type": "string"
+    },
+    "FrameSpec": {
+      "description": "A named auxiliary frame — a fixture, a mounting plate, a TCP offset.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "Unique id (shared namespace with every other entity and robot).",
+          "type": "string"
+        },
+        "parent": {
+          "description": "Parent frame.",
+          "$ref": "#/$defs/FrameRef"
+        },
+        "parent_se3_self": {
+          "description": "Pose of this frame in its parent (maps self → parent).",
+          "$ref": "#/$defs/Iso3Schema"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "parent",
+        "parent_se3_self"
+      ]
+    },
+    "IntrinsicsParams": {
+      "description": "Serializable intrinsics parameters.",
+      "oneOf": [
+        {
+          "description": "Pinhole intrinsics with optional skew.",
+          "type": "object",
+          "properties": {
+            "cx": {
+              "description": "Principal point X coordinate in pixels.",
+              "type": "number",
+              "format": "double"
+            },
+            "cy": {
+              "description": "Principal point Y coordinate in pixels.",
+              "type": "number",
+              "format": "double"
+            },
+            "fx": {
+              "description": "Focal length in pixels along X.",
+              "type": "number",
+              "format": "double"
+            },
+            "fy": {
+              "description": "Focal length in pixels along Y.",
+              "type": "number",
+              "format": "double"
+            },
+            "skew": {
+              "description": "Skew term (typically 0).",
+              "type": "number",
+              "format": "double"
+            },
+            "type": {
+              "type": "string",
+              "const": "fx_fy_cx_cy_skew"
+            }
+          },
+          "required": [
+            "type",
+            "fx",
+            "fy",
+            "cx",
+            "cy",
+            "skew"
+          ]
+        }
+      ]
+    },
+    "Iso3Schema": {
+      "description": "JSON Schema proxy for [`Iso3`] (`nalgebra::Isometry3<f64>`).\n\n`nalgebra` does not implement [`schemars::JsonSchema`], so `*Export` and\nparameter types that embed [`Iso3`] annotate the field with\n`#[cfg_attr(feature = \"schemars\", schemars(with = \"Iso3Schema\"))]`\n(or `Vec<Iso3Schema>` / `Option<Iso3Schema>`). This proxy mirrors the exact\nserde wire format of `Isometry3`:\n`{ \"rotation\": [qx, qy, qz, qw], \"translation\": [tx, ty, tz] }`.\n\nIt exists only to describe that shape to `schemars`; it is never\nconstructed at runtime.",
+      "type": "object",
+      "properties": {
+        "rotation": {
+          "description": "Unit quaternion `[qx, qy, qz, qw]` (i, j, k, w order).",
+          "type": "array",
+          "items": {
+            "type": "number",
+            "format": "double"
+          },
+          "maxItems": 4,
+          "minItems": 4
+        },
+        "translation": {
+          "description": "Translation `[tx, ty, tz]` in meters.",
+          "type": "array",
+          "items": {
+            "type": "number",
+            "format": "double"
+          },
+          "maxItems": 3,
+          "minItems": 3
+        }
+      },
+      "required": [
+        "rotation",
+        "translation"
+      ]
+    },
+    "LaserSpec": {
+      "description": "A line laser: a flat fan with a Gaussian-beam cross-section (the\n`etendue-core` `LaserEntity` parameters).",
+      "type": "object",
+      "properties": {
+        "beam_waist_m": {
+          "description": "Beam-waist `1/e²` radius at the laser origin, in metres.",
+          "type": "number",
+          "format": "double"
+        },
+        "fan_half_angle": {
+          "description": "Fan half-angle in radians, in `(0, π/2)`.",
+          "type": "number",
+          "format": "double"
+        },
+        "fan_length": {
+          "description": "Fan reach along its central ray, in metres.",
+          "type": "number",
+          "format": "double"
+        },
+        "id": {
+          "description": "Unique id.",
+          "type": "string"
+        },
+        "parent": {
+          "description": "Parent frame.",
+          "$ref": "#/$defs/FrameRef"
+        },
+        "parent_se3_self": {
+          "description": "Pose of the laser in its parent (maps laser → parent).",
+          "$ref": "#/$defs/Iso3Schema"
+        },
+        "wavelength_nm": {
+          "description": "Emission wavelength in nanometres.",
+          "type": "number",
+          "format": "double"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "parent",
+        "parent_se3_self",
+        "fan_half_angle",
+        "fan_length",
+        "wavelength_nm",
+        "beam_waist_m"
+      ]
+    },
+    "LightShape": {
+      "description": "Emitter shape, tagged on `type`.",
+      "oneOf": [
+        {
+          "description": "Isotropic point (or small sphere) light.",
+          "type": "object",
+          "properties": {
+            "radius_m": {
+              "description": "Emitter radius in metres (`0` = ideal point).",
+              "type": "number",
+              "format": "double"
+            },
+            "type": {
+              "type": "string",
+              "const": "point"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "radius_m"
+          ]
+        },
+        {
+          "description": "Cone light along local +Z.",
+          "type": "object",
+          "properties": {
+            "blend": {
+              "description": "Soft-edge fraction of the cone, in `[0, 1]`.",
+              "type": "number",
+              "format": "double"
+            },
+            "cone_angle": {
+              "description": "Full cone angle in radians, in `(0, π)`.",
+              "type": "number",
+              "format": "double"
+            },
+            "type": {
+              "type": "string",
+              "const": "spot"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "cone_angle",
+            "blend"
+          ]
+        },
+        {
+          "description": "Rectangular area light in the local `z = 0` plane, emitting along +Z.",
+          "type": "object",
+          "properties": {
+            "size_m": {
+              "description": "Extent `[x, y]` in metres.",
+              "type": "array",
+              "items": {
+                "type": "number",
+                "format": "double"
+              },
+              "maxItems": 2,
+              "minItems": 2
+            },
+            "type": {
+              "type": "string",
+              "const": "area"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "size_m"
+          ]
+        }
+      ]
+    },
+    "LightSpec": {
+      "description": "A light source.",
+      "type": "object",
+      "properties": {
+        "color": {
+          "description": "Linear RGB colour, each channel in `[0, 1]`.",
+          "type": "array",
+          "items": {
+            "type": "number",
+            "format": "double"
+          },
+          "maxItems": 3,
+          "minItems": 3
+        },
+        "id": {
+          "description": "Unique id.",
+          "type": "string"
+        },
+        "parent": {
+          "description": "Parent frame.",
+          "$ref": "#/$defs/FrameRef"
+        },
+        "parent_se3_self": {
+          "description": "Pose of the light in its parent (maps light → parent).",
+          "$ref": "#/$defs/Iso3Schema"
+        },
+        "power_w": {
+          "description": "Radiant power in watts.",
+          "type": "number",
+          "format": "double"
+        },
+        "shape": {
+          "description": "Emitter shape.",
+          "$ref": "#/$defs/LightShape"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "parent",
+        "parent_se3_self",
+        "power_w",
+        "color",
+        "shape"
+      ]
+    },
+    "PartSpec": {
+      "description": "A passive rigid part rendered from a mesh (a fixture, a workpiece).",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "Unique id.",
+          "type": "string"
+        },
+        "mesh": {
+          "description": "Mesh file (glTF binary), path relative to the scene file. Vertices\nare in the part frame, metres.",
+          "type": "string"
+        },
+        "parent": {
+          "description": "Parent frame.",
+          "$ref": "#/$defs/FrameRef"
+        },
+        "parent_se3_self": {
+          "description": "Pose of the part in its parent (maps part → parent).",
+          "$ref": "#/$defs/Iso3Schema"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "parent",
+        "parent_se3_self",
+        "mesh"
+      ]
+    },
+    "ProjectionParams": {
+      "description": "Serializable projection model parameters.",
+      "oneOf": [
+        {
+          "description": "Classic pinhole model.",
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "pinhole"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        }
+      ]
+    },
+    "RigSpec": {
+      "description": "A rigid mount that groups cameras (and optionally lasers). Cameras attach\nto it with `parent_se3_self = rig_se3_cam`, the direction of calibration-rs\n`DeviceSpec` `rig_se3_cam`.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "Unique id.",
+          "type": "string"
+        },
+        "parent": {
+          "description": "Parent frame (e.g. `\"world\"` or `\"<robot>/tool0\"` for eye-in-hand).",
+          "$ref": "#/$defs/FrameRef"
+        },
+        "parent_se3_self": {
+          "description": "Pose of the rig in its parent (maps rig → parent).",
+          "$ref": "#/$defs/Iso3Schema"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "parent",
+        "parent_se3_self"
+      ]
+    },
+    "RobotSpec": {
+      "description": "A robot placed in a scene.\n\nThe robot contributes one frame per URDF link, named\n`\"<id>/<link_name>\"`. `parent_se3_self` places the manifest's\n[`base_link`](RobotManifest::base_link) in the parent frame.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "Unique id (shared namespace with every entity).",
+          "type": "string"
+        },
+        "initial_q": {
+          "description": "Joint positions at `t = 0`, in manifest joint order (rad or m).\nDefaults to all zeros.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "manifest": {
+          "description": "Path to the robot's `robot.json` manifest, relative to the scene file.",
+          "type": "string"
+        },
+        "parent": {
+          "description": "Parent frame of the robot base.",
+          "$ref": "#/$defs/FrameRef"
+        },
+        "parent_se3_self": {
+          "description": "Pose of the robot base link in its parent (`parent_se3_base`).",
+          "$ref": "#/$defs/Iso3Schema"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "parent",
+        "parent_se3_self",
+        "manifest"
+      ]
+    },
+    "SensorParams": {
+      "description": "Serializable sensor model parameters.",
+      "oneOf": [
+        {
+          "description": "Identity sensor model.",
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "identity"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "description": "Homography applied in the sensor plane.",
+          "type": "object",
+          "properties": {
+            "h": {
+              "description": "Row-major homography matrix mapping normalized to sensor coordinates.",
+              "type": "array",
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "number",
+                  "format": "double"
+                },
+                "maxItems": 3,
+                "minItems": 3
+              },
+              "maxItems": 3,
+              "minItems": 3
+            },
+            "type": {
+              "type": "string",
+              "const": "homography"
+            }
+          },
+          "required": [
+            "type",
+            "h"
+          ]
+        },
+        {
+          "description": "Scheimpflug/tilted sensor model.",
+          "type": "object",
+          "properties": {
+            "tilt_x": {
+              "description": "Tilt around X axis in radians (alias: tau_x).",
+              "type": "number",
+              "format": "double"
+            },
+            "tilt_y": {
+              "description": "Tilt around Y axis in radians (alias: tau_y).",
+              "type": "number",
+              "format": "double"
+            },
+            "type": {
+              "type": "string",
+              "const": "scheimpflug"
+            }
+          },
+          "required": [
+            "type",
+            "tilt_x",
+            "tilt_y"
+          ]
+        }
+      ]
+    },
+    "TargetGeometry": {
+      "description": "Target geometry, tagged on `type`.",
+      "oneOf": [
+        {
+          "description": "A calibration board, described in the calibration-rs dataset\nvocabulary (the same `TargetSpec` a synthetic `DatasetSpec` emits).\nThe board is centred on the local origin in the `z = 0` plane, facing\n+Z. The in-plane mapping from board (feature) coordinates to the\ntarget frame is defined once, by `etendue-synth` (ADR 0006).",
+          "type": "object",
+          "properties": {
+            "board": {
+              "description": "Board layout (`kind`-tagged: chessboard, charuco, puzzleboard,\nringgrid).",
+              "$ref": "#/$defs/TargetSpec2"
+            },
+            "type": {
+              "type": "string",
+              "const": "board"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "board"
+          ]
+        },
+        {
+          "description": "A plain rectangle centred on the local origin in the `z = 0` plane\n(the `etendue-core` `TargetEntity`).",
+          "type": "object",
+          "properties": {
+            "height": {
+              "description": "Extent along local Y, in metres.",
+              "type": "number",
+              "format": "double"
+            },
+            "type": {
+              "type": "string",
+              "const": "rectangle"
+            },
+            "width": {
+              "description": "Extent along local X, in metres.",
+              "type": "number",
+              "format": "double"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "width",
+            "height"
+          ]
+        }
+      ]
+    },
+    "TargetSpec": {
+      "description": "A target surface.",
+      "type": "object",
+      "properties": {
+        "geometry": {
+          "description": "What the target is.",
+          "$ref": "#/$defs/TargetGeometry"
+        },
+        "id": {
+          "description": "Unique id.",
+          "type": "string"
+        },
+        "parent": {
+          "description": "Parent frame (`\"world\"`, a fixture, or `\"<robot>/tool0\"` for\neye-to-hand).",
+          "$ref": "#/$defs/FrameRef"
+        },
+        "parent_se3_self": {
+          "description": "Pose of the target in its parent (maps target → parent).",
+          "$ref": "#/$defs/Iso3Schema"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "parent",
+        "parent_se3_self",
+        "geometry"
+      ]
+    },
+    "TargetSpec2": {
+      "description": "Calibration-target metadata. Tagged on `kind`.",
+      "oneOf": [
+        {
+          "description": "Standard checkerboard. Counts are interior corners\n(i.e. `9x6` ⇒ a 10×7 black-and-white square grid).",
+          "type": "object",
+          "properties": {
+            "cols": {
+              "description": "Number of interior corners along the cols axis.",
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "kind": {
+              "type": "string",
+              "const": "chessboard"
+            },
+            "rows": {
+              "description": "Number of interior corners along the rows axis.",
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "square_size_m": {
+              "description": "Edge length of one square in metres.",
+              "type": "number",
+              "format": "double"
+            }
+          },
+          "required": [
+            "kind",
+            "rows",
+            "cols",
+            "square_size_m"
+          ]
+        },
+        {
+          "description": "ChArUco board. Marker IDs and dictionary live here so detection\nis fully deterministic from the manifest.",
+          "type": "object",
+          "properties": {
+            "cols": {
+              "description": "Number of squares along the cols axis.",
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "dictionary": {
+              "description": "ArUco dictionary identifier (e.g. `\"DICT_4X4_50\"`). The\ndetector validates this against the supported set.",
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "charuco"
+            },
+            "marker_size_m": {
+              "description": "Edge length of an embedded marker in metres.",
+              "type": "number",
+              "format": "double"
+            },
+            "rows": {
+              "description": "Number of squares along the rows axis (full grid, not\ninterior corners).",
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "square_size_m": {
+              "description": "Edge length of one square in metres.",
+              "type": "number",
+              "format": "double"
+            }
+          },
+          "required": [
+            "kind",
+            "rows",
+            "cols",
+            "square_size_m",
+            "marker_size_m",
+            "dictionary"
+          ]
+        },
+        {
+          "description": "Puzzleboard target (calib-targets crate). Layout is fully\ndescribed by the named variant in calib-targets; the manifest\njust carries the discriminator.",
+          "type": "object",
+          "properties": {
+            "cell_size_m": {
+              "description": "Edge length of one cell in metres.",
+              "type": "number",
+              "format": "double"
+            },
+            "kind": {
+              "type": "string",
+              "const": "puzzleboard"
+            },
+            "layout": {
+              "description": "Named layout (e.g. `\"puzzle_130x130\"`).",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "layout",
+            "cell_size_m"
+          ]
+        },
+        {
+          "description": "Coded ring-grid target (the `ringgrid` crate). The board is a\nhex-lattice of self-identifying ring markers; its geometry mirrors\n`ringgrid::BoardLayout` so the manifest fully determines detection.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "ringgrid"
+            },
+            "long_row_cols": {
+              "description": "Number of columns in the longest (even-indexed) row. Shorter\nrows are derived by the hex-lattice layout.",
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "marker_inner_radius_m": {
+              "description": "Inner ring radius in metres.",
+              "type": "number",
+              "format": "double"
+            },
+            "marker_outer_radius_m": {
+              "description": "Outer ring radius in metres.",
+              "type": "number",
+              "format": "double"
+            },
+            "marker_ring_width_m": {
+              "description": "Width of each ring band in metres.",
+              "type": "number",
+              "format": "double"
+            },
+            "pitch_m": {
+              "description": "Center-to-center spacing between adjacent markers in metres.",
+              "type": "number",
+              "format": "double"
+            },
+            "rows": {
+              "description": "Number of marker rows.",
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "kind",
+            "pitch_m",
+            "rows",
+            "long_row_cols",
+            "marker_outer_radius_m",
+            "marker_inner_radius_m",
+            "marker_ring_width_m"
+          ]
+        }
+      ]
+    }
+  }
+}

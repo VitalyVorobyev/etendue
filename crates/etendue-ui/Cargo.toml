@@ -11,12 +11,13 @@ rust-version.workspace = true
 # the web-parity gate G6.3.
 publish = false
 
+# Named `etendue-ui` since P1: the `etendue` binary is the CLI (etendue-cli).
 [[bin]]
-name = "etendue"
+name = "etendue-ui"
 path = "src/main.rs"
 
 [dependencies]
-etendue-core = { path = "../etendue-core" }
+etendue-core = { workspace = true }
 # Same workspace pin as etendue-core: the viewport's camera and GPU-packing
 # math (view/projection matrices, vertex narrowing) use nalgebra directly.
 # Sharing the one pinned 0.34 keeps a single nalgebra in the tree.
