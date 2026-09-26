@@ -9,11 +9,12 @@
 //! # Relationship to `vision-calibration-core`
 //!
 //! `etendue-core` does not reimplement the camera projection pipeline. It
-//! depends, by path, on [`vision_calibration_core`] and reuses its
+//! depends on [`vision_calibration_core`] (crates.io; patched to a sibling
+//! calibration-rs checkout for local development) and reuses its
 //! `Camera` / `CameraModel` projection chain
 //! (`pixel = K(sensor(distort(project(dir))))`), its `ScheimpflugParams`
 //! tilted-sensor model, and — critically — its `nalgebra` type aliases.
-//! Sharing one `nalgebra` instance across the path boundary is mandatory:
+//! Sharing one `nalgebra` instance across the crate boundary is mandatory:
 //! poses and points cross that boundary as `Isometry3<f64>` / `Point3<f64>`,
 //! and a second, semver-incompatible `nalgebra` would make those distinct
 //! types.
@@ -55,7 +56,7 @@ pub use scene::{CameraEntity, LaserEntity, MeshTarget, PhysicalOptics, Scene, Ta
 /// Re-exported (rather than left as an opaque dependency) so that downstream
 /// crates — chiefly `etendue-ui` — and `etendue-core`'s own future modules
 /// share one identical set of `nalgebra` types and camera models across the
-/// path boundary.
+/// crate boundary.
 pub use vision_calibration_core as calibration;
 
 #[cfg(test)]

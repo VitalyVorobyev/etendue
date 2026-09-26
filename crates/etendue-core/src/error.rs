@@ -39,6 +39,14 @@ pub enum Error {
     /// `serde_json::Error` directly.
     #[error("I/O or parse error: {0}")]
     Io(String),
+
+    /// The upstream `vision-calibration-core` kernel rejected a camera
+    /// specification (e.g. [`CameraParams::build`] on a singular sensor
+    /// homography).
+    ///
+    /// [`CameraParams::build`]: vision_calibration_core::CameraParams::build
+    #[error("camera model error: {0}")]
+    Calibration(#[from] vision_calibration_core::Error),
 }
 
 /// Result type used throughout `etendue-core`.

@@ -40,7 +40,7 @@ laser-line projection with the 2D simulated-image panel, and the
 working-volume analysis on the fan plane — is joined by the M8 camera-anatomy
 renderer, the M9 `argmin` Scheimpflug solver, the M10 symmetric-rig builder
 with N-view voxel-overlap analysis, a Gaussian-PSF blur model, and a
-triangle-mesh kernel with mesh laser intersection. **205 tests** pass; the M4
+triangle-mesh kernel with mesh laser intersection. **209 tests** pass; the M4
 Scheimpflug kill gate (numerical agreement with hand-computed
 circle-of-confusion regimes) is met.
 
@@ -57,8 +57,11 @@ circle-of-confusion diameter in quadrature.
 
 ## Out of scope
 
-- Realistic synthetic rendering: path tracing, BRDFs, materials, full sensor
-  noise, speckle.
+- An etendue-owned renderer. Realistic synthetic rendering (path tracing,
+  materials, sensor noise) comes into scope **only** as the Blender/Cycles
+  backend of the pivot — see `docs/adrs/0001-pivot.md` and
+  `docs/adrs/0005-blender-renderer.md`. `etendue-core` itself stays free of
+  rendering code. Speckle remains out of scope.
 - Component-level optical design (the Zemax world): per-surface ray tracing,
   aspherics, wavefront analysis, Seidel/Zernike aberrations.
 - Polarization. Coherent diffraction. Wavelength dependence beyond a single

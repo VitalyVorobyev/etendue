@@ -6,6 +6,9 @@ on:
   pull_request:
 
 env:
+  # calibration-rs tag the `[patch.crates-io]` sibling is cloned at. Keep in
+  # step with the `vision-calibration-*` version requirement in Cargo.toml.
+  CALIBRATION_RS_REF: v0.8.1
   CARGO_TERM_COLOR: always
 
 jobs:
@@ -20,9 +23,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Clone calibration-rs sibling (path dependency)
+      - name: Clone calibration-rs sibling ([patch.crates-io] target)
         shell: bash
-        run: git clone --depth 1 https://github.com/VitalyVorobyev/calibration-rs.git ../calibration-rs
+        run: git clone --depth 1 --branch "$CALIBRATION_RS_REF" https://github.com/VitalyVorobyev/calibration-rs.git ../calibration-rs
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
@@ -39,9 +42,45 @@ jobs:
         run: cargo clippy --workspace --all-targets -- -D warnings
 
       - name: Cargo test
-        run: cargo test --workspace
+        run: cargo test --workspace --locked
 
       - name: Cargo doc
         env:
           RUSTDOCFLAGS: "-D warnings"
         run: cargo doc --no-deps --workspace
+
+  # etendue-wasm (npm `@etendue/wasm`): wasm32 build + gate G0.1 — the wasm
+  # build of the projection chain must match the native build bit-for-bit
+  # (docs/measurements/g0_1_wasm_parity.md).
+  wasm:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Clone calibration-rs sibling ([patch.crates-io] target)
+        run: git clone --depth 1 --branch "$CALIBRATION_RS_REF" https://github.com/VitalyVorobyev/calibration-rs.git ../calibration-rs
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+          components: clippy
+
+      - name: Cache cargo artifacts
+        uses: Swatinem/rust-cache@v2
+
+      - name: Clippy (wasm32)
+        run: cargo clippy -p etendue-wasm --target wasm32-unknown-unknown -- -D warnings
+
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      - name: Build Node package
+        run: wasm-pack build crates/etendue-wasm --target nodejs --release
+
+      - name: G0.1 parity (wasm under Node vs native, bit-for-bit)
+        run: |
+          node crates/etendue-wasm/tests/node/g01_parity.mjs > target/g01.json
+          cargo run -p etendue-wasm --example g01_verify -- target/g01.json

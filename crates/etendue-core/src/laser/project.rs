@@ -211,16 +211,18 @@ impl ProjectedStripe {
 ///
 /// Returns [`Error`](crate::Error) only if the camera's physical optics
 /// parameters are inconsistent (propagated from
-/// [`CameraEntity::thick_lens`]); this cannot happen for a camera built
-/// through [`CameraEntity::new`]. A stripe sample that simply fails to image
-/// is **not** an error — it is dropped from the output.
+/// [`CameraEntity::thick_lens`]; this cannot happen for a camera built
+/// through [`CameraEntity::new`]), or [`Error::Calibration`](crate::Error::Calibration)
+/// if the camera's projection spec cannot be built (a singular sensor
+/// homography). A stripe sample that simply fails to image is **not** an
+/// error — it is dropped from the output.
 pub fn project_stripe(
     stripe: &LaserStripe,
     camera: &CameraEntity,
 ) -> crate::Result<ProjectedStripe> {
     // The defocus model (also carries the projection-chain CameraParams).
     let lens: ThickLens = camera.thick_lens()?;
-    let camera_model = lens.params().build();
+    let camera_model = lens.params().build()?;
     let camera_from_world = camera.pose.inverse();
 
     let samples = stripe.samples();

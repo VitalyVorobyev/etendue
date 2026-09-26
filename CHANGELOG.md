@@ -7,6 +7,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Pivot groundwork (P0 of `docs/pivot/PLAN.md`).
+
+### Added
+
+- **ADRs 0001–0006** (`docs/adrs/`, accepted 2026-09-26):
+  - the package-family pivot;
+  - the frame tree;
+  - Rust-only kinematics baking;
+  - the canonical render camera and remap LUT;
+  - Blender as a thin renderer;
+  - analytic ground truth with calibration-rs dataset emission.
+- **`etendue-wasm`** — a wasm-bindgen facade and P0 spike (`publish = false`,
+  destined for npm `@etendue/wasm`).
+  - It exports `project_points` and `default_mvp_scene_json`.
+  - Gate **G0.1** passes: the wasm build under Node and the native build
+    project 731 probe points bit-for-bit identically
+    (`docs/measurements/g0_1_wasm_parity.md`).
+  - CI gains a `wasm` job (wasm32 clippy and the parity check).
+- `etendue_core::Error::Calibration`, which wraps `vision_calibration_core::Error`.
+
+### Changed
+
+- **calibration-rs from crates.io.** `vision-calibration-core = "0.8"`
+  (and `vision-calibration-dataset = "0.8"`, not yet used) replace the path
+  dependency. `[patch.crates-io]` redirects to the sibling checkout for local
+  development.
+  - `etendue-core` now packages (`cargo package`).
+  - `etendue-ui` is `publish = false` and frozen until the web-parity gate.
+- **Migrated to calibration-rs 0.8.** `CameraParams::build()` is now fallible.
+  `working_volume`, `voxelized_overlap`, and `project_stripe` propagate its
+  error; the UI frustum returns `None`.
+  - This fixes the red `main` build against calibration-rs ≥ 0.8.0.
+  - `Cargo.lock` recorded `vision-calibration-core` 0.4.0 and is refreshed.
+- CI clones calibration-rs at a pinned tag (`CALIBRATION_RS_REF`), not
+  `main`, and tests with `--locked`.
+- `rust-toolchain.toml` adds the `wasm32-unknown-unknown` target.
+- The workspace `rust-version` is 1.93, matching calibration-rs.
+- The out-of-scope list now defers to ADR 0001: realistic rendering is in
+  scope only as the Blender backend.
+
+### Security
+
+- Lockfile bumps clear RUSTSEC-2026-0194, RUSTSEC-2026-0195 (`quick-xml`, via
+  `wayland-scanner` 0.31.11) and RUSTSEC-2026-0257 (`webbrowser` 1.2.4). The
+  yanked `chacha20` 0.10.0 is replaced by 0.10.2.
+- RUSTSEC-2026-0192 (`ttf-parser` unmaintained, reached through `etendue-ui`'s
+  winit Linux decorations) is still open. It is reported, not ignored.
+
 ## [0.1.0] - 2026-05-20
 
 ### Added
