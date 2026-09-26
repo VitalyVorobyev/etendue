@@ -5,8 +5,8 @@
   `wasm32-unknown-unknown` and are callable from Node; projecting points through
   the `Scene::default_mvp()` camera gives the native result **bit-for-bit**.
 - Result: **PASS**. 1462 output values, 0 differing bits.
-- Measured: 2026-09-26, on etendue `7511993-dirty` (the P0 working tree before its
-  first commit; re-record the SHA once P0 is committed).
+- Measured: 2026-09-26, on etendue commit `56a374f` (clean tree). The result is
+  identical to the pre-commit run on the `7511993-dirty` working tree.
 
 ## Environment
 
