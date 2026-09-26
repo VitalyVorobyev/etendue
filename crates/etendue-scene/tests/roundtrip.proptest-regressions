@@ -1,0 +1,10 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc cf52533af4fe58c2f72837503dcc96b3f2f7ef5c282d1fab1a6bd7a9e5c7364a # shrinks to s = ScenarioSpec { version: 1, dt: 0.0, steps: [Wait { duration_s: -1.7540273730365783e159 }], description: None }
+cc 2f9a36083c92885151c4ba54cf0b7e4e7102fab600459541ba1099b62ea10db0 # shrinks to b = BakedScenario { version: 1, dt: -5.723649515567386e-243, frames: ["a"], robots: [], samples: [] }
+cc f7e8a725e6d36c826b493a6c6d54602cfe31709820675a9dceca35c590cde630 # shrinks to s = SceneSpec { version: 1, frames: [], robots: [], rigs: [], cameras: [], lasers: [], lights: [], targets: [], parts: [PartSpec { id: "a", parent: FrameRef("world"), parent_se3_self: Isometry { rotation: [0.0, 0.0, 0.0, 1.0], translation: [0.0, 0.0, -9.578821091918241] }, mesh: "" }], description: None }
+cc cc59685ec1ee03941e025dbd6a684ff4dab4fb3ac44a6d6d51e6965594105f54 # shrinks to m = RobotManifest { version: 1, id: "a", name: "Robot", urdf: "robot.urdf", base_link: "base_link", tcp_link: "tool0", joints: [ManifestJoint { name: "A", lower: 0.0, upper: 0.0, max_velocity: 0.0, max_acceleration: 1.8352380862449372e185, limit_source: "" }], visuals: [], source: ManifestSource { repository: "https://example.invalid/repo", revision: "0123456789abcdef0123456789abcdef01234567", entry: "urdf/robot.urdf.xacro", xacro_args: {} }, license: ManifestLicense { urdf: "BSD-3-Clause", meshes: "LicenseRef-Vendor", meshes_redistributable: false, notes: "" } }

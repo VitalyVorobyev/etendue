@@ -43,14 +43,18 @@ git clone https://github.com/VitalyVorobyev/calibration-rs
 git clone https://github.com/VitalyVorobyev/etendue
 cd etendue
 cargo build --workspace
-cargo test --workspace      # 209 tests
-cargo run                   # launches the desktop app
+cargo test --workspace      # 247 tests
+cargo run -p etendue-ui     # launches the desktop app
 ```
 
-`cargo run` resolves to the `etendue-ui` binary (the workspace has two
-crates: a headless `etendue-core` kernel and the `etendue-ui` binary that
-depends on it). The binary opens a single window — a 3D viewport with the
-default MVP scene and a parameter side-panel.
+`etendue-ui` is the frozen desktop binary. It opens a single window — a 3D
+viewport with the default MVP scene and a parameter side-panel. The `etendue`
+binary (crate `etendue-cli`) is the scene/scenario tool of the pivot:
+
+```bash
+cargo run -p etendue-cli -- validate examples/eye_in_hand_ur5e/scene.json examples/eye_in_hand_ur5e/scenario.json
+cargo run -p etendue-cli -- bake examples/eye_in_hand_ur5e/scene.json examples/eye_in_hand_ur5e/scenario.json -o baked.json
+```
 
 ## The MVP demo recipe
 

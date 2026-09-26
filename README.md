@@ -12,7 +12,7 @@ volume lands, how the laser line projects, and where focus falls off.
 
 ## Status
 
-M0–M10 plus post-MVP features complete. **209** tests pass. Scheimpflug
+M0–M10 plus post-MVP features complete. **247** tests pass. Scheimpflug
 circle-of-confusion physics derived from first principles and validated against hand
 calculations (M4 kill gate passed): on-PoBF cancellation exact to machine epsilon
 (~1e-18); off-axis regime (b) c = 51.6529 µm = 14.97185 px matches the textbook
@@ -39,7 +39,8 @@ translucent working-volume patch on the laser fan marks the in-focus, in-view me
 git clone https://github.com/VitalyVorobyev/calibration-rs
 git clone https://github.com/VitalyVorobyev/etendue
 cd etendue
-cargo run
+cargo run -p etendue-ui      # the (frozen) desktop app
+cargo run -p etendue-cli -- validate examples/eye_in_hand_ur5e/scene.json examples/eye_in_hand_ur5e/scenario.json
 ```
 
 ## Architecture
@@ -65,7 +66,7 @@ etendue-ui (binary)
 
 ## MVP demo
 
-1. Launch `cargo run`. The default scene opens with a camera–laser–target triangulation
+1. Launch `cargo run -p etendue-ui`. The default scene opens with a camera–laser–target triangulation
    rig, the defocus heatmap, and the working-volume overlay both on.
 2. In the parameter panel, note the **Optimal distance (m)** readout or use the
    Scheimpflug solver section to solve for tilt + focus given a depth window.

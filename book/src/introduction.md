@@ -40,7 +40,7 @@ laser-line projection with the 2D simulated-image panel, and the
 working-volume analysis on the fan plane — is joined by the M8 camera-anatomy
 renderer, the M9 `argmin` Scheimpflug solver, the M10 symmetric-rig builder
 with N-view voxel-overlap analysis, a Gaussian-PSF blur model, and a
-triangle-mesh kernel with mesh laser intersection. **209 tests** pass; the M4
+triangle-mesh kernel with mesh laser intersection. **247 tests** pass; the M4
 Scheimpflug kill gate (numerical agreement with hand-computed
 circle-of-confusion regimes) is met.
 

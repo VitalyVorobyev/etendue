@@ -1,0 +1,103 @@
+{
+  "version": 1,
+  "id": "ur5e",
+  "name": "Universal Robots UR5e",
+  "urdf": "robot.urdf",
+  "base_link": "base",
+  "tcp_link": "tool0",
+  "joints": [
+    {
+      "name": "shoulder_pan_joint",
+      "lower": -6.283185307179586,
+      "upper": 6.283185307179586,
+      "max_velocity": 3.141592653589793,
+      "max_acceleration": 5.0,
+      "limit_source": "urdf position/velocity; acceleration: https://github.com/UniversalRobots/Universal_Robots_ROS2_Driver/blob/0880202ce10ddb012b4dcac12ebe162a7e498e83/ur_moveit_config/config/joint_limits.yaml key joint_limits.shoulder_pan_joint.max_acceleration"
+    },
+    {
+      "name": "shoulder_lift_joint",
+      "lower": -6.283185307179586,
+      "upper": 6.283185307179586,
+      "max_velocity": 3.141592653589793,
+      "max_acceleration": 5.0,
+      "limit_source": "urdf position/velocity; acceleration: https://github.com/UniversalRobots/Universal_Robots_ROS2_Driver/blob/0880202ce10ddb012b4dcac12ebe162a7e498e83/ur_moveit_config/config/joint_limits.yaml key joint_limits.shoulder_lift_joint.max_acceleration"
+    },
+    {
+      "name": "elbow_joint",
+      "lower": -3.141592653589793,
+      "upper": 3.141592653589793,
+      "max_velocity": 3.141592653589793,
+      "max_acceleration": 5.0,
+      "limit_source": "urdf position/velocity; acceleration: https://github.com/UniversalRobots/Universal_Robots_ROS2_Driver/blob/0880202ce10ddb012b4dcac12ebe162a7e498e83/ur_moveit_config/config/joint_limits.yaml key joint_limits.elbow_joint.max_acceleration"
+    },
+    {
+      "name": "wrist_1_joint",
+      "lower": -6.283185307179586,
+      "upper": 6.283185307179586,
+      "max_velocity": 3.141592653589793,
+      "max_acceleration": 5.0,
+      "limit_source": "urdf position/velocity; acceleration: https://github.com/UniversalRobots/Universal_Robots_ROS2_Driver/blob/0880202ce10ddb012b4dcac12ebe162a7e498e83/ur_moveit_config/config/joint_limits.yaml key joint_limits.wrist_1_joint.max_acceleration"
+    },
+    {
+      "name": "wrist_2_joint",
+      "lower": -6.283185307179586,
+      "upper": 6.283185307179586,
+      "max_velocity": 3.141592653589793,
+      "max_acceleration": 5.0,
+      "limit_source": "urdf position/velocity; acceleration: https://github.com/UniversalRobots/Universal_Robots_ROS2_Driver/blob/0880202ce10ddb012b4dcac12ebe162a7e498e83/ur_moveit_config/config/joint_limits.yaml key joint_limits.wrist_2_joint.max_acceleration"
+    },
+    {
+      "name": "wrist_3_joint",
+      "lower": -6.283185307179586,
+      "upper": 6.283185307179586,
+      "max_velocity": 3.141592653589793,
+      "max_acceleration": 5.0,
+      "limit_source": "urdf position/velocity; acceleration: https://github.com/UniversalRobots/Universal_Robots_ROS2_Driver/blob/0880202ce10ddb012b4dcac12ebe162a7e498e83/ur_moveit_config/config/joint_limits.yaml key joint_limits.wrist_3_joint.max_acceleration"
+    }
+  ],
+  "visuals": [
+    {
+      "link": "base_link_inertia",
+      "mesh": "meshes/base_link_inertia.glb"
+    },
+    {
+      "link": "shoulder_link",
+      "mesh": "meshes/shoulder_link.glb"
+    },
+    {
+      "link": "upper_arm_link",
+      "mesh": "meshes/upper_arm_link.glb"
+    },
+    {
+      "link": "forearm_link",
+      "mesh": "meshes/forearm_link.glb"
+    },
+    {
+      "link": "wrist_1_link",
+      "mesh": "meshes/wrist_1_link.glb"
+    },
+    {
+      "link": "wrist_2_link",
+      "mesh": "meshes/wrist_2_link.glb"
+    },
+    {
+      "link": "wrist_3_link",
+      "mesh": "meshes/wrist_3_link.glb"
+    }
+  ],
+  "source": {
+    "repository": "https://github.com/UniversalRobots/Universal_Robots_ROS2_Description",
+    "revision": "ae333289875f9ba5a9ea6649a54036efb5ccabee",
+    "entry": "urdf/ur.urdf.xacro",
+    "xacro_args": {
+      "ur_type": "ur5e",
+      "name": "ur5e"
+    }
+  },
+  "license": {
+    "urdf": "BSD-3-Clause",
+    "meshes": "BSD-3-Clause",
+    "meshes_redistributable": true,
+    "notes": "Evidence at ae333289: LICENSE is the BSD-3-Clause text; package.xml declares <license file=\"LICENSE\">BSD-3-Clause</license>; README.md section 'License' states that only the UR8LONG, UR15, UR18, UR20 and UR30 meshes are Universal Robots 'Graphical Documentation' (UR Terms and Conditions, meshes/ur{8long,15,18,20,30}/LICENSE.txt) and that 'All other content is licensed under the BSD-3-Clause license'. meshes/ur5e/ has no LICENSE file and is therefore covered by BSD-3-Clause. The upstream LICENSE has no copyright line; it is copied to LICENSE next to this file. Acceleration source (Universal_Robots_ROS2_Driver ur_moveit_config) is BSD-3-Clause."
+  }
+}

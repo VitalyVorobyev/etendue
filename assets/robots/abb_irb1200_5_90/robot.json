@@ -1,0 +1,100 @@
+{
+  "version": 1,
+  "id": "abb_irb1200_5_90",
+  "name": "ABB IRB 1200-5/0.90",
+  "urdf": "robot.urdf",
+  "base_link": "base",
+  "tcp_link": "tool0",
+  "joints": [
+    {
+      "name": "joint_1",
+      "lower": -2.967,
+      "upper": 2.967,
+      "max_velocity": 5.027,
+      "max_acceleration": 5.0,
+      "limit_source": "urdf position/velocity; acceleration: default: ABB publishes no per-joint acceleration limits; none in the URDF, and the pinned moveit/abb_irb1200_5_90_moveit_config/config/joint_limits.yaml sets has_acceleration_limits: false (max_acceleration: 0). 5.0 rad/s^2 is a conservative value (the same default UR ships for MoveIt), well below the real arm's capability, so trajectories are slow but always feasible"
+    },
+    {
+      "name": "joint_2",
+      "lower": -1.745,
+      "upper": 2.269,
+      "max_velocity": 4.189,
+      "max_acceleration": 5.0,
+      "limit_source": "urdf position/velocity; acceleration: default: ABB publishes no per-joint acceleration limits; none in the URDF, and the pinned moveit/abb_irb1200_5_90_moveit_config/config/joint_limits.yaml sets has_acceleration_limits: false (max_acceleration: 0). 5.0 rad/s^2 is a conservative value (the same default UR ships for MoveIt), well below the real arm's capability, so trajectories are slow but always feasible"
+    },
+    {
+      "name": "joint_3",
+      "lower": -3.491,
+      "upper": 1.222,
+      "max_velocity": 5.236,
+      "max_acceleration": 5.0,
+      "limit_source": "urdf position/velocity; acceleration: default: ABB publishes no per-joint acceleration limits; none in the URDF, and the pinned moveit/abb_irb1200_5_90_moveit_config/config/joint_limits.yaml sets has_acceleration_limits: false (max_acceleration: 0). 5.0 rad/s^2 is a conservative value (the same default UR ships for MoveIt), well below the real arm's capability, so trajectories are slow but always feasible"
+    },
+    {
+      "name": "joint_4",
+      "lower": -4.712,
+      "upper": 4.712,
+      "max_velocity": 6.981,
+      "max_acceleration": 5.0,
+      "limit_source": "urdf position/velocity; acceleration: default: ABB publishes no per-joint acceleration limits; none in the URDF, and the pinned moveit/abb_irb1200_5_90_moveit_config/config/joint_limits.yaml sets has_acceleration_limits: false (max_acceleration: 0). 5.0 rad/s^2 is a conservative value (the same default UR ships for MoveIt), well below the real arm's capability, so trajectories are slow but always feasible"
+    },
+    {
+      "name": "joint_5",
+      "lower": -2.269,
+      "upper": 2.269,
+      "max_velocity": 7.069,
+      "max_acceleration": 5.0,
+      "limit_source": "urdf position/velocity; acceleration: default: ABB publishes no per-joint acceleration limits; none in the URDF, and the pinned moveit/abb_irb1200_5_90_moveit_config/config/joint_limits.yaml sets has_acceleration_limits: false (max_acceleration: 0). 5.0 rad/s^2 is a conservative value (the same default UR ships for MoveIt), well below the real arm's capability, so trajectories are slow but always feasible"
+    },
+    {
+      "name": "joint_6",
+      "lower": -6.283,
+      "upper": 6.283,
+      "max_velocity": 10.472,
+      "max_acceleration": 5.0,
+      "limit_source": "urdf position/velocity; acceleration: default: ABB publishes no per-joint acceleration limits; none in the URDF, and the pinned moveit/abb_irb1200_5_90_moveit_config/config/joint_limits.yaml sets has_acceleration_limits: false (max_acceleration: 0). 5.0 rad/s^2 is a conservative value (the same default UR ships for MoveIt), well below the real arm's capability, so trajectories are slow but always feasible"
+    }
+  ],
+  "visuals": [
+    {
+      "link": "base_link",
+      "mesh": "meshes/base_link.glb"
+    },
+    {
+      "link": "link_1",
+      "mesh": "meshes/link_1.glb"
+    },
+    {
+      "link": "link_2",
+      "mesh": "meshes/link_2.glb"
+    },
+    {
+      "link": "link_3",
+      "mesh": "meshes/link_3.glb"
+    },
+    {
+      "link": "link_4",
+      "mesh": "meshes/link_4.glb"
+    },
+    {
+      "link": "link_5",
+      "mesh": "meshes/link_5.glb"
+    },
+    {
+      "link": "link_6",
+      "mesh": "meshes/link_6.glb"
+    }
+  ],
+  "source": {
+    "repository": "https://github.com/ros-industrial/abb",
+    "revision": "45f4769d826cf3ac62a65495f2db67b78b0c81df",
+    "entry": "abb_irb1200_support/urdf/irb1200_5_90.xacro",
+    "xacro_args": {}
+  },
+  "license": {
+    "urdf": "Apache-2.0",
+    "meshes": "Apache-2.0",
+    "meshes_redistributable": true,
+    "notes": "Evidence at 45f4769d: abb_irb1200_support/LICENSE is the Apache-2.0 text and abb_irb1200_support/package.xml declares <license>Apache-2.0</license>; the meshes (abb_irb1200_support/meshes/irb1200_5_90/visual/*.dae) live in that package and carry no separate licence; abb_resources (common_materials.xacro, included by the xacro) is Apache-2.0 as well (identical LICENSE, package.xml). No NOTICE file exists in the repository. The upstream LICENSE is copied to LICENSE next to this file. OPW preset: rs-opw-kinematics 3.0.0 Parameters::irb1200_5_90(), which maps base -> tool0 in these URDF joint coordinates (the crate's robot_presets test checks it against this URDF at the same upstream SHA)."
+  }
+}

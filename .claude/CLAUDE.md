@@ -4,8 +4,8 @@
 
 ```bash
 cargo build --workspace                                    # build all crates
-cargo run                                                  # launch the (frozen) GUI (blocks until window closed)
-cargo test --workspace --locked                            # run all 209 tests
+cargo run -p etendue-ui                                    # launch the (frozen) GUI (blocks until window closed)
+cargo test --workspace --locked                            # run all 247 tests
 cargo clippy --workspace --all-targets -- -D warnings      # lint (must be clean)
 cargo fmt --all                                            # format
 cargo fmt --all --check                                    # CI format check
@@ -16,9 +16,26 @@ cargo clippy -p etendue-wasm --target wasm32-unknown-unknown -- -D warnings
 wasm-pack build crates/etendue-wasm --target nodejs --release
 node crates/etendue-wasm/tests/node/g01_parity.mjs > target/g01.json
 cargo run -p etendue-wasm --example g01_verify -- target/g01.json   # gate G0.1: 0 bit mismatches
+
+# Scene tooling (etendue-cli binary is `etendue`)
+cargo run -p etendue-cli -- validate examples/eye_in_hand_ur5e/scene.json examples/eye_in_hand_ur5e/scenario.json
+cargo run -p etendue-cli -- bake <scene.json> <scenario.json> -o target/baked.json
+
+# Workspace policy (CI job `checks`)
+cargo xtask check-layering                                 # ADR 0001 dependency rules + single nalgebra
+cargo xtask emit-schemas [--check]                         # schemas/*.schema.json from etendue-scene
+
+# Kinematics gates
+cargo test -p etendue-kinematics --all-features --test gates -- --nocapture   # G1.1, G1.2 (incl. OPW)
+cargo run --release -p etendue-kinematics --example g1_2_ik                   # full G1.2 DLS report
+
+# Robot assets and FK fixtures (Python via uv; see tools/robot-assets/robots.toml)
+uv run --locked --project tools/robot-assets tools/robot-assets/build.py --report docs/measurements/g1_3_robot_assets.md
+uv run tools/fixtures/fk_fixture.py
 ```
 
-Do NOT use `cargo run` in a non-interactive context; the window blocks the shell.
+Do NOT use `cargo run -p etendue-ui` in a non-interactive context; the window blocks the
+shell. The UI binary is `etendue-ui`; the `etendue` binary is the CLI.
 
 ### Feature matrix
 
@@ -28,25 +45,32 @@ across the whole workspace.
 | Crate | Features | Notes |
 |---|---|---|
 | `etendue-core` | none | |
+| `etendue-scene` | `schemars` | JSON Schema derives (xtask enables it to emit `schemas/`) |
+| `etendue-kinematics` | `opw` | analytic OPW IK via `rs-opw-kinematics` (`default-features = false`) |
+| `etendue-cli` | none | binary `etendue` |
 | `etendue-wasm` | none | wasm32 build + G0.1 parity in CI job `wasm` |
-| `etendue-ui` | none | frozen |
-| `etendue-scene` (P1) | `schemars` | JSON Schema derives; CI runs `--all-features` |
-| `etendue-kinematics` (P1) | `opw` | analytic OPW IK via `rs-opw-kinematics` (`default-features = false`) |
+| `etendue-ui` | none | frozen, binary `etendue-ui` |
+| `xtask` | none | not published |
+
+CI job `checks` runs clippy and tests with `--all-features` for `etendue-scene` and
+`etendue-kinematics`.
 
 A crate is added to this table in the same change that creates it.
 
 ## Architecture
 
-Three-crate workspace at `/Users/vitalyvorobyev/vision/etendue/`. It is pivoting into a
-package family (`docs/pivot/PLAN.md`, `docs/adrs/0001-pivot.md`). New crates are
-created phase by phase, never up front.
+Workspace at `/Users/vitalyvorobyev/vision/etendue/`. It is pivoting into a package
+family (`docs/pivot/PLAN.md`, `docs/adrs/0001-pivot.md`). New crates are created phase
+by phase, never up front. P0 and P1 are done.
 
 ```
-etendue-ui    (binary crate, crates/etendue-ui — FROZEN, publish = false)
-etendue-wasm  (cdylib+rlib, crates/etendue-wasm — npm @etendue/wasm, P0 stub API)
-    └── etendue-core  (library crate, crates/etendue-core — crates.io)
-            └── vision-calibration-core  (crates.io "0.8", patched to ../calibration-rs locally)
+etendue-cli (bin `etendue`) ──► etendue-kinematics ──► etendue-scene ──► vision-calibration-{core,dataset}
+etendue-ui  (bin `etendue-ui`, FROZEN) ──► etendue-core ──► vision-calibration-core
+etendue-wasm (npm @etendue/wasm, P0 stub API) ──► etendue-core
+xtask (emit-schemas, check-layering)
 ```
+
+`cargo xtask check-layering` enforces these rules (ADR 0001 §2).
 
 **`etendue-core`** — concrete-`f64` geometric and physical kernel. Modules:
 - `scene` — `CameraEntity`, `LaserEntity`, `TargetEntity`, `Scene`
@@ -58,7 +82,25 @@ etendue-wasm  (cdylib+rlib, crates/etendue-wasm — npm @etendue/wasm, P0 stub A
 - `bank::schema` — `SensorSpec`, `LensSpec`, `LaserSpec` (seed JSON in
   `crates/etendue-core/assets/bank/`)
 
-**`etendue-ui`** — binary `etendue`. Hand-written winit + wgpu + egui-wgpu render loop
+**`etendue-scene`** — versioned JSON documents: `SceneSpec` (frame tree of robots, rigs,
+cameras, lasers, lights, targets, parts; ADR 0002), `ScenarioSpec`, `BakedScenario`
+(ADR 0003), `RobotManifest` (`robot.json`). `FrameGraph` resolves the attachment tree.
+It does no I/O and no kinematics. Schemas are committed in `schemas/`, and CI checks
+them for drift.
+
+**`etendue-kinematics`** — the only home of FK and IK. `RobotModel` is a URDF (via
+`urdf-rs`) bound to a manifest. It provides FK, the geometric Jacobian, damped-least-
+squares IK with deterministic restarts, and analytic OPW IK behind `opw`. `compile`/`bake`
+turn a scenario into a trajectory or baked scenario: synchronised trapezoidal PTP,
+spline-timed LIN, and stop-and-shoot captures.
+
+**Robot assets** — `assets/robots/<id>/{robot.urdf, robot.json, LICENSE}` are committed.
+`meshes/*.glb` are git-ignored and regenerated byte-identically by
+`tools/robot-assets/build.py` from pinned upstream SHAs. The robot base is the REP-199
+`base` link, i.e. the controller frame (ADR 0002). Pinocchio FK fixtures for G1.1 are in
+`tools/fixtures/fk/`.
+
+**`etendue-ui`** — binary `etendue-ui`. Hand-written winit + wgpu + egui-wgpu render loop
 (no eframe). Modules: viewport (wgpu pipelines), parameter panel (egui side panel),
 simulated-image panel (egui_plot). **Frozen** (ADR 0001): it keeps building and passing
 its tests but gets no new features. It is deleted at parity gate G6.3.
@@ -76,8 +118,11 @@ its tests but gets no new features. It is deleted at parity gate G6.3.
   to build this workspace. Published crates do not need it.
 - CI clones calibration-rs at `CALIBRATION_RS_REF` (a tag). Bump that together with the
   version requirement.
-- `vision-calibration-dataset` gets its patch line together with its first consumer
-  (P1), because an unused patch makes cargo warn on every command.
+- Both calibration-rs crates have a `[patch]` line. Do not add a patch line for a crate
+  nothing uses yet: cargo warns about unused patches on every command.
+- `serde_json` has `float_roundtrip` enabled workspace-wide, because the default parser
+  can be off by one ULP. Keep it: bit-exact round trips of poses and ground truth depend
+  on it.
 
 ### nalgebra HARD PIN — DO NOT change
 
@@ -217,6 +262,8 @@ condition.
 ## Roadmap
 
 `docs/pivot/PLAN.md` is the roadmap, with phases P0–P6 and their gates. ADRs 0001–0006
-were accepted on 2026-09-26; P0 is done and P1 is in progress. One item from the old post-MVP queue remains
-open: promoting `ThickLens` to `ApertureModel<S>` in calibration-rs, as an upstream PR
-with user review.
+were accepted on 2026-09-26. P0 and P1 are done, with gates G0.1 and G1.1–G1.3 recorded
+in `docs/measurements/`. P2 (web packages) is next.
+
+One item from the old post-MVP queue remains open: promoting `ThickLens` to
+`ApertureModel<S>` in calibration-rs, as an upstream PR with user review.

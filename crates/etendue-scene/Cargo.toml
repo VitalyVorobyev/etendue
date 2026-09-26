@@ -1,0 +1,30 @@
+[package]
+name = "etendue-scene"
+description = "Versioned scene and scenario schema for etendue: frame tree, robots, cameras, rigs, lasers, lights, targets, baked scenarios"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[features]
+# JSON Schema derives (`schemars::JsonSchema`) for every public spec type.
+schemars = [
+    "dep:schemars",
+    "vision-calibration-core/schemars",
+    "vision-calibration-dataset/schemars",
+]
+
+[dependencies]
+nalgebra = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }
+vision-calibration-core = { workspace = true }
+vision-calibration-dataset = { workspace = true }
+schemars = { workspace = true, optional = true }
+
+[dev-dependencies]
+approx = { workspace = true }
+proptest = { workspace = true }
+serde_json = { workspace = true }

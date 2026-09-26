@@ -2,14 +2,18 @@
 
 ## Workspace shape
 
-Three crates, one workspace, one binary. The pivot (`docs/adrs/0001-pivot.md`,
-`docs/pivot/PLAN.md`) adds further crates phase by phase:
+The pivot (`docs/adrs/0001-pivot.md`, `docs/pivot/PLAN.md`) adds crates phase by
+phase. After P1:
 
 ```text
 etendue (cargo workspace, resolver = "3", edition = "2024")
-├── crates/etendue-core/   # headless f64 kernel           (library, crates.io)
-├── crates/etendue-wasm/   # wasm-bindgen facade, P0 stub  (npm @etendue/wasm)
-└── crates/etendue-ui/     # desktop application, frozen   (binary "etendue")
+├── crates/etendue-core/        # headless f64 optics kernel          (library, crates.io)
+├── crates/etendue-scene/       # scene/scenario/baked JSON schema    (library, crates.io)
+├── crates/etendue-kinematics/  # URDF FK, IK, scenario baking        (library, crates.io)
+├── crates/etendue-cli/         # `etendue validate | bake`           (binary "etendue")
+├── crates/etendue-wasm/        # wasm-bindgen facade, P0 stub        (npm @etendue/wasm)
+├── crates/etendue-ui/          # desktop application, frozen         (binary "etendue-ui")
+└── xtask/                      # emit-schemas, check-layering
 ```
 
 ```text

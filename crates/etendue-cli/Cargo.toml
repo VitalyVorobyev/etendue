@@ -1,0 +1,21 @@
+[package]
+name = "etendue-cli"
+description = "Command-line interface of etendue: validate scenes and scenarios, bake robot motion"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "etendue"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = { workspace = true }
+clap = { workspace = true }
+etendue-kinematics = { workspace = true }
+etendue-scene = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
