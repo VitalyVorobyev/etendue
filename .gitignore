@@ -32,3 +32,6 @@ web/**/coverage/
 web/**/.vitest/
 web/**/test-results/
 web/**/playwright-report/
+
+# Python bytecode (Blender script tests)
+__pycache__/

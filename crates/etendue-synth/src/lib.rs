@@ -22,6 +22,9 @@ pub mod dataset;
 #[doc(hidden)]
 pub mod gate;
 pub mod gt;
+#[cfg(feature = "images")]
+pub mod images;
+pub mod job;
 pub mod remap;
 
 pub use remap::{CanonicalCamera, CanonicalSpec, PixelCentre, RemapLut, remap_lut};

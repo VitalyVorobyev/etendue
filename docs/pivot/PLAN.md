@@ -82,7 +82,9 @@ etendue/                                   (cargo workspace + bun workspace)
 │   └── packages/                      incubating @vitavision/* packages (private), each moved to
 │                                      lab-ui by PR once stable: three, three-react (L8-1),
 │                                      workbench (new), ui-next (additions to @vitavision/ui)
-├── blender/etendue_blender/ NEW P4    pure-Python render script (bpy only), embedded in etendue-cli
+├── crates/etendue-cli/blender/etendue_blender/
+│                            NEW P4    pure-Python render script (bpy only), embedded in etendue-cli
+│                                      (inside the crate so `cargo package` includes it)
 ├── tools/robot-assets/      NEW P1    uv project: xacro → URDF, meshes → .glb, license manifest
 └── docs/adrs/               NEW P0
 ```
@@ -295,6 +297,12 @@ and ask; do not silently relax it.
   the Metal GPU, fixed seed, Filmic/AgX **off** (Standard view transform, linear EXR).
   Done when the example scenario renders end to end and the CLI checks the Blender
   version.
+  *Status (2026-09-27):* done. `etendue render` (job.json, embedded script, EXR → LUT →
+  PNG); the eye-in-hand example renders 10 captures × 1 camera in 76 s at 16 samples on an
+  M4 Pro (Metal). Blender 5.1.1 pinned in `etendue.toml`. Findings: Blender 5 selects
+  multilayer EXR through `media_type`; the glTF importer's Y-up rotation is undone in
+  `convert.py`; EXR rows are top-first (`tests/blender_exr.rs`). Boards use the viewers'
+  checker layout until P3-3 settles the target source.
 - **P4-2 — Convention probe.** Render small emissive spheres at known 3D points, once
   in Blender and once in the web `SensorView` (readPixels). Compare the intensity-weighted
   centroid with the analytic projection. Done when gate **G4.1** passes: ≤0.01 px on

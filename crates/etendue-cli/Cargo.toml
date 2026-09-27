@@ -1,6 +1,6 @@
 [package]
 name = "etendue-cli"
-description = "Command-line interface of etendue: validate scenes and scenarios, bake robot motion"
+description = "Command-line interface of etendue: validate scenes and scenarios, bake robot motion, render with Blender"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -17,5 +17,7 @@ anyhow = { workspace = true }
 clap = { workspace = true }
 etendue-kinematics = { workspace = true }
 etendue-scene = { workspace = true }
+etendue-synth = { workspace = true, features = ["images"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
+toml = { workspace = true }

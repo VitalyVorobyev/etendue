@@ -3,6 +3,7 @@
 //! ```text
 //! etendue validate <scene.json> [<scenario.json>]
 //! etendue bake <scene.json> <scenario.json> -o <baked.json> [--pretty]
+//! etendue render <scene.json> <scenario.json> -o <out_dir> [--samples N] [--supersample S]
 //! ```
 //!
 //! Robot manifests (`robot.json`) are resolved relative to the scene file;
@@ -15,6 +16,8 @@ use anyhow::{Context, Result, anyhow};
 use clap::{Parser, Subcommand};
 use etendue_kinematics::{RobotModel, bake, compile};
 use etendue_scene::{FrameGraph, RobotManifest, ScenarioSpec, SceneSpec};
+
+mod render;
 
 #[derive(Parser)]
 #[command(
@@ -51,6 +54,64 @@ enum Command {
         #[arg(long)]
         pretty: bool,
     },
+    /// Render every capture of a scenario with Blender (ADR 0005): canonical
+    /// pinhole EXRs, remapped onto each calibrated camera as PNGs.
+    Render {
+        /// Scene file.
+        scene: PathBuf,
+        /// Scenario file.
+        scenario: PathBuf,
+        /// Output directory (job.json, exr/, images/).
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Render backend.
+        #[arg(long, value_enum, default_value_t = Backend::Blender)]
+        backend: Backend,
+        /// Cycles samples per pixel.
+        #[arg(long, default_value_t = 64)]
+        samples: u32,
+        /// Cycles seed.
+        #[arg(long, default_value_t = 0)]
+        seed: u32,
+        /// Render on the CPU instead of the GPU.
+        #[arg(long)]
+        cpu: bool,
+        /// Canonical pixels per camera pixel at the image centre.
+        #[arg(long, default_value_t = 1.0)]
+        supersample: f64,
+        /// Linear scale before sRGB encoding (placeholder for the P4-6 sensor model).
+        #[arg(long, default_value_t = 1.0)]
+        exposure: f32,
+        /// Radiance of a uniform white environment (0 = scene lights only).
+        #[arg(long, default_value_t = 1.0)]
+        ambient: f64,
+        /// Blender executable (default: $ETENDUE_BLENDER, then the platform default).
+        #[arg(long)]
+        blender: Option<PathBuf>,
+        /// Render even if Blender's version differs from the etendue.toml pin.
+        #[arg(long)]
+        allow_blender_version: bool,
+        /// Render only these cameras (repeatable).
+        #[arg(long = "camera")]
+        cameras: Vec<String>,
+    },
+}
+
+/// Render backends (ADR 0005: Blender is the only photometric one).
+#[derive(Clone, Copy, Debug, clap::ValueEnum)]
+enum Backend {
+    /// Blender / Cycles.
+    Blender,
+}
+
+/// A scene with its robot models and manifests, read from disk.
+pub(crate) struct Loaded {
+    pub scene: SceneSpec,
+    pub models: Vec<RobotModel>,
+    /// Per scene robot: the manifest and the directory it was read from.
+    pub manifests: Vec<(RobotManifest, PathBuf)>,
+    /// Directory of the scene file.
+    pub dir: PathBuf,
 }
 
 fn read_json<T: serde::de::DeserializeOwned>(path: &Path, what: &str) -> Result<T> {
@@ -61,12 +122,18 @@ fn read_json<T: serde::de::DeserializeOwned>(path: &Path, what: &str) -> Result<
 
 /// Load and validate the scene and every robot model it references.
 fn load_scene(path: &Path) -> Result<(SceneSpec, Vec<RobotModel>)> {
+    let l = load(path)?;
+    Ok((l.scene, l.models))
+}
+
+fn load(path: &Path) -> Result<Loaded> {
     let scene: SceneSpec = read_json(path, "scene")?;
     scene
         .validate()
         .map_err(|e| anyhow!("scene {}: {e}", path.display()))?;
     let dir = path.parent().unwrap_or(Path::new("."));
     let mut models = Vec::with_capacity(scene.robots.len());
+    let mut manifests = Vec::with_capacity(scene.robots.len());
     for robot in &scene.robots {
         let manifest_path = dir.join(&robot.manifest);
         let manifest: RobotManifest = read_json(&manifest_path, "robot manifest")?;
@@ -84,10 +151,19 @@ fn load_scene(path: &Path) -> Result<(SceneSpec, Vec<RobotModel>)> {
                 .with_context(|| format!("robot `{}` initial_q", robot.id))?;
         }
         models.push(model);
+        manifests.push((
+            manifest,
+            manifest_path.parent().unwrap_or(Path::new(".")).to_owned(),
+        ));
     }
     let links: Vec<Vec<String>> = models.iter().map(|m| m.links().to_vec()).collect();
     FrameGraph::build(&scene, &links).map_err(|e| anyhow!("scene {}: {e}", path.display()))?;
-    Ok((scene, models))
+    Ok(Loaded {
+        scene,
+        models,
+        manifests,
+        dir: dir.to_owned(),
+    })
 }
 
 fn run(cli: Cli) -> Result<()> {
@@ -152,7 +228,45 @@ fn run(cli: Cli) -> Result<()> {
             );
             Ok(())
         }
+        Command::Render {
+            scene,
+            scenario,
+            output,
+            backend: Backend::Blender,
+            samples,
+            seed,
+            cpu,
+            supersample,
+            exposure,
+            ambient,
+            blender,
+            allow_blender_version,
+            cameras,
+        } => render_command(
+            &scene,
+            &scenario,
+            &render::RenderArgs {
+                output,
+                samples,
+                seed,
+                cpu,
+                supersample,
+                exposure,
+                ambient,
+                blender,
+                allow_blender_version,
+                cameras,
+            },
+        ),
     }
+}
+
+fn render_command(scene: &Path, scenario: &Path, args: &render::RenderArgs) -> Result<()> {
+    let loaded = load(scene)?;
+    let scenario_spec: ScenarioSpec = read_json(scenario, "scenario")?;
+    let baked = bake(&loaded.scene, &scenario_spec, &loaded.models)
+        .map_err(|e| anyhow!("scenario {}: {e}", scenario.display()))?;
+    render::run(&loaded, &baked, args)
 }
 
 fn main() -> ExitCode {

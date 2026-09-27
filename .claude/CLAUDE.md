@@ -5,7 +5,7 @@
 ```bash
 cargo build --workspace                                    # build all crates
 cargo run -p etendue-ui                                    # launch the (frozen) GUI (blocks until window closed)
-cargo test --workspace --locked                            # run all 260 tests
+cargo test --workspace --locked                            # run all 269 tests
 cargo clippy --workspace --all-targets -- -D warnings      # lint (must be clean)
 cargo fmt --all                                            # format
 cargo fmt --all --check                                    # CI format check
@@ -30,6 +30,8 @@ cd apps/studio && bun run test:perf    # gate G2.2, headed Chromium on the GPU (
 # Scene tooling (etendue-cli binary is `etendue`)
 cargo run -p etendue-cli -- validate examples/eye_in_hand_ur5e/scene.json examples/eye_in_hand_ur5e/scenario.json
 cargo run -p etendue-cli -- bake <scene.json> <scenario.json> -o target/baked.json
+cargo run --release -p etendue-cli -- render <scene.json> <scenario.json> -o target/render --samples 16   # Blender, local only
+python3 -m unittest discover -s crates/etendue-cli/blender/tests                                          # Blender conventions
 
 # Workspace policy (CI job `checks`)
 cargo xtask check-layering                                 # ADR 0001 dependency rules + single nalgebra
@@ -57,14 +59,14 @@ across the whole workspace.
 | `etendue-core` | none | |
 | `etendue-scene` | `schemars` | JSON Schema derives (xtask enables it to emit `schemas/`) |
 | `etendue-kinematics` | `opw` | analytic OPW IK via `rs-opw-kinematics` (`default-features = false`) |
-| `etendue-synth` | none | canonical render camera, remap LUT (P3) |
+| `etendue-synth` | `images` | canonical camera, remap LUT, GT, dataset, render jobs; `images` = EXR ingest + PNG (native render path, off in wasm) |
 | `etendue-cli` | none | binary `etendue` |
 | `etendue-wasm` | none | wasm32 build + G0.1 parity in CI job `wasm` |
 | `etendue-ui` | none | frozen, binary `etendue-ui` |
 | `xtask` | none | not published |
 
-CI job `checks` runs clippy and tests with `--all-features` for `etendue-scene` and
-`etendue-kinematics`.
+CI job `checks` runs clippy and tests with `--all-features` for `etendue-scene`,
+`etendue-kinematics` and `etendue-synth`, and the Blender script's pure-Python tests.
 
 A crate is added to this table in the same change that creates it.
 
@@ -118,6 +120,15 @@ chooses the canonical render pinhole for a target camera, `remap_lut` tabulates
 explicit `PixelCentre` argument until probe P4-2 decides it. Gate G3.1:
 `cargo run --release -p etendue-synth --example g3_1_remap` (open upstream,
 calibration-rs#120).
+
+**Blender backend** (ADR 0005, P4) — `etendue render` writes `job.json` (etendue-synth
+`job`: meshes, boards, lights, canonical cameras, per-capture `world_se3_frame`), runs the
+embedded bpy-only script `crates/etendue-cli/blender/etendue_blender/render.py` (Cycles,
+fixed seed, Standard view, multilayer EXR with Depth and IndexOB), then remaps each EXR
+through the LUT to `images/<camera>/<capture>.png`. Conventions live only in
+`blender/etendue_blender/convert.py` (Rx(π) for cameras and emitters, Rx(−π/2) undoing the
+glTF importer's Y-up). The Blender version is pinned in `etendue.toml` (5.1.1). Blender runs
+locally, never in CI.
 
 **`etendue-ui`** — binary `etendue-ui`. Hand-written winit + wgpu + egui-wgpu render loop
 (no eframe). Modules: viewport (wgpu pipelines), parameter panel (egui side panel),

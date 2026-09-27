@@ -79,11 +79,16 @@ jobs:
         run: |
           cargo clippy -p etendue-scene --all-targets --all-features -- -D warnings
           cargo clippy -p etendue-kinematics --all-targets --all-features -- -D warnings
+          cargo clippy -p etendue-synth --all-targets --all-features -- -D warnings
 
       - name: Tests, all features, per crate (G1.1, G1.2 incl. OPW)
         run: |
           cargo test -p etendue-scene --all-features --locked
           cargo test -p etendue-kinematics --all-features --locked
+          cargo test -p etendue-synth --all-features --locked
+
+      - name: Blender script conventions (pure Python, no Blender)
+        run: python3 -m unittest discover -s crates/etendue-cli/blender/tests -v
 
       - name: CLI smoke test (P1-6 examples)
         run: |
