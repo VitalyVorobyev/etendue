@@ -7,7 +7,7 @@
 - Result: **CPU is bit-exact; Metal differs by at most 2.4e-7 in linear radiance.**
   Policy: GPU (Metal) is the default, with this bound documented; `--cpu` gives bit-exact
   renders. **Never mix devices within one dataset**: GPU and CPU sample differently.
-- Measured: 2026-09-27, on etendue commit `COMMIT` (branch `pivot/p4-blender`), Blender 5.1.1,
+- Measured: 2026-09-27, on etendue commit `71d340f` (branch `pivot/p4-blender`), Blender 5.1.1,
   Apple M4 Pro.
 
 ## Procedure
