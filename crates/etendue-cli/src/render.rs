@@ -19,7 +19,7 @@ const CONVERT: &str = include_str!("../blender/etendue_blender/convert.py");
 
 /// Pixel-centre convention of the Blender backend's LUTs. **Provisional**:
 /// probe P4-2 measures it (ADR 0004).
-const PIXEL_CENTRE: PixelCentre = PixelCentre::Integer;
+pub const PIXEL_CENTRE: PixelCentre = PixelCentre::Integer;
 
 /// Options of `etendue render`.
 pub struct RenderArgs {
@@ -101,7 +101,7 @@ fn blender_version(exe: &Path) -> Result<String> {
         })
 }
 
-fn meshes(loaded: &Loaded) -> Result<Vec<JobMesh>> {
+pub fn meshes(loaded: &Loaded) -> Result<Vec<JobMesh>> {
     let mut out = Vec::new();
     for (robot, (manifest, dir)) in loaded.scene.robots.iter().zip(&loaded.manifests) {
         for v in &manifest.visuals {

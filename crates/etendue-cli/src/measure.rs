@@ -12,7 +12,7 @@ use anyhow::{Result, anyhow};
 use etendue_synth::images::{LinearImage, read_exr_combined, remap_image_box};
 use etendue_synth::job::{
     Device, JOB_VERSION, JobCamera, JobOutput, JobShot, JobSphere, RenderJob, RenderSettings,
-    row_major,
+    build_job, row_major,
 };
 use etendue_synth::{CanonicalCamera, CanonicalSpec, PixelCentre, remap_lut};
 use nalgebra::{Isometry3, Point2};
@@ -21,7 +21,8 @@ use vision_calibration_core::{
     ProjectionParams, ScheimpflugParams, SensorParams,
 };
 
-use crate::render::{checked_blender, run_blender};
+use crate::Loaded;
+use crate::render::{PIXEL_CENTRE, checked_blender, meshes, run_blender};
 
 /// Options of `etendue measure g4-1`.
 pub struct ProbeArgs {
@@ -248,5 +249,93 @@ pub fn g4_1(args: &ProbeArgs) -> Result<()> {
         "  result: {} (worst {worst:.4} px, gate {GATE_PX} px)",
         if worst <= GATE_PX { "PASS" } else { "FAIL" }
     );
+    Ok(())
+}
+
+/// P4-5: render the same job twice on each device and report how much the
+/// renders differ. `loaded` / `baked` are the scene to render (its first
+/// capture, first camera).
+pub fn determinism(
+    loaded: &Loaded,
+    baked: &etendue_scene::BakedScenario,
+    args: &ProbeArgs,
+) -> Result<()> {
+    let (exe, version) = checked_blender(
+        args.blender.as_deref(),
+        args.allow_blender_version,
+        &loaded.dir,
+    )?;
+    let camera = loaded
+        .scene
+        .cameras
+        .first()
+        .ok_or_else(|| anyhow!("the scene has no camera"))?;
+    let spec = CanonicalSpec {
+        supersample: args.supersample,
+        ..CanonicalSpec::default()
+    };
+    let canonical = CanonicalCamera::cover(&camera.params, camera.resolution, &spec, PIXEL_CENTRE)?;
+    let mut job = build_job(
+        &loaded.scene,
+        baked,
+        meshes(loaded)?,
+        &[(camera.id.as_str(), &canonical)],
+        RenderSettings {
+            samples: args.samples,
+            ..RenderSettings::default()
+        },
+    )?;
+    job.shots.truncate(1);
+    println!(
+        "P4-5 determinism: Blender {version}, {} samples, camera `{}`, capture `{}`, canonical {}×{}",
+        args.samples,
+        camera.id,
+        job.shots[0].capture,
+        canonical.resolution[0],
+        canonical.resolution[1]
+    );
+    let exr = &job.shots[0].outputs[0].path;
+    let mut renders = Vec::new();
+    for device in [Device::Gpu, Device::Cpu] {
+        for run in 0..2 {
+            job.render.device = device;
+            let dir = args.output.join(format!("{device:?}-{run}").to_lowercase());
+            let t = std::time::Instant::now();
+            run_blender(&exe, &job, &dir)?;
+            let secs = t.elapsed().as_secs_f64();
+            renders.push((device, run, secs, read_exr_combined(&dir.join(exr))?));
+        }
+    }
+    let diff = |a: &LinearImage, b: &LinearImage| -> (f32, f32, usize) {
+        let mut max = 0.0_f32;
+        let mut sum = 0.0_f64;
+        let mut differing = 0usize;
+        for (x, y) in a.rgb.iter().zip(&b.rgb) {
+            let d = (x - y).abs();
+            max = max.max(d);
+            sum += f64::from(d);
+            if x.to_bits() != y.to_bits() {
+                differing += 1;
+            }
+        }
+        (max, (sum / a.rgb.len() as f64) as f32, differing)
+    };
+    for (device, run, secs, _) in &renders {
+        println!("  {device:?} run {run}: {secs:.1} s");
+    }
+    let mean_level =
+        renders[0].3.rgb.iter().map(|&v| f64::from(v)).sum::<f64>() / renders[0].3.rgb.len() as f64;
+    println!("  mean radiance {mean_level:.4}");
+    for (label, a, b) in [
+        ("GPU run 0 vs run 1", 0, 1),
+        ("CPU run 0 vs run 1", 2, 3),
+        ("GPU vs CPU (run 0)", 0, 2),
+    ] {
+        let (max, mean, differing) = diff(&renders[a].3, &renders[b].3);
+        println!(
+            "  {label:<20} max |Δ| {max:.3e}   mean |Δ| {mean:.3e}   differing values {differing} / {}",
+            renders[a].3.rgb.len()
+        );
+    }
     Ok(())
 }

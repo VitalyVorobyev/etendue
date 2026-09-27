@@ -321,6 +321,9 @@ and ask; do not silently relax it.
 - **P4-5 — Determinism.** Render the same job twice. Report the maximum absolute
   difference for Metal and for CPU. Done when GT-critical renders use whichever device
   is deterministic, or the variance is documented with its bound.
+  *Status (2026-09-27):* CPU bit-exact; Metal within 2.4e-7 radiance run to run; GPU vs CPU
+  up to 2.2e-2 per pixel. GPU stays the default with the bound documented, `--cpu` for
+  bit-exact renders, never both in one dataset (`docs/measurements/p4_5_determinism.md`).
 - **P4-6 — Sensor model** in `etendue-synth::sensor`: exposure, gain, shot/read/PRNU
   noise, and quantization, all with explicit seeds. Done when the photon-transfer
   curve (variance vs mean) reproduces the configured gain within ≤2%.

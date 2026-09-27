@@ -117,6 +117,12 @@ enum Command {
         /// Run even if Blender's version differs from the pin.
         #[arg(long)]
         allow_blender_version: bool,
+        /// Scene (gates that render a scene).
+        #[arg(long, default_value = "examples/eye_in_hand_ur5e/scene.json")]
+        scene: PathBuf,
+        /// Scenario (gates that render a scene).
+        #[arg(long, default_value = "examples/eye_in_hand_ur5e/scenario.json")]
+        scenario: PathBuf,
     },
 }
 
@@ -126,6 +132,9 @@ enum Gate {
     /// G4.1 (P4-2): pixel-centre convention probe with emissive spheres.
     #[value(name = "g4-1")]
     G41,
+    /// P4-5: render determinism, GPU and CPU (needs --scene / --scenario).
+    #[value(name = "p4-5")]
+    P45,
 }
 
 /// Render backends (ADR 0005: Blender is the only photometric one).
@@ -290,19 +299,33 @@ fn run(cli: Cli) -> Result<()> {
             },
         ),
         Command::Measure {
-            gate: Gate::G41,
+            gate,
             output,
             samples,
             supersample,
             blender,
             allow_blender_version,
-        } => measure::g4_1(&measure::ProbeArgs {
-            output,
-            samples,
-            supersample,
-            blender,
-            allow_blender_version,
-        }),
+            scene,
+            scenario,
+        } => {
+            let args = measure::ProbeArgs {
+                output,
+                samples,
+                supersample,
+                blender,
+                allow_blender_version,
+            };
+            match gate {
+                Gate::G41 => measure::g4_1(&args),
+                Gate::P45 => {
+                    let loaded = load(&scene)?;
+                    let scenario_spec: ScenarioSpec = read_json(&scenario, "scenario")?;
+                    let baked = bake(&loaded.scene, &scenario_spec, &loaded.models)
+                        .map_err(|e| anyhow!("scenario {}: {e}", scenario.display()))?;
+                    measure::determinism(&loaded, &baked, &args)
+                }
+            }
+        }
     }
 }
 
