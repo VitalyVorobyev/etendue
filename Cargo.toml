@@ -70,6 +70,8 @@ js-sys = "0.3"
 # Blender renders arrive as multilayer OpenEXR (pure Rust, no unsafe); images
 # leave as PNG. Both only in the native render path, not in @etendue/wasm.
 exr = "1.74"
+# P4-3 corner bias study (etendue-cli `measure g4-2`); no nalgebra, no `image`.
+chess-corners = { version = "1.2", default-features = false }
 png = "0.18"
 # Sensor model noise (etendue-synth). Seeded only: ChaCha is stable across
 # platforms and versions; default features off keep `getrandom` (OS entropy)

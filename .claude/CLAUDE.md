@@ -35,6 +35,7 @@ python3 -m unittest discover -s crates/etendue-cli/blender/tests                
 cargo run --release -p etendue-cli -- measure g4-1 -o target/g4_1                                          # gate G4.1, Blender side
 cd web/apps/studio && bun x vitest run --project browser                                                  # gate G4.1, web side
 cargo run --release -p etendue-cli -- measure p4-5 -o target/p4_5                                          # P4-5 determinism
+cargo run --release -p etendue-cli -- measure g4-2 -o target/g4_2                                          # G4.2 corner bias (chess-corners)
 cargo test -p etendue-synth --release --test ptc -- --nocapture                                           # P4-6 photon transfer
 
 # Workspace policy (CI job `checks`)

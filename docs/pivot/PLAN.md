@@ -315,6 +315,12 @@ and ask; do not silently relax it.
   the analytic GT. Sweep supersampling s ∈ {1, 2, 4, 8} and board as mesh vs texture.
   Done when gate **G4.2** passes: RMS ≤0.02 px at the chosen default, with the curve
   committed to `docs/measurements/corner_bias.md`.
+  *Status (2026-09-27):* measured with `etendue measure g4-2` (mesh board; texture waits on
+  P3-3). **G4.2 fails and is mis-set for chess-corners 1.2**: on an exact, renderer-free image
+  its refiners are off by 0.08–0.19 px RMS, the same as on the renders. s = 4 is converged, the
+  mean bias is ≤ 0.013 px (no convention offset, `Integer` confirmed), sRGB output roughly
+  doubles the error, and the render-vs-exact difference is 0.03 px at s = 4 (center of mass).
+  Awaiting a decision on the gate (`docs/measurements/g4_2_corner_bias.md`).
 - **P4-4 — Cross-backend agreement.** Run the same frame, same camera, same detector on
   both backends. Done when gate **G4.3** passes: corner RMS difference ≤0.05 px. If it
   fails, suspect a convention error first.
