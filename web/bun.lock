@@ -60,6 +60,7 @@
         "@playwright/test": "1.63.0",
         "@types/node": "^26.6.3",
         "@types/three": "0.186.0",
+        "@vitavision/chess-corners": "1.2.0",
       },
     },
     "packages/three": {
@@ -601,6 +602,8 @@
     "@typescript-eslint/visitor-keys": ["@typescript-eslint/visitor-keys@8.70.1", "", { "dependencies": { "@typescript-eslint/types": "8.70.1", "eslint-visitor-keys": "^5.0.0" } }, "sha512-Vwj9lUIW5Xq3wQ9w6gv3R86g1hMK8f2zNOdGTAgeXUMMXFK78G9ruCjjqutHMNJc0+CH7LYRnHeUB9IT8wFmcw=="],
 
     "@vitavision/charts": ["@vitavision/charts@0.6.0", "", { "dependencies": { "@vitavision/ui": "^0.6.0" }, "peerDependencies": { "react": "^19.2.0", "react-dom": "^19.2.0" } }, "sha512-BYeT6jQG4/kdCJc9NfVljsnP1ZvANRpDn89bNlE9e5iCiIlr6J8mFpCB+AfnUAXdPqFoeusjiaUaLgitbsJBAA=="],
+
+    "@vitavision/chess-corners": ["@vitavision/chess-corners@1.2.0", "", {}, "sha512-vPj7RQArvQcrVWvPRxDYU0C7DwcWSMGjMmiW/7pOOEqmtBRYaltuB4BRODnYAKMKVVFeDhVPMbKh+tzG1pzJIA=="],
 
     "@vitavision/config-eslint": ["@vitavision/config-eslint@0.1.0", "", { "dependencies": { "@eslint-react/eslint-plugin": "^5.20.8", "eslint-plugin-react-hooks": "^7.1.1", "eslint-plugin-storybook": "^10.6.0", "typescript-eslint": "^8.70.1" }, "peerDependencies": { "eslint": "^10.11.0", "typescript": "^6.0.3" } }, "sha512-pDoahF2AErSqt0JVbR8PhrS/93RLy//fEVZbJld0IUFXYmRkBsuRTXWcpp6/fa99hGJTCUPevv5Y2cWNaYFXuA=="],
 

@@ -591,5 +591,40 @@ pub fn g4_2(args: &ProbeArgs) -> Result<()> {
     }
     std::fs::create_dir_all(&args.output)?;
     std::fs::write(args.output.join("g4_2.md"), report)?;
+
+    // For P4-4 (G4.3): the scene and the Blender detections, so the web probe
+    // renders the same frames and compares corner by corner.
+    let blender: serde_json::Map<String, serde_json::Value> = rendered
+        .iter()
+        .filter(|(_, sigma, _)| *sigma == 0.0)
+        .map(|(s, _, errors)| {
+            let per_refiner: serde_json::Map<String, serde_json::Value> = errors
+                .iter()
+                .filter(|((srgb, _), _)| !srgb)
+                .map(|((_, refiner), e)| ((*refiner).to_owned(), serde_json::json!(e)))
+                .collect();
+            (format!("{s}"), serde_json::Value::Object(per_refiner))
+        })
+        .collect();
+    let detections = serde_json::json!({
+        "resolution": RESOLUTION,
+        "camera": params,
+        "squares": SQUARES,
+        "square_m": SQUARE_M,
+        "radiance": RADIANCE,
+        "chess_threshold": CHESS_THRESHOLD,
+        "margin_px": MARGIN_PX,
+        "match_px": MATCH_PX,
+        "poses": poses
+            .iter()
+            .map(|(name, pose)| serde_json::json!({ "name": name, "camera_se3_target": pose }))
+            .collect::<Vec<_>>(),
+        "truth": truth,
+        "errors": blender,
+    });
+    std::fs::write(
+        args.output.join("detections.json"),
+        serde_json::to_string_pretty(&detections)? + "\n",
+    )?;
     Ok(())
 }
