@@ -31,7 +31,8 @@
   },
   "devDependencies": {
     "@playwright/test": "1.63.0",
+    "@types/node": "^26.6.3",
     "@types/three": "0.186.0",
-    "@types/node": "^26.6.3"
+    "@vitavision/chess-corners": "1.2.0"
   }
 }

@@ -325,6 +325,10 @@ and ask; do not silently relax it.
 - **P4-4 — Cross-backend agreement.** Run the same frame, same camera, same detector on
   both backends. Done when gate **G4.3** passes: corner RMS difference ≤0.05 px. If it
   fails, suspect a convention error first.
+  *Status (2026-09-27):* **G4.3 passes.** On the G4.2 scene at s = 4, the web `SensorView` vs
+  Blender difference is 0.018 px RMS with center of mass, 0.040 px with Förstner and 0.043 px
+  with saddle point (chess-corners 1.2.0; the wasm build runs in the browser). Each backend's
+  error against GT agrees with the other's to 0.001 px (`docs/measurements/g4_3_cross_backend.md`).
 - **P4-5 — Determinism.** Render the same job twice. Report the maximum absolute
   difference for Metal and for CPU. Done when GT-critical renders use whichever device
   is deterministic, or the variance is documented with its bound.
