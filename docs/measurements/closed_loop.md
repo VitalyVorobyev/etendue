@@ -16,7 +16,7 @@
   - The image-level loop (render → detect → calibrate through calibration-rs's
     `dataset_runner`) inherits the detector's 0.07–0.19 px per-corner error
     (`g4_2_corner_bias.md`). It waits on the G4.2 decision.
-- Measured: 2026-09-27, on etendue commit `COMMIT` (branch `pivot/p5-closed-loop`), with the
+- Measured: 2026-09-27, on etendue commit `f8e7ac1` (branch `pivot/p5-closed-loop`), with the
   `vision-calibration` 0.8.2 wheel from PyPI.
 
 ## Procedure
