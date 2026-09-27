@@ -71,6 +71,12 @@ js-sys = "0.3"
 # leave as PNG. Both only in the native render path, not in @etendue/wasm.
 exr = "1.74"
 png = "0.18"
+# Sensor model noise (etendue-synth). Seeded only: ChaCha is stable across
+# platforms and versions; default features off keep `getrandom` (OS entropy)
+# out, per the determinism rule.
+rand = { version = "0.10", default-features = false }
+rand_chacha = { version = "0.10", default-features = false }
+rand_distr = { version = "0.6", default-features = false, features = ["std_math"] }
 # etendue.toml tool pins (etendue-cli).
 toml = "0.9"
 

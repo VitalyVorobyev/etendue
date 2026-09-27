@@ -95,6 +95,10 @@ enum Command {
         /// Render only these cameras (repeatable).
         #[arg(long = "camera")]
         cameras: Vec<String>,
+        /// Sensor model (JSON, etendue-synth `SensorModel`): exposure, noise, quantisation;
+        /// images become raw mono PNGs. Without it, `--exposure` and sRGB PNGs.
+        #[arg(long)]
+        sensor: Option<PathBuf>,
     },
     /// Measure a gate that needs Blender (local only; results go to
     /// docs/measurements/).
@@ -282,6 +286,7 @@ fn run(cli: Cli) -> Result<()> {
             blender,
             allow_blender_version,
             cameras,
+            sensor,
         } => render_command(
             &scene,
             &scenario,
@@ -296,6 +301,7 @@ fn run(cli: Cli) -> Result<()> {
                 blender,
                 allow_blender_version,
                 cameras,
+                sensor,
             },
         ),
         Command::Measure {

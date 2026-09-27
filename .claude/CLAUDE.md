@@ -5,7 +5,7 @@
 ```bash
 cargo build --workspace                                    # build all crates
 cargo run -p etendue-ui                                    # launch the (frozen) GUI (blocks until window closed)
-cargo test --workspace --locked                            # run all 270 tests
+cargo test --workspace --locked                            # run all 275 tests
 cargo clippy --workspace --all-targets -- -D warnings      # lint (must be clean)
 cargo fmt --all                                            # format
 cargo fmt --all --check                                    # CI format check
@@ -34,6 +34,8 @@ cargo run --release -p etendue-cli -- render <scene.json> <scenario.json> -o tar
 python3 -m unittest discover -s crates/etendue-cli/blender/tests                                          # Blender conventions
 cargo run --release -p etendue-cli -- measure g4-1 -o target/g4_1                                          # gate G4.1, Blender side
 cd web/apps/studio && bun x vitest run --project browser                                                  # gate G4.1, web side
+cargo run --release -p etendue-cli -- measure p4-5 -o target/p4_5                                          # P4-5 determinism
+cargo test -p etendue-synth --release --test ptc -- --nocapture                                           # P4-6 photon transfer
 
 # Workspace policy (CI job `checks`)
 cargo xtask check-layering                                 # ADR 0001 dependency rules + single nalgebra

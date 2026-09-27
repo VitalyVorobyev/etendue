@@ -230,6 +230,40 @@ pub fn write_png_srgb(image: &LinearImage, exposure: f32, path: &Path) -> Result
         .map_err(|e| bad(e.to_string()))
 }
 
+/// Write a sensor image as a grayscale PNG: 8-bit for ≤ 8-bit sensors, otherwise 16-bit
+/// with the values left-aligned (`dn << (16 − bits)`, the PNG convention for sub-16-bit
+/// data, so a 12-bit image uses the full 16-bit range). The true bit depth is the sensor
+/// model's `bits` (the `png` crate writes no `sBIT` chunk).
+///
+/// # Errors
+///
+/// [`Error::InvalidInput`] if the file cannot be written.
+pub fn write_png_raw(image: &crate::sensor::RawImage, path: &Path) -> Result<()> {
+    let bad = |m: String| Error::InvalidInput(format!("{}: {m}", path.display()));
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir).map_err(|e| bad(e.to_string()))?;
+    }
+    let file = std::fs::File::create(path).map_err(|e| bad(e.to_string()))?;
+    let mut encoder = png::Encoder::new(BufWriter::new(file), image.width, image.height);
+    encoder.set_color(png::ColorType::Grayscale);
+    let bytes: Vec<u8> = if image.bits <= 8 {
+        encoder.set_depth(png::BitDepth::Eight);
+        image.dn.iter().map(|&v| v as u8).collect()
+    } else {
+        encoder.set_depth(png::BitDepth::Sixteen);
+        let shift = 16 - image.bits;
+        image
+            .dn
+            .iter()
+            .flat_map(|&v| (v << shift).to_be_bytes())
+            .collect()
+    };
+    let mut writer = encoder.write_header().map_err(|e| bad(e.to_string()))?;
+    writer
+        .write_image_data(&bytes)
+        .map_err(|e| bad(e.to_string()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

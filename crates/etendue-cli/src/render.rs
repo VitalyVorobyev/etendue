@@ -8,8 +8,9 @@ use std::process::Command;
 
 use anyhow::{Context, Result, anyhow, bail};
 use etendue_scene::{BakedScenario, SceneSpec};
-use etendue_synth::images::{read_exr_combined, remap_image_box, write_png_srgb};
+use etendue_synth::images::{read_exr_combined, remap_image_box, write_png_raw, write_png_srgb};
 use etendue_synth::job::{Device, JobMesh, ROBOT_PASS_INDEX, RenderJob, RenderSettings, build_job};
+use etendue_synth::sensor::SensorModel;
 use etendue_synth::{CanonicalCamera, CanonicalSpec, PixelCentre, RemapLut, remap_lut};
 
 use crate::Loaded;
@@ -33,6 +34,8 @@ pub struct RenderArgs {
     pub blender: Option<PathBuf>,
     pub allow_blender_version: bool,
     pub cameras: Vec<String>,
+    /// Sensor model (JSON): images become raw mono PNGs at its bit depth.
+    pub sensor: Option<PathBuf>,
 }
 
 /// The Blender executable: `--blender`, then `$ETENDUE_BLENDER`, then the
@@ -250,6 +253,14 @@ pub fn run(loaded: &Loaded, baked: &BakedScenario, args: &RenderArgs) -> Result<
     );
     run_blender(&exe, &job, out)?;
 
+    let sensor: Option<SensorModel> = match &args.sensor {
+        Some(p) => Some(
+            serde_json::from_str(&std::fs::read_to_string(p)?)
+                .with_context(|| format!("parsing sensor model {}", p.display()))?,
+        ),
+        None => None,
+    };
+    let mut frame = 0u64;
     for shot in &job.shots {
         for o in &shot.outputs {
             let (_, _, lut) = canonical
@@ -260,7 +271,15 @@ pub fn run(loaded: &Loaded, baked: &BakedScenario, args: &RenderArgs) -> Result<
             // Box-filter the supersampled render over each pixel (validated by G4.1).
             let image = remap_image_box(&render, lut, args.supersample.ceil() as u32);
             let png = out.join(format!("images/{}/{}.png", o.camera, shot.capture));
-            write_png_srgb(&image, args.exposure, &png)?;
+            match &sensor {
+                // Temporal noise per image: the frame counter is unique within the job.
+                Some(model) => {
+                    let raw = model.expose(&image.rgb, image.width, image.height, frame)?;
+                    write_png_raw(&raw, &png)?;
+                }
+                None => write_png_srgb(&image, args.exposure, &png)?,
+            }
+            frame += 1;
         }
     }
     println!("wrote {n} image(s) under {}", out.join("images").display());

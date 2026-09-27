@@ -327,6 +327,9 @@ and ask; do not silently relax it.
 - **P4-6 — Sensor model** in `etendue-synth::sensor`: exposure, gain, shot/read/PRNU
   noise, and quantization, all with explicit seeds. Done when the photon-transfer
   curve (variance vs mean) reproduces the configured gain within ≤2%.
+  *Status (2026-09-27):* done. `etendue-synth::sensor` (PRNU, shot, dark and read noise, full
+  well, gain, black level, quantisation, ChaCha8 seeds); PTC recovers K within 0.43 %;
+  `etendue render --sensor` writes raw mono PNGs (`docs/measurements/p4_6_sensor.md`).
 
 ### P5 — Closed loop and laser
 
