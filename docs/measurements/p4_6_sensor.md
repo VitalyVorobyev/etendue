@@ -3,7 +3,7 @@
 - Ticket: **P4-6** (`docs/pivot/PLAN.md`). Criterion: the photon-transfer curve (variance vs
   mean) reproduces the configured gain within **≤ 2 %**.
 - Result: **PASS.** K̂ = 0.25107 DN/e⁻ for a configured 0.25 DN/e⁻ (+0.43 %).
-- Measured: 2026-09-27, on etendue commit `COMMIT` (branch `pivot/p4-blender`).
+- Measured: 2026-09-27, on etendue commit `70f1dd6` (branch `pivot/p4-blender`).
 
 ## Model (`etendue-synth::sensor`, EMVA 1288 style)
 
