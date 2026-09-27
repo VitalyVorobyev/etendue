@@ -4,6 +4,7 @@
 //! etendue validate <scene.json> [<scenario.json>]
 //! etendue bake <scene.json> <scenario.json> -o <baked.json> [--pretty]
 //! etendue render <scene.json> <scenario.json> -o <out_dir> [--samples N] [--supersample S]
+//! etendue gt <scene.json> <scenario.json> -o <out_dir>
 //! ```
 //!
 //! Robot manifests (`robot.json`) are resolved relative to the scene file;
@@ -55,6 +56,18 @@ enum Command {
         /// Indent the JSON output.
         #[arg(long)]
         pretty: bool,
+    },
+    /// Write the analytic ground truth of a scenario (ADR 0006): `dataset.json`
+    /// (calibration-rs `DatasetSpec`), `robot_poses.json` and `gt.json`. The
+    /// images it names are what `etendue render` writes into the same directory.
+    Gt {
+        /// Scene file.
+        scene: PathBuf,
+        /// Scenario file.
+        scenario: PathBuf,
+        /// Output directory.
+        #[arg(short, long)]
+        output: PathBuf,
     },
     /// Render every capture of a scenario with Blender (ADR 0005): canonical
     /// pinhole EXRs, remapped onto each calibrated camera as PNGs.
@@ -277,6 +290,11 @@ fn run(cli: Cli) -> Result<()> {
             );
             Ok(())
         }
+        Command::Gt {
+            scene,
+            scenario,
+            output,
+        } => gt_command(&scene, &scenario, &output),
         Command::Render {
             scene,
             scenario,
@@ -339,6 +357,66 @@ fn run(cli: Cli) -> Result<()> {
             }
         }
     }
+}
+
+fn gt_command(scene: &Path, scenario: &Path, output: &Path) -> Result<()> {
+    use etendue_synth::dataset::{EmitOptions, emit};
+    use etendue_synth::gt::{VisibilitySpec, board_points};
+    let loaded = load(scene)?;
+    let scenario_spec: ScenarioSpec = read_json(scenario, "scenario")?;
+    let baked = bake(&loaded.scene, &scenario_spec, &loaded.models)
+        .map_err(|e| anyhow!("scenario {}: {e}", scenario.display()))?;
+    let [target] = loaded.scene.targets.as_slice() else {
+        return Err(anyhow!(
+            "ground truth needs exactly one target; the scene has {}",
+            loaded.scene.targets.len()
+        ));
+    };
+    let points = board_points(&target.geometry).ok_or_else(|| {
+        anyhow!(
+            "target `{}`: only chessboard and ChArUco layouts are known until P3-3",
+            target.id
+        )
+    })?;
+    let manifests: Vec<RobotManifest> = loaded.manifests.iter().map(|(m, _)| m.clone()).collect();
+    let bundle = emit(
+        &loaded.scene,
+        &baked,
+        &manifests,
+        &points,
+        &EmitOptions {
+            visibility: VisibilitySpec::default(),
+            pixel_centre: render::PIXEL_CENTRE,
+        },
+    )?;
+    std::fs::create_dir_all(output)?;
+    let write = |name: &str, text: String| {
+        let path = output.join(name);
+        std::fs::write(&path, text + "\n").with_context(|| format!("writing {}", path.display()))
+    };
+    write(
+        "dataset.json",
+        serde_json::to_string_pretty(&bundle.dataset)?,
+    )?;
+    if let Some(poses) = &bundle.robot_poses {
+        write("robot_poses.json", serde_json::to_string_pretty(poses)?)?;
+    }
+    write("gt.json", serde_json::to_string_pretty(&bundle.gt)?)?;
+    let views: usize = bundle.gt.captures.iter().map(|c| c.views.len()).sum();
+    let visible: usize = bundle
+        .gt
+        .captures
+        .iter()
+        .flat_map(|c| &c.views)
+        .map(|v| v.points.iter().filter(|p| p.visible()).count())
+        .sum();
+    println!(
+        "ground truth: {} capture(s), {views} view(s), {visible} visible point(s) of {} → {}",
+        bundle.gt.captures.len(),
+        points.len(),
+        output.display()
+    );
+    Ok(())
 }
 
 fn render_command(scene: &Path, scenario: &Path, args: &render::RenderArgs) -> Result<()> {

@@ -22,6 +22,9 @@ book/book/
 assets/robots/*/meshes/
 # Local state of the robot asset pipeline (uv venv, pinned upstream checkouts)
 tools/robot-assets/.venv/
+# The closed-loop tool's uv venv
+tools/closed-loop/.venv/
+tools/closed-loop/__pycache__/
 tools/robot-assets/.cache/
 
 # web/ (bun workspace): dependencies, builds, test output
