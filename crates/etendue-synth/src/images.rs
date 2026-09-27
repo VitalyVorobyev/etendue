@@ -125,6 +125,73 @@ pub fn remap_image(canonical: &LinearImage, lut: &RemapLut) -> LinearImage {
     out
 }
 
+/// Resample like [`remap_image`], but average `taps × taps` bilinear samples
+/// over each output pixel's footprint in the canonical image — a box filter,
+/// so a supersampled canonical render is integrated over the pixel instead of
+/// point-sampled (which aliases). The footprint is the parallelogram spanned
+/// by the LUT's own finite differences (central inside, one-sided at the
+/// borders); no camera model is evaluated. `taps = 1` is [`remap_image`].
+#[must_use]
+pub fn remap_image_box(canonical: &LinearImage, lut: &RemapLut, taps: u32) -> LinearImage {
+    if taps <= 1 {
+        return remap_image(canonical, lut);
+    }
+    let off = match lut.pixel_centre {
+        PixelCentre::Integer => 0.0,
+        PixelCentre::Half => 0.5,
+    };
+    let (w, h) = (lut.width as usize, lut.height as usize);
+    let at = |i: usize, j: usize| -> [f64; 2] {
+        let k = 2 * (j * w + i);
+        [f64::from(lut.data[k]), f64::from(lut.data[k + 1])]
+    };
+    let diff = |a: [f64; 2], b: [f64; 2], d: f64| [(b[0] - a[0]) / d, (b[1] - a[1]) / d];
+    let n = taps as usize;
+    let weights: Vec<f64> = (0..n).map(|t| (t as f64 + 0.5) / n as f64 - 0.5).collect();
+    let mut out = LinearImage::black(lut.width, lut.height);
+    for j in 0..h {
+        for i in 0..w {
+            let c = at(i, j);
+            if !(c[0].is_finite() && c[1].is_finite()) {
+                continue;
+            }
+            let (i0, i1) = (i.saturating_sub(1), (i + 1).min(w - 1));
+            let (j0, j1) = (j.saturating_sub(1), (j + 1).min(h - 1));
+            let du = diff(at(i0, j), at(i1, j), (i1 - i0).max(1) as f64);
+            let dv = diff(at(i, j0), at(i, j1), (j1 - j0).max(1) as f64);
+            let (du, dv) = (
+                if du.iter().all(|x| x.is_finite()) {
+                    du
+                } else {
+                    [0.0; 2]
+                },
+                if dv.iter().all(|x| x.is_finite()) {
+                    dv
+                } else {
+                    [0.0; 2]
+                },
+            );
+            let mut acc = [0.0_f32; 3];
+            for &b in &weights {
+                for &a in &weights {
+                    let x = c[0] + a * du[0] + b * dv[0] - off;
+                    let y = c[1] + a * du[1] + b * dv[1] - off;
+                    let p = canonical.bilinear(x, y);
+                    for (a, v) in acc.iter_mut().zip(p) {
+                        *a += v;
+                    }
+                }
+            }
+            let norm = (n * n) as f32;
+            let k = 3 * (j * w + i);
+            for (o, a) in out.rgb[k..k + 3].iter_mut().zip(acc) {
+                *o = a / norm;
+            }
+        }
+    }
+    out
+}
+
 /// The sRGB transfer function (IEC 61966-2-1) of a linear value in `[0, 1]`.
 #[must_use]
 pub fn srgb_encode(linear: f32) -> f32 {
@@ -205,6 +272,32 @@ mod tests {
             ..lut
         };
         assert_eq!(&remap_image(&img, &lut).rgb[0..3], &[2.0, 1.0, 0.0]);
+    }
+
+    #[test]
+    fn box_resampling_integrates_the_footprint() {
+        // A 1-D step at canonical x = 2 (values 0 | 1), identity LUT scaled 4×:
+        // output pixel i covers canonical [4i − 2, 4i + 2) around 4i.
+        let mut canonical = LinearImage::black(16, 1);
+        for x in 8..16 {
+            canonical.rgb[3 * x] = 1.0;
+        }
+        let lut = RemapLut {
+            width: 4,
+            height: 1,
+            pixel_centre: PixelCentre::Integer,
+            data: (0..4).flat_map(|i| [4.0 * i as f32 + 0.0, 0.0]).collect(),
+        };
+        let point = remap_image(&canonical, &lut);
+        let area = remap_image_box(&canonical, &lut, 4);
+        // Pixel 2 is centred on canonical 8, the first bright column: a point
+        // sample reads 1; its footprint [6, 10) straddles the step at 7.5, so the
+        // box average is ≈ ½ (taps at 6.5, 7.5, 8.5, 9.5 → 0, ½, 1, 1).
+        assert_eq!(point.rgb[6], 1.0);
+        assert!((area.rgb[6] - 0.625).abs() < 1e-6, "{}", area.rgb[6]);
+        assert_eq!(area.rgb[0], 0.0);
+        assert_eq!(area.rgb[9], 1.0);
+        assert_eq!(remap_image_box(&canonical, &lut, 1), point);
     }
 
     #[test]

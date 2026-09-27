@@ -125,6 +125,22 @@ pub struct JobLight {
     pub shape: LightShape,
 }
 
+/// A small emissive sphere in world coordinates, for convention probes (P4-2). Its
+/// radiance is `emission · (N·V)²` — smooth, zero at the limb — so its image is a smooth
+/// blob whose intensity-weighted centroid is the projection of its centre.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct JobSphere {
+    /// Object name.
+    pub id: String,
+    /// Centre in the world, metres.
+    pub center: [f64; 3],
+    /// Radius, metres.
+    pub radius: f64,
+    /// Emission strength (radiance of the white emitter).
+    pub emission: f64,
+}
+
 /// A camera's canonical pinhole.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -179,6 +195,9 @@ pub struct RenderJob {
     pub boards: Vec<JobBoard>,
     /// Lights.
     pub lights: Vec<JobLight>,
+    /// Emissive probe spheres (fixed in the world).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub spheres: Vec<JobSphere>,
     /// Cameras.
     pub cameras: Vec<JobCamera>,
     /// Shots, in time order.
@@ -336,6 +355,7 @@ pub fn build_job(
         meshes,
         boards,
         lights,
+        spheres: Vec::new(),
         cameras: job_cameras,
         shots,
     })

@@ -17,6 +17,7 @@ use clap::{Parser, Subcommand};
 use etendue_kinematics::{RobotModel, bake, compile};
 use etendue_scene::{FrameGraph, RobotManifest, ScenarioSpec, SceneSpec};
 
+mod measure;
 mod render;
 
 #[derive(Parser)]
@@ -95,6 +96,36 @@ enum Command {
         #[arg(long = "camera")]
         cameras: Vec<String>,
     },
+    /// Measure a gate that needs Blender (local only; results go to
+    /// docs/measurements/).
+    Measure {
+        /// Which gate.
+        #[arg(value_enum)]
+        gate: Gate,
+        /// Output directory.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Cycles samples per pixel.
+        #[arg(long, default_value_t = 256)]
+        samples: u32,
+        /// Canonical supersampling.
+        #[arg(long, default_value_t = 4.0)]
+        supersample: f64,
+        /// Blender executable.
+        #[arg(long)]
+        blender: Option<PathBuf>,
+        /// Run even if Blender's version differs from the pin.
+        #[arg(long)]
+        allow_blender_version: bool,
+    },
+}
+
+/// Gates measured by `etendue measure`.
+#[derive(Clone, Copy, Debug, clap::ValueEnum)]
+enum Gate {
+    /// G4.1 (P4-2): pixel-centre convention probe with emissive spheres.
+    #[value(name = "g4-1")]
+    G41,
 }
 
 /// Render backends (ADR 0005: Blender is the only photometric one).
@@ -258,6 +289,20 @@ fn run(cli: Cli) -> Result<()> {
                 cameras,
             },
         ),
+        Command::Measure {
+            gate: Gate::G41,
+            output,
+            samples,
+            supersample,
+            blender,
+            allow_blender_version,
+        } => measure::g4_1(&measure::ProbeArgs {
+            output,
+            samples,
+            supersample,
+            blender,
+            allow_blender_version,
+        }),
     }
 }
 

@@ -307,6 +307,10 @@ and ask; do not silently relax it.
   in Blender and once in the web `SensorView` (readPixels). Compare the intensity-weighted
   centroid with the analytic projection. Done when gate **G4.1** passes: ≤0.01 px on
   both backends. The pixel-centre convention is then written into ADR-0004.
+  *Status (2026-09-27):* **G4.1 passes on both backends** (worst 0.0030 px Blender,
+  0.0049 px web, mean ≤ 0.0005 px, both conventions). No backend has a half-pixel offset;
+  the convention is a labelling choice (default `Integer`, confirmed against the detector in
+  P4-3). Resampling now box-filters the pixel footprint (`docs/measurements/g4_1_convention.md`).
 - **P4-3 — Corner bias study.** On noise-free renders, compare chess-corners output with
   the analytic GT. Sweep supersampling s ∈ {1, 2, 4, 8} and board as mesh vs texture.
   Done when gate **G4.2** passes: RMS ≤0.02 px at the chosen default, with the curve

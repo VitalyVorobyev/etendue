@@ -8,8 +8,8 @@ use std::process::Command;
 
 use anyhow::{Context, Result, anyhow, bail};
 use etendue_scene::{BakedScenario, SceneSpec};
-use etendue_synth::images::{read_exr_combined, remap_image, write_png_srgb};
-use etendue_synth::job::{Device, JobMesh, ROBOT_PASS_INDEX, RenderSettings, build_job};
+use etendue_synth::images::{read_exr_combined, remap_image_box, write_png_srgb};
+use etendue_synth::job::{Device, JobMesh, ROBOT_PASS_INDEX, RenderJob, RenderSettings, build_job};
 use etendue_synth::{CanonicalCamera, CanonicalSpec, PixelCentre, RemapLut, remap_lut};
 
 use crate::Loaded;
@@ -141,12 +141,17 @@ fn meshes(loaded: &Loaded) -> Result<Vec<JobMesh>> {
     Ok(out)
 }
 
-pub fn run(loaded: &Loaded, baked: &BakedScenario, args: &RenderArgs) -> Result<()> {
-    let scene: &SceneSpec = &loaded.scene;
-    let exe = blender_path(args.blender.as_deref());
+/// The Blender to run and its version, checked against the `etendue.toml` pin
+/// nearest `from`.
+pub fn checked_blender(
+    arg: Option<&Path>,
+    allow_other: bool,
+    from: &Path,
+) -> Result<(PathBuf, String)> {
+    let exe = blender_path(arg);
     let version = blender_version(&exe)?;
-    match pinned_version(&loaded.dir)? {
-        Some((pin, file)) if pin != version && !args.allow_blender_version => bail!(
+    match pinned_version(from)? {
+        Some((pin, file)) if pin != version && !allow_other => bail!(
             "Blender {version} at {} but {} pins {pin}; install it, point --blender at it, \
              or pass --allow-blender-version",
             exe.display(),
@@ -158,6 +163,45 @@ pub fn run(loaded: &Loaded, baked: &BakedScenario, args: &RenderArgs) -> Result<
         None => eprintln!("warning: no etendue.toml Blender pin found"),
         _ => {}
     }
+    Ok((exe, version))
+}
+
+/// Write `job` and the embedded script into `out`, and run Blender on them.
+pub fn run_blender(exe: &Path, job: &RenderJob, out: &Path) -> Result<()> {
+    std::fs::create_dir_all(out)?;
+    let job_path = out.join("job.json");
+    std::fs::write(&job_path, serde_json::to_string_pretty(job)? + "\n")?;
+    let scripts = out.join(".etendue_blender");
+    std::fs::create_dir_all(&scripts)?;
+    std::fs::write(scripts.join("render.py"), SCRIPT)?;
+    std::fs::write(scripts.join("convert.py"), CONVERT)?;
+    let status = Command::new(exe)
+        .args([
+            "-b",
+            "--factory-startup",
+            "--python-exit-code",
+            "1",
+            "--python",
+        ])
+        .arg(scripts.join("render.py"))
+        .arg("--")
+        .arg(&job_path)
+        .arg(out)
+        .status()
+        .with_context(|| format!("running {}", exe.display()))?;
+    if !status.success() {
+        bail!("Blender failed ({status})");
+    }
+    Ok(())
+}
+
+pub fn run(loaded: &Loaded, baked: &BakedScenario, args: &RenderArgs) -> Result<()> {
+    let scene: &SceneSpec = &loaded.scene;
+    let (exe, version) = checked_blender(
+        args.blender.as_deref(),
+        args.allow_blender_version,
+        &loaded.dir,
+    )?;
 
     let selected: Vec<_> = scene
         .cameras
@@ -197,14 +241,6 @@ pub fn run(loaded: &Loaded, baked: &BakedScenario, args: &RenderArgs) -> Result<
     )?;
 
     let out = &args.output;
-    std::fs::create_dir_all(out)?;
-    let job_path = out.join("job.json");
-    std::fs::write(&job_path, serde_json::to_string_pretty(&job)? + "\n")?;
-    let scripts = out.join(".etendue_blender");
-    std::fs::create_dir_all(&scripts)?;
-    std::fs::write(scripts.join("render.py"), SCRIPT)?;
-    std::fs::write(scripts.join("convert.py"), CONVERT)?;
-
     let n: usize = job.shots.iter().map(|s| s.outputs.len()).sum();
     println!(
         "rendering {n} image(s) with Blender {version}: {} shot(s) × {} camera(s), {} samples",
@@ -212,23 +248,7 @@ pub fn run(loaded: &Loaded, baked: &BakedScenario, args: &RenderArgs) -> Result<
         job.cameras.len(),
         args.samples
     );
-    let status = Command::new(&exe)
-        .args([
-            "-b",
-            "--factory-startup",
-            "--python-exit-code",
-            "1",
-            "--python",
-        ])
-        .arg(scripts.join("render.py"))
-        .arg("--")
-        .arg(&job_path)
-        .arg(out)
-        .status()
-        .with_context(|| format!("running {}", exe.display()))?;
-    if !status.success() {
-        bail!("Blender failed ({status})");
-    }
+    run_blender(&exe, &job, out)?;
 
     for shot in &job.shots {
         for o in &shot.outputs {
@@ -237,7 +257,8 @@ pub fn run(loaded: &Loaded, baked: &BakedScenario, args: &RenderArgs) -> Result<
                 .find(|(id, _, _)| *id == o.camera)
                 .expect("outputs name job cameras");
             let render = read_exr_combined(&out.join(&o.path))?;
-            let image = remap_image(&render, lut);
+            // Box-filter the supersampled render over each pixel (validated by G4.1).
+            let image = remap_image_box(&render, lut, args.supersample.ceil() as u32);
             let png = out.join(format!("images/{}/{}.png", o.camera, shot.capture));
             write_png_srgb(&image, args.exposure, &png)?;
         }

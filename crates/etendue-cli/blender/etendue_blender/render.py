@@ -163,6 +163,45 @@ def light(entry):
     return obj, kind != "POINT"
 
 
+def sphere(entry):
+    """A white emitter whose radiance falls smoothly to zero at the limb:
+    ``emission · (N·V)²``. Its image is a smooth blob centred on the projection of
+    the sphere's centre, so an intensity-weighted centroid locates it without the
+    pixel-locking bias of a hard-edged disc."""
+    bpy.ops.mesh.primitive_uv_sphere_add(
+        segments=48, ring_count=24, radius=float(entry["radius"]), location=tuple(entry["center"])
+    )
+    obj = bpy.context.object
+    obj.name = entry["id"]
+    m = bpy.data.materials.new(entry["id"])
+    m.use_nodes = True
+    nodes = m.node_tree.nodes
+    nodes.clear()
+    links = m.node_tree.links
+    geo = nodes.new("ShaderNodeNewGeometry")
+    dot = nodes.new("ShaderNodeVectorMath")
+    dot.operation = "DOT_PRODUCT"
+    links.new(geo.outputs["Normal"], dot.inputs[0])
+    links.new(geo.outputs["Incoming"], dot.inputs[1])
+    square = nodes.new("ShaderNodeMath")
+    square.operation = "POWER"
+    square.use_clamp = False
+    links.new(dot.outputs["Value"], square.inputs[0])
+    square.inputs[1].default_value = 2.0
+    scale = nodes.new("ShaderNodeMath")
+    scale.operation = "MULTIPLY"
+    links.new(square.outputs[0], scale.inputs[0])
+    scale.inputs[1].default_value = float(entry["emission"])
+    em = nodes.new("ShaderNodeEmission")
+    em.inputs["Color"].default_value = (1.0, 1.0, 1.0, 1.0)
+    links.new(scale.outputs[0], em.inputs["Strength"])
+    out = nodes.new("ShaderNodeOutputMaterial")
+    links.new(em.outputs[0], out.inputs[0])
+    obj.data.materials.append(m)
+    bpy.ops.object.shade_smooth()
+    return obj
+
+
 def camera(entry, clip):
     data = bpy.data.cameras.new(entry["id"])
     data.type = "PERSP"
@@ -199,6 +238,8 @@ def main():
     for l in job.get("lights", []):
         obj, flip = light(l)
         posed.append((obj, l["frame"], flip))
+    for s in job.get("spheres", []):
+        sphere(s)
     clip = tuple(job["render"].get("clip", (0.01, 50.0)))
     cams = {c["id"]: (camera(c, clip), c) for c in job["cameras"]}
 

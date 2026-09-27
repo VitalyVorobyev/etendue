@@ -1067,9 +1067,11 @@ dependencies = [
  "etendue-kinematics",
  "etendue-scene",
  "etendue-synth",
+ "nalgebra",
  "serde",
  "serde_json",
  "toml",
+ "vision-calibration-core",
 ]
 
 [[package]]

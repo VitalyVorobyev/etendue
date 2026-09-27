@@ -97,6 +97,35 @@ intensity-weighted centroids are compared with the analytic projection (G4.1,
 ≤ 0.01 px). The result, the convention and any half-pixel offset, is written
 into this section. Until then, no backend may hard-code one.
 
+**Result (P4-2, 2026-09-27, `docs/measurements/g4_1_convention.md`).**
+
+- Both backends are free of half-pixel offsets. Blender and the web
+  `SensorView` image each probe sphere within 0.005 px of its projection, and
+  the mean bias is ≤ 0.0005 px. This holds under either convention, each read
+  out in its own, including for an off-centre, skewed, Scheimpflug-tilted
+  camera. A half-pixel slip anywhere would show as a ~0.5 px mean.
+- The convention is therefore a **labelling choice** made by etendue-synth,
+  never a correction inside a backend. A LUT, its canonical camera, and every
+  pixel emitted with it (renders, ground truth) carry one `PixelCentre`.
+- **Default: `Integer`.** The centre of pixel `i` is at coordinate `i`. This is
+  OpenCV's convention, and it is what `@vitavision/stage2d` and
+  `calib-targets-core` `image.rs` state.
+- The sibling toolchains disagree with each other:
+  - `calib-targets-core`'s README samples pixels at `(x + ½, y + ½)`.
+  - calib-targets' puzzleboard synthesiser calls `+½` "workspace-wide".
+  - chess-corners' upscaler uses OpenCV's half-pixel mapping.
+
+  P4-3 compares detected corners against ground truth. There, a mismatch
+  between the detector's convention and the emitted one shows as a ½ px mean
+  offset, and `PixelCentre` is set to whichever convention the detector uses.
+- **Resampling is part of the result.** Point-sampling a supersampled canonical
+  render aliases: the centroid scatter reached 0.035 px in Blender and 0.019 px
+  on the web. Both backends therefore average the canonical render over each
+  output pixel's footprint. They use `taps × taps` bilinear samples, with the
+  footprint taken from the LUT's own finite differences:
+  - Rust: `remap_image_box`
+  - web: `SensorView` `taps`
+
 ## Consequences
 
 - No camera-model math lives outside calibration-rs. The renderers see only a

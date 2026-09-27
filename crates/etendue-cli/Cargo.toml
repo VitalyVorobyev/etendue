@@ -20,4 +20,6 @@ etendue-scene = { workspace = true }
 etendue-synth = { workspace = true, features = ["images"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
+nalgebra = { workspace = true }
+vision-calibration-core = { workspace = true }
 toml = { workspace = true }

@@ -11,6 +11,7 @@ import {
   DataTexture,
   FloatType,
   GLSL3,
+  HalfFloatType,
   LinearFilter,
   Mesh,
   NearestFilter,
@@ -65,6 +66,18 @@ export interface SensorViewOptions {
   clip?: readonly [number, number];
   /** MSAA samples of the canonical render. Default 4. */
   samples?: number;
+  /**
+   * Storage of the canonical render: `"byte"` (8-bit, the default, for display) or
+   * `"half"` (16-bit float, linear radiance without quantisation, for measurement).
+   */
+  precision?: "byte" | "half";
+  /**
+   * Resampling: `taps × taps` bilinear samples averaged over each output pixel's footprint
+   * in the canonical image (a box filter; the footprint comes from the LUT's own finite
+   * differences). Use about the supersampling factor; `1` (the default) point-samples, which
+   * aliases a supersampled canonical render.
+   */
+  taps?: number;
 }
 
 const VERTEX = /* glsl */ `
@@ -83,18 +96,41 @@ uniform vec2 canonicalSize;
 uniform float edge;
 uniform int lutHeight;
 uniform vec3 background;
+uniform int taps;
 layout(location = 0) out highp vec4 pc_fragColor;
 #define gl_FragColor pc_fragColor
+vec2 entry(ivec2 ij) { return texelFetch(lut, ij, 0).rg; }
+bool bad(vec2 v) { return isnan(v.x) || isnan(v.y); }
+vec4 sampleAt(vec2 p) {
+  // Canonical coordinate → texture coordinate; the render target's rows run bottom-up.
+  return texture(canonical, vec2((p.x - edge) / canonicalSize.x, 1.0 - (p.y - edge) / canonicalSize.y));
+}
 void main() {
   // Target pixel (i, j), row 0 at the top; fragment rows count from the bottom.
   ivec2 ij = ivec2(int(gl_FragCoord.x), lutHeight - 1 - int(gl_FragCoord.y));
-  vec2 p = texelFetch(lut, ij, 0).rg;
-  if (isnan(p.x) || isnan(p.y)) {
+  vec2 p = entry(ij);
+  if (bad(p)) {
     gl_FragColor = vec4(background, 1.0);
+  } else if (taps <= 1) {
+    gl_FragColor = sampleAt(p);
   } else {
-    // Canonical coordinate → texture coordinate; the render target's rows run bottom-up.
-    vec2 uv = vec2((p.x - edge) / canonicalSize.x, 1.0 - (p.y - edge) / canonicalSize.y);
-    gl_FragColor = texture(canonical, uv);
+    // The pixel's footprint in the canonical image: the LUT's finite differences.
+    ivec2 size = textureSize(lut, 0);
+    ivec2 l = max(ij - ivec2(1, 0), ivec2(0)), r = min(ij + ivec2(1, 0), size - 1);
+    ivec2 t = max(ij - ivec2(0, 1), ivec2(0)), b = min(ij + ivec2(0, 1), size - 1);
+    vec2 du = (entry(r) - entry(l)) / float(max(r.x - l.x, 1));
+    vec2 dv = (entry(b) - entry(t)) / float(max(b.y - t.y, 1));
+    if (bad(du)) du = vec2(0.0);
+    if (bad(dv)) dv = vec2(0.0);
+    vec4 acc = vec4(0.0);
+    float n = float(taps);
+    for (int y = 0; y < taps; y++) {
+      for (int x = 0; x < taps; x++) {
+        vec2 o = (vec2(float(x), float(y)) + 0.5) / n - 0.5;
+        acc += sampleAt(p + o.x * du + o.y * dv);
+      }
+    }
+    gl_FragColor = acc / (n * n);
   }
   #include <colorspace_fragment>
 }`;
@@ -117,7 +153,7 @@ export class SensorView {
   readonly #quadScene = new Scene();
   readonly #quadCamera = new OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
-  constructor({ canonical, lut, clip = [0.01, 50], samples = 4 }: SensorViewOptions) {
+  constructor({ canonical, lut, clip = [0.01, 50], samples = 4, precision = "byte", taps = 1 }: SensorViewOptions) {
     if (lut.data.length !== 2 * lut.width * lut.height) {
       throw new Error(`LUT has ${lut.data.length} values for ${lut.width}×${lut.height} pixels`);
     }
@@ -126,7 +162,10 @@ export class SensorView {
     this.camera.matrixAutoUpdate = false;
     this.camera.layers.set(PHYSICAL_LAYER);
 
-    this.canonicalTarget = new WebGLRenderTarget(canonical.width, canonical.height, { samples });
+    this.canonicalTarget = new WebGLRenderTarget(canonical.width, canonical.height, {
+      samples,
+      ...(precision === "half" ? { type: HalfFloatType } : {}),
+    });
     this.canonicalTarget.texture.minFilter = LinearFilter;
     this.canonicalTarget.texture.magFilter = LinearFilter;
 
@@ -146,6 +185,7 @@ export class SensorView {
         edge: { value: lut.pixelCentre === "integer" ? -0.5 : 0 },
         lutHeight: { value: lut.height },
         background: { value: new Color("black") },
+        taps: { value: Math.max(1, Math.round(taps)) },
       },
       depthTest: false,
       depthWrite: false,
