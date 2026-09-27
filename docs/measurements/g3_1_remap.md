@@ -9,7 +9,7 @@
   default iteration caps. Undistortion now uses Newton's method (calibration-rs#122, fixing
   #120) and converges at the corners in 3–4 steps. The LUT round trip is at float32
   resolution (≤ 1.3e-4 px) for all ten.
-- Measured: 2026-09-27, on etendue commit `COMMIT` (branch `pivot/p4-corners`),
+- Measured: 2026-09-27, on etendue commit `ecc9741` (branch `pivot/p4-corners`),
   calibration-rs `v0.8.2` (`ce883adf`).
 - History: first measured on etendue `39d1f86` against calibration-rs `b7e470b2` (0.8.1). Four
   cameras failed there with the fixed-point undistortion (table at the end).

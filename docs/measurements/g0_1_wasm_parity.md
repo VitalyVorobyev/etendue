@@ -161,5 +161,5 @@ G0.1 wasm/native projection parity
   result:            PASS (bit-for-bit)
 ```
 
-- Measured on etendue commit `COMMIT` (branch `pivot/p4-corners`), calibration-rs `v0.8.2`
+- Measured on etendue commit `ecc9741` (branch `pivot/p4-corners`), calibration-rs `v0.8.2`
   (`ce883adf`).
