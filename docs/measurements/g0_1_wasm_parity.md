@@ -143,3 +143,23 @@ G0.1 wasm/native projection parity
 - The `getrandom` 0.3 shim is gone: `etendue-wasm` no longer depends on `etendue-core`
   (and so not on `argmin-math` → `rand` 0.9). The 0.4 shim stays until etendue requires a
   calibration-rs release that includes calibration-rs#119 (merged 2026-09-27, `b7e470b2`).
+
+## Re-run on calibration-rs 0.8.2 (2026-09-27)
+
+The same probe, after calibration-rs 0.8.2 replaced the fixed-point undistortion with Newton's
+method (#122). Forward projection is unchanged upstream, and the wasm graph no longer needs a
+`getrandom` backend.
+
+```text
+G0.1 wasm/native projection parity
+  points per camera: 730
+  cam_left           imaged 729, not imaged (NaN) 1
+  cam_right          imaged 729, not imaged (NaN) 1
+  output values:     2920
+  bit mismatches:    0
+  max |Δ| (px):      0e0
+  result:            PASS (bit-for-bit)
+```
+
+- Measured on etendue commit `ecc9741` (branch `pivot/p4-corners`), calibration-rs `v0.8.2`
+  (`ce883adf`).

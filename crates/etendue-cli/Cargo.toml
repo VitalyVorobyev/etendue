@@ -14,6 +14,7 @@ path = "src/main.rs"
 
 [dependencies]
 anyhow = { workspace = true }
+chess-corners = { workspace = true }
 clap = { workspace = true }
 etendue-kinematics = { workspace = true }
 etendue-scene = { workspace = true }

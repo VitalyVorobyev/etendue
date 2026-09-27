@@ -494,6 +494,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "box-image-pyramid"
+version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f60e7b0ed84477c5d16709138f4a8d69c8c94f8ef010f4568f4b2b66909236ad"
+
+[[package]]
 name = "bumpalo"
 version = "3.20.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -615,6 +621,28 @@ dependencies = [
  "cfg-if",
  "cpufeatures",
  "rand_core 0.10.1",
+]
+
+[[package]]
+name = "chess-corners"
+version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ff45579842c7af9ea2c8ba5f783741d0ecbffd7ecd324013dae736d175015fb4"
+dependencies = [
+ "box-image-pyramid",
+ "chess-corners-core",
+ "log",
+ "serde",
+]
+
+[[package]]
+name = "chess-corners-core"
+version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fed54c772847709e809dbd0a41cdef908d7f724825807f3f2b4f37f16630ef96"
+dependencies = [
+ "log",
+ "serde",
 ]
 
 [[package]]
@@ -1063,6 +1091,7 @@ name = "etendue-cli"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "chess-corners",
  "clap",
  "etendue-kinematics",
  "etendue-scene",
@@ -1164,7 +1193,6 @@ dependencies = [
  "etendue-kinematics",
  "etendue-scene",
  "etendue-synth",
- "getrandom 0.4.2",
  "js-sys",
  "nalgebra",
  "serde",
@@ -1424,13 +1452,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0de51e6874e94e7bf76d726fc5d13ba782deca734ff60d5bb2fb2607c7406555"
 dependencies = [
  "cfg-if",
- "js-sys",
  "libc",
  "r-efi 6.0.0",
  "rand_core 0.10.1",
  "wasip2",
  "wasip3",
- "wasm-bindgen",
 ]
 
 [[package]]
@@ -4007,7 +4033,7 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
 name = "vision-calibration-core"
-version = "0.8.1"
+version = "0.8.2"
 dependencies = [
  "nalgebra",
  "rand 0.10.1",
@@ -4018,7 +4044,7 @@ dependencies = [
 
 [[package]]
 name = "vision-calibration-dataset"
-version = "0.8.1"
+version = "0.8.2"
 dependencies = [
  "schemars",
  "serde",

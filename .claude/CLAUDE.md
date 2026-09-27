@@ -35,6 +35,7 @@ python3 -m unittest discover -s crates/etendue-cli/blender/tests                
 cargo run --release -p etendue-cli -- measure g4-1 -o target/g4_1                                          # gate G4.1, Blender side
 cd web/apps/studio && bun x vitest run --project browser                                                  # gate G4.1, web side
 cargo run --release -p etendue-cli -- measure p4-5 -o target/p4_5                                          # P4-5 determinism
+cargo run --release -p etendue-cli -- measure g4-2 -o target/g4_2                                          # G4.2 corner bias (chess-corners)
 cargo test -p etendue-synth --release --test ptc -- --nocapture                                           # P4-6 photon transfer
 
 # Workspace policy (CI job `checks`)
@@ -121,9 +122,9 @@ spline-timed LIN, and stop-and-shoot captures.
 **`etendue-synth`** — synthetic-image support (P3). `remap`: `CanonicalCamera::cover`
 chooses the canonical render pinhole for a target camera, `remap_lut` tabulates
 `canonical.project(target.backproject(u))` (ADR 0004). The pixel-centre convention is an
-explicit `PixelCentre` argument until probe P4-2 decides it. Gate G3.1:
-`cargo run --release -p etendue-synth --example g3_1_remap` (open upstream,
-calibration-rs#120).
+explicit `PixelCentre` argument; the default is `Integer` (G4.1, confirmed against chess-corners
+by G4.2). Gate G3.1: `cargo run --release -p etendue-synth --example g3_1_remap` (passes since
+calibration-rs 0.8.2).
 
 **Blender backend** (ADR 0005, P4) — `etendue render` writes `job.json` (etendue-synth
 `job`: meshes, boards, lights, canonical cameras, per-capture `world_se3_frame`), runs the
@@ -144,9 +145,8 @@ scene plus robot sources `{id, manifest, urdf}` (the host reads files; the crate
 I/O), then `bake`, `project_points`, `backproject_pixels`, `target_extent`, `remap`. Documents cross
 as JSON text (bit-exact with `float_roundtrip`). `scripts/build-npm.mjs` wraps the
 wasm-pack output with the typed layer in `js/` (types generated from `schemas/` by
-`web/scripts/generate-wasm-types.ts`). The wasm32-only `getrandom` 0.4 `wasm_js`
-dependency is a backend-selection shim until the `vision-calibration-*` requirement moves
-to a release with calibration-rs#119. Never call entropy from kernel code.
+`web/scripts/generate-wasm-types.ts`). The wasm graph has no `getrandom` at all (since
+calibration-rs 0.8.2); keep it that way. Never call entropy from kernel code.
 
 **`web/`** — bun workspace (lab-ui toolchain: `@vitavision/config-{ts,eslint,vitest}`, TS
 6.0.3, Tailwind v4, tokens only). `apps/studio` is the P2-5 studio (not published).

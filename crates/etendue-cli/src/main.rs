@@ -17,6 +17,7 @@ use clap::{Parser, Subcommand};
 use etendue_kinematics::{RobotModel, bake, compile};
 use etendue_scene::{FrameGraph, RobotManifest, ScenarioSpec, SceneSpec};
 
+mod corners;
 mod measure;
 mod render;
 
@@ -136,6 +137,10 @@ enum Gate {
     /// G4.1 (P4-2): pixel-centre convention probe with emissive spheres.
     #[value(name = "g4-1")]
     G41,
+    /// G4.2 (P4-3): chess-corners bias against the analytic ground truth,
+    /// supersampling 1, 2, 4, 8 (ignores --supersample).
+    #[value(name = "g4-2")]
+    G42,
     /// P4-5: render determinism, GPU and CPU (needs --scene / --scenario).
     #[value(name = "p4-5")]
     P45,
@@ -323,6 +328,7 @@ fn run(cli: Cli) -> Result<()> {
             };
             match gate {
                 Gate::G41 => measure::g4_1(&args),
+                Gate::G42 => corners::g4_2(&args),
                 Gate::P45 => {
                     let loaded = load(&scene)?;
                     let scenario_spec: ScenarioSpec = read_json(&scenario, "scenario")?;

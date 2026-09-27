@@ -4,35 +4,19 @@
 //! remap LUT built on it sends every target pixel to a canonical coordinate
 //! that maps back to that pixel (to the LUT's float32 resolution).
 //!
-//! **Open:** with calibration-rs's default undistortion iteration counts, four
-//! gate cameras miss 1e-6 px at the image corners (calibration-rs#120). They
-//! are listed in [`OPEN_UPSTREAM`] with their measured error; the test asserts
-//! they still fail as measured — so the list cannot go stale once #120 is
-//! fixed — and that with enough iterations they pass, which shows the remap
-//! itself is exact. etendue does not override `iters` (ADR 0004).
+//! Undistortion uses calibration-rs's default iteration caps; since 0.8.2
+//! (calibration-rs#120, Newton) every gate camera converges at the corners.
+//! etendue does not override `iters` (ADR 0004).
 //!
 //! Full report: `cargo run --release -p etendue-synth --example g3_1_remap`.
 
-use etendue_synth::gate::{RESOLUTION, Rng, cameras, with_iters};
+use etendue_synth::gate::{RESOLUTION, Rng, cameras};
 use etendue_synth::{CanonicalCamera, CanonicalSpec, PixelCentre, remap_lut};
 use nalgebra::Point2;
 use vision_calibration_core::{CameraModel, CameraParams};
 
 const GATE_PX: f64 = 1e-6;
 const SAMPLES: usize = 10_000;
-
-/// Gate cameras that miss G3.1 at the default iteration counts, pending
-/// calibration-rs#120: `(name, measured max error in px)`.
-const OPEN_UPSTREAM: &[(&str, f64)] = &[
-    ("brown_strong_barrel", 0.322),
-    ("brown_pincushion", 1.54e-3),
-    ("rational", 9.16e-5),
-    ("scheimpflug_4x4_barrel", 0.650),
-];
-
-/// Iterations that converge every gate camera at its corners (the report
-/// measures 28 at most).
-const CONVERGED_ITERS: u32 = 40;
 
 fn round_trip(model: &CameraModel, u: Point2<f64>) -> f64 {
     let ray = model.backproject_pixel(&u).point;
@@ -65,39 +49,14 @@ fn max_round_trip(params: &CameraParams) -> f64 {
         .fold(0.0, f64::max)
 }
 
-fn open(name: &str) -> Option<f64> {
-    OPEN_UPSTREAM
-        .iter()
-        .find(|(n, _)| *n == name)
-        .map(|&(_, e)| e)
-}
-
 #[test]
 fn g3_1_project_unproject_round_trip() {
     let mut failures = Vec::new();
     for (name, params) in cameras() {
         let worst = max_round_trip(&params);
-        match open(name) {
-            None => {
-                println!("{name:<24} {worst:.3e} px");
-                if worst > GATE_PX {
-                    failures.push(format!("{name}: {worst:.3e} px"));
-                }
-            }
-            Some(measured) => {
-                println!("{name:<24} {worst:.3e} px  (open upstream, calibration-rs#120)");
-                assert!(
-                    worst > GATE_PX && (worst - measured).abs() <= 0.02 * measured,
-                    "{name}: {worst:e} px no longer matches the recorded {measured:e} px; \
-                     if calibration-rs#120 is fixed, drop it from OPEN_UPSTREAM"
-                );
-                let converged = with_iters(&params, CONVERGED_ITERS).unwrap();
-                let fixed = max_round_trip(&converged);
-                assert!(
-                    fixed <= GATE_PX,
-                    "{name}: {fixed:e} px even at {CONVERGED_ITERS} iterations"
-                );
-            }
+        println!("{name:<24} {worst:.3e} px");
+        if worst > GATE_PX {
+            failures.push(format!("{name}: {worst:.3e} px"));
         }
     }
     assert!(
@@ -109,14 +68,8 @@ fn g3_1_project_unproject_round_trip() {
 #[test]
 fn g3_1_lut_maps_back_to_the_target_pixel() {
     // s = 4: canonical coordinate → canonical ray → target pixel returns the
-    // pixel to the float32 resolution of the LUT entry. Cameras open upstream
-    // are checked with converged undistortion.
+    // pixel to the float32 resolution of the LUT entry.
     for (name, params) in cameras() {
-        let params = if open(name).is_some() {
-            with_iters(&params, CONVERGED_ITERS).unwrap()
-        } else {
-            params
-        };
         let cam = CanonicalCamera::cover(
             &params,
             RESOLUTION,

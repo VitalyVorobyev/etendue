@@ -25,12 +25,3 @@ serde_json = { workspace = true }
 vision-calibration-core = { workspace = true }
 wasm-bindgen = { workspace = true }
 
-# Backend selection only; nothing calls it. On `wasm32-unknown-unknown`,
-# `getrandom` 0.4 (via `vision-calibration-core` → `rand` 0.10 default
-# features) refuses to build without a JS entropy backend. Enabling `wasm_js`
-# here turns the backend on for the whole graph through feature unification;
-# no etendue or calibration-rs code draws OS entropy. Drop this once the
-# `vision-calibration-*` requirement moves to a release that includes
-# calibration-rs#119 (`rand` with `default-features = false`).
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-getrandom = { version = "0.4", features = ["wasm_js"] }
