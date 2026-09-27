@@ -1,0 +1,32 @@
+{
+  "name": "@vitavision/ui-next",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Additions to @vitavision/ui incubating in etendue (NumberInput unit suffix, VectorInput, PoseInput). Each moves into @vitavision/ui by PR; this package then disappears.",
+  "license": "MIT OR Apache-2.0",
+  "type": "module",
+  "sideEffects": ["*.css"],
+  "files": ["dist", "src", "!src/**/*.test.*", "!src/**/*.stories.*"],
+  "exports": {
+    ".": {
+      "@vitavision/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./styles.css": "./src/styles.css",
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "coverage": "vitest run --coverage"
+  },
+  "peerDependencies": {
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "dependencies": {
+    "@vitavision/ui": "^0.6.0"
+  }
+}

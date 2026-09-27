@@ -5,7 +5,7 @@
 ```bash
 cargo build --workspace                                    # build all crates
 cargo run -p etendue-ui                                    # launch the (frozen) GUI (blocks until window closed)
-cargo test --workspace --locked                            # run all 247 tests
+cargo test --workspace --locked                            # run all 251 tests
 cargo clippy --workspace --all-targets -- -D warnings      # lint (must be clean)
 cargo fmt --all                                            # format
 cargo fmt --all --check                                    # CI format check
@@ -13,9 +13,19 @@ cargo doc --no-deps --workspace                            # build rustdoc
 
 # etendue-wasm (npm @etendue/wasm) — wasm32 target comes from rust-toolchain.toml
 cargo clippy -p etendue-wasm --target wasm32-unknown-unknown -- -D warnings
-wasm-pack build crates/etendue-wasm --target nodejs --release
+node crates/etendue-wasm/scripts/build-npm.mjs          # wasm-pack --target web + typed layer → crates/etendue-wasm/pkg
 node crates/etendue-wasm/tests/node/g01_parity.mjs > target/g01.json
 cargo run -p etendue-wasm --example g01_verify -- target/g01.json   # gate G0.1: 0 bit mismatches
+gzip -9c crates/etendue-wasm/pkg/etendue_wasm_bg.wasm | wc -c       # gate G2.1: ≤ 1572864
+
+# web/ (bun workspace; build @etendue/wasm first — it is a workspace member)
+cd web && bun install
+bun run generate:types        # crates/etendue-wasm/js/types from schemas/ (CI: generate:types:check)
+bun run check:deps            # web layering rules
+bun run typecheck && bun run lint && bun run test && bun run build
+bun run dev                   # studio at http://localhost:5178 (blocks; do not run non-interactively)
+cd apps/studio && bun run test:e2e     # Playwright, SwiftShader, bakes the reference with etendue-cli
+cd apps/studio && bun run test:perf    # gate G2.2, headed Chromium on the GPU (local only)
 
 # Scene tooling (etendue-cli binary is `etendue`)
 cargo run -p etendue-cli -- validate examples/eye_in_hand_ur5e/scene.json examples/eye_in_hand_ur5e/scenario.json
@@ -66,7 +76,8 @@ by phase, never up front. P0 and P1 are done.
 ```
 etendue-cli (bin `etendue`) ──► etendue-kinematics ──► etendue-scene ──► vision-calibration-{core,dataset}
 etendue-ui  (bin `etendue-ui`, FROZEN) ──► etendue-core ──► vision-calibration-core
-etendue-wasm (npm @etendue/wasm, P0 stub API) ──► etendue-core
+etendue-wasm (npm @etendue/wasm) ──► etendue-kinematics ──► etendue-scene
+web/apps/studio ──► @etendue/wasm, @vitavision/{ui,stage2d,charts} (npm), web/packages/* (incubating)
 xtask (emit-schemas, check-layering)
 ```
 
@@ -105,10 +116,22 @@ spline-timed LIN, and stop-and-shoot captures.
 simulated-image panel (egui_plot). **Frozen** (ADR 0001): it keeps building and passing
 its tests but gets no new features. It is deleted at parity gate G6.3.
 
-**`etendue-wasm`** — wasm-bindgen facade. The P0 surface (`project_points`,
-`default_mvp_scene_json`) is a spike for gate G0.1; P2-1 replaces it. Its wasm32-only
-`getrandom` 0.3/0.4 `wasm_js` dependencies are backend-selection shims (see its
-`Cargo.toml`). Never call entropy from kernel code.
+**`etendue-wasm`** — wasm-bindgen facade (P2-1). `Session` (JS `EtendueScene`) loads a
+scene plus robot sources `{id, manifest, urdf}` (the host reads files; the crate does no
+I/O), then `bake`, `project_points`, `backproject_pixels`, `target_extent`. Documents cross
+as JSON text (bit-exact with `float_roundtrip`). `scripts/build-npm.mjs` wraps the
+wasm-pack output with the typed layer in `js/` (types generated from `schemas/` by
+`web/scripts/generate-wasm-types.ts`). The wasm32-only `getrandom` 0.4 `wasm_js`
+dependency is a backend-selection shim until the `vision-calibration-*` requirement moves
+to a release with calibration-rs#119. Never call entropy from kernel code.
+
+**`web/`** — bun workspace (lab-ui toolchain: `@vitavision/config-{ts,eslint,vitest}`, TS
+6.0.3, Tailwind v4, tokens only). `apps/studio` is the P2-5 studio (not published).
+`packages/*` are `private` `@vitavision/*` packages **incubating** here and moved to lab-ui
+by PR (user decision): `three` (no React, no kinematics, no camera math), `three-react`
+(R3F; per-frame work in `useFrame`, never React state), `workbench` (studio shell pieces,
+playhead store), `ui-next` (additions to `@vitavision/ui`). They follow lab-ui's Definition
+of Done so the move is a copy. `scripts/check-deps.ts` enforces their layering.
 
 **calibration-rs dependency: crates.io + `[patch.crates-io]`**
 - `vision-calibration-core = "0.8"` and `vision-calibration-dataset = "0.8"` come from
@@ -237,6 +260,9 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace --locked
 cargo build --workspace
 cargo clippy -p etendue-wasm --target wasm32-unknown-unknown -- -D warnings
+# when web/ or etendue-wasm changes (after build-npm.mjs):
+cd web && bun run generate:types:check && bun run check:deps && bun run typecheck \
+  && bun run lint && bun run test && bun run build && (cd apps/studio && bun run test:e2e)
 ```
 
 When `etendue-wasm` or anything on the projection path changes, also re-run the G0.1

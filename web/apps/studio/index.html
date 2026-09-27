@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>etendue studio</title>
+    <script>
+      // @vitavision/ui: set the theme class before the first paint (keep in step with theme.ts).
+      (function () {
+        try {
+          var stored = localStorage.getItem("vitavision-theme");
+          var dark =
+            stored === "dark" ||
+            ((stored === null || stored === "system") && window.matchMedia("(prefers-color-scheme: dark)").matches);
+          if (dark) document.documentElement.classList.add("dark");
+        } catch (_) {
+          // Storage unavailable: the light palette on :root applies.
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

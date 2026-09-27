@@ -1,0 +1,7 @@
+/*
+ * Nothing to style: this file exists so Tailwind v4 finds this package's class names.
+ * `@source` resolves against the stylesheet that declares it, and this file is exported from
+ * `src/` (which ships), so it scans the package's sources. Import it after
+ * `@vitavision/ui/styles.css`.
+ */
+@source "./";

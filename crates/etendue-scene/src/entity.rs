@@ -128,6 +128,64 @@ pub enum TargetGeometry {
     },
 }
 
+impl TargetGeometry {
+    /// Overall extent `[x, y]` of the target surface in metres, centred on
+    /// the local origin: the printed area of a board, or a rectangle's size.
+    /// Viewers use it to draw the target.
+    ///
+    /// For a board, columns run along local X and rows along local Y. The
+    /// extent is the board's pattern area (squares, or ring markers with
+    /// their outer radius), without any margin:
+    ///
+    /// - chessboard: `(cols + 1) × (rows + 1)` squares (the counts are
+    ///   interior corners);
+    /// - ChArUco: `cols × rows` squares;
+    /// - ring grid: marker centres on a hex lattice (`pitch` apart in a row,
+    ///   `pitch·√3/2` between rows) plus the outer radius on every side.
+    ///
+    /// Returns `None` for a puzzleboard, whose size depends on a named
+    /// calib-targets layout this crate does not know.
+    #[must_use]
+    pub fn extent_m(&self) -> Option<[f64; 2]> {
+        use vision_calibration_dataset::TargetSpec as Board;
+        match self {
+            Self::Rectangle { width, height } => Some([*width, *height]),
+            Self::Board { board } => match board {
+                Board::Chessboard {
+                    rows,
+                    cols,
+                    square_size_m,
+                } => Some([
+                    f64::from(cols + 1) * square_size_m,
+                    f64::from(rows + 1) * square_size_m,
+                ]),
+                Board::Charuco {
+                    rows,
+                    cols,
+                    square_size_m,
+                    ..
+                } => Some([
+                    f64::from(*cols) * square_size_m,
+                    f64::from(*rows) * square_size_m,
+                ]),
+                Board::Ringgrid {
+                    pitch_m,
+                    rows,
+                    long_row_cols,
+                    marker_outer_radius_m,
+                    ..
+                } => Some([
+                    f64::from(long_row_cols.saturating_sub(1)) * pitch_m
+                        + 2.0 * marker_outer_radius_m,
+                    f64::from(rows.saturating_sub(1)) * pitch_m * 3f64.sqrt() / 2.0
+                        + 2.0 * marker_outer_radius_m,
+                ]),
+                Board::Puzzleboard { .. } => None,
+            },
+        }
+    }
+}
+
 /// A passive rigid part rendered from a mesh (a fixture, a workpiece).
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
@@ -146,4 +204,67 @@ pub struct PartSpec {
     /// Mesh file (glTF binary), path relative to the scene file. Vertices
     /// are in the part frame, metres.
     pub mesh: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use vision_calibration_dataset::TargetSpec as Board;
+
+    fn board(board: Board) -> TargetGeometry {
+        TargetGeometry::Board { board }
+    }
+
+    #[test]
+    fn extents_follow_each_board_kind() {
+        let s = 0.025;
+        assert_eq!(
+            board(Board::Chessboard {
+                rows: 6,
+                cols: 9,
+                square_size_m: s
+            })
+            .extent_m(),
+            Some([10.0 * s, 7.0 * s])
+        );
+        assert_eq!(
+            board(Board::Charuco {
+                rows: 5,
+                cols: 7,
+                square_size_m: s,
+                marker_size_m: 0.018,
+                dictionary: "DICT_4X4_50".into(),
+            })
+            .extent_m(),
+            Some([7.0 * s, 5.0 * s])
+        );
+        let [w, h] = board(Board::Ringgrid {
+            pitch_m: 0.01,
+            rows: 3,
+            long_row_cols: 4,
+            marker_outer_radius_m: 0.004,
+            marker_inner_radius_m: 0.002,
+            marker_ring_width_m: 0.001,
+        })
+        .extent_m()
+        .unwrap();
+        assert!((w - 0.038).abs() < 1e-15);
+        assert!((h - (0.02 * 3f64.sqrt() / 2.0 + 0.008)).abs() < 1e-15);
+        assert_eq!(
+            board(Board::Puzzleboard {
+                layout: "puzzle_130x130".into(),
+                cell_size_m: 0.01
+            })
+            .extent_m(),
+            None
+        );
+        assert_eq!(
+            TargetGeometry::Rectangle {
+                width: 0.3,
+                height: 0.2
+            }
+            .extent_m(),
+            Some([0.3, 0.2])
+        );
+    }
 }

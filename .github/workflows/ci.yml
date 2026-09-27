@@ -92,9 +92,10 @@ jobs:
             cargo run -q -p etendue-cli -- bake examples/$ex/scene.json examples/$ex/scenario.json -o target/$ex.baked.json
           done
 
-  # etendue-wasm (npm `@etendue/wasm`): wasm32 build + gate G0.1 — the wasm
+  # etendue-wasm (npm `@etendue/wasm`): wasm32 build, gate G0.1 — the wasm
   # build of the projection chain must match the native build bit-for-bit
-  # (docs/measurements/g0_1_wasm_parity.md).
+  # (docs/measurements/g0_1_wasm_parity.md) — and gate G2.1, the size budget
+  # (docs/measurements/g2_1_wasm_size.md).
   wasm:
     runs-on: ubuntu-latest
 
@@ -120,10 +121,92 @@ jobs:
       - name: Install wasm-pack
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 
-      - name: Build Node package
-        run: wasm-pack build crates/etendue-wasm --target nodejs --release
+      - name: Build the npm package
+        run: node crates/etendue-wasm/scripts/build-npm.mjs
 
       - name: G0.1 parity (wasm under Node vs native, bit-for-bit)
         run: |
           node crates/etendue-wasm/tests/node/g01_parity.mjs > target/g01.json
           cargo run -p etendue-wasm --example g01_verify -- target/g01.json
+
+      - name: G2.1 size (release .wasm ≤ 1.5 MB gzipped)
+        run: |
+          size=$(gzip -9c crates/etendue-wasm/pkg/etendue_wasm_bg.wasm | wc -c)
+          echo "etendue_wasm_bg.wasm: $(wc -c < crates/etendue-wasm/pkg/etendue_wasm_bg.wasm) bytes, $size gzipped"
+          test "$size" -le 1572864
+
+  # web/ (bun workspace): the incubated @vitavision packages and the studio.
+  # Layering, types generated from schemas/, typecheck, lint, unit and story
+  # tests (Chromium), build, and the studio's Playwright e2e suite. Gate G2.2
+  # (perf) needs a GPU and runs locally (docs/measurements/g2_2_perf.md).
+  web:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Clone calibration-rs sibling ([patch.crates-io] target)
+        run: git clone --depth 1 --branch "$CALIBRATION_RS_REF" https://github.com/VitalyVorobyev/calibration-rs.git ../calibration-rs
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Cache cargo artifacts
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      - name: Set up bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: web/package.json
+
+      - name: Build @etendue/wasm (a workspace member of web/)
+        run: node crates/etendue-wasm/scripts/build-npm.mjs
+
+      - name: Install
+        working-directory: web
+        run: bun install --frozen-lockfile
+
+      - name: TS types up to date with schemas/
+        working-directory: web
+        run: bun run generate:types:check
+
+      - name: Layering
+        working-directory: web
+        run: bun run check:deps
+
+      - name: Typecheck
+        working-directory: web
+        run: bun run typecheck
+
+      - name: Lint
+        working-directory: web
+        run: bun run lint
+
+      - name: Install Chromium
+        working-directory: web
+        run: bunx playwright install --with-deps chromium
+
+      - name: Unit and story tests
+        working-directory: web
+        run: bun run test
+
+      - name: Build
+        working-directory: web
+        run: bun run build
+
+      - name: Studio e2e
+        working-directory: web/apps/studio
+        run: bun run test:e2e
+
+      - name: Upload the Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: web/apps/studio/playwright-report

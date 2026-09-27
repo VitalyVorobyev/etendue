@@ -1,0 +1,31 @@
+{
+  "name": "@vitavision/three",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Framework-agnostic three.js building blocks for robot-cell scenes: CV/GL conventions, frame-tree runtime, robots, frusta, laser fans, targets. Incubating in etendue; moves to lab-ui (L8-1).",
+  "license": "MIT OR Apache-2.0",
+  "type": "module",
+  "sideEffects": false,
+  "files": ["dist", "src", "!src/**/*.test.*", "!src/**/*.stories.*"],
+  "exports": {
+    ".": {
+      "@vitavision/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "coverage": "vitest run --coverage"
+  },
+  "peerDependencies": {
+    "three": "^0.186.0"
+  },
+  "devDependencies": {
+    "@types/three": "0.186.0",
+    "three": "0.186.1"
+  }
+}
