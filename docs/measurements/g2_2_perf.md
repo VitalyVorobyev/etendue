@@ -4,7 +4,7 @@
 - Criterion: with 2 robots, 4 cameras, 1 target and live scenario playback, the **p95
   frame time over 600 frames is ≤ 16.7 ms** in Chromium on an M-series Mac.
 - Result: **PASS**. p95 frame interval 7.8 ms; p95 main-thread work per frame 0.6 ms.
-- Measured: 2026-09-27, on etendue commit `COMMIT` (branch `pivot/p2`).
+- Measured: 2026-09-27, on etendue commit `71e7b8a` (branch `pivot/p2`).
 
 ## Environment
 

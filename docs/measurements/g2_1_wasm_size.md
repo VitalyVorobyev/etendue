@@ -3,7 +3,7 @@
 - Gate: **G2.1** (`docs/pivot/PLAN.md`, P2-1)
 - Criterion: the release `.wasm` of `@etendue/wasm` is **≤ 1.5 MB gzipped** (1,572,864 B).
 - Result: **PASS**. 310,354 B gzipped (20% of the budget).
-- Measured: 2026-09-27, on etendue commit `COMMIT` (branch `pivot/p2`).
+- Measured: 2026-09-27, on etendue commit `71e7b8a` (branch `pivot/p2`).
 
 ## Environment
 

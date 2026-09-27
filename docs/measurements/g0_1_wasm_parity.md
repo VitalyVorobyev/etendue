@@ -133,7 +133,7 @@ G0.1 wasm/native projection parity
   result:            PASS (bit-for-bit)
 ```
 
-- Measured on etendue commit `COMMIT` (branch `pivot/p2`), calibration-rs `b7e470b2`
+- Measured on etendue commit `71e7b8a` (branch `pivot/p2`), calibration-rs `b7e470b2`
   (v0.8.1 + calibration-rs#119).
 - Both cameras carry Brown–Conrady distortion (`k1`, `k2` ≠ 0). Forward projection
   evaluates the distortion polynomial only (`+ − × ÷`), so bit equality still holds; the
