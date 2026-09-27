@@ -1,0 +1,8 @@
+{
+  "extends": "@vitavision/config-ts/tsconfig.json",
+  "compilerOptions": {
+    "types": ["vite/client", "node"],
+    "customConditions": ["@vitavision/source"]
+  },
+  "include": ["src", "e2e", "*.config.ts", "etendueRepo.ts"]
+}

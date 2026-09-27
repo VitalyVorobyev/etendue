@@ -1,0 +1,6 @@
+{
+  // Workspace scripts only; every package and app has its own tsconfig.
+  "extends": "@vitavision/config-ts/tsconfig.json",
+  "compilerOptions": { "types": ["bun"] },
+  "include": ["scripts"]
+}

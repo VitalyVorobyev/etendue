@@ -1,0 +1,4 @@
+{
+  "extends": "@vitavision/config-ts/tsconfig.lib.json",
+  "include": ["src", "*.config.ts"]
+}

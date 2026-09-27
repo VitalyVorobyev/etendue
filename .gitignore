@@ -23,3 +23,12 @@ assets/robots/*/meshes/
 # Local state of the robot asset pipeline (uv venv, pinned upstream checkouts)
 tools/robot-assets/.venv/
 tools/robot-assets/.cache/
+
+# web/ (bun workspace): dependencies, builds, test output
+web/node_modules/
+web/**/node_modules/
+web/**/dist/
+web/**/coverage/
+web/**/.vitest/
+web/**/test-results/
+web/**/playwright-report/

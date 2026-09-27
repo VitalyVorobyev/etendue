@@ -113,3 +113,33 @@ tolerance explicitly and not assume bit equality.
 `etendue_wasm_bg.wasm`, release build, wasm-opt: **227,746 B raw /
 87,663 B gzip -9**. G2.1 (≤ 1.5 MB gzipped) applies to the P2-1 API surface,
 not this stub.
+
+## Re-run on the P2-1 API (2026-09-27)
+
+P2-1 replaced the stub surface: `default_mvp_scene_json` and the `etendue-core` `Scene`
+path are gone. The probe now runs the published npm package (`build-npm.mjs`, `--target
+web`, loaded in Node with `initSync`) on `examples/eye_in_hand_ur5e` with its UR5e model,
+through `EtendueScene.projectPoints` for **both** cameras, at a fixed camera pose tilted 20°
+about world X.
+
+```text
+G0.1 wasm/native projection parity
+  points per camera: 730
+  cam_left           imaged 729, not imaged (NaN) 1
+  cam_right          imaged 729, not imaged (NaN) 1
+  output values:     2920
+  bit mismatches:    0
+  max |Δ| (px):      0e0
+  result:            PASS (bit-for-bit)
+```
+
+- Measured on etendue commit `COMMIT` (branch `pivot/p2`), calibration-rs `b7e470b2`
+  (v0.8.1 + calibration-rs#119).
+- Both cameras carry Brown–Conrady distortion (`k1`, `k2` ≠ 0). Forward projection
+  evaluates the distortion polynomial only (`+ − × ÷`), so bit equality still holds; the
+  scope note above applies to tilt and to anything calling `sin`/`cos`/`atan2`.
+- The camera pose crosses the boundary as 7 `f64`s (`Float64Array`), exact by
+  construction; the scene crosses as JSON text parsed with `float_roundtrip`.
+- The `getrandom` 0.3 shim is gone: `etendue-wasm` no longer depends on `etendue-core`
+  (and so not on `argmin-math` → `rand` 0.9). The 0.4 shim stays until etendue requires a
+  calibration-rs release that includes calibration-rs#119 (merged 2026-09-27, `b7e470b2`).

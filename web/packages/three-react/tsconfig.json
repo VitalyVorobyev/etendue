@@ -1,0 +1,6 @@
+{
+  "extends": "@vitavision/config-ts/tsconfig.lib.json",
+  // `vite/client` for `import.meta.glob` in src/stories.test.tsx.
+  "compilerOptions": { "types": ["vite/client"] },
+  "include": ["src", "*.config.ts"]
+}

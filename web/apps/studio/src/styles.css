@@ -1,0 +1,14 @@
+@import "tailwindcss";
+@import "@vitavision/ui/styles.css";
+@import "@vitavision/stage2d/styles.css";
+@import "@vitavision/charts/styles.css";
+@import "@vitavision/workbench/styles.css";
+@import "@vitavision/ui-next/styles.css";
+
+@source "./";
+
+html,
+body,
+#root {
+  height: 100%;
+}

@@ -77,10 +77,11 @@ etendue/                                   (cargo workspace + bun workspace)
 │   ├── etendue-cli/         NEW P1    `etendue bake|render|gt|validate`,        → crates.io (binary)
 │   │                                  embeds the Blender script
 │   └── etendue-ui/          FROZEN    removed at parity gate G6.3
-├── web/
-│   └── apps/studio/         NEW P2    Vite app (not published); Tauri only if §8 trigger fires
-│                                      3D packages live in lab-ui: @vitavision/three, @vitavision/three-react
-│                                      (see lab-ui/docs/plan/PLAN.md, L8)
+├── web/                     NEW P2    bun workspace
+│   ├── apps/studio/                   Vite app (not published); Tauri only if §8 trigger fires
+│   └── packages/                      incubating @vitavision/* packages (private), each moved to
+│                                      lab-ui by PR once stable: three, three-react (L8-1),
+│                                      workbench (new), ui-next (additions to @vitavision/ui)
 ├── blender/etendue_blender/ NEW P4    pure-Python render script (bpy only), embedded in etendue-cli
 ├── tools/robot-assets/      NEW P1    uv project: xacro → URDF, meshes → .glb, license manifest
 └── docs/adrs/               NEW P0
@@ -223,17 +224,21 @@ and ask; do not silently relax it.
 ### P2 — Web packages (the reusable components)
 
 - **P2-1 — `@etendue/wasm`.** Uses wasm-bindgen, with TS types taken from the emitted
-  JSON schemas; toolchain per lab-ui ADR-0002 via the calibration-rs `generate-types` pattern. It exposes `validate`,
-  `bake`, `project_points`, `remap_lut`, and the etendue-core analyses. Done when gate
+  JSON schemas; toolchain per lab-ui ADR-0002 via the calibration-rs `generate-types` pattern.
+  *As built:* `new EtendueScene(scene, robots)` validates (as `etendue validate`), then
+  `bake`, `projectPoints`, `backprojectPixels` (camera fields of view for viewers, so no
+  camera math in TS) and `targetExtent`. `remap_lut` moves to P3-1 (it needs
+  `etendue-synth`) and the etendue-core analyses to P6-1. Done when gate
   **G2.1** passes: the release `.wasm` is ≤1.5 MB gzipped (record the actual value).
-- **P2-2 — `@vitavision/three` (built in the lab-ui repo, ticket L8-1).** Contents: conventions (§3), a `FrameTreeRuntime` that
+- **P2-2 — `@vitavision/three` (lab-ui ticket L8-1; incubated in etendue `web/packages/three`,
+  moved to lab-ui by PR).** Contents: conventions (§3), a `FrameTreeRuntime` that
   applies `BakedScenario` to an `Object3D` graph, a robot `.glb` loader bound to link
   frames, `CameraFrustum`, `LaserFan`, `TargetBoard` (mesh built from target
-  primitives), light gizmos, and `SensorView`. `SensorView` renders the canonical
-  pinhole into a render target and remaps it through the LUT in a fragment shader
-  (RG32F texture). Uses only the framework-agnostic three API. Done when unit tests run
-  under vitest with headless GL, or under Playwright where headless GL is not available.
-- **P2-3 — `@vitavision/three-react` (lab-ui repo).** Thin R3F components over P2-2. Per-frame updates go
+  primitives), and light gizmos. Uses only the framework-agnostic three API. Done when unit
+  tests run under vitest with headless GL, or under Playwright where headless GL is not
+  available. **`SensorView` moves to after P3-1**: it renders the canonical pinhole into a
+  render target and remaps it through the LUT (RG32F texture), and the LUT is P3-1's.
+- **P2-3 — `@vitavision/three-react` (incubated with P2-2).** Thin R3F components over P2-2. Per-frame updates go
   through `useFrame` and refs, never React state. Done when gate **G2.2** passes: with
   2 robots, 4 cameras, 1 target, and live scenario playback, p95 frame time is
   ≤16.7 ms over 600 frames in Chromium on an M-series Mac (Playwright perf harness at
@@ -244,6 +249,17 @@ and ask; do not silently relax it.
   `bun link` or tarball.
 - **P2-5 — Studio app.** A Vite app that loads scene, scenario, and baked JSON, plays
   scenarios, shows `SensorView` per camera, and exports `job.json`. It is not published.
+  *v0 (this batch):* examples and dropped files, bake via `@etendue/wasm`, frame tree,
+  3D viewport, inspector, joint chart, and per camera an analytic preview (targets projected
+  by the kernel, on a `@vitavision/stage2d` stage). `SensorView` follows P3-1; `job.json`
+  export follows P4-1.
+- **P2-6 — Shared studio UI (user decision 2026-09-27).** UI the studio needs and lab-ui
+  lacks is built in etendue first, to lab-ui's Definition of Done, then moved by PR:
+  `@vitavision/workbench` (new package: app shell, split panes, tree view, playback bar with
+  an external playhead store, file drop, toasts; amends lab-ui's "app shell out of scope")
+  and additions to `@vitavision/ui` (`NumberInput` unit, `VectorInput`, `PoseInput`),
+  incubated as `@vitavision/ui-next`. Done when the lab-ui PRs are open for review; the
+  swap to published versions follows their release.
 
 ### P3 — Geometric synthesis (Rust + web)
 
@@ -331,7 +347,8 @@ existing roadmap item 2), and collision checking.
 
 - crates.io: `etendue-{scene,kinematics,synth,core,cli}`. `etendue-wasm` publishes only
   to npm.
-- npm: `@etendue/wasm` from this repo; the 3D packages are published from lab-ui under `@vitavision/*`. Use one version train per ecosystem, managed
+- npm: `@etendue/wasm` from this repo; the 3D and workbench packages are published from
+  lab-ui under `@vitavision/*` (they incubate here unpublished, `private: true`). Use one version train per ecosystem, managed
   with changesets (npm) and the existing release workflow (Rust).
 - Publish no earlier than: `etendue-scene` after G1.1–G1.2, web packages after G2.2 and
   P2-4, and `etendue-synth` after G4.1–G4.3.
