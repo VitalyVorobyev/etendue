@@ -5,7 +5,7 @@
   difference is **≤ 0.05 px**.
 - Result: **PASS for all three chess-corners refiners.** Web vs Blender, per corner, at s = 4:
   center of mass **0.018 px**, Förstner 0.040 px, saddle point 0.043 px RMS.
-- Measured: 2026-09-27, on etendue commit `COMMIT` (branch `pivot/p4-cross-backend`),
+- Measured: 2026-09-27, on etendue commit `4c2d350` (branch `pivot/p4-cross-backend`),
   calibration-rs `v0.8.2`, chess-corners 1.2.0 (Rust crate in Blender's pipeline, its wasm
   build `@vitavision/chess-corners` 1.2.0 in the browser), Blender 5.1.1 (Cycles, Metal,
   Apple M4 Pro), Chromium 153 (SwiftShader WebGL).
