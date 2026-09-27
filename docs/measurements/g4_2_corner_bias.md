@@ -10,8 +10,8 @@
     the Blender renders, and it matches chess-corners' own synthetic benchmark
     (`chess-rs/docs/reference/refiner-comparison.md`: mean 0.06–0.11 px on clean corners).
   - No configuration reaches 0.02 px.
-- Measured: 2026-09-27, on etendue commit `COMMIT` (branch `pivot/p4-corners`),
-  calibration-rs `6e1bd222`, chess-corners 1.2.0, Blender 5.1.1 (Cycles, Metal, Apple M4 Pro).
+- Measured: 2026-09-27, on etendue commit `9061863` (branch `pivot/p4-corners`),
+  calibration-rs `b7e470b2`, chess-corners 1.2.0, Blender 5.1.1 (Cycles, Metal, Apple M4 Pro).
 
 ## Procedure
 
