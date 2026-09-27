@@ -6,7 +6,7 @@
   **≤ 0.01 px** of the analytic projection of its centre, on both backends.
 - Result: **PASS on both backends, under both conventions.** Worst 0.0030 px in Blender and
   0.0049 px on the web; mean bias ≤ 0.0005 px.
-- Measured: 2026-09-27, on etendue commit `COMMIT` (branch `pivot/p4-blender`), calibration-rs
+- Measured: 2026-09-27, on etendue commit `d3b7f0f` (branch `pivot/p4-blender`), calibration-rs
   `b7e470b2`, Blender 5.1.1 (Cycles, Metal, Apple M4 Pro), Chromium 153 (SwiftShader WebGL).
 
 ## Procedure
