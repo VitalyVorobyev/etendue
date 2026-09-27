@@ -1193,7 +1193,6 @@ dependencies = [
  "etendue-kinematics",
  "etendue-scene",
  "etendue-synth",
- "getrandom 0.4.2",
  "js-sys",
  "nalgebra",
  "serde",
@@ -1453,13 +1452,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0de51e6874e94e7bf76d726fc5d13ba782deca734ff60d5bb2fb2607c7406555"
 dependencies = [
  "cfg-if",
- "js-sys",
  "libc",
  "r-efi 6.0.0",
  "rand_core 0.10.1",
  "wasip2",
  "wasip3",
- "wasm-bindgen",
 ]
 
 [[package]]
@@ -4036,7 +4033,7 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
 name = "vision-calibration-core"
-version = "0.8.1"
+version = "0.8.2"
 dependencies = [
  "nalgebra",
  "rand 0.10.1",
@@ -4047,7 +4044,7 @@ dependencies = [
 
 [[package]]
 name = "vision-calibration-dataset"
-version = "0.8.1"
+version = "0.8.2"
 dependencies = [
  "schemars",
  "serde",

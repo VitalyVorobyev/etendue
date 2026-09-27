@@ -275,10 +275,11 @@ and ask; do not silently relax it.
   (including Scheimpflug with tilts up to 6°), the round-trip `project(unproject(u))` is
   within ≤1e-6 px. Report the `undistort` iterations needed at the image corners, and
   file an upstream issue if 8 iterations are insufficient.
-  *Status (2026-09-27):* built, with `remap` in `@etendue/wasm` and `SensorView` in
-  `@vitavision/three`. G3.1 is **open upstream**: 4 of 10 gate cameras need 14–28 undistort
-  iterations at the corners (calibration-rs#120); the remap is exact with converged
-  undistortion (`docs/measurements/g3_1_remap.md`).
+  *Status (2026-09-27):* done. `remap` is in `@etendue/wasm` and `SensorView` in
+  `@vitavision/three`. **G3.1 passes** on all 10 gate cameras (worst 8.2e-13 px) since
+  calibration-rs 0.8.2 moved undistortion to Newton's method (calibration-rs#120/#122). Under
+  0.8.1, 4 cameras needed 14–28 fixed-point iterations at the corners
+  (`docs/measurements/g3_1_remap.md`).
 - **P3-2 — Analytic GT and DatasetSpec emission** (ADR-0006). Done when
   `vision-calibration-dataset` `validate()` accepts every emitted manifest.
   *Status (2026-09-27):* `etendue-synth::{gt, dataset}` built — per-point projection with the

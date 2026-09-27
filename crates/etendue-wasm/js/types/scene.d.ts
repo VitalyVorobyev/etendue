@@ -87,7 +87,7 @@ export interface CameraParams {
       }
     | {
         /**
-         * Iterations for undistortion.
+         * Maximum Newton iterations of [`DistortionModel::undistort`] (0 → 20).
          */
         iters: number;
         /**
@@ -114,7 +114,7 @@ export interface CameraParams {
       }
     | {
         /**
-         * Iterations for undistortion (0 → 10).
+         * Maximum Newton iterations of [`DistortionModel::undistort`] (0 → 20).
          */
         iters: number;
         /**
@@ -153,7 +153,7 @@ export interface CameraParams {
       }
     | {
         /**
-         * Iterations for undistortion (0 → 10).
+         * Maximum Newton iterations of [`DistortionModel::undistort`] (0 → 20).
          */
         iters: number;
         /**
