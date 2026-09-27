@@ -1,5 +1,5 @@
 import { observeSceneColors, readSceneColors, type SceneColors } from "@vitavision/three";
-import { createContext, createElement, type ReactNode, use, useMemo, useSyncExternalStore } from "react";
+import { createContext, createElement, type JSX, type ReactNode, use, useMemo, useSyncExternalStore } from "react";
 
 let cached: SceneColors | undefined;
 const listeners = new Set<() => void>();
@@ -26,8 +26,11 @@ function snapshot(): SceneColors {
   return cached;
 }
 
-/** Neutral colours for server rendering, where there is no document to read tokens from. */
-const SERVER: SceneColors = {
+/*
+ * On the server there is no document to read tokens from: every colour is `gray`, as for a
+ * token no stylesheet defines. Hydration starts from the same value, then reads the real ones.
+ */
+const SERVER_COLORS: SceneColors = Object.freeze({
   background: "gray",
   canvas: "gray",
   surface: "gray",
@@ -39,33 +42,35 @@ const SERVER: SceneColors = {
   normal: "gray",
   defect: "gray",
   warn: "gray",
-};
-
-function serverSnapshot(): SceneColors {
-  return typeof document === "undefined" ? SERVER : snapshot();
-}
+});
+const serverSnapshot = (): SceneColors => SERVER_COLORS;
 
 const OverrideContext = createContext<Partial<SceneColors> | null>(null);
 
 /** Props of {@link SceneColorsProvider}. */
 export interface SceneColorsProviderProps {
   /**
-   * Colours to use instead of the `@vitavision/ui` tokens — for an app whose palette does not
+   * Colours to use instead of the `@vitavision/ui` tokens, for an app whose palette does not
    * define them. Any CSS colour three.js parses; keys left out still follow the tokens.
    */
   colors: Partial<SceneColors>;
+  /** The subtree that sees the overrides. */
   children?: ReactNode;
 }
 
-/** Override scene colours for everything inside (see {@link useSceneColors}). */
-export function SceneColorsProvider({ colors, children }: SceneColorsProviderProps) {
+/**
+ * Override scene colours for everything inside (see {@link useSceneColors}). Overrides apply
+ * on the server too, so an app palette renders the same before and after hydration.
+ */
+export function SceneColorsProvider({ colors, children }: SceneColorsProviderProps): JSX.Element {
   return createElement(OverrideContext, { value: colors }, children);
 }
 
 /**
- * The scene colours ({@link SceneColors}): the vitavision tokens, re-read whenever the theme
- * class on the document element changes (one observer shared by every caller), with any
- * {@link SceneColorsProvider} overrides applied.
+ * The scene colours (`SceneColors` from `@vitavision/three`): the vitavision tokens, re-read
+ * whenever the theme class on the document element changes (one observer shared by every
+ * caller), with any {@link SceneColorsProvider} overrides applied. Server-safe: a server
+ * render gets neutral `gray` for every colour a provider does not override.
  */
 export function useSceneColors(): SceneColors {
   const tokens = useSyncExternalStore(subscribe, snapshot, serverSnapshot);

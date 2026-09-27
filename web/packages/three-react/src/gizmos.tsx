@@ -46,14 +46,31 @@ export interface CameraFrustumProps {
   depth: number;
   /** Emphasised (selected); drawn in the accent colour. */
   active?: boolean;
+  /**
+   * How much larger than the drawn frustum its pick hull is, with a pickable sphere of
+   * `pickPadding − 1` × `depth` at the optical centre (`CameraFrustumOptions.pickPadding` in
+   * `@vitavision/three`). Default 1.2.
+   */
+  pickPadding?: number;
   /** Makes it pickable. */
   onSelect?: (() => void) | undefined;
 }
 
 /** A camera's field of view, in the camera frame (place it with `AtFrame`). */
-export function CameraFrustum({ borderRays, depth, active = false, onSelect }: CameraFrustumProps) {
+export function CameraFrustum({ borderRays, depth, active = false, pickPadding, onSelect }: CameraFrustumProps) {
   const colors = useSceneColors();
-  const object = useDisposed(useMemo(() => new CameraFrustumObject({ borderRays, depth, color: UNSET }), [borderRays, depth]));
+  const object = useDisposed(
+    useMemo(
+      () =>
+        new CameraFrustumObject({
+          borderRays,
+          depth,
+          color: UNSET,
+          ...(pickPadding !== undefined ? { pickPadding } : {}),
+        }),
+      [borderRays, depth, pickPadding],
+    ),
+  );
   useEffect(() => {
     object.setActive(active);
     object.setColor(active ? colors.signal : colors.muted);

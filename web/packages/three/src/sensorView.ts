@@ -6,8 +6,6 @@
  * `@etendue/wasm` `remap`).
  */
 
-import type {
-  Matrix4} from "three";
 import {
   type ColorRepresentation,
   DataTexture,
@@ -25,6 +23,7 @@ import {
   Color,
   type WebGLRenderer,
   WebGLRenderTarget,
+  type Matrix4,
   type Object3D,
 } from "three";
 
@@ -58,7 +57,9 @@ export interface RemapTable {
 
 /** Options of {@link SensorView}. */
 export interface SensorViewOptions {
+  /** The canonical pinhole the scene is rendered with before the remap. */
   canonical: CanonicalPinhole;
+  /** The remap LUT from target pixels to canonical coordinates; it sets the output size. */
   lut: RemapTable;
   /** Near and far clip distances in metres. Default `[0.01, 50]`. */
   clip?: readonly [number, number];

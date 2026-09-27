@@ -25,7 +25,7 @@ export interface SensorImageProps {
 
 /**
  * A calibrated camera's image of the scene in the enclosing `FrameTree`: a
- * {@link SensorView} on a canvas of its own, rendered from the same objects (physical layer
+ * `SensorView` (`@vitavision/three`) on a canvas of its own, rendered from the same objects (physical layer
  * only) at the playhead. Redraws when the playhead moves, and a few times a second otherwise
  * so late-loading meshes and theme changes appear.
  */

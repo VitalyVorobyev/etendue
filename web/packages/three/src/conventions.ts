@@ -16,13 +16,17 @@ import { Euler, Matrix4, Quaternion, Vector3 } from "three";
 
 /** An SE(3) as it is read from JSON: `rotation` is `[qx, qy, qz, qw]`, `translation` `[tx, ty, tz]`. */
 export interface Iso3Wire {
+  /** The unit quaternion `[qx, qy, qz, qw]`, scalar last. */
   readonly rotation: ArrayLike<number>;
+  /** The translation `[tx, ty, tz]`, in metres. */
   readonly translation: ArrayLike<number>;
 }
 
 /** An SE(3) in wire order, as this package returns it. */
 export interface Iso3 {
+  /** The unit quaternion `[qx, qy, qz, qw]`, scalar last. */
   rotation: [number, number, number, number];
+  /** The translation `[tx, ty, tz]`, in metres. */
   translation: [number, number, number];
 }
 

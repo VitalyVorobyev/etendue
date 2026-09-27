@@ -23,7 +23,7 @@ export interface FrameTreeProps {
 }
 
 /**
- * Mounts a {@link FrameTreeRuntime} for `baked` and poses it at `playhead.get()` on every
+ * Mounts a `FrameTreeRuntime` (`@vitavision/three`) for `baked` and poses it at `playhead.get()` on every
  * rendered frame (`useFrame`), so playback never re-renders React.
  */
 export function FrameTree({ baked, playhead, onRuntime, children }: FrameTreeProps) {

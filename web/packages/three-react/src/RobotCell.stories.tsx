@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { type FrameTreeRuntime, type MeshLoader, type RemapTable, imageBorderPixels } from "@vitavision/three";
 import { useMemo, useState } from "react";
 import { expect, waitFor } from "storybook/test";
-import { BoxGeometry, Mesh, MeshBasicMaterial } from "three";
+import { BoxGeometry, Mesh, MeshBasicMaterial, type SphereGeometry } from "three";
 
 import { AtFrame, FrameTree, type PlayheadSource } from "./FrameTree";
 import { CameraFrustum, FrameAxes, LaserFan, LightGizmo, TargetBoard } from "./gizmos";
@@ -101,7 +101,7 @@ function Cell({ sample }: CellProps) {
           />
           <AtFrame name="cam">
             <FrameAxes />
-            <CameraFrustum borderRays={rays} depth={0.15} active onSelect={() => undefined} />
+            <CameraFrustum borderRays={rays} depth={0.15} active pickPadding={1.3} onSelect={() => undefined} />
           </AtFrame>
           <AtFrame name="board">
             <TargetBoard width={0.25} height={0.175} checker={{ cols: 10, rows: 7 }} onSelect={() => undefined} />
@@ -152,6 +152,9 @@ export const Default: Story = {
     const image = canvasElement.querySelector<HTMLCanvasElement>('canvas[aria-label="cam image"]');
     await expect(image?.width).toBe(160);
     await expect(image?.height).toBe(128);
+    // pickPadding 1.3: the pickable sphere at the optical centre is 0.3 × depth.
+    const apex = runtime.frame("cam")!.getObjectByName("hitbox-apex") as Mesh<SphereGeometry>;
+    await expect(apex.geometry.parameters.radius).toBeCloseTo(0.3 * 0.15, 9);
   },
 };
 

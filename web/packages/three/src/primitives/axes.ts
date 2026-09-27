@@ -11,8 +11,11 @@ import { GIZMO_LAYER } from "../layers";
 
 /** Colours of the three axes. */
 export interface AxesColors {
+  /** The X axis (vitavision: `defect`). */
   x: ColorRepresentation;
+  /** The Y axis (vitavision: `normal`). */
   y: ColorRepresentation;
+  /** The Z axis (vitavision: `signal`). */
   z: ColorRepresentation;
 }
 

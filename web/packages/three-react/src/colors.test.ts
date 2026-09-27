@@ -1,7 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
-
 import { createElement, type ReactNode } from "react";
+import { renderToString } from "react-dom/server";
+import { afterEach, describe, expect, it } from "vitest";
 
 import { SceneColorsProvider, useSceneColors } from "./colors";
 
@@ -28,6 +28,17 @@ describe("useSceneColors", () => {
     // With no subscriber left the cache is dropped: a new reader sees current values.
     document.documentElement.style.setProperty("--signal", "navy");
     expect(renderHook(() => useSceneColors()).result.current.signal).toBe("navy");
+  });
+
+  it("renders on the server with neutral colours, reading no tokens", () => {
+    document.documentElement.style.setProperty("--signal", "teal");
+    function Probe() {
+      return createElement("span", null, useSceneColors().signal);
+    }
+    expect(renderToString(createElement(Probe))).toBe("<span>gray</span>");
+    // Provider overrides apply on the server too.
+    const withProvider = createElement(SceneColorsProvider, { colors: { signal: "orange" } }, createElement(Probe));
+    expect(renderToString(withProvider)).toBe("<span>orange</span>");
   });
 
   it("applies provider overrides over the tokens", () => {
