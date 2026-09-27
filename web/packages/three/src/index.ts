@@ -53,4 +53,4 @@ export {
   gltfMeshLoader,
   loadRobotVisuals,
 } from "./robot";
-export { type SceneColors, observeSceneColors, readSceneColors } from "./theme";
+export { type SceneColors, normalizeColor, observeSceneColors, readSceneColors } from "./theme";

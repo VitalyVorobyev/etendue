@@ -1,7 +1,9 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { useSceneColors } from "./colors";
+import { createElement, type ReactNode } from "react";
+
+import { SceneColorsProvider, useSceneColors } from "./colors";
 
 afterEach(() => {
   document.documentElement.className = "";
@@ -26,5 +28,14 @@ describe("useSceneColors", () => {
     // With no subscriber left the cache is dropped: a new reader sees current values.
     document.documentElement.style.setProperty("--signal", "navy");
     expect(renderHook(() => useSceneColors()).result.current.signal).toBe("navy");
+  });
+
+  it("applies provider overrides over the tokens", () => {
+    document.documentElement.style.setProperty("--signal", "teal");
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(SceneColorsProvider, { colors: { signal: "orange" } }, children);
+    const { result } = renderHook(() => useSceneColors(), { wrapper });
+    expect(result.current.signal).toBe("orange");
+    expect(result.current.fg).toBe(renderHook(() => useSceneColors()).result.current.fg);
   });
 });

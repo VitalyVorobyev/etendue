@@ -248,6 +248,10 @@ and ask; do not silently relax it.
   onto `@vitavision/three-react` as a **branch in calibration-rs** (user review). Done when
   calibration-diagnose e2e tests pass unchanged with the packages consumed from a local
   `bun link` or tarball.
+  *Status (2026-09-27):* done as calibration-rs draft PR #121 (packages from lab-ui#39
+  tarballs; app e2e 7/7 unchanged). Its API findings — colour overrides, colour
+  normalisation, non-pickable outlines, emphasis on boards and fans, a padded frustum pick
+  hull, a configurable `SceneCanvas` — are fixed in the incubated packages.
 - **P2-5 — Studio app.** A Vite app that loads scene, scenario, and baked JSON, plays
   scenarios, shows `SensorView` per camera, and exports `job.json`. It is not published.
   *v0 (this batch):* examples and dropped files, bake via `@etendue/wasm`, frame tree,

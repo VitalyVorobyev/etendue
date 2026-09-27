@@ -83,7 +83,12 @@ export function Viewport({
         ))}
         {(scene.lasers ?? []).map((l) => (
           <AtFrame key={l.id} name={l.id}>
-            <LaserFan halfAngle={l.fan_half_angle} length={l.fan_length} onSelect={() => onSelect(l.id)} />
+            <LaserFan
+              halfAngle={l.fan_half_angle}
+              length={l.fan_length}
+              active={selected === l.id}
+              onSelect={() => onSelect(l.id)}
+            />
           </AtFrame>
         ))}
         {(scene.lights ?? []).map((l) => (

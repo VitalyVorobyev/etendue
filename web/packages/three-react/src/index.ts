@@ -6,7 +6,7 @@
  * @packageDocumentation
  */
 
-export { useSceneColors } from "./colors";
+export { SceneColorsProvider, type SceneColorsProviderProps, useSceneColors } from "./colors";
 export {
   AtFrame,
   type AtFrameProps,

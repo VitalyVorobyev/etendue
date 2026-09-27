@@ -7,6 +7,7 @@ import { BoxGeometry, Mesh, MeshBasicMaterial } from "three";
 import { AtFrame, FrameTree, type PlayheadSource } from "./FrameTree";
 import { CameraFrustum, FrameAxes, LaserFan, LightGizmo, TargetBoard } from "./gizmos";
 import { Robot } from "./Robot";
+import { SceneColorsProvider } from "./colors";
 import { SceneCanvas } from "./SceneCanvas";
 import { SensorImage } from "./SensorImage";
 
@@ -163,5 +164,25 @@ export const Playhead: Story = {
     const pose = runtime.pose("cam")!;
     // Half an orbit: the camera is on the −X side.
     await expect(pose.translation[0]).toBeCloseTo(-0.4, 6);
+  },
+};
+
+/**
+ * A camera-frame (CV, +Y down) scene with an app palette instead of the tokens: `SceneCanvas`
+ * with `up = −Y`, a `SceneColorsProvider`, and an emphasised laser fan and board.
+ */
+export const CameraFrame: StoryObj = {
+  render: () => (
+    <SceneColorsProvider colors={{ signal: "orange", defect: "crimson", surface: "white", fg: "black" }}>
+      <SceneCanvas className="h-96 w-full" eye={[0.4, -0.6, -0.6]} target={[0, 0, 0.5]} up={[0, -1, 0]} fov={40} clip={[0.001, 10]} label="Camera frame">
+        <group position={[0, 0, 0.5]}>
+          <TargetBoard width={0.25} height={0.175} checker={{ cols: 10, rows: 7 }} active />
+        </group>
+        <LaserFan halfAngle={0.4} length={0.6} active />
+      </SceneCanvas>
+    </SceneColorsProvider>
+  ),
+  play: async ({ canvasElement }) => {
+    await waitFor(() => expect(canvasElement.querySelector("canvas")).not.toBeNull());
   },
 };

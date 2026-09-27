@@ -67,15 +67,20 @@ export interface LaserFanProps {
   halfAngle: number;
   /** Reach in metres. */
   length: number;
+  /** Emphasised (selected). */
+  active?: boolean;
   /** Makes it pickable. */
   onSelect?: (() => void) | undefined;
 }
 
 /** A line laser's light sheet, in the laser frame. Drawn in the `defect` (red) token. */
-export function LaserFan({ halfAngle, length, onSelect }: LaserFanProps) {
+export function LaserFan({ halfAngle, length, active = false, onSelect }: LaserFanProps) {
   const colors = useSceneColors();
   const object = useDisposed(useMemo(() => new LaserFanObject({ halfAngle, length, color: UNSET }), [halfAngle, length]));
-  useEffect(() => object.setColor(colors.defect), [object, colors.defect]);
+  useEffect(() => {
+    object.setColor(colors.defect);
+    object.setActive(active);
+  }, [object, active, colors.defect]);
   return <primitive object={object} {...pick(onSelect)} />;
 }
 
@@ -111,7 +116,10 @@ export function TargetBoard({ width, height, checker, active = false, onSelect }
       [width, height, cols, rows],
     ),
   );
-  useEffect(() => object.setColors(colors.surface, active ? colors.signal : colors.fg), [object, active, colors]);
+  useEffect(() => {
+    object.setColors(colors.surface, active ? colors.signal : colors.fg);
+    object.setActive(active);
+  }, [object, active, colors]);
   return <primitive object={object} {...pick(onSelect)} />;
 }
 
