@@ -86,6 +86,24 @@ describe("SensorView", () => {
     target.dispose();
   });
 
+  it("box-filters the footprint when asked", () => {
+    // A 2× canonical view of the same world through a LUT scaled by 2: with 2 × 2 taps the
+    // output still shows each half in its colour, averaged over the pixel.
+    const view = new SensorView({
+      canonical: { width: 2 * W, height: 2 * H, focalPx: 80 },
+      lut: lut((i, j) => [2 * i + 0.5, 2 * j + 0.5]),
+      samples: 0,
+      taps: 2,
+    });
+    const target = new WebGLRenderTarget(W, H);
+    view.render(renderer, world(), new Matrix4(), target);
+    const px = new Uint8Array(4);
+    renderer.readRenderTargetPixels(target, 56, 24, 1, 1, px);
+    expect([px[0], px[1], px[2]]).toEqual([0, 255, 0]);
+    view.dispose();
+    target.dispose();
+  });
+
   it("rejects a LUT of the wrong size", () => {
     expect(
       () =>

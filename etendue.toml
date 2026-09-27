@@ -1,0 +1,7 @@
+# Tool pins for etendue (docs/pivot/PLAN.md D3, ADR 0005).
+
+[blender]
+# The Blender the photometric backend is validated with. `etendue render` checks
+# `blender --version` against it and refuses another version unless
+# `--allow-blender-version` is given.
+version = "5.1.1"

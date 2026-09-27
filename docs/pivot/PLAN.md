@@ -82,7 +82,9 @@ etendue/                                   (cargo workspace + bun workspace)
 │   └── packages/                      incubating @vitavision/* packages (private), each moved to
 │                                      lab-ui by PR once stable: three, three-react (L8-1),
 │                                      workbench (new), ui-next (additions to @vitavision/ui)
-├── blender/etendue_blender/ NEW P4    pure-Python render script (bpy only), embedded in etendue-cli
+├── crates/etendue-cli/blender/etendue_blender/
+│                            NEW P4    pure-Python render script (bpy only), embedded in etendue-cli
+│                                      (inside the crate so `cargo package` includes it)
 ├── tools/robot-assets/      NEW P1    uv project: xacro → URDF, meshes → .glb, license manifest
 └── docs/adrs/               NEW P0
 ```
@@ -295,10 +297,20 @@ and ask; do not silently relax it.
   the Metal GPU, fixed seed, Filmic/AgX **off** (Standard view transform, linear EXR).
   Done when the example scenario renders end to end and the CLI checks the Blender
   version.
+  *Status (2026-09-27):* done. `etendue render` (job.json, embedded script, EXR → LUT →
+  PNG); the eye-in-hand example renders 10 captures × 1 camera in 76 s at 16 samples on an
+  M4 Pro (Metal). Blender 5.1.1 pinned in `etendue.toml`. Findings: Blender 5 selects
+  multilayer EXR through `media_type`; the glTF importer's Y-up rotation is undone in
+  `convert.py`; EXR rows are top-first (`tests/blender_exr.rs`). Boards use the viewers'
+  checker layout until P3-3 settles the target source.
 - **P4-2 — Convention probe.** Render small emissive spheres at known 3D points, once
   in Blender and once in the web `SensorView` (readPixels). Compare the intensity-weighted
   centroid with the analytic projection. Done when gate **G4.1** passes: ≤0.01 px on
   both backends. The pixel-centre convention is then written into ADR-0004.
+  *Status (2026-09-27):* **G4.1 passes on both backends** (worst 0.0030 px Blender,
+  0.0049 px web, mean ≤ 0.0005 px, both conventions). No backend has a half-pixel offset;
+  the convention is a labelling choice (default `Integer`, confirmed against the detector in
+  P4-3). Resampling now box-filters the pixel footprint (`docs/measurements/g4_1_convention.md`).
 - **P4-3 — Corner bias study.** On noise-free renders, compare chess-corners output with
   the analytic GT. Sweep supersampling s ∈ {1, 2, 4, 8} and board as mesh vs texture.
   Done when gate **G4.2** passes: RMS ≤0.02 px at the chosen default, with the curve
@@ -309,9 +321,15 @@ and ask; do not silently relax it.
 - **P4-5 — Determinism.** Render the same job twice. Report the maximum absolute
   difference for Metal and for CPU. Done when GT-critical renders use whichever device
   is deterministic, or the variance is documented with its bound.
+  *Status (2026-09-27):* CPU bit-exact; Metal within 2.4e-7 radiance run to run; GPU vs CPU
+  up to 2.2e-2 per pixel. GPU stays the default with the bound documented, `--cpu` for
+  bit-exact renders, never both in one dataset (`docs/measurements/p4_5_determinism.md`).
 - **P4-6 — Sensor model** in `etendue-synth::sensor`: exposure, gain, shot/read/PRNU
   noise, and quantization, all with explicit seeds. Done when the photon-transfer
   curve (variance vs mean) reproduces the configured gain within ≤2%.
+  *Status (2026-09-27):* done. `etendue-synth::sensor` (PRNU, shot, dark and read noise, full
+  well, gain, black level, quantisation, ChaCha8 seeds); PTC recovers K within 0.43 %;
+  `etendue render --sensor` writes raw mono PNGs (`docs/measurements/p4_6_sensor.md`).
 
 ### P5 — Closed loop and laser
 
