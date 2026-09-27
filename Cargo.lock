@@ -1092,11 +1092,14 @@ dependencies = [
 name = "etendue-synth"
 version = "0.1.0"
 dependencies = [
+ "etendue-kinematics",
+ "etendue-scene",
  "nalgebra",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
  "vision-calibration-core",
+ "vision-calibration-dataset",
 ]
 
 [[package]]

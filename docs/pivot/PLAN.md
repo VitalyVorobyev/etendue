@@ -275,6 +275,11 @@ and ask; do not silently relax it.
   undistortion (`docs/measurements/g3_1_remap.md`).
 - **P3-2 — Analytic GT and DatasetSpec emission** (ADR-0006). Done when
   `vision-calibration-dataset` `validate()` accepts every emitted manifest.
+  *Status (2026-09-27):* `etendue-synth::{gt, dataset}` built — per-point projection with the
+  three geometric visibility tests, topology and hand-eye from the frame tree, `dataset.json` /
+  `robot_poses.json` / `gt.json`. Both examples validate (`tests/dataset.rs`). Board points are
+  an input until P3-3 settles their source; the CLI command (`etendue gt`) lands with it.
+  `device.json` (nominal `DeviceSpec`) needs sensor pixel pitch in the scene and follows in P5.
 - **P3-3 — Target geometry source.** Build target meshes from `calib-targets-print`
   primitives. If they are not public API, prepare an upstream PR draft for
   calib-targets-rs; the fallback is the SVG texture at ≥8 texels per projected pixel.
