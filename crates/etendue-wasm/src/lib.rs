@@ -23,6 +23,7 @@ use etendue_kinematics::{RobotModel, bake};
 use etendue_scene::{
     BakedScenario, FrameGraph, Issue, RobotManifest, ScenarioSpec, SceneSpec, ValidationError,
 };
+use etendue_synth::{CanonicalCamera, CanonicalSpec, PixelCentre, RemapLut, remap_lut};
 use nalgebra::{Isometry3, Point2, Point3, Quaternion, Translation3, UnitQuaternion};
 use serde::Deserialize;
 use vision_calibration_core::CameraModel;
@@ -293,6 +294,28 @@ impl Session {
             .ok_or_else(|| Error::Input(format!("no target `{target_id}`")))
     }
 
+    /// The canonical render camera of camera `camera_id` and its remap LUT
+    /// (etendue-synth, ADR 0004): render the canonical pinhole, then sample it
+    /// at `lut[target pixel]` to get the target camera's image.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Input`] for an unknown camera or an invalid `spec`.
+    pub fn remap(
+        &self,
+        camera_id: &str,
+        spec: &CanonicalSpec,
+        pixel_centre: PixelCentre,
+    ) -> Result<(CanonicalCamera, RemapLut)> {
+        let camera = &self.scene.cameras[self.camera_index(camera_id)?];
+        let synth = |e: etendue_synth::Error| Error::Input(format!("camera `{camera_id}`: {e}"));
+        let canonical =
+            CanonicalCamera::cover(&camera.params, camera.resolution, spec, pixel_centre)
+                .map_err(synth)?;
+        let lut = remap_lut(&camera.params, camera.resolution, &canonical).map_err(synth)?;
+        Ok((canonical, lut))
+    }
+
     fn camera_index(&self, camera_id: &str) -> Result<usize> {
         self.scene
             .cameras
@@ -416,6 +439,46 @@ impl EtendueScene {
             .map_err(|e| js_error(&e))
     }
 
+    /// Canonical camera and remap LUT of a camera. `spec_json` is an
+    /// etendue-synth `CanonicalSpec` (`{supersample, margin, scan_step_px}`)
+    /// and `pixel_centre` is `"integer"` or `"half"`. Returns
+    /// `{canonical: string (CanonicalCamera JSON), lut: Float32Array}`. See
+    /// [`Session::remap`].
+    ///
+    /// # Errors
+    ///
+    /// Throws an `Error` with `kind` `parse` or `input`.
+    pub fn remap(
+        &self,
+        camera_id: &str,
+        spec_json: &str,
+        pixel_centre: &str,
+    ) -> std::result::Result<JsValue, JsValue> {
+        let spec: CanonicalSpec = parse("remap spec", spec_json).map_err(|e| js_error(&e))?;
+        let centre: PixelCentre = serde_json::from_value(serde_json::Value::String(
+            pixel_centre.into(),
+        ))
+        .map_err(|_| {
+            js_error(&Error::Input(format!(
+                "pixel centre must be \"integer\" or \"half\", got {pixel_centre:?}"
+            )))
+        })?;
+        let (canonical, lut) = self
+            .inner
+            .remap(camera_id, &spec, centre)
+            .map_err(|e| js_error(&e))?;
+        let out = js_sys::Object::new();
+        let canonical = serde_json::to_string(&canonical)
+            .map_err(|e| js_error(&Error::Input(e.to_string())))?;
+        let _ = js_sys::Reflect::set(&out, &"canonical".into(), &canonical.into());
+        let _ = js_sys::Reflect::set(
+            &out,
+            &"lut".into(),
+            &js_sys::Float32Array::from(lut.data.as_slice()).into(),
+        );
+        Ok(out.into())
+    }
+
     /// Target extent `[x, y]` in metres, or `undefined`. See
     /// [`Session::target_extent`].
     ///
@@ -528,6 +591,21 @@ mod tests {
             Some([10.0 * 0.025, 7.0 * 0.025])
         );
         assert!(matches!(s.target_extent("nope"), Err(Error::Input(_))));
+    }
+
+    #[test]
+    fn remap_covers_the_camera() {
+        let s = session();
+        let (canonical, lut) = s
+            .remap("cam_left", &CanonicalSpec::default(), PixelCentre::Integer)
+            .unwrap();
+        assert_eq!((lut.width, lut.height), (1280, 1024));
+        assert!(canonical.resolution[0] >= 1280 && canonical.resolution[1] >= 1024);
+        assert!(lut.data.iter().all(|v| v.is_finite()));
+        assert!(matches!(
+            s.remap("nope", &CanonicalSpec::default(), PixelCentre::Integer),
+            Err(Error::Input(_))
+        ));
     }
 
     #[test]

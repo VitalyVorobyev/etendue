@@ -8,6 +8,8 @@
 export interface SceneColors {
   /** Viewport background: the page ground (`--ground`). */
   background: string;
+  /** Image canvases: the dark field behind pixels (`--canvas`). */
+  canvas: string;
   /** Raised surfaces: targets, board fills (`--surface`). */
   surface: string;
   /** Primary foreground: labels, axes of the world frame (`--fg`). */
@@ -30,6 +32,7 @@ export interface SceneColors {
 
 const TOKENS: Record<keyof SceneColors, string> = {
   background: "--ground",
+  canvas: "--canvas",
   surface: "--surface",
   fg: "--fg",
   muted: "--fg-muted",

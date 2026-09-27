@@ -17,6 +17,7 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 etendue-kinematics = { workspace = true }
 etendue-scene = { workspace = true }
+etendue-synth = { workspace = true }
 js-sys = { workspace = true }
 nalgebra = { workspace = true }
 serde = { workspace = true }

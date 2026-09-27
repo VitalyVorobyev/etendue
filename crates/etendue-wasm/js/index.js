@@ -30,6 +30,12 @@ export class EtendueScene {
     return this.#raw.backprojectPixels(cameraId, uv instanceof Float64Array ? uv : Float64Array.from(uv));
   }
 
+  remap(cameraId, spec = {}, pixelCentre) {
+    const full = { supersample: 1, margin: 0.02, scan_step_px: 8, ...spec };
+    const out = this.#raw.remap(cameraId, JSON.stringify(full), pixelCentre);
+    return { canonical: JSON.parse(out.canonical), lut: out.lut };
+  }
+
   targetExtent(targetId) {
     const extent = this.#raw.targetExtent(targetId);
     return extent === undefined ? undefined : [extent[0], extent[1]];

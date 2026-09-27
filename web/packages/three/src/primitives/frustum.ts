@@ -11,6 +11,8 @@ import {
   type Object3D,
 } from "three";
 
+import { GIZMO_LAYER, setLayer } from "../layers";
+
 /** Opts a visual-only object out of raycasting, so picks land on the hitbox. */
 const NO_RAYCAST: Object3D["raycast"] = () => undefined;
 
@@ -125,6 +127,7 @@ export class CameraFrustum extends Group {
     );
     this.hitbox.name = "hitbox";
     this.add(lines, farFace, this.hitbox);
+    setLayer(this, GIZMO_LAYER);
     this.setActive(false);
   }
 

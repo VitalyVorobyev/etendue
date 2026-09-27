@@ -1,6 +1,7 @@
 import { Color, type LineBasicMaterial, type Mesh, type MeshBasicMaterial, Raycaster, Vector3 } from "three";
 import { describe, expect, it } from "vitest";
 
+import { GIZMO_LAYER } from "../layers";
 import { Axes } from "./axes";
 import { CameraFrustum, imageBorderPixels } from "./frustum";
 import { LaserFan } from "./laserFan";
@@ -35,6 +36,9 @@ describe("CameraFrustum", () => {
     expect(pts.length).toBe((4 + 8) * 6);
     expect(pts.slice(3, 6)).toEqual([-2, -2, 2]);
     const ray = new Raycaster(new Vector3(0, 0, -1), new Vector3(0, 0, 1));
+    // Gizmos live on GIZMO_LAYER: a default raycaster (layer 0) does not see them.
+    expect(ray.intersectObject(f, true)).toHaveLength(0);
+    ray.layers.enable(GIZMO_LAYER);
     const hits = ray.intersectObject(f, true);
     expect(hits.length).toBeGreaterThan(0);
     expect(hits.every((h) => h.object === f.hitbox)).toBe(true);

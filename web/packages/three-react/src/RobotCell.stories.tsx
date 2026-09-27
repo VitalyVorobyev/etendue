@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { type FrameTreeRuntime, type MeshLoader, imageBorderPixels } from "@vitavision/three";
-import { useMemo } from "react";
+import { type FrameTreeRuntime, type MeshLoader, type RemapTable, imageBorderPixels } from "@vitavision/three";
+import { useMemo, useState } from "react";
 import { expect, waitFor } from "storybook/test";
 import { BoxGeometry, Mesh, MeshBasicMaterial } from "three";
 
@@ -8,6 +8,17 @@ import { AtFrame, FrameTree, type PlayheadSource } from "./FrameTree";
 import { CameraFrustum, FrameAxes, LaserFan, LightGizmo, TargetBoard } from "./gizmos";
 import { Robot } from "./Robot";
 import { SceneCanvas } from "./SceneCanvas";
+import { SensorImage } from "./SensorImage";
+
+/** A 160 × 128 sensor with the frustum's 60° field of view; identity remap (no distortion). */
+const SENSOR = { width: 160, height: 128, focalPx: 80 / Math.tan(Math.PI / 6) };
+function identityLut(): RemapTable {
+  const data = new Float32Array(2 * SENSOR.width * SENSOR.height);
+  for (let j = 0; j < SENSOR.height; j++) {
+    for (let i = 0; i < SENSOR.width; i++) data.set([i, j], 2 * (j * SENSOR.width + i));
+  }
+  return { width: SENSOR.width, height: SENSOR.height, data, pixelCentre: "integer" };
+}
 
 const I = { rotation: [0, 0, 0, 1], translation: [0, 0, 0] };
 
@@ -63,6 +74,8 @@ interface CellProps {
 function Cell({ sample }: CellProps) {
   const baked = useMemo(() => orbitScenario(), []);
   const rays = useMemo(() => borderRays(), []);
+  const lut = useMemo(() => identityLut(), []);
+  const [runtime, setRuntime] = useState<FrameTreeRuntime | null>(null);
   const playhead = useMemo<PlayheadSource>(() => ({ get: () => sample }), [sample]);
   return (
     <div data-testid="cell" data-sample={sample}>
@@ -70,7 +83,10 @@ function Cell({ sample }: CellProps) {
         <FrameTree
           baked={baked}
           playhead={playhead}
-          onRuntime={(r) => RUNTIMES.set(sample, r)}
+          onRuntime={(r) => {
+            RUNTIMES.set(sample, r);
+            setRuntime(r);
+          }}
         >
           <Robot
             id="arm"
@@ -100,6 +116,9 @@ function Cell({ sample }: CellProps) {
           </AtFrame>
         </FrameTree>
       </SceneCanvas>
+      {runtime && (
+        <SensorImage runtime={runtime} frame="cam" canonical={SENSOR} lut={lut} playhead={playhead} label="cam image" />
+      )}
     </div>
   );
 }
@@ -128,6 +147,10 @@ export const Default: Story = {
     await waitFor(() => expect(runtime.current).toBe(0));
     // The robot's box mesh is attached to its base frame.
     await waitFor(() => expect(runtime.frame("arm/base")!.children.length).toBeGreaterThan(0));
+    // The camera's sensor image renders at the LUT's size.
+    const image = canvasElement.querySelector<HTMLCanvasElement>('canvas[aria-label="cam image"]');
+    await expect(image?.width).toBe(160);
+    await expect(image?.height).toBe(128);
   },
 };
 

@@ -28,4 +28,5 @@ export {
   type TargetBoardProps,
 } from "./gizmos";
 export { Robot, type RobotProps } from "./Robot";
+export { SensorImage, type SensorImageProps } from "./SensorImage";
 export { SceneCanvas, type SceneCanvasProps } from "./SceneCanvas";

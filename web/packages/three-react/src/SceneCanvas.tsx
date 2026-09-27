@@ -1,5 +1,5 @@
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { Z_UP } from "@vitavision/three";
+import { GIZMO_LAYER, Z_UP, setLayer } from "@vitavision/three";
 import { type ReactNode, useEffect, useMemo } from "react";
 import { GridHelper, Vector3 } from "three";
 import { OrbitControls as ThreeOrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
@@ -45,6 +45,11 @@ export function SceneCanvas({
         dpr={[1, 2]}
         {...(onPointerMissed ? { onPointerMissed } : {})}
         style={{ background: colors.background }}
+        onCreated={({ camera, raycaster }) => {
+          // The viewport shows gizmos and picks through them; sensor views see only the world.
+          camera.layers.enable(GIZMO_LAYER);
+          raycaster.layers.enable(GIZMO_LAYER);
+        }}
       >
         <ambientLight intensity={1.2} />
         <directionalLight position={[2, -3, 4]} intensity={1.8} />
@@ -61,6 +66,7 @@ function Grid({ size }: { size: number }) {
   const grid = useMemo(() => {
     const g = new GridHelper(size, Math.round(size * 10), colors.lineStrong, colors.line);
     g.rotation.x = Math.PI / 2; // GridHelper lies in XZ; the ground is XY.
+    setLayer(g, GIZMO_LAYER);
     return g;
   }, [size, colors.line, colors.lineStrong]);
   useEffect(() => () => grid.dispose(), [grid]);

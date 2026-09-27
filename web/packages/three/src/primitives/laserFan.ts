@@ -10,6 +10,8 @@ import {
   MeshBasicMaterial,
 } from "three";
 
+import { GIZMO_LAYER, setLayer } from "../layers";
+
 /** Options of {@link LaserFan}. */
 export interface LaserFanOptions {
   /** Fan half-angle in radians, in `(0, π/2)`. */
@@ -54,6 +56,7 @@ export class LaserFan extends Group {
     });
     this.#edge = new LineBasicMaterial({ color, transparent: true, opacity: 0.9 });
     this.add(new Mesh(fanGeometry, this.#fill), new Line(outlineGeometry, this.#edge));
+    setLayer(this, GIZMO_LAYER);
   }
 
   /** Change the colour. */

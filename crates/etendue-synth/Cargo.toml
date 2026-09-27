@@ -1,0 +1,18 @@
+[package]
+name = "etendue-synth"
+description = "Synthetic-image support for etendue: canonical render cameras and remap LUTs onto calibration-rs camera models"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+nalgebra = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }
+vision-calibration-core = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
