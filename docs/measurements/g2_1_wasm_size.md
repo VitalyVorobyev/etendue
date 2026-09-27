@@ -41,5 +41,5 @@ analyses) is about 1.26 MB gzipped.
 
 ## After P3-1 (`remap`, etendue-synth)
 
-318,694 B gzipped (+8,340 B), measured on commit `COMMIT` (branch `pivot/p3-synth`). Still
+318,694 B gzipped (+8,340 B), measured on commit `39d1f86` (branch `pivot/p3-synth`). Still
 20 % of the budget.

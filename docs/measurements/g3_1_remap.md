@@ -9,7 +9,7 @@
   iteration counts** (calibration-rs#120, filed 2026-09-27). The remap itself is exact: with
   converged undistortion every camera passes, and the LUT round trip is at float32
   resolution (≈1.2e-4 px) for all ten.
-- Measured: 2026-09-27, on etendue commit `COMMIT` (branch `pivot/p3-synth`),
+- Measured: 2026-09-27, on etendue commit `39d1f86` (branch `pivot/p3-synth`),
   calibration-rs `b7e470b2`.
 
 ## Procedure
