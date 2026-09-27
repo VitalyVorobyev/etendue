@@ -8,7 +8,12 @@ import {
   LineBasicMaterial,
   Mesh,
   MeshBasicMaterial,
+  type Object3D,
 } from "three";
+
+import { GIZMO_LAYER, setLayer } from "../layers";
+
+const NO_RAYCAST: Object3D["raycast"] = () => undefined;
 
 /** Options of {@link LaserFan}. */
 export interface LaserFanOptions {
@@ -29,6 +34,7 @@ export interface LaserFanOptions {
 export class LaserFan extends Group {
   readonly #fill: MeshBasicMaterial;
   readonly #edge: LineBasicMaterial;
+  #active = false;
 
   constructor({ halfAngle, length, color, segments = 32 }: LaserFanOptions) {
     super();
@@ -53,12 +59,28 @@ export class LaserFan extends Group {
       depthWrite: false,
     });
     this.#edge = new LineBasicMaterial({ color, transparent: true, opacity: 0.9 });
-    this.add(new Mesh(fanGeometry, this.#fill), new Line(outlineGeometry, this.#edge));
+    const edge = new Line(outlineGeometry, this.#edge);
+    // Lines are hit within a world-unit threshold: picks must land on the sheet instead.
+    edge.raycast = NO_RAYCAST;
+    this.add(new Mesh(fanGeometry, this.#fill), edge);
+    setLayer(this, GIZMO_LAYER);
   }
 
   /** Change the colour. */
   setColor(color: ColorRepresentation): void {
     this.#fill.color.set(color);
     this.#edge.color.set(color);
+  }
+
+  /** Whether the fan is drawn emphasised (selected). */
+  get active(): boolean {
+    return this.#active;
+  }
+
+  /** Draw the fan emphasised (a denser sheet, an opaque outline) or not. */
+  setActive(value: boolean): void {
+    this.#active = value;
+    this.#fill.opacity = value ? 0.32 : 0.18;
+    this.#edge.opacity = value ? 1 : 0.9;
   }
 }

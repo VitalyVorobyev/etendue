@@ -1,13 +1,25 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { type FrameTreeRuntime, type MeshLoader, imageBorderPixels } from "@vitavision/three";
-import { useMemo } from "react";
+import { type FrameTreeRuntime, type MeshLoader, type RemapTable, imageBorderPixels } from "@vitavision/three";
+import { useMemo, useState } from "react";
 import { expect, waitFor } from "storybook/test";
-import { BoxGeometry, Mesh, MeshBasicMaterial } from "three";
+import { BoxGeometry, Mesh, MeshBasicMaterial, type SphereGeometry } from "three";
 
 import { AtFrame, FrameTree, type PlayheadSource } from "./FrameTree";
 import { CameraFrustum, FrameAxes, LaserFan, LightGizmo, TargetBoard } from "./gizmos";
 import { Robot } from "./Robot";
+import { SceneColorsProvider } from "./colors";
 import { SceneCanvas } from "./SceneCanvas";
+import { SensorImage } from "./SensorImage";
+
+/** A 160 × 128 sensor with the frustum's 60° field of view; identity remap (no distortion). */
+const SENSOR = { width: 160, height: 128, focalPx: 80 / Math.tan(Math.PI / 6) };
+function identityLut(): RemapTable {
+  const data = new Float32Array(2 * SENSOR.width * SENSOR.height);
+  for (let j = 0; j < SENSOR.height; j++) {
+    for (let i = 0; i < SENSOR.width; i++) data.set([i, j], 2 * (j * SENSOR.width + i));
+  }
+  return { width: SENSOR.width, height: SENSOR.height, data, pixelCentre: "integer" };
+}
 
 const I = { rotation: [0, 0, 0, 1], translation: [0, 0, 0] };
 
@@ -63,6 +75,8 @@ interface CellProps {
 function Cell({ sample }: CellProps) {
   const baked = useMemo(() => orbitScenario(), []);
   const rays = useMemo(() => borderRays(), []);
+  const lut = useMemo(() => identityLut(), []);
+  const [runtime, setRuntime] = useState<FrameTreeRuntime | null>(null);
   const playhead = useMemo<PlayheadSource>(() => ({ get: () => sample }), [sample]);
   return (
     <div data-testid="cell" data-sample={sample}>
@@ -70,7 +84,10 @@ function Cell({ sample }: CellProps) {
         <FrameTree
           baked={baked}
           playhead={playhead}
-          onRuntime={(r) => RUNTIMES.set(sample, r)}
+          onRuntime={(r) => {
+            RUNTIMES.set(sample, r);
+            setRuntime(r);
+          }}
         >
           <Robot
             id="arm"
@@ -84,7 +101,7 @@ function Cell({ sample }: CellProps) {
           />
           <AtFrame name="cam">
             <FrameAxes />
-            <CameraFrustum borderRays={rays} depth={0.15} active onSelect={() => undefined} />
+            <CameraFrustum borderRays={rays} depth={0.15} active pickPadding={1.3} onSelect={() => undefined} />
           </AtFrame>
           <AtFrame name="board">
             <TargetBoard width={0.25} height={0.175} checker={{ cols: 10, rows: 7 }} onSelect={() => undefined} />
@@ -100,6 +117,9 @@ function Cell({ sample }: CellProps) {
           </AtFrame>
         </FrameTree>
       </SceneCanvas>
+      {runtime && (
+        <SensorImage runtime={runtime} frame="cam" canonical={SENSOR} lut={lut} playhead={playhead} label="cam image" />
+      )}
     </div>
   );
 }
@@ -128,6 +148,13 @@ export const Default: Story = {
     await waitFor(() => expect(runtime.current).toBe(0));
     // The robot's box mesh is attached to its base frame.
     await waitFor(() => expect(runtime.frame("arm/base")!.children.length).toBeGreaterThan(0));
+    // The camera's sensor image renders at the LUT's size.
+    const image = canvasElement.querySelector<HTMLCanvasElement>('canvas[aria-label="cam image"]');
+    await expect(image?.width).toBe(160);
+    await expect(image?.height).toBe(128);
+    // pickPadding 1.3: the pickable sphere at the optical centre is 0.3 × depth.
+    const apex = runtime.frame("cam")!.getObjectByName("hitbox-apex") as Mesh<SphereGeometry>;
+    await expect(apex.geometry.parameters.radius).toBeCloseTo(0.3 * 0.15, 9);
   },
 };
 
@@ -140,5 +167,25 @@ export const Playhead: Story = {
     const pose = runtime.pose("cam")!;
     // Half an orbit: the camera is on the −X side.
     await expect(pose.translation[0]).toBeCloseTo(-0.4, 6);
+  },
+};
+
+/**
+ * A camera-frame (CV, +Y down) scene with an app palette instead of the tokens: `SceneCanvas`
+ * with `up = −Y`, a `SceneColorsProvider`, and an emphasised laser fan and board.
+ */
+export const CameraFrame: StoryObj = {
+  render: () => (
+    <SceneColorsProvider colors={{ signal: "orange", defect: "crimson", surface: "white", fg: "black" }}>
+      <SceneCanvas className="h-96 w-full" eye={[0.4, -0.6, -0.6]} target={[0, 0, 0.5]} up={[0, -1, 0]} fov={40} clip={[0.001, 10]} label="Camera frame">
+        <group position={[0, 0, 0.5]}>
+          <TargetBoard width={0.25} height={0.175} checker={{ cols: 10, rows: 7 }} active />
+        </group>
+        <LaserFan halfAngle={0.4} length={0.6} active />
+      </SceneCanvas>
+    </SceneColorsProvider>
+  ),
+  play: async ({ canvasElement }) => {
+    await waitFor(() => expect(canvasElement.querySelector("canvas")).not.toBeNull());
   },
 };

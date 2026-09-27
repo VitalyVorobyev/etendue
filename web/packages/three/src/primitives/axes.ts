@@ -7,10 +7,15 @@ import {
   LineSegments,
 } from "three";
 
+import { GIZMO_LAYER } from "../layers";
+
 /** Colours of the three axes. */
 export interface AxesColors {
+  /** The X axis (vitavision: `defect`). */
   x: ColorRepresentation;
+  /** The Y axis (vitavision: `normal`). */
   y: ColorRepresentation;
+  /** The Z axis (vitavision: `signal`). */
   z: ColorRepresentation;
 }
 
@@ -24,6 +29,7 @@ export class Axes extends LineSegments<BufferGeometry, LineBasicMaterial> {
     geometry.setAttribute("position", new Float32BufferAttribute([0, 0, 0, size, 0, 0, 0, 0, 0, 0, size, 0, 0, 0, 0, 0, 0, size], 3));
     geometry.setAttribute("color", new Float32BufferAttribute(new Array<number>(18).fill(1), 3));
     super(geometry, new LineBasicMaterial({ vertexColors: true }));
+    this.layers.set(GIZMO_LAYER);
     this.setColors(colors);
   }
 

@@ -39,6 +39,10 @@ test("a camera's world pose matches the CLI bake at a capture", async ({ page })
 
   // The board is in view at every capture of this scenario.
   await expect(page.getByTestId("camera-view-cam_left")).toHaveAttribute("data-visible", "1");
+  // …and rendered through the camera's remap LUT, at the camera's resolution.
+  const image = page.getByRole("img", { name: "cam_left rendered image" });
+  await expect(image).toHaveAttribute("width", "1280");
+  await expect(image).toHaveAttribute("height", "1024");
 });
 
 test("an invalid scene reports its issues and keeps the loaded one", async ({ page }) => {

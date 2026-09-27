@@ -1,5 +1,5 @@
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { Z_UP } from "@vitavision/three";
+import { GIZMO_LAYER, Z_UP, setLayer } from "@vitavision/three";
 import { type ReactNode, useEffect, useMemo } from "react";
 import { GridHelper, Vector3 } from "three";
 import { OrbitControls as ThreeOrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
@@ -14,7 +14,13 @@ export interface SceneCanvasProps {
   eye?: readonly [number, number, number];
   /** Initial orbit target. */
   target?: readonly [number, number, number];
-  /** Ground grid size in metres, `0` for none. */
+  /** The world's up axis. Default +Z (etendue); `[0, -1, 0]` suits a camera-frame (CV) scene. */
+  up?: readonly [number, number, number];
+  /** Vertical field of view in degrees. Default 45. */
+  fov?: number;
+  /** Near and far clip distances in metres. Default `[0.01, 100]`. */
+  clip?: readonly [number, number];
+  /** Ground grid size in metres, `0` for none. The grid lies in the plane normal to `up`. */
   grid?: number;
   /** Called when a click hits nothing. */
   onPointerMissed?: (() => void) | undefined;
@@ -32,6 +38,9 @@ export function SceneCanvas({
   children,
   eye = [1.6, -1.4, 1.1],
   target = [0.3, 0, 0.3],
+  up = [Z_UP.x, Z_UP.y, Z_UP.z],
+  fov = 45,
+  clip = [0.01, 100],
   grid = 2,
   onPointerMissed,
   className,
@@ -41,14 +50,19 @@ export function SceneCanvas({
   return (
     <div className={className} role="img" aria-label={label}>
       <Canvas
-        camera={{ position: [...eye], up: [Z_UP.x, Z_UP.y, Z_UP.z], near: 0.01, far: 100, fov: 45 }}
+        camera={{ position: [...eye], up: [...up], near: clip[0], far: clip[1], fov }}
         dpr={[1, 2]}
         {...(onPointerMissed ? { onPointerMissed } : {})}
         style={{ background: colors.background }}
+        onCreated={({ camera, raycaster }) => {
+          // The viewport shows gizmos and picks through them; sensor views see only the world.
+          camera.layers.enable(GIZMO_LAYER);
+          raycaster.layers.enable(GIZMO_LAYER);
+        }}
       >
         <ambientLight intensity={1.2} />
         <directionalLight position={[2, -3, 4]} intensity={1.8} />
-        {grid > 0 && <Grid size={grid} />}
+        {grid > 0 && <Grid size={grid} up={up} />}
         <OrbitControls target={target} />
         {children}
       </Canvas>
@@ -56,13 +70,16 @@ export function SceneCanvas({
   );
 }
 
-function Grid({ size }: { size: number }) {
+function Grid({ size, up }: { size: number; up: readonly [number, number, number] }) {
   const colors = useSceneColors();
+  const [ux, uy, uz] = up;
   const grid = useMemo(() => {
     const g = new GridHelper(size, Math.round(size * 10), colors.lineStrong, colors.line);
-    g.rotation.x = Math.PI / 2; // GridHelper lies in XZ; the ground is XY.
+    // GridHelper lies in the XZ plane (normal +Y); turn its normal onto `up`.
+    g.quaternion.setFromUnitVectors(new Vector3(0, 1, 0), new Vector3(ux, uy, uz).normalize());
+    setLayer(g, GIZMO_LAYER);
     return g;
-  }, [size, colors.line, colors.lineStrong]);
+  }, [size, ux, uy, uz, colors.line, colors.lineStrong]);
   useEffect(() => () => grid.dispose(), [grid]);
   return <primitive object={grid} />;
 }

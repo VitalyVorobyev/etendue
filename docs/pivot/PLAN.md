@@ -238,6 +238,7 @@ and ask; do not silently relax it.
   tests run under vitest with headless GL, or under Playwright where headless GL is not
   available. **`SensorView` moves to after P3-1**: it renders the canonical pinhole into a
   render target and remaps it through the LUT (RG32F texture), and the LUT is P3-1's.
+  *Done with P3-1:* gizmos live on a separate layer, so sensor images show only the world.
 - **P2-3 — `@vitavision/three-react` (incubated with P2-2).** Thin R3F components over P2-2. Per-frame updates go
   through `useFrame` and refs, never React state. Done when gate **G2.2** passes: with
   2 robots, 4 cameras, 1 target, and live scenario playback, p95 frame time is
@@ -247,6 +248,10 @@ and ask; do not silently relax it.
   onto `@vitavision/three-react` as a **branch in calibration-rs** (user review). Done when
   calibration-diagnose e2e tests pass unchanged with the packages consumed from a local
   `bun link` or tarball.
+  *Status (2026-09-27):* done as calibration-rs draft PR #121 (packages from lab-ui#39
+  tarballs; app e2e 7/7 unchanged). Its API findings — colour overrides, colour
+  normalisation, non-pickable outlines, emphasis on boards and fans, a padded frustum pick
+  hull, a configurable `SceneCanvas` — are fixed in the incubated packages.
 - **P2-5 — Studio app.** A Vite app that loads scene, scenario, and baked JSON, plays
   scenarios, shows `SensorView` per camera, and exports `job.json`. It is not published.
   *v0 (this batch):* examples and dropped files, bake via `@etendue/wasm`, frame tree,
@@ -268,8 +273,17 @@ and ask; do not silently relax it.
   (including Scheimpflug with tilts up to 6°), the round-trip `project(unproject(u))` is
   within ≤1e-6 px. Report the `undistort` iterations needed at the image corners, and
   file an upstream issue if 8 iterations are insufficient.
+  *Status (2026-09-27):* built, with `remap` in `@etendue/wasm` and `SensorView` in
+  `@vitavision/three`. G3.1 is **open upstream**: 4 of 10 gate cameras need 14–28 undistort
+  iterations at the corners (calibration-rs#120); the remap is exact with converged
+  undistortion (`docs/measurements/g3_1_remap.md`).
 - **P3-2 — Analytic GT and DatasetSpec emission** (ADR-0006). Done when
   `vision-calibration-dataset` `validate()` accepts every emitted manifest.
+  *Status (2026-09-27):* `etendue-synth::{gt, dataset}` built — per-point projection with the
+  three geometric visibility tests, topology and hand-eye from the frame tree, `dataset.json` /
+  `robot_poses.json` / `gt.json`. Both examples validate (`tests/dataset.rs`). Board points are
+  an input until P3-3 settles their source; the CLI command (`etendue gt`) lands with it.
+  `device.json` (nominal `DeviceSpec`) needs sensor pixel pitch in the scene and follows in P5.
 - **P3-3 — Target geometry source.** Build target meshes from `calib-targets-print`
   primitives. If they are not public API, prepare an upstream PR draft for
   calib-targets-rs; the fallback is the SVG texture at ≥8 texels per projected pixel.

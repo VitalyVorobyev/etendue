@@ -8,7 +8,10 @@ import {
   LineLoop,
   Mesh,
   MeshBasicMaterial,
+  type Object3D,
 } from "three";
+
+const NO_RAYCAST: Object3D["raycast"] = () => undefined;
 
 /** Options of {@link TargetBoard}. */
 export interface TargetBoardOptions {
@@ -35,6 +38,7 @@ export class TargetBoard extends Group {
   readonly #base: MeshBasicMaterial;
   readonly #dark: MeshBasicMaterial;
   readonly #edge: LineBasicMaterial;
+  #active = false;
 
   constructor({ width, height, color, edgeColor, checker }: TargetBoardOptions) {
     super();
@@ -68,7 +72,35 @@ export class TargetBoard extends Group {
 
     const outline = new BufferGeometry();
     outline.setAttribute("position", new Float32BufferAttribute([-w, -h, 0, w, -h, 0, w, h, 0, -w, h, 0], 3));
-    this.add(new LineLoop(outline, this.#edge));
+    const loop = new LineLoop(outline, this.#edge);
+    // Lines are hit within a world-unit threshold: picks must land on the surface instead.
+    loop.raycast = NO_RAYCAST;
+    this.add(loop);
+  }
+
+  /** Whether the board is drawn emphasised (selected). */
+  get active(): boolean {
+    return this.#active;
+  }
+
+  /**
+   * Draw the board emphasised or not: the outline is drawn over everything while active, so a
+   * selected board stays findable behind other geometry.
+   */
+  setActive(value: boolean): void {
+    this.#active = value;
+    this.#edge.depthTest = !value;
+    this.#edge.needsUpdate = true;
+  }
+
+  /** Make the whole board translucent (`1` = opaque). */
+  setOpacity(opacity: number): void {
+    for (const m of [this.#base, this.#dark]) {
+      m.opacity = opacity;
+      m.transparent = opacity < 1;
+      m.depthWrite = opacity >= 1;
+      m.needsUpdate = true;
+    }
   }
 
   /** Change the colours. */

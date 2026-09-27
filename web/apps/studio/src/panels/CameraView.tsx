@@ -3,11 +3,14 @@ import {
   ImageStage,
   MeasureOverlay,
   type MeasurePrimitive,
+  StageButton,
   StageReadout,
   StageToolbar,
   type StageView,
   useStage,
 } from "@vitavision/stage2d";
+import { SensorImage } from "@vitavision/three-react";
+import { Grid3x3 } from "lucide-react";
 import { type FrameTreeRuntime, matrixFromIso3 } from "@vitavision/three";
 import { type Playhead, usePlayhead } from "@vitavision/workbench";
 import { useMemo, useState } from "react";
@@ -71,9 +74,17 @@ function Overlay({ width, height, primitives }: { width: number; height: number;
 }
 
 /**
- * What one camera sees of the targets at the playhead: their outlines and square grids,
- * projected by the kernel through the camera's calibrated model. An analytic preview, not a
- * render (rendering is P3/P4).
+ * Pixel-centre convention of the web backend: integer coordinates name pixel centres, as
+ * `@vitavision/stage2d` draws them. **Provisional** until probe P4-2 measures it (ADR 0004).
+ */
+const PIXEL_CENTRE = "integer";
+
+/**
+ * What one camera sees at the playhead:
+ * - the rendered image — the canonical pinhole resampled through the kernel's remap LUT, so
+ *   distortion and sensor tilt are the calibrated model's (ADR 0004);
+ * - over it, the targets' outlines and square grids projected analytically by the kernel.
+ *   Where the two agree the render is registered with the model.
  */
 export function CameraView({
   session,
@@ -90,6 +101,15 @@ export function CameraView({
 }) {
   const k = usePlayhead(playhead);
   const [view, setView] = useState<StageView | null>(null);
+  const [overlay, setOverlay] = useState(true);
+  const remap = useMemo(() => {
+    const { canonical, lut } = session.remap(camera.id, { supersample: 1 }, PIXEL_CENTRE);
+    const k = canonical.params.intrinsics;
+    return {
+      canonical: { width: canonical.resolution[0], height: canonical.resolution[1], focalPx: k.fx },
+      lut: { width: camera.resolution[0], height: camera.resolution[1], data: lut, pixelCentre: PIXEL_CENTRE },
+    } as const;
+  }, [session, camera]);
   const [cursor, setCursor] = useState<{ x: number; y: number } | null>(null);
   const lines = useMemo<TargetLines[]>(
     () =>
@@ -115,14 +135,30 @@ export function CameraView({
         onHover={setCursor}
         label={`${camera.id} image`}
         className="min-h-0 flex-1"
-        toolbar={<StageToolbar />}
+        toolbar={
+          <StageToolbar>
+            <StageButton label="Projected targets" pressed={overlay} onClick={() => setOverlay(!overlay)}>
+              <Grid3x3 className="size-4" aria-hidden />
+            </StageButton>
+          </StageToolbar>
+        }
         readout={<StageReadout cursor={cursor} />}
       >
-        <div className="absolute inset-0 border border-line-strong bg-canvas" />
+        <SensorImage
+          runtime={runtime}
+          frame={camera.id}
+          canonical={remap.canonical}
+          lut={remap.lut}
+          playhead={playhead}
+          className="absolute inset-0 h-full w-full border border-line-strong"
+          label={`${camera.id} rendered image`}
+        />
         {/* Only what lands on the sensor is drawn. */}
-        <div className="absolute inset-0 overflow-hidden">
-          <Overlay width={w} height={h} primitives={primitives} />
-        </div>
+        {overlay && (
+          <div className="absolute inset-0 overflow-hidden">
+            <Overlay width={w} height={h} primitives={primitives} />
+          </div>
+        )}
       </ImageStage>
     </div>
   );

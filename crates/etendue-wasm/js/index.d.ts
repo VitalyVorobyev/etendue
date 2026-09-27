@@ -14,7 +14,7 @@
  */
 
 import type { InitInput, InitOutput, SyncInitInput } from "./etendue_wasm.js";
-import type { SceneSpec, Iso3Schema } from "./types/scene.js";
+import type { CameraParams, SceneSpec, Iso3Schema } from "./types/scene.js";
 import type { ScenarioSpec } from "./types/scenario.js";
 import type { BakedScenario } from "./types/baked-scenario.js";
 import type { RobotManifest } from "./types/robot-manifest.js";
@@ -52,6 +52,39 @@ export interface RobotSource {
   manifest: RobotManifest;
   /** The URDF text the manifest points to. */
   urdf: string;
+}
+
+/** Which image coordinate names a pixel's centre: `i` (`"integer"`) or `i + ½` (`"half"`).
+ * Decided by probe P4-2 (etendue ADR 0004); until then every caller states it. */
+export type PixelCentre = "integer" | "half";
+
+/** How to choose a canonical render camera (etendue-synth `CanonicalSpec`). */
+export interface CanonicalSpec {
+  /** Canonical pixels per target pixel at the image centre, ≥ 1. Default 1. */
+  supersample?: number;
+  /** Extra field of view as a fraction of each half-extent. Default 0.02. */
+  margin?: number;
+  /** Scan spacing in target pixels for the coverage search. Default 8. */
+  scan_step_px?: number;
+}
+
+/** The canonical render camera (etendue-synth `CanonicalCamera`): a centred, square-pixel pinhole. */
+export interface CanonicalCamera {
+  /** calibration-rs parameters: pinhole, no distortion, identity sensor, `fx = fy`, `skew = 0`. */
+  params: CameraParams;
+  /** `[width, height]` in canonical pixels. */
+  resolution: [number, number];
+  pixel_centre: PixelCentre;
+}
+
+/** A camera's canonical render camera and remap LUT. */
+export interface Remap {
+  canonical: CanonicalCamera;
+  /**
+   * Row-major, two values per target pixel: the canonical-image coordinate to sample for that
+   * pixel (`NaN` where none). `2 · width · height` floats, the RG32F texture layout.
+   */
+  lut: Float32Array;
 }
 
 /** One validation problem, located by document path (e.g. `cameras[1].params`). */
@@ -131,6 +164,15 @@ export class EtendueScene {
    * @throws {@link EtendueError} `kind: "input"` for an unknown target.
    */
   targetExtent(targetId: string): [number, number] | undefined;
+
+  /**
+   * The canonical render camera of camera `cameraId` and its remap LUT (etendue ADR 0004):
+   * render the canonical pinhole, then sample it at `lut[pixel]` for each target pixel to get
+   * the target camera's image — distortion, skew and Scheimpflug geometry included.
+   *
+   * @throws {@link EtendueError} `kind: "input"` for an unknown camera or a bad spec.
+   */
+  remap(cameraId: string, spec: CanonicalSpec | undefined, pixelCentre: PixelCentre): Remap;
 
   /** Release the wasm memory. */
   free(): void;

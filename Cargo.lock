@@ -1089,6 +1089,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "etendue-synth"
+version = "0.1.0"
+dependencies = [
+ "etendue-kinematics",
+ "etendue-scene",
+ "nalgebra",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "vision-calibration-core",
+ "vision-calibration-dataset",
+]
+
+[[package]]
 name = "etendue-ui"
 version = "0.1.0"
 dependencies = [
@@ -1115,6 +1129,7 @@ version = "0.1.0"
 dependencies = [
  "etendue-kinematics",
  "etendue-scene",
+ "etendue-synth",
  "getrandom 0.4.2",
  "js-sys",
  "nalgebra",

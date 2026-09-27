@@ -7,6 +7,8 @@ import {
   LineSegments,
 } from "three";
 
+import { GIZMO_LAYER, setLayer } from "../layers";
+
 /** A light's emitter shape (etendue `LightShape`), tagged on `type`. */
 export type LightShapeLike =
   | { type: "point"; radius_m?: number }
@@ -57,6 +59,7 @@ export class LightGizmo extends Group {
     geometry.setAttribute("position", new Float32BufferAttribute(v, 3));
     this.#material = new LineBasicMaterial({ color });
     this.add(new LineSegments(geometry, this.#material));
+    setLayer(this, GIZMO_LAYER);
   }
 
   /** Change the colour. */

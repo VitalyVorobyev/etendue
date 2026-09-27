@@ -5,7 +5,7 @@
 ```bash
 cargo build --workspace                                    # build all crates
 cargo run -p etendue-ui                                    # launch the (frozen) GUI (blocks until window closed)
-cargo test --workspace --locked                            # run all 251 tests
+cargo test --workspace --locked                            # run all 260 tests
 cargo clippy --workspace --all-targets -- -D warnings      # lint (must be clean)
 cargo fmt --all                                            # format
 cargo fmt --all --check                                    # CI format check
@@ -57,6 +57,7 @@ across the whole workspace.
 | `etendue-core` | none | |
 | `etendue-scene` | `schemars` | JSON Schema derives (xtask enables it to emit `schemas/`) |
 | `etendue-kinematics` | `opw` | analytic OPW IK via `rs-opw-kinematics` (`default-features = false`) |
+| `etendue-synth` | none | canonical render camera, remap LUT (P3) |
 | `etendue-cli` | none | binary `etendue` |
 | `etendue-wasm` | none | wasm32 build + G0.1 parity in CI job `wasm` |
 | `etendue-ui` | none | frozen, binary `etendue-ui` |
@@ -76,7 +77,7 @@ by phase, never up front. P0 and P1 are done.
 ```
 etendue-cli (bin `etendue`) ──► etendue-kinematics ──► etendue-scene ──► vision-calibration-{core,dataset}
 etendue-ui  (bin `etendue-ui`, FROZEN) ──► etendue-core ──► vision-calibration-core
-etendue-wasm (npm @etendue/wasm) ──► etendue-kinematics ──► etendue-scene
+etendue-wasm (npm @etendue/wasm) ──► etendue-kinematics ──► etendue-scene, etendue-synth ──► vision-calibration-core
 web/apps/studio ──► @etendue/wasm, @vitavision/{ui,stage2d,charts} (npm), web/packages/* (incubating)
 xtask (emit-schemas, check-layering)
 ```
@@ -111,6 +112,13 @@ spline-timed LIN, and stop-and-shoot captures.
 `base` link, i.e. the controller frame (ADR 0002). Pinocchio FK fixtures for G1.1 are in
 `tools/fixtures/fk/`.
 
+**`etendue-synth`** — synthetic-image support (P3). `remap`: `CanonicalCamera::cover`
+chooses the canonical render pinhole for a target camera, `remap_lut` tabulates
+`canonical.project(target.backproject(u))` (ADR 0004). The pixel-centre convention is an
+explicit `PixelCentre` argument until probe P4-2 decides it. Gate G3.1:
+`cargo run --release -p etendue-synth --example g3_1_remap` (open upstream,
+calibration-rs#120).
+
 **`etendue-ui`** — binary `etendue-ui`. Hand-written winit + wgpu + egui-wgpu render loop
 (no eframe). Modules: viewport (wgpu pipelines), parameter panel (egui side panel),
 simulated-image panel (egui_plot). **Frozen** (ADR 0001): it keeps building and passing
@@ -118,7 +126,7 @@ its tests but gets no new features. It is deleted at parity gate G6.3.
 
 **`etendue-wasm`** — wasm-bindgen facade (P2-1). `Session` (JS `EtendueScene`) loads a
 scene plus robot sources `{id, manifest, urdf}` (the host reads files; the crate does no
-I/O), then `bake`, `project_points`, `backproject_pixels`, `target_extent`. Documents cross
+I/O), then `bake`, `project_points`, `backproject_pixels`, `target_extent`, `remap`. Documents cross
 as JSON text (bit-exact with `float_roundtrip`). `scripts/build-npm.mjs` wraps the
 wasm-pack output with the typed layer in `js/` (types generated from `schemas/` by
 `web/scripts/generate-wasm-types.ts`). The wasm32-only `getrandom` 0.4 `wasm_js`

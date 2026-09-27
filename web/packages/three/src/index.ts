@@ -24,6 +24,14 @@ export {
   rpyFromQuaternion,
 } from "./conventions";
 export { disposeObject } from "./dispose";
+export { GIZMO_LAYER, PHYSICAL_LAYER, setLayer } from "./layers";
+export {
+  type CanonicalPinhole,
+  type PixelCentre,
+  type RemapTable,
+  SensorView,
+  type SensorViewOptions,
+} from "./sensorView";
 export {
   type BakedSampleLike,
   type BakedScenarioLike,
@@ -45,4 +53,4 @@ export {
   gltfMeshLoader,
   loadRobotVisuals,
 } from "./robot";
-export { type SceneColors, observeSceneColors, readSceneColors } from "./theme";
+export { type SceneColors, normalizeColor, observeSceneColors, readSceneColors } from "./theme";

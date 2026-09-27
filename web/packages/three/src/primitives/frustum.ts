@@ -9,7 +9,10 @@ import {
   Mesh,
   MeshBasicMaterial,
   type Object3D,
+  SphereGeometry,
 } from "three";
+
+import { GIZMO_LAYER, setLayer } from "../layers";
 
 /** Opts a visual-only object out of raycasting, so picks land on the hitbox. */
 const NO_RAYCAST: Object3D["raycast"] = () => undefined;
@@ -58,6 +61,12 @@ export interface CameraFrustumOptions {
   depth: number;
   /** Line and fill colour. */
   color: ColorRepresentation;
+  /**
+   * How much larger than the drawn frustum its pick hull is: the far outline is scaled about
+   * its centre by this factor, and a sphere of `pickPadding − 1` × depth around the optical
+   * centre is pickable too, so small or distant cameras stay easy to select. Default 1.2.
+   */
+  pickPadding?: number;
 }
 
 /**
@@ -96,11 +105,17 @@ export class CameraFrustum extends Group {
     // The far face as a fan around its centroid; the hull adds the sides.
     const centre = far.reduce((c, p) => [c[0] + p[0] / count, c[1] + p[1] / count, depth], [0, 0, depth]);
     const face: number[] = [];
+    for (let i = 0; i < count; i++) face.push(...centre, ...far[i]!, ...far[(i + 1) % count]!);
+    const pad = options.pickPadding ?? 1.2;
+    const padded = far.map((p) => [
+      centre[0] + (p[0] - centre[0]) * pad,
+      centre[1] + (p[1] - centre[1]) * pad,
+      depth,
+    ]);
     const hull: number[] = [];
     for (let i = 0; i < count; i++) {
-      const a = far[i]!;
-      const b = far[(i + 1) % count]!;
-      face.push(...centre, ...a, ...b);
+      const a = padded[i]!;
+      const b = padded[(i + 1) % count]!;
       hull.push(...centre, ...a, ...b, 0, 0, 0, ...a, ...b);
     }
     const faceGeometry = new BufferGeometry();
@@ -124,7 +139,14 @@ export class CameraFrustum extends Group {
       new MeshBasicMaterial({ transparent: true, opacity: 0, side: DoubleSide, depthWrite: false }),
     );
     this.hitbox.name = "hitbox";
+    const apex = new Mesh(
+      new SphereGeometry(Math.max(pad - 1, 0.05) * depth, 12, 8),
+      this.hitbox.material,
+    );
+    apex.name = "hitbox-apex";
+    this.hitbox.add(apex);
     this.add(lines, farFace, this.hitbox);
+    setLayer(this, GIZMO_LAYER);
     this.setActive(false);
   }
 

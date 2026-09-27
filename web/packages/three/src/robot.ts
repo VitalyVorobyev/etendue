@@ -20,6 +20,7 @@ export interface RobotVisual {
 
 /** Loads one mesh file. */
 export interface MeshLoader {
+  /** Load the mesh at `url`; reject if it cannot be loaded. */
   load(url: string): Promise<Object3D>;
 }
 

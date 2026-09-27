@@ -46,14 +46,31 @@ export interface CameraFrustumProps {
   depth: number;
   /** Emphasised (selected); drawn in the accent colour. */
   active?: boolean;
+  /**
+   * How much larger than the drawn frustum its pick hull is, with a pickable sphere of
+   * `pickPadding − 1` × `depth` at the optical centre (`CameraFrustumOptions.pickPadding` in
+   * `@vitavision/three`). Default 1.2.
+   */
+  pickPadding?: number;
   /** Makes it pickable. */
   onSelect?: (() => void) | undefined;
 }
 
 /** A camera's field of view, in the camera frame (place it with `AtFrame`). */
-export function CameraFrustum({ borderRays, depth, active = false, onSelect }: CameraFrustumProps) {
+export function CameraFrustum({ borderRays, depth, active = false, pickPadding, onSelect }: CameraFrustumProps) {
   const colors = useSceneColors();
-  const object = useDisposed(useMemo(() => new CameraFrustumObject({ borderRays, depth, color: UNSET }), [borderRays, depth]));
+  const object = useDisposed(
+    useMemo(
+      () =>
+        new CameraFrustumObject({
+          borderRays,
+          depth,
+          color: UNSET,
+          ...(pickPadding !== undefined ? { pickPadding } : {}),
+        }),
+      [borderRays, depth, pickPadding],
+    ),
+  );
   useEffect(() => {
     object.setActive(active);
     object.setColor(active ? colors.signal : colors.muted);
@@ -67,15 +84,20 @@ export interface LaserFanProps {
   halfAngle: number;
   /** Reach in metres. */
   length: number;
+  /** Emphasised (selected). */
+  active?: boolean;
   /** Makes it pickable. */
   onSelect?: (() => void) | undefined;
 }
 
 /** A line laser's light sheet, in the laser frame. Drawn in the `defect` (red) token. */
-export function LaserFan({ halfAngle, length, onSelect }: LaserFanProps) {
+export function LaserFan({ halfAngle, length, active = false, onSelect }: LaserFanProps) {
   const colors = useSceneColors();
   const object = useDisposed(useMemo(() => new LaserFanObject({ halfAngle, length, color: UNSET }), [halfAngle, length]));
-  useEffect(() => object.setColor(colors.defect), [object, colors.defect]);
+  useEffect(() => {
+    object.setColor(colors.defect);
+    object.setActive(active);
+  }, [object, active, colors.defect]);
   return <primitive object={object} {...pick(onSelect)} />;
 }
 
@@ -111,7 +133,10 @@ export function TargetBoard({ width, height, checker, active = false, onSelect }
       [width, height, cols, rows],
     ),
   );
-  useEffect(() => object.setColors(colors.surface, active ? colors.signal : colors.fg), [object, active, colors]);
+  useEffect(() => {
+    object.setColors(colors.surface, active ? colors.signal : colors.fg);
+    object.setActive(active);
+  }, [object, active, colors]);
   return <primitive object={object} {...pick(onSelect)} />;
 }
 

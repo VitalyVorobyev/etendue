@@ -4,6 +4,7 @@ members = [
     "crates/etendue-core",
     "crates/etendue-kinematics",
     "crates/etendue-scene",
+    "crates/etendue-synth",
     "crates/etendue-ui",
     "crates/etendue-wasm",
     "xtask",
@@ -23,6 +24,7 @@ authors = ["Vitaly Vorobyev <vitaly.munchen@gmail.com>"]
 etendue-core = { path = "crates/etendue-core", version = "0.1.0" }
 etendue-kinematics = { path = "crates/etendue-kinematics", version = "0.1.0" }
 etendue-scene = { path = "crates/etendue-scene", version = "0.1.0" }
+etendue-synth = { path = "crates/etendue-synth", version = "0.1.0" }
 
 # --- Kernel deps -----------------------------------------------------------
 # nalgebra is a HARD PIN: it must match calibration-rs exactly. etendue-core
