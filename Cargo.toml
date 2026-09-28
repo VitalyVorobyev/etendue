@@ -35,8 +35,8 @@ nalgebra = { version = "0.34", features = ["serde-serialize"] }
 # calibration-rs crates come from crates.io so every etendue library crate is
 # publishable. For local development they are redirected to the sibling
 # checkout by `[patch.crates-io]` at the bottom of this file.
-vision-calibration-core = "0.8.2"
-vision-calibration-dataset = "0.8.2"
+vision-calibration-core = "0.8.3"
+vision-calibration-dataset = "0.8.3"
 serde = { version = "1", features = ["derive"] }
 thiserror = "2"
 # Float-comparison assertions for kernel unit tests. 0.5 matches the version

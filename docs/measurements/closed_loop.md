@@ -119,3 +119,9 @@ k3 is not estimated by the default configuration (it stays 0, as does the truth)
    and camera rotation axes are then parallel, and the Tsai–Lenz initialiser dropped all of
    them (`NoValidMotionPairs`). The fix is calibration-rs#125. This scene's mount is
    deliberately off square, which is also the more general case.
+
+   *Re-run with calibration-rs 0.8.3 (which ships #125), 2026-09-28, etendue commit
+   `2199784`:* `examples/eye_in_hand_ur5e` now passes too. Over 10 views, the rig gives
+   4.3e-7 px mean reprojection and hand-eye 2.5e-6° / 1.9e-7 mm; `cam_left` alone gives
+   3.8e-7 px, fx 1.7e-9, and 2.3e-6° / 5.2e-7 mm. It is smaller than this scene's 20 views and
+   has the square mount, so CI now runs it as well.

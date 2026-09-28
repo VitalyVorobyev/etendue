@@ -5,7 +5,7 @@ description = "P5-1 closed loop: calibrate etendue ground truth with calibration
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "numpy>=2.2",
-    "vision-calibration==0.8.2",
+    "vision-calibration==0.8.3",
 ]
 
 [tool.uv]

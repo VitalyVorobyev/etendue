@@ -8,7 +8,7 @@ on:
 env:
   # calibration-rs tag the `[patch.crates-io]` sibling is cloned at. Keep in
   # step with the `vision-calibration-*` version requirement in Cargo.toml.
-  CALIBRATION_RS_REF: v0.8.2
+  CALIBRATION_RS_REF: v0.8.3
   CARGO_TERM_COLOR: always
 
 jobs:
@@ -108,6 +108,9 @@ jobs:
           cargo run -q -p etendue-cli -- gt examples/closed_loop_ur5e/scene.json examples/closed_loop_ur5e/scenario.json -o target/closed_loop
           uv run --locked --project tools/closed-loop tools/closed-loop/closed_loop.py target/closed_loop
           uv run --locked --project tools/closed-loop tools/closed-loop/closed_loop.py target/closed_loop --camera cam_left
+          # The camera square to the flange (calibration-rs#124, fixed in 0.8.3).
+          cargo run -q -p etendue-cli -- gt examples/eye_in_hand_ur5e/scene.json examples/eye_in_hand_ur5e/scenario.json -o target/closed_loop_eih
+          uv run --locked --project tools/closed-loop tools/closed-loop/closed_loop.py target/closed_loop_eih
 
   # etendue-wasm (npm `@etendue/wasm`): wasm32 build, gate G0.1 — the wasm
   # build of the projection chain must match the native build bit-for-bit
