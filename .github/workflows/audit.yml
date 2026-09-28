@@ -11,7 +11,7 @@ permissions:
 env:
   # calibration-rs tag the `[patch.crates-io]` sibling is cloned at. Keep in
   # step with the `vision-calibration-*` version requirement in Cargo.toml.
-  CALIBRATION_RS_REF: v0.8.2
+  CALIBRATION_RS_REF: v0.8.3
 
 jobs:
   audit:
