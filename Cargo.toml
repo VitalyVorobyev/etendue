@@ -73,6 +73,12 @@ exr = "1.74"
 # P4-3 corner bias study (etendue-cli `measure g4-2`); no nalgebra, no `image`.
 chess-corners = { version = "1.2", default-features = false }
 png = "0.18"
+# Target geometry (ADR 0006, P3-3): boards are what calib-targets prints, and their
+# points are what it resolves. calib-targets accepts nalgebra >=0.34, <0.36 since
+# 0.15.3, so it shares the pinned nalgebra. `charuco` is needed only for the marker
+# layout and the dictionary lookup, the same ones calibration-rs's detector uses.
+calib-targets-print = "0.15.3"
+calib-targets-charuco = { version = "0.15.3", default-features = false }
 # Sensor model noise (etendue-synth). Seeded only: ChaCha is stable across
 # platforms and versions; default features off keep `getrandom` (OS entropy)
 # out, per the determinism rule.

@@ -13,6 +13,9 @@
 - Measured: 2026-09-27, on etendue commit `9061863` (branch `pivot/p4-corners`),
   calibration-rs `b7e470b2`, chess-corners 1.2.0, Blender 5.1.1 (Cycles, Metal, Apple M4 Pro).
 
+- Re-run 2026-09-28 on the calib-targets board (P3-3), with the same results to within Monte
+  Carlo noise: `p3_3_target_geometry.md`.
+
 ## Procedure
 
 ```bash

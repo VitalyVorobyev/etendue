@@ -134,14 +134,15 @@ describe("G4.3 cross-backend agreement (web SensorView vs Blender)", () => {
     for (const pose of d.poses) {
       const world = new Scene();
       world.add(wall);
-      // Squares in the target frame: centred board, columns along X, dark where (r + c) is even
-      // — the layout of the job's board and of the analytic reference.
+      // Squares in the target frame: centred board, columns along X, dark where column + row
+      // is even counting rows from the print's top edge at +Y — calib-targets' print, which the
+      // job's board is built from (etendue_synth::board).
       const board = new Group();
       board.matrixAutoUpdate = false;
       board.matrix.copy(matrixFromIso3(pose.camera_se3_target));
       for (let r = 0; r < rows; r++) {
         for (let c = 0; c < cols; c++) {
-          const m = new Mesh(square, (r + c) % 2 === 0 ? darkMat : lightMat);
+          const m = new Mesh(square, (rows - 1 - r + c) % 2 === 0 ? darkMat : lightMat);
           m.position.set(-(cols * s) / 2 + (c + 0.5) * s, -(rows * s) / 2 + (r + 0.5) * s, 0);
           board.add(m);
         }

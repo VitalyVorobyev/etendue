@@ -41,6 +41,9 @@ cd web/apps/studio && bun x vitest run --project browser --reporter=verbose --si
 
 All 315 corners matched on both backends for every refiner.
 
+Re-run 2026-09-28 on the calib-targets board (P3-3): 0.0192 / 0.0378 / 0.0424 px, still a
+pass (`p3_3_target_geometry.md`).
+
 ## Findings
 
 1. **The backends agree to well within G4.3.** Each backend's error against GT matches the

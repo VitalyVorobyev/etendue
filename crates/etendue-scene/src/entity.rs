@@ -112,7 +112,8 @@ pub enum TargetGeometry {
     /// vocabulary (the same `TargetSpec` a synthetic `DatasetSpec` emits).
     /// The board is centred on the local origin in the `z = 0` plane, facing
     /// +Z. The in-plane mapping from board (feature) coordinates to the
-    /// target frame is defined once, by `etendue-synth` (ADR 0006).
+    /// target frame is defined once, by `etendue-synth` (ADR 0006): the
+    /// printed board reads correctly from +Z, its top edge at +Y.
     Board {
         /// Board layout (`kind`-tagged: chessboard, charuco, puzzleboard,
         /// ringgrid).

@@ -361,7 +361,7 @@ fn run(cli: Cli) -> Result<()> {
 
 fn gt_command(scene: &Path, scenario: &Path, output: &Path) -> Result<()> {
     use etendue_synth::dataset::{EmitOptions, emit};
-    use etendue_synth::gt::{VisibilitySpec, board_points};
+    use etendue_synth::gt::VisibilitySpec;
     let loaded = load(scene)?;
     let scenario_spec: ScenarioSpec = read_json(scenario, "scenario")?;
     let baked = bake(&loaded.scene, &scenario_spec, &loaded.models)
@@ -372,12 +372,15 @@ fn gt_command(scene: &Path, scenario: &Path, output: &Path) -> Result<()> {
             loaded.scene.targets.len()
         ));
     };
-    let points = board_points(&target.geometry).ok_or_else(|| {
-        anyhow!(
-            "target `{}`: only chessboard and ChArUco layouts are known until P3-3",
-            target.id
-        )
-    })?;
+    let points = etendue_synth::board::layout(&target.geometry)
+        .map_err(|e| anyhow!("target `{}`: {e}", target.id))?
+        .ok_or_else(|| {
+            anyhow!(
+                "target `{}`: ground truth needs a chessboard or ChArUco board",
+                target.id
+            )
+        })?
+        .points;
     let manifests: Vec<RobotManifest> = loaded.manifests.iter().map(|(m, _)| m.clone()).collect();
     let bundle = emit(
         &loaded.scene,

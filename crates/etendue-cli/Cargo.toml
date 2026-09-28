@@ -23,4 +23,5 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 nalgebra = { workspace = true }
 vision-calibration-core = { workspace = true }
+vision-calibration-dataset = { workspace = true }
 toml = { workspace = true }

@@ -26,7 +26,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import convert  # noqa: E402
 
 SENSOR_WIDTH_MM = 36.0
-JOB_VERSION = 1
+JOB_VERSION = 2
 
 
 def mat(m):
@@ -117,21 +117,20 @@ def import_mesh(entry, robot_material):
 
 
 def board(entry, light_mat, dark_mat):
-    """A width × height board centred on its frame's origin in z = 0, facing +Z; columns
-    along X, the dark square at −X/−Y (the layout etendue's viewers draw)."""
+    """A board in its frame's z = 0 plane, facing +Z: one quad per cell (etendue-synth
+    `target_cells`, the pattern calib-targets prints), ink or paper. The cells tile the
+    board without overlap, so no two faces are coplanar over the same area."""
     import bmesh
 
-    w, h = entry["width"], entry["height"]
-    checker = entry.get("checker")
-    cols, rows = (checker["cols"], checker["rows"]) if checker else (1, 1)
     bm = bmesh.new()
-    for r in range(rows):
-        for c in range(cols):
-            x0, y0 = -w / 2 + c * w / cols, -h / 2 + r * h / rows
-            x1, y1 = x0 + w / cols, y0 + h / rows
-            verts = [bm.verts.new(p) for p in ((x0, y0, 0), (x1, y0, 0), (x1, y1, 0), (x0, y1, 0))]
-            face = bm.faces.new(verts)
-            face.material_index = 1 if checker and (r + c) % 2 == 0 else 0
+    for cell in entry["cells"]:
+        x0, y0, x1, y1 = cell["rect"]
+        verts = [bm.verts.new(p) for p in ((x0, y0, 0), (x1, y0, 0), (x1, y1, 0), (x0, y1, 0))]
+        face = bm.faces.new(verts)
+        face.material_index = 1 if cell["dark"] else 0
+    # The cells share whole edges (no T-junctions); welding their corners makes the surface
+    # watertight, so no ray passes between two cells.
+    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-9)
     mesh = bpy.data.meshes.new(entry["id"])
     bm.to_mesh(mesh)
     bm.free()

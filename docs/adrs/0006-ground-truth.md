@@ -43,6 +43,10 @@ The calibration targets themselves come from calib-targets-rs
 - The mapping from board coordinates (top-left origin, y-down) to the target
   frame is defined **once**, in `etendue-synth`. A test checks it against the
   corners of the generated mesh or texture (P3-3).
+  *As built (P3-3, `etendue_synth::board`):* `target = (x/1000 − w/2, h/2 − y/1000)`.
+  Board space is right-handed with z into the paper; the target faces +Z, so
+  print-down is −Y. A y-preserving mapping would mirror the print, which ArUco
+  markers expose.
 
 **Projection**
 
