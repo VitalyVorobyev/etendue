@@ -284,8 +284,9 @@ and ask; do not silently relax it.
   `vision-calibration-dataset` `validate()` accepts every emitted manifest.
   *Status (2026-09-27):* `etendue-synth::{gt, dataset}` built — per-point projection with the
   three geometric visibility tests, topology and hand-eye from the frame tree, `dataset.json` /
-  `robot_poses.json` / `gt.json`. Both examples validate (`tests/dataset.rs`). Board points are
-  an input until P3-3 settles their source; the CLI command (`etendue gt`) lands with it.
+  `robot_poses.json` / `gt.json`. Both examples validate (`tests/dataset.rs`). `etendue gt`
+  writes them for a scene. Its board points use the interim etendue layout
+  (`gt::board_points`, chessboard and ChArUco) until P3-3 moves the source to calib-targets.
   `device.json` (nominal `DeviceSpec`) needs sensor pixel pitch in the scene and follows in P5.
 - **P3-3 — Target geometry source.** Build target meshes from `calib-targets-print`
   primitives. If they are not public API, prepare an upstream PR draft for
@@ -350,6 +351,12 @@ and ask; do not silently relax it.
   ≤0.05 px, fx/fy relative error ≤1e-4, cx/cy ≤0.05 px, hand-eye rotation ≤0.01° and
   translation ≤0.05 mm at a working distance of about 0.5 m. Record the baseline in
   `docs/measurements/closed_loop.md`.
+  *Status (2026-09-27):* **G5.1 passes on analytic correspondences**, for one camera and for the
+  two-camera rig, 5–8 orders of magnitude inside every limit. The loop is `etendue gt`, then
+  `tools/closed-loop` feeding calibration-rs's solver through the 0.8.2 Python wheel, on
+  `examples/closed_loop_ur5e` (20 poses at 0.45–0.55 m). CI runs it. The image-level loop waits
+  on the G4.2 detector decision. The loop found calibration-rs#124: identity-rotation mounts
+  were rejected by the hand-eye init (`docs/measurements/closed_loop.md`).
 - **P5-2 — Laser sheet in Cycles (spike).** Compare (a) a spot light with a slit
   texture against (b) an area light with near-zero spread behind a slit occluder.
   Measure the across-stripe profile on a matte plane. Done when gate **G5.2** passes:

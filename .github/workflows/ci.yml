@@ -92,10 +92,22 @@ jobs:
 
       - name: CLI smoke test (P1-6 examples)
         run: |
-          for ex in eye_in_hand_ur5e eye_to_hand_ur5e; do
+          for ex in eye_in_hand_ur5e eye_to_hand_ur5e closed_loop_ur5e; do
             cargo run -q -p etendue-cli -- validate examples/$ex/scene.json examples/$ex/scenario.json
             cargo run -q -p etendue-cli -- bake examples/$ex/scene.json examples/$ex/scenario.json -o target/$ex.baked.json
           done
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v10.2.0
+
+      # P5-1 on analytic correspondences (docs/measurements/closed_loop.md): etendue's
+      # ground truth through calibration-rs's own solver recovers the true intrinsics and
+      # hand-eye. Guards every frame and pose convention between the two.
+      - name: Closed loop G5.1 (analytic correspondences)
+        run: |
+          cargo run -q -p etendue-cli -- gt examples/closed_loop_ur5e/scene.json examples/closed_loop_ur5e/scenario.json -o target/closed_loop
+          uv run --locked --project tools/closed-loop tools/closed-loop/closed_loop.py target/closed_loop
+          uv run --locked --project tools/closed-loop tools/closed-loop/closed_loop.py target/closed_loop --camera cam_left
 
   # etendue-wasm (npm `@etendue/wasm`): wasm32 build, gate G0.1 — the wasm
   # build of the projection chain must match the native build bit-for-bit
