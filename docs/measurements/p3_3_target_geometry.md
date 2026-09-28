@@ -10,7 +10,7 @@
     `etendue render` builds the Blender board from those cells, and `etendue gt` takes its
     points from the same layout.
   - The mesh is exact, so the SVG-texture fallback is not needed.
-- Measured: 2026-09-28, on etendue commit `SHA_PENDING` (branch `pivot/p3-3-target-geometry`),
+- Measured: 2026-09-28, on etendue commit `69b13ea` (branch `pivot/p3-3-target-geometry`),
   calibration-rs `76353753` (0.8.3), calib-targets 0.15.3, chess-corners 1.2.0, Blender 5.1.1
   (Cycles, Metal, Apple M4 Pro).
 
