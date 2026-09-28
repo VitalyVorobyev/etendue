@@ -10,6 +10,9 @@
 //!   [ADR 0006](https://github.com/VitalyVorobyev/etendue/blob/main/docs/adrs/0006-ground-truth.md):
 //!   target points projected through the calibration-rs model, with visibility.
 //!
+//! - [`board`] — board targets as calib-targets prints them: the drawn
+//!   patches and the feature points, in the target frame (P3-3).
+//!
 //! - [`dataset`] — the synthetic dataset bundle: a calibration-rs
 //!   `DatasetSpec`, robot poses, and `gt.json`.
 //!
@@ -18,6 +21,7 @@
 //! `CameraModel::backproject_pixel`); this crate only chooses the canonical
 //! camera and tabulates the composition.
 
+pub mod board;
 pub mod dataset;
 #[doc(hidden)]
 pub mod gate;

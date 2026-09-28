@@ -285,13 +285,24 @@ and ask; do not silently relax it.
   *Status (2026-09-27):* `etendue-synth::{gt, dataset}` built — per-point projection with the
   three geometric visibility tests, topology and hand-eye from the frame tree, `dataset.json` /
   `robot_poses.json` / `gt.json`. Both examples validate (`tests/dataset.rs`). `etendue gt`
-  writes them for a scene. Its board points use the interim etendue layout
-  (`gt::board_points`, chessboard and ChArUco) until P3-3 moves the source to calib-targets.
+  writes them for a scene. Its board points come from calib-targets since P3-3.
   `device.json` (nominal `DeviceSpec`) needs sensor pixel pitch in the scene and follows in P5.
 - **P3-3 — Target geometry source.** Build target meshes from `calib-targets-print`
   primitives. If they are not public API, prepare an upstream PR draft for
   calib-targets-rs; the fallback is the SVG texture at ≥8 texels per projected pixel.
   Both paths are measured in P4-3.
+  *Status (2026-09-28):* done. calib-targets 0.15.2 made `board_primitives` public
+  (calib-targets-rs#104), and 0.15.3 accepts nalgebra 0.34 (#105).
+  - `etendue_synth::board` builds chessboard and ChArUco boards from the primitives, as
+    non-overlapping cells, and takes the GT points from `resolved_points`.
+  - `etendue render` meshes those cells; `etendue gt` uses the same points.
+  - The target frame faces +Z, so print-down is −Y: the print's top-left is at −X/+Y.
+  - Re-runs on the new board: G4.2 unchanged, G4.3 still passes. The mesh is exact, so the
+    texture path is dropped.
+  - Found calib-targets' ChArUco detector labelling corners one square off on rotated
+    boards (calib-targets-rs#106).
+  - Open: the web viewers still draw a checker, so ChArUco markers and even-row boards need a
+    `cells` option in `@vitavision/three` (`docs/measurements/p3_3_target_geometry.md`).
 
 ### P4 — Blender backend (photometric tier)
 
@@ -303,8 +314,8 @@ and ask; do not silently relax it.
   PNG); the eye-in-hand example renders 10 captures × 1 camera in 76 s at 16 samples on an
   M4 Pro (Metal). Blender 5.1.1 pinned in `etendue.toml`. Findings: Blender 5 selects
   multilayer EXR through `media_type`; the glTF importer's Y-up rotation is undone in
-  `convert.py`; EXR rows are top-first (`tests/blender_exr.rs`). Boards use the viewers'
-  checker layout until P3-3 settles the target source.
+  `convert.py`; EXR rows are top-first (`tests/blender_exr.rs`). Boards are calib-targets'
+  print since P3-3.
 - **P4-2 — Convention probe.** Render small emissive spheres at known 3D points, once
   in Blender and once in the web `SensorView` (readPixels). Compare the intensity-weighted
   centroid with the analytic projection. Done when gate **G4.1** passes: ≤0.01 px on
@@ -317,8 +328,8 @@ and ask; do not silently relax it.
   the analytic GT. Sweep supersampling s ∈ {1, 2, 4, 8} and board as mesh vs texture.
   Done when gate **G4.2** passes: RMS ≤0.02 px at the chosen default, with the curve
   committed to `docs/measurements/corner_bias.md`.
-  *Status (2026-09-27):* measured with `etendue measure g4-2` (mesh board; texture waits on
-  P3-3). **G4.2 fails and is mis-set for chess-corners 1.2**: on an exact, renderer-free image
+  *Status (2026-09-27):* measured with `etendue measure g4-2` (mesh board; since P3-3 the mesh is
+  calib-targets' print, and the texture path is dropped). **G4.2 fails and is mis-set for chess-corners 1.2**: on an exact, renderer-free image
   its refiners are off by 0.08–0.19 px RMS, the same as on the renders. s = 4 is converged, the
   mean bias is ≤ 0.013 px (no convention offset, `Integer` confirmed), sRGB output roughly
   doubles the error, and the render-vs-exact difference is 0.03 px at s = 4 (center of mass).

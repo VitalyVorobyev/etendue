@@ -13,11 +13,12 @@ use etendue_scene::{BakedScenario, LightShape, SceneSpec, TargetGeometry};
 use nalgebra::Isometry3;
 use serde::{Deserialize, Serialize};
 
+pub use crate::board::Cell;
 use crate::remap::CanonicalCamera;
 use crate::{Error, Result};
 
 /// The job format version the embedded script reads.
-pub const JOB_VERSION: u32 = 1;
+pub const JOB_VERSION: u32 = 2;
 
 /// Object-index pass value of targets (ADR 0006 occlusion: `IndexOB == this`
 /// means the target is visible at that pixel).
@@ -78,19 +79,8 @@ pub struct JobMesh {
     pub pass_index: u32,
 }
 
-/// A checkerboard's squares.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct Checker {
-    /// Squares along the board's X.
-    pub cols: u32,
-    /// Squares along the board's Y.
-    pub rows: u32,
-}
-
 /// A planar target, built by the script in the target frame (`z = 0`, facing
-/// +Z, columns along X, the dark square at −X/−Y — the layout etendue's web
-/// viewers draw).
+/// +Z) from its cells: one quad per cell, ink or paper.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct JobBoard {
@@ -98,13 +88,8 @@ pub struct JobBoard {
     pub id: String,
     /// Frame it moves with.
     pub frame: String,
-    /// Extent along X, metres.
-    pub width: f64,
-    /// Extent along Y, metres.
-    pub height: f64,
-    /// Checkerboard, if the target is one.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub checker: Option<Checker>,
+    /// Non-overlapping patches that tile the target ([`target_cells`]).
+    pub cells: Vec<Cell>,
     /// Object-index pass value.
     pub pass_index: u32,
 }
@@ -211,26 +196,25 @@ pub fn row_major(iso: &Isometry3<f64>) -> [f64; 16] {
     std::array::from_fn(|k| m[(k / 4, k % 4)])
 }
 
-/// The squares of a board target, columns along X; `None` for a plain
-/// surface or a layout without squares.
-#[must_use]
-pub fn checker_of(geometry: &TargetGeometry) -> Option<Checker> {
-    use vision_calibration_dataset::TargetSpec as Board;
-    match geometry {
-        TargetGeometry::Board {
-            board: Board::Chessboard { rows, cols, .. },
-        } => Some(Checker {
-            cols: cols + 1,
-            rows: rows + 1,
-        }),
-        TargetGeometry::Board {
-            board: Board::Charuco { rows, cols, .. },
-        } => Some(Checker {
-            cols: *cols,
-            rows: *rows,
-        }),
-        _ => None,
+/// The surface of a target as cells: the printed board
+/// ([`crate::board::layout`]) or, for a target calib-targets does not print (a
+/// plain rectangle, a ring grid), one paper cell over its extent.
+///
+/// # Errors
+///
+/// [`Error::InvalidInput`] if the board is invalid or its extent is unknown
+/// (a puzzleboard, until its named layouts are mapped).
+pub fn target_cells(geometry: &TargetGeometry) -> Result<Vec<Cell>> {
+    if let Some(layout) = crate::board::layout(geometry)? {
+        return Ok(layout.cells);
     }
+    let [w, h] = geometry
+        .extent_m()
+        .ok_or_else(|| Error::InvalidInput("extent unknown for this layout".into()))?;
+    Ok(vec![Cell {
+        rect: [-w / 2.0, -h / 2.0, w / 2.0, h / 2.0],
+        dark: false,
+    }])
 }
 
 /// Build the job for every capture of `baked`.
@@ -260,15 +244,12 @@ pub fn build_job(
         .targets
         .iter()
         .map(|t| {
-            let [width, height] = t.geometry.extent_m().ok_or_else(|| {
-                Error::InvalidInput(format!("target `{}`: extent unknown for this layout", t.id))
-            })?;
+            let cells = target_cells(&t.geometry)
+                .map_err(|e| Error::InvalidInput(format!("target `{}`: {e}", t.id)))?;
             Ok(JobBoard {
                 id: t.id.clone(),
                 frame: t.id.clone(),
-                width,
-                height,
-                checker: checker_of(&t.geometry),
+                cells,
                 pass_index: TARGET_PASS_INDEX,
             })
         })

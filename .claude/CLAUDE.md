@@ -5,7 +5,7 @@
 ```bash
 cargo build --workspace                                    # build all crates
 cargo run -p etendue-ui                                    # launch the (frozen) GUI (blocks until window closed)
-cargo test --workspace --locked                            # run all 276 tests
+cargo test --workspace --locked                            # run all 282 tests
 cargo clippy --workspace --all-targets -- -D warnings      # lint (must be clean)
 cargo fmt --all                                            # format
 cargo fmt --all --check                                    # CI format check
@@ -132,10 +132,13 @@ chooses the canonical render pinhole for a target camera, `remap_lut` tabulates
 `canonical.project(target.backproject(u))` (ADR 0004). The pixel-centre convention is an
 explicit `PixelCentre` argument; the default is `Integer` (G4.1, confirmed against chess-corners
 by G4.2). Gate G3.1: `cargo run --release -p etendue-synth --example g3_1_remap` (passes since
-calibration-rs 0.8.2).
+calibration-rs 0.8.2). `board`: chessboard and ChArUco targets as calib-targets prints them
+(`board_primitives` tiled into non-overlapping `Cell`s, points from `resolved_points`). The
+target faces +Z, so print-down is −Y (`target = (x/1000 − w/2, h/2 − y/1000)`); this is the
+only place board space meets the target frame. `job::target_cells` gives every target's cells.
 
 **Blender backend** (ADR 0005, P4) — `etendue render` writes `job.json` (etendue-synth
-`job`: meshes, boards, lights, canonical cameras, per-capture `world_se3_frame`), runs the
+`job` v2: meshes, boards as cells, lights, canonical cameras, per-capture `world_se3_frame`), runs the
 embedded bpy-only script `crates/etendue-cli/blender/etendue_blender/render.py` (Cycles,
 fixed seed, Standard view, multilayer EXR with Depth and IndexOB), then remaps each EXR
 through the LUT to `images/<camera>/<capture>.png`. Conventions live only in

@@ -9,6 +9,8 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+calib-targets-charuco = { workspace = true }
+calib-targets-print = { workspace = true }
 etendue-scene = { workspace = true }
 nalgebra = { workspace = true }
 serde = { workspace = true }

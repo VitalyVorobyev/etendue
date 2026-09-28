@@ -848,7 +848,7 @@
       "description": "Target geometry, tagged on `type`.",
       "oneOf": [
         {
-          "description": "A calibration board, described in the calibration-rs dataset\nvocabulary (the same `TargetSpec` a synthetic `DatasetSpec` emits).\nThe board is centred on the local origin in the `z = 0` plane, facing\n+Z. The in-plane mapping from board (feature) coordinates to the\ntarget frame is defined once, by `etendue-synth` (ADR 0006).",
+          "description": "A calibration board, described in the calibration-rs dataset\nvocabulary (the same `TargetSpec` a synthetic `DatasetSpec` emits).\nThe board is centred on the local origin in the `z = 0` plane, facing\n+Z. The in-plane mapping from board (feature) coordinates to the\ntarget frame is defined once, by `etendue-synth` (ADR 0006): the\nprinted board reads correctly from +Z, its top edge at +Y.",
           "type": "object",
           "properties": {
             "board": {

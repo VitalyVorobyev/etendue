@@ -130,55 +130,6 @@ pub fn project_points(
         .collect()
 }
 
-/// Inner corners of a chessboard or ChArUco target in the target frame, in
-/// the layout etendue draws boards (render jobs and the web viewers): centred
-/// on the target origin, columns along +X, rows along +Y, `grid = [column,
-/// row]` and `id = row · columns + column` from the −X/−Y corner.
-///
-/// **Interim:** P3-3 makes calib-targets' printed layout the single source of
-/// board geometry; until then this is the layout every etendue backend draws.
-/// `None` for targets without a square grid.
-#[must_use]
-pub fn board_points(geometry: &etendue_scene::TargetGeometry) -> Option<Vec<BoardPoint>> {
-    use vision_calibration_dataset::TargetSpec as Board;
-    // Inner corners along X and Y, and the square size.
-    let (nx, ny, s) = match geometry {
-        etendue_scene::TargetGeometry::Board {
-            board:
-                Board::Chessboard {
-                    rows,
-                    cols,
-                    square_size_m,
-                },
-        } => (*cols, *rows, *square_size_m),
-        etendue_scene::TargetGeometry::Board {
-            board:
-                Board::Charuco {
-                    rows,
-                    cols,
-                    square_size_m,
-                    ..
-                },
-        } => (cols.checked_sub(1)?, rows.checked_sub(1)?, *square_size_m),
-        _ => return None,
-    };
-    let [w, h] = geometry.extent_m()?;
-    let mut out = Vec::with_capacity((nx * ny) as usize);
-    for r in 0..ny {
-        for c in 0..nx {
-            out.push(BoardPoint {
-                position_m: [
-                    -w / 2.0 + f64::from(c + 1) * s,
-                    -h / 2.0 + f64::from(r + 1) * s,
-                ],
-                grid: Some([c as i32, r as i32]),
-                id: Some(r * nx + c),
-            });
-        }
-    }
-    Some(out)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -268,34 +219,5 @@ mod tests {
         assert_eq!(gt[0].pixel, None);
         let json = serde_json::to_string(&gt[0]).unwrap();
         assert_eq!(json, r#"{"point":0,"occluded":"behind_camera"}"#);
-    }
-
-    #[test]
-    fn board_points_are_the_inner_corners_of_the_drawn_squares() {
-        use vision_calibration_dataset::TargetSpec as Board;
-        let board = etendue_scene::TargetGeometry::Board {
-            board: Board::Chessboard {
-                rows: 6,
-                cols: 9,
-                square_size_m: 0.025,
-            },
-        };
-        let points = super::board_points(&board).unwrap();
-        assert_eq!(points.len(), 54);
-        // 10 × 7 squares of 25 mm centred on the origin: first inner corner one
-        // square in from the −X/−Y corner, last one square in from +X/+Y.
-        let close =
-            |a: [f64; 2], b: [f64; 2]| (a[0] - b[0]).abs() < 1e-12 && (a[1] - b[1]).abs() < 1e-12;
-        assert!(close(points[0].position_m, [-0.1, -0.0625]));
-        assert!(close(points[53].position_m, [0.1, 0.0625]));
-        assert_eq!(points[10].grid, Some([1, 1]));
-        assert_eq!(points[10].id, Some(10));
-        assert!(
-            super::board_points(&etendue_scene::TargetGeometry::Rectangle {
-                width: 1.0,
-                height: 1.0
-            })
-            .is_none()
-        );
     }
 }

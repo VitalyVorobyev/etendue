@@ -11,13 +11,13 @@
 //! averages out. The detector sees 8-bit luminance, linear (as a sensor
 //! delivers it) and sRGB-encoded (as `etendue render` writes by default).
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, anyhow};
 use chess_corners::{ChessRefiner, CornerDescriptor, Detector, DetectorConfig};
-use etendue_synth::gt::{BoardPoint, VisibilitySpec, project_points};
+use etendue_synth::gt::{VisibilitySpec, project_points};
 use etendue_synth::images::{LinearImage, read_exr_combined, remap_image_box, srgb_encode};
 use etendue_synth::job::{
-    Checker, Device, JOB_VERSION, JobBoard, JobCamera, JobOutput, JobShot, RenderJob,
-    RenderSettings, TARGET_PASS_INDEX, row_major,
+    Device, JOB_VERSION, JobBoard, JobCamera, JobOutput, JobShot, RenderJob, RenderSettings,
+    TARGET_PASS_INDEX, row_major,
 };
 use etendue_synth::{CanonicalCamera, CanonicalSpec, remap_lut};
 use nalgebra::{Isometry3, Translation3, UnitQuaternion, Vector3};
@@ -92,25 +92,20 @@ fn poses() -> Vec<(&'static str, Isometry3<f64>)> {
     ]
 }
 
-/// Inner corners in the target frame, in the layout of the job's board
-/// (centred, columns along X).
-fn inner_corners() -> Vec<BoardPoint> {
+/// The board as calib-targets prints it (P3-3): the job draws its cells, and
+/// its points are the ground truth. `analytic_images` draws the same squares by
+/// the print's parity: dark where column + row is even, counted from the print's
+/// top-left, which is the target's −X/+Y corner (`etendue_synth::board`).
+fn board() -> Result<etendue_synth::board::BoardLayout> {
     let [cols, rows] = SQUARES;
-    let (w, h) = (f64::from(cols) * SQUARE_M, f64::from(rows) * SQUARE_M);
-    let mut out = Vec::new();
-    for j in 1..rows {
-        for i in 1..cols {
-            out.push(BoardPoint {
-                position_m: [
-                    -w / 2.0 + f64::from(i) * SQUARE_M,
-                    -h / 2.0 + f64::from(j) * SQUARE_M,
-                ],
-                grid: Some([i as i32 - 1, j as i32 - 1]),
-                id: None,
-            });
-        }
-    }
-    out
+    let geometry = etendue_scene::TargetGeometry::Board {
+        board: vision_calibration_dataset::TargetSpec::Chessboard {
+            rows: rows - 1,
+            cols: cols - 1,
+            square_size_m: SQUARE_M,
+        },
+    };
+    etendue_synth::board::layout(&geometry)?.ok_or_else(|| anyhow!("a chessboard has a layout"))
 }
 
 /// 8-bit luminance, scaled so the image's brightest luminance maps to 240.
@@ -347,8 +342,10 @@ fn analytic_images(
                                         let dir = iso.rotation * d;
                                         let lambda = -o.z / dir.z;
                                         let value = if lambda > 0.0 {
+                                            // Print coordinates: from the top-left,
+                                            // whose top edge is the target's +Y.
                                             let x = o.x + lambda * dir.x + bw / 2.0;
-                                            let y = o.y + lambda * dir.y + bh / 2.0;
+                                            let y = bh / 2.0 - (o.y + lambda * dir.y);
                                             if (0.0..bw).contains(&x) && (0.0..bh).contains(&y) {
                                                 let c = (x / SQUARE_M) as u32;
                                                 let r = (y / SQUARE_M) as u32;
@@ -400,7 +397,8 @@ pub fn g4_2(args: &ProbeArgs) -> Result<()> {
         checked_blender(args.blender.as_deref(), args.allow_blender_version, &root)?;
     let params = camera();
     let model = params.build()?;
-    let points = inner_corners();
+    let board = board()?;
+    let points = board.points;
     let poses = poses();
     let [cols, rows] = SQUARES;
     let vis = VisibilitySpec {
@@ -471,9 +469,7 @@ pub fn g4_2(args: &ProbeArgs) -> Result<()> {
             boards: vec![JobBoard {
                 id: "board".into(),
                 frame: "board".into(),
-                width: f64::from(cols) * SQUARE_M,
-                height: f64::from(rows) * SQUARE_M,
-                checker: Some(Checker { cols, rows }),
+                cells: board.cells.clone(),
                 pass_index: TARGET_PASS_INDEX,
             }],
             lights: vec![],
