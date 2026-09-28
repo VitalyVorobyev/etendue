@@ -98,7 +98,7 @@ jobs:
           done
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v10
+        uses: astral-sh/setup-uv@v10.2.0
 
       # P5-1 on analytic correspondences (docs/measurements/closed_loop.md): etendue's
       # ground truth through calibration-rs's own solver recovers the true intrinsics and

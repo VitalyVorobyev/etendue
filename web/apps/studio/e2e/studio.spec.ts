@@ -10,7 +10,7 @@ interface Baked {
 }
 
 async function loaded(page: Page, camera = "cam_left") {
-  await page.goto("/");
+  await page.goto("/?example=eye_in_hand_ur5e");
   await expect(page.getByRole("treeitem", { name: new RegExp(camera) })).toBeVisible({ timeout: 30_000 });
 }
 
