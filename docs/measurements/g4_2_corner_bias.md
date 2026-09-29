@@ -18,8 +18,8 @@
   calibration-rs `b7e470b2`, chess-corners 1.2.0, Blender 5.1.1 (Cycles, Metal, Apple M4 Pro).
 - Re-run 2026-09-28 on the calib-targets board (P3-3), with the same results to within Monte
   Carlo noise: `p3_3_target_geometry.md`.
-- Radon added 2026-09-28, on etendue commit `e213946` plus the Radon setups in
-  `crates/etendue-cli/src/corners.rs` (branch `pivot/g4-2-radon`), calibration-rs `76353753`
+- Radon added 2026-09-28, on etendue commit `58451d3` (the Radon setups in
+  `crates/etendue-cli/src/corners.rs`, branch `pivot/g4-2-radon`), calibration-rs `76353753`
   (0.8.3), chess-corners 1.2.0, Blender 5.1.1 (Cycles, Metal, Apple M4 Pro). The ChESS rows of
   that run match the recorded ones to within Monte Carlo noise (≤ 0.003 px RMS).
 
