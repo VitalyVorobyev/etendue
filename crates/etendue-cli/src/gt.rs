@@ -12,7 +12,7 @@ use serde::Serialize;
 use crate::load::Loaded;
 use crate::render::PIXEL_CENTRE;
 
-/// What [`write`] wrote.
+/// What [`write()`] wrote.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct GtSummary {
     /// Captures.

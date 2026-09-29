@@ -1,0 +1,56 @@
+[package]
+name = "etendue-studio"
+version = "0.1.0"
+description = "etendue studio desktop shell (Tauri 2): the React studio with the native pipeline (ground truth, Blender render, detection)"
+authors = ["Vitaly Vorobyev <vitaly.munchen@gmail.com>"]
+license = "MIT"
+repository = "https://github.com/VitalyVorobyev/etendue"
+edition = "2024"
+rust-version = "1.93"
+publish = false
+default-run = "etendue-studio"
+
+# Its own workspace, outside the etendue one (ADR 0007): tauri-build's
+# dependency tree stays out of `cargo build --workspace`, and the web toolchain
+# owns this crate. The etendue crates come in by path. What the root
+# workspace applies to its members is restated here: the calibration-rs patch
+# (below) and the dev profile. CI checks the single-nalgebra pin on this
+# graph (`cargo xtask check-layering --manifest-path …`).
+[workspace]
+
+[lib]
+name = "etendue_studio_lib"
+crate-type = ["lib", "cdylib", "staticlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["protocol-asset"] }
+tauri-plugin-dialog = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["float_roundtrip"] }
+anyhow = "1"
+etendue-cli = { path = "../../../../crates/etendue-cli" }
+etendue-kinematics = { path = "../../../../crates/etendue-kinematics" }
+etendue-scene = { path = "../../../../crates/etendue-scene" }
+etendue-synth = { path = "../../../../crates/etendue-synth", features = ["images"] }
+
+[dev-dependencies]
+tempfile = "3"
+
+[features]
+# `tauri dev` enables what it needs; `tauri build` bundles the frontend.
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
+
+[profile.dev]
+debug = 1
+
+[profile.dev.package."*"]
+opt-level = 2
+
+# As in the root Cargo.toml: build against the sibling calibration-rs checkout.
+[patch.crates-io]
+vision-calibration-core = { path = "../../../../../calibration-rs/crates/vision-calibration-core" }
+vision-calibration-dataset = { path = "../../../../../calibration-rs/crates/vision-calibration-dataset" }

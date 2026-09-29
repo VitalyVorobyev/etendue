@@ -13,6 +13,8 @@ export interface FileSource {
   readText(path: string): Promise<string>;
   /** A URL the browser can fetch the file from (for meshes). */
   url(path: string): string;
+  /** The file's absolute filesystem path, when the source knows it (the Tauri shell). */
+  absolute?(path: string): string;
 }
 
 /** Files served over HTTP under `base` (e.g. `/repo/`). */
