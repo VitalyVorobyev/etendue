@@ -165,6 +165,42 @@ impl ScenarioSpec {
     }
 }
 
+impl ScenarioSpec {
+    /// A stop-and-shoot scenario from tool poses: for each pose a
+    /// [`Step::PtpPose`] of `robot`, then a [`Step::Capture`] with the pose's
+    /// id (or the default one). Sampled at `dt` seconds.
+    ///
+    /// Reachability is not checked here; it needs the robot model
+    /// (`etendue-kinematics` `compile`).
+    #[must_use]
+    pub fn from_poses(
+        robot: &str,
+        poses: &[(Option<String>, Isometry3<f64>)],
+        speed_scale: f64,
+        dt: f64,
+    ) -> Self {
+        let steps = poses
+            .iter()
+            .flat_map(|(id, pose)| {
+                [
+                    Step::PtpPose {
+                        robot: robot.to_owned(),
+                        base_se3_tool: *pose,
+                        speed_scale,
+                    },
+                    Step::Capture { id: id.clone() },
+                ]
+            })
+            .collect();
+        Self {
+            version: 1,
+            dt,
+            steps,
+            description: Some(format!("{} tool poses of `{robot}`", poses.len())),
+        }
+    }
+}
+
 /// The id given to the `index`-th capture (0-based) when a
 /// [`Step::Capture`] has none: `cap_000`, `cap_001`, …
 #[must_use]

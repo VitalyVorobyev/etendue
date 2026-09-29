@@ -193,3 +193,22 @@ fn scenario_validation() {
     // The second capture defaults to `cap_001`, colliding with the explicit id.
     assert!(m.contains("duplicate capture id `cap_001`"), "{m}");
 }
+
+#[test]
+fn scenario_from_tool_poses() {
+    let s = scene(eye_in_hand());
+    let a = Isometry3::translation(0.4, 0.0, 0.5);
+    let b = Isometry3::translation(0.5, 0.1, 0.4);
+    let spec = ScenarioSpec::from_poses("ur", &[(None, a), (Some("near".into()), b)], 0.5, 0.01);
+    spec.validate(&s).expect("valid scenario");
+    let json = serde_json::to_value(&spec).unwrap();
+    let steps = json["steps"].as_array().unwrap();
+    assert_eq!(steps.len(), 4);
+    assert_eq!(steps[0]["type"], "ptp_pose");
+    assert_eq!(steps[0]["speed_scale"], 0.5);
+    assert_eq!(steps[1], json!({"type": "capture"}));
+    assert_eq!(steps[3], json!({"type": "capture", "id": "near"}));
+    // An unknown robot is the validator's to reject.
+    let bad = ScenarioSpec::from_poses("kuka", &[(None, a)], 1.0, 0.01);
+    assert!(bad.validate(&s).is_err());
+}
