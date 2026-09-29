@@ -3,7 +3,10 @@
 //! Render a chessboard in Blender at several poses and supersampling factors,
 //! resample through the remap LUT, detect corners with `chess-corners`, and
 //! compare them with the analytic ground truth (`etendue-synth::gt`). Gate
-//! G4.2: RMS ≤ 0.02 px at the chosen default.
+//! G4.2 asked for RMS ≤ 0.02 px at the chosen default; it is a
+//! characterisation of the detector now, with the measured accuracy as the
+//! accepted baseline (`docs/measurements/g4_2_corner_bias.md`). ChESS runs with
+//! each refiner, and the Radon detector with each peak fit.
 //!
 //! Renders are noise-free in the sense of P4-3: no sensor model, a uniform
 //! white environment (a Lambertian plane under it has no shading to sample),
@@ -12,7 +15,7 @@
 //! delivers it) and sRGB-encoded (as `etendue render` writes by default).
 
 use anyhow::{Context, Result, anyhow};
-use chess_corners::{ChessRefiner, CornerDescriptor, Detector, DetectorConfig};
+use chess_corners::{ChessRefiner, CornerDescriptor, Detector, DetectorConfig, PeakFitMode};
 use etendue_synth::gt::{VisibilitySpec, project_points};
 use etendue_synth::images::{LinearImage, read_exr_combined, remap_image_box, srgb_encode};
 use etendue_synth::job::{
@@ -174,25 +177,42 @@ fn score(truth: &[[f64; 2]], found: &[CornerDescriptor], stats: &mut Stats) {
     }
 }
 
-const REFINERS: [&str; 3] = ["center_of_mass", "forstner", "saddle_point"];
+/// The detector setups: ChESS with each of its refiners, and the Radon
+/// detector (Duda & Frese) with each of its peak fits.
+const DETECTORS: [&str; 5] = [
+    "center_of_mass",
+    "forstner",
+    "saddle_point",
+    "radon",
+    "radon_parabolic",
+];
 
-fn detector(refiner: &str) -> Result<Detector> {
-    let refiner = match refiner {
-        "forstner" => ChessRefiner::forstner(),
-        "saddle_point" => ChessRefiner::saddle_point(),
-        _ => ChessRefiner::center_of_mass(),
+fn detector(setup: &str) -> Result<Detector> {
+    let config = match setup {
+        // Radon's threshold is relative to the frame's peak response: keep the
+        // preset's.
+        "radon" => DetectorConfig::radon(),
+        "radon_parabolic" => {
+            DetectorConfig::radon().with_radon(|r| r.peak_fit = PeakFitMode::Parabolic)
+        }
+        _ => {
+            let refiner = match setup {
+                "forstner" => ChessRefiner::forstner(),
+                "saddle_point" => ChessRefiner::saddle_point(),
+                _ => ChessRefiner::center_of_mass(),
+            };
+            DetectorConfig::chess()
+                .with_threshold(CHESS_THRESHOLD)
+                .with_chess(|c| c.refiner = refiner)
+        }
     };
-    Ok(Detector::new(
-        DetectorConfig::chess()
-            .with_threshold(CHESS_THRESHOLD)
-            .with_chess(|c| c.refiner = refiner),
-    )?)
+    Ok(Detector::new(config)?)
 }
 
-/// Per-corner errors of one detector setup: `(sRGB, refiner)` → errors.
+/// Per-corner errors of one detector setup: `(sRGB, detector)` → errors.
 type Errors = Vec<((bool, &'static str), Vec<Option<[f64; 2]>>)>;
 
-/// Detect on `images` with every encoding and refiner and report one table
+/// Detect on `images` with every encoding and detector and report one table
 /// row each (with the per-pose RMS), tracking the best passing row in `best`.
 fn evaluate(
     label: &str,
@@ -203,8 +223,8 @@ fn evaluate(
 ) -> Result<Errors> {
     let mut out = Errors::new();
     for srgb in [false, true] {
-        for refiner in REFINERS {
-            let mut det = detector(refiner)?;
+        for setup in DETECTORS {
+            let mut det = detector(setup)?;
             let mut stats = Stats::default();
             let mut per_pose = Vec::new();
             for (image, truth) in images.iter().zip(truth) {
@@ -222,7 +242,7 @@ fn evaluate(
             let pass = complete && rms <= GATE_PX;
             let encoding = if srgb { "sRGB" } else { "linear" };
             line(format!(
-                "| {label} | {encoding} | {refiner} | {}/{} | ({:+.4}, {:+.4}) | {rms:.4} | {:.4} | {} | {} |",
+                "| {label} | {encoding} | {setup} | {}/{} | ({:+.4}, {:+.4}) | {rms:.4} | {:.4} | {} | {} |",
                 stats.errors.len(),
                 stats.visible,
                 mean[0],
@@ -232,9 +252,9 @@ fn evaluate(
                 if pass { "PASS" } else { "FAIL" }
             ));
             if pass && best.as_ref().is_none_or(|(b, _)| rms < *b) {
-                *best = Some((rms, format!("s | σ = {label}, {encoding}, {refiner}")));
+                *best = Some((rms, format!("s | σ = {label}, {encoding}, {setup}")));
             }
-            out.push(((srgb, refiner), stats.per_corner));
+            out.push(((srgb, setup), stats.per_corner));
         }
     }
     Ok(out)
@@ -440,7 +460,7 @@ pub fn g4_2(args: &ProbeArgs) -> Result<()> {
         poses.len()
     ));
     line(
-        "| s | PSF σ px | encoding | refiner | matched | mean (x, y) px | RMS px | max px | RMS per pose px | G4.2 |"
+        "| s | PSF σ px | encoding | detector | matched | mean (x, y) px | RMS px | max px | RMS per pose px | G4.2 |"
             .into(),
     );
     line("|---|---|---|---|---|---|---|---|---|---|".into());
@@ -553,7 +573,7 @@ pub fn g4_2(args: &ProbeArgs) -> Result<()> {
     // and on the exact image, corner by corner.
     line(String::new());
     line("Render vs exact image, same detector (linear), per-corner difference:".into());
-    line("| s | PSF σ px | refiner | corners | RMS px | max px |".into());
+    line("| s | PSF σ px | detector | corners | RMS px | max px |".into());
     line("|---|---|---|---|---|---|".into());
     for (s, sigma, errors) in &rendered {
         let reference = &exact
