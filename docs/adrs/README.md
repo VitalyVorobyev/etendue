@@ -16,5 +16,6 @@ Status legend:
 | [0004](0004-canonical-render-camera.md) | Canonical render camera and remap LUT | Accepted |
 | [0005](0005-blender-renderer.md) | Blender is a thin renderer | Accepted |
 | [0006](0006-ground-truth.md) | Analytic ground truth and calibration-rs dataset emission | Accepted |
+| [0007](0007-tauri-studio-shell.md) | A Tauri shell for the studio, with the kernel kept in wasm | Proposed |
 
 Gate results referenced by these ADRs are in [`docs/measurements/`](../measurements/).

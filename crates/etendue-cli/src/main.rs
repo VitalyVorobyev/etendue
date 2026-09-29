@@ -6,23 +6,26 @@
 //! etendue render <scene.json> <scenario.json> -o <out_dir> [--samples N] [--supersample S]
 //! etendue gt <scene.json> <scenario.json> -o <out_dir>
 //! etendue detect <dataset_dir>
+//! etendue scenario from-poses <poses.json> --robot <id> -o <scenario.json> [--scene <scene.json>]
 //! ```
 //!
-//! Robot manifests (`robot.json`) are resolved relative to the scene file;
-//! each manifest's URDF relative to the manifest.
+//! The pipeline itself is the `etendue_cli` library; this is its command
+//! line, plus the gate measurements (`measure`).
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use anyhow::{Context, Result, anyhow};
 use clap::{Parser, Subcommand};
-use etendue_kinematics::{RobotModel, bake, compile};
-use etendue_scene::{FrameGraph, RobotManifest, ScenarioSpec, SceneSpec};
+use etendue_cli::progress::{self, Control};
+use etendue_cli::render::{Blender, RenderOptions};
+use etendue_cli::{bake_file, detect, gt, load, poses, read_json, render};
+use etendue_kinematics::{RobotModel, compile};
+use etendue_scene::{ScenarioSpec, SceneSpec};
+use etendue_synth::sensor::SensorModel;
 
 mod corners;
-mod detect;
 mod measure;
-mod render;
 
 #[derive(Parser)]
 #[command(
@@ -78,6 +81,11 @@ enum Command {
     Detect {
         /// Dataset directory (dataset.json, gt.json, images/).
         dir: PathBuf,
+    },
+    /// Build scenarios.
+    Scenario {
+        #[command(subcommand)]
+        command: ScenarioCommand,
     },
     /// Render every capture of a scenario with Blender (ADR 0005): canonical
     /// pinhole EXRs, remapped onto each calibrated camera as PNGs.
@@ -154,6 +162,34 @@ enum Command {
     },
 }
 
+/// `etendue scenario …`.
+#[derive(Subcommand)]
+enum ScenarioCommand {
+    /// A stop-and-shoot scenario from tool poses: for each pose a `ptp_pose`
+    /// move, then a capture. The poses file is a JSON array of
+    /// `base_se3_tool` in the SE3 wire format, or `robot_poses.json` rows
+    /// (`tx … qw`, optional `capture` id).
+    FromPoses {
+        /// Poses file.
+        poses: PathBuf,
+        /// Robot id in the scene.
+        #[arg(long)]
+        robot: String,
+        /// Output scenario file.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Fraction of the joint velocity and acceleration limits.
+        #[arg(long, default_value_t = 0.5)]
+        speed_scale: f64,
+        /// Baking sample period, seconds.
+        #[arg(long, default_value_t = 0.01)]
+        dt: f64,
+        /// Check the scenario against this scene (IK reachability, limits).
+        #[arg(long)]
+        scene: Option<PathBuf>,
+    },
+}
+
 /// Gates measured by `etendue measure`.
 #[derive(Clone, Copy, Debug, clap::ValueEnum)]
 enum Gate {
@@ -176,66 +212,30 @@ enum Backend {
     Blender,
 }
 
-/// A scene with its robot models and manifests, read from disk.
-pub(crate) struct Loaded {
-    pub scene: SceneSpec,
-    pub models: Vec<RobotModel>,
-    /// Per scene robot: the manifest and the directory it was read from.
-    pub manifests: Vec<(RobotManifest, PathBuf)>,
-    /// Directory of the scene file.
-    pub dir: PathBuf,
-}
-
-fn read_json<T: serde::de::DeserializeOwned>(path: &Path, what: &str) -> Result<T> {
-    let text = std::fs::read_to_string(path)
-        .with_context(|| format!("reading {what} {}", path.display()))?;
-    serde_json::from_str(&text).with_context(|| format!("parsing {what} {}", path.display()))
-}
-
 /// Load and validate the scene and every robot model it references.
 fn load_scene(path: &Path) -> Result<(SceneSpec, Vec<RobotModel>)> {
     let l = load(path)?;
     Ok((l.scene, l.models))
 }
 
-fn load(path: &Path) -> Result<Loaded> {
-    let scene: SceneSpec = read_json(path, "scene")?;
-    scene
-        .validate()
-        .map_err(|e| anyhow!("scene {}: {e}", path.display()))?;
-    let dir = path.parent().unwrap_or(Path::new("."));
-    let mut models = Vec::with_capacity(scene.robots.len());
-    let mut manifests = Vec::with_capacity(scene.robots.len());
-    for robot in &scene.robots {
-        let manifest_path = dir.join(&robot.manifest);
-        let manifest: RobotManifest = read_json(&manifest_path, "robot manifest")?;
-        let urdf_path = manifest_path
-            .parent()
-            .unwrap_or(Path::new("."))
-            .join(&manifest.urdf);
-        let urdf = std::fs::read_to_string(&urdf_path)
-            .with_context(|| format!("reading URDF {}", urdf_path.display()))?;
-        let model = RobotModel::from_urdf_str(&urdf, &manifest)
-            .with_context(|| format!("robot `{}` ({})", robot.id, manifest_path.display()))?;
-        if let Some(q) = &robot.initial_q {
-            model
-                .check_q(q, 0.0)
-                .with_context(|| format!("robot `{}` initial_q", robot.id))?;
-        }
-        models.push(model);
-        manifests.push((
-            manifest,
-            manifest_path.parent().unwrap_or(Path::new(".")).to_owned(),
-        ));
+/// The CLI's progress: log lines to stdout, never cancelled.
+pub(crate) fn console() -> Control<'static> {
+    Control::new(&progress::print, None)
+}
+
+/// Blender, checked against the `etendue.toml` pin nearest `from` (then the
+/// working directory); warnings go to stderr.
+pub(crate) fn checked_blender(
+    arg: Option<&Path>,
+    allow_other: bool,
+    from: &Path,
+) -> Result<Blender> {
+    let cwd = std::env::current_dir()?;
+    let blender = Blender::find(arg, &[from, &cwd])?;
+    if let Some(warning) = blender.check(allow_other)? {
+        eprintln!("{warning}");
     }
-    let links: Vec<Vec<String>> = models.iter().map(|m| m.links().to_vec()).collect();
-    FrameGraph::build(&scene, &links).map_err(|e| anyhow!("scene {}: {e}", path.display()))?;
-    Ok(Loaded {
-        scene,
-        models,
-        manifests,
-        dir: dir.to_owned(),
-    })
+    Ok(blender)
 }
 
 fn run(cli: Cli) -> Result<()> {
@@ -277,10 +277,7 @@ fn run(cli: Cli) -> Result<()> {
             output,
             pretty,
         } => {
-            let (spec, models) = load_scene(&scene)?;
-            let scenario_spec: ScenarioSpec = read_json(&scenario, "scenario")?;
-            let baked = bake(&spec, &scenario_spec, &models)
-                .map_err(|e| anyhow!("scenario {}: {e}", scenario.display()))?;
+            let baked = bake_file(&load(&scene)?, &scenario)?;
             let text = if pretty {
                 serde_json::to_string_pretty(&baked)?
             } else {
@@ -304,8 +301,50 @@ fn run(cli: Cli) -> Result<()> {
             scene,
             scenario,
             output,
-        } => gt_command(&scene, &scenario, &output),
-        Command::Detect { dir } => detect::run(&dir),
+        } => {
+            let loaded = load(&scene)?;
+            let baked = bake_file(&loaded, &scenario)?;
+            let summary = gt::write(&loaded, &baked, &output)?;
+            println!("{summary} → {}", output.display());
+            Ok(())
+        }
+        Command::Detect { dir } => {
+            let features = detect::run(&dir, &console())?;
+            for line in detect::summary_table(&features.summary()) {
+                println!("{line}");
+            }
+            println!("features → {}", dir.join("features.json").display());
+            Ok(())
+        }
+        Command::Scenario {
+            command:
+                ScenarioCommand::FromPoses {
+                    poses,
+                    robot,
+                    output,
+                    speed_scale,
+                    dt,
+                    scene,
+                },
+        } => {
+            let text = std::fs::read_to_string(&poses)
+                .with_context(|| format!("reading {}", poses.display()))?;
+            let spec = poses::scenario(&text, &robot, speed_scale, dt)
+                .with_context(|| format!("poses {}", poses.display()))?;
+            if let Some(scene) = scene {
+                let (scene_spec, models) = load_scene(&scene)?;
+                let trajectory = compile(&scene_spec, &spec, &models)
+                    .map_err(|e| anyhow!("the poses on {}: {e}", scene.display()))?;
+                println!(
+                    "reachable: {:.3} s of motion",
+                    (trajectory.samples.len() - 1) as f64 * trajectory.dt
+                );
+            }
+            std::fs::write(&output, serde_json::to_string_pretty(&spec)? + "\n")
+                .with_context(|| format!("writing {}", output.display()))?;
+            println!("{} capture(s) → {}", spec.steps.len() / 2, output.display());
+            Ok(())
+        }
         Command::Render {
             scene,
             scenario,
@@ -321,23 +360,34 @@ fn run(cli: Cli) -> Result<()> {
             allow_blender_version,
             cameras,
             sensor,
-        } => render_command(
-            &scene,
-            &scenario,
-            &render::RenderArgs {
-                output,
-                samples,
-                seed,
-                cpu,
-                supersample,
-                exposure,
-                ambient,
-                blender,
-                allow_blender_version,
-                cameras,
-                sensor,
-            },
-        ),
+        } => {
+            // The sensor model first: a bad file should not cost a render.
+            let sensor: Option<SensorModel> = match &sensor {
+                Some(p) => Some(read_json(p, "sensor model")?),
+                None => None,
+            };
+            let loaded = load(&scene)?;
+            let baked = bake_file(&loaded, &scenario)?;
+            let blender = checked_blender(blender.as_deref(), allow_blender_version, &loaded.dir)?;
+            render::run(
+                &loaded,
+                &baked,
+                &blender,
+                &RenderOptions {
+                    output,
+                    samples,
+                    seed,
+                    cpu,
+                    supersample,
+                    exposure,
+                    ambient,
+                    cameras,
+                    sensor,
+                },
+                &console(),
+            )?;
+            Ok(())
+        }
         Command::Measure {
             gate,
             output,
@@ -360,85 +410,12 @@ fn run(cli: Cli) -> Result<()> {
                 Gate::G42 => corners::g4_2(&args),
                 Gate::P45 => {
                     let loaded = load(&scene)?;
-                    let scenario_spec: ScenarioSpec = read_json(&scenario, "scenario")?;
-                    let baked = bake(&loaded.scene, &scenario_spec, &loaded.models)
-                        .map_err(|e| anyhow!("scenario {}: {e}", scenario.display()))?;
+                    let baked = bake_file(&loaded, &scenario)?;
                     measure::determinism(&loaded, &baked, &args)
                 }
             }
         }
     }
-}
-
-fn gt_command(scene: &Path, scenario: &Path, output: &Path) -> Result<()> {
-    use etendue_synth::dataset::{EmitOptions, emit};
-    use etendue_synth::gt::VisibilitySpec;
-    let loaded = load(scene)?;
-    let scenario_spec: ScenarioSpec = read_json(scenario, "scenario")?;
-    let baked = bake(&loaded.scene, &scenario_spec, &loaded.models)
-        .map_err(|e| anyhow!("scenario {}: {e}", scenario.display()))?;
-    let [target] = loaded.scene.targets.as_slice() else {
-        return Err(anyhow!(
-            "ground truth needs exactly one target; the scene has {}",
-            loaded.scene.targets.len()
-        ));
-    };
-    let points = etendue_synth::board::layout(&target.geometry)
-        .map_err(|e| anyhow!("target `{}`: {e}", target.id))?
-        .ok_or_else(|| {
-            anyhow!(
-                "target `{}`: ground truth needs a chessboard or ChArUco board",
-                target.id
-            )
-        })?
-        .points;
-    let manifests: Vec<RobotManifest> = loaded.manifests.iter().map(|(m, _)| m.clone()).collect();
-    let bundle = emit(
-        &loaded.scene,
-        &baked,
-        &manifests,
-        &points,
-        &EmitOptions {
-            visibility: VisibilitySpec::default(),
-            pixel_centre: render::PIXEL_CENTRE,
-        },
-    )?;
-    std::fs::create_dir_all(output)?;
-    let write = |name: &str, text: String| {
-        let path = output.join(name);
-        std::fs::write(&path, text + "\n").with_context(|| format!("writing {}", path.display()))
-    };
-    write(
-        "dataset.json",
-        serde_json::to_string_pretty(&bundle.dataset)?,
-    )?;
-    if let Some(poses) = &bundle.robot_poses {
-        write("robot_poses.json", serde_json::to_string_pretty(poses)?)?;
-    }
-    write("gt.json", serde_json::to_string_pretty(&bundle.gt)?)?;
-    let views: usize = bundle.gt.captures.iter().map(|c| c.views.len()).sum();
-    let visible: usize = bundle
-        .gt
-        .captures
-        .iter()
-        .flat_map(|c| &c.views)
-        .map(|v| v.points.iter().filter(|p| p.visible()).count())
-        .sum();
-    println!(
-        "ground truth: {} capture(s), {views} view(s), {visible} visible point(s) of {} → {}",
-        bundle.gt.captures.len(),
-        points.len(),
-        output.display()
-    );
-    Ok(())
-}
-
-fn render_command(scene: &Path, scenario: &Path, args: &render::RenderArgs) -> Result<()> {
-    let loaded = load(scene)?;
-    let scenario_spec: ScenarioSpec = read_json(scenario, "scenario")?;
-    let baked = bake(&loaded.scene, &scenario_spec, &loaded.models)
-        .map_err(|e| anyhow!("scenario {}: {e}", scenario.display()))?;
-    render::run(&loaded, &baked, args)
 }
 
 fn main() -> ExitCode {

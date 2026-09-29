@@ -7,12 +7,16 @@ import {
   SplitPane,
   Toaster,
   createPlayhead,
+  toast,
   usePlaybackClock,
 } from "@vitavision/workbench";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { fileUrl, isTauri } from "./io/tauri";
 import type { Baked } from "./kernel/etendue";
+import { scenarioFromPoses } from "./kernel/native";
 import { CameraView } from "./panels/CameraView";
+import { DatasetPanel } from "./panels/DatasetPanel";
 import { Header } from "./panels/Header";
 import { Inspector } from "./panels/Inspector";
 import { JointChart } from "./panels/JointChart";
@@ -29,7 +33,7 @@ interface Scoped<T> {
 
 export function App() {
   const [studio] = useState(() => new Studio(createPlayhead(1, 0.01)));
-  const { current, failure, loading, playing, example } = useStudio(studio);
+  const { current, failure, loading, playing, example, dataset } = useStudio(studio);
   const { playhead } = studio;
   const [selection, setSelection] = useState<Scoped<string | null>>({ scene: null, value: null });
   const [runtimeOf, setRuntimeOf] = useState<Scoped<FrameTreeRuntime | null>>({ scene: null, value: null });
@@ -73,10 +77,32 @@ export function App() {
   const tabs = [
     ...cameras.map((c) => ({ id: c.id, label: c.id })),
     ...(robots.length > 0 ? [{ id: "joints", label: "Joints" }] : []),
+    ...(isTauri() ? [{ id: "dataset", label: "Dataset" }] : []),
   ];
   const bottomTab = tab.scene === current ? tab.value : null;
   const activeTab = tabs.find((t) => t.id === bottomTab)?.id ?? tabs[0]?.id ?? "joints";
   const activeCamera = cameras.find((c) => c.id === activeTab);
+  // The generated image of a camera at sample `k`, if `k` is a capture it rendered.
+  const renderedAt = useCallback(
+    (camera: string, k: number): string | null => {
+      const capture = current?.baked.samples[k]?.capture?.id;
+      if (!dataset?.render?.cameras.includes(camera) || capture === undefined) return null;
+      return fileUrl(`${dataset.output}/images/${camera}/${capture}.png`);
+    },
+    [current, dataset],
+  );
+  const importPoses = (path: string) => {
+    const robot = current?.loaded.scene.robots?.[0]?.id;
+    if (!robot) {
+      toast({ title: "The scene has no robot to move", tone: "error" });
+      return;
+    }
+    void scenarioFromPoses(path, robot)
+      .then((scenario) => studio.setScenario(scenario, `poses ${path.split(/[\\/]/).at(-1) ?? path}`))
+      .catch((e: unknown) =>
+        toast({ title: "Could not import the poses", description: e instanceof Error ? e.message : String(e), tone: "error" }),
+      );
+  };
 
   const main = current ? (
     <SplitPane orientation="vertical" sizedPane="end" defaultSize="38%" minSize={160} maxSize="70%" storageKey="etendue-studio:bottom" aria-label="Resize the camera panel">
@@ -102,7 +128,10 @@ export function App() {
                 camera={activeCamera}
                 targets={scene?.targets ?? []}
                 playhead={playhead}
+                renderedAt={renderedAt}
               />
+            ) : activeTab === "dataset" ? (
+              <DatasetPanel current={current} dataset={dataset} onDataset={studio.setDataset} />
             ) : activeTab === "joints" && selectedRobot ? (
               <JointChart baked={current.baked} robot={selectedRobot} playhead={playhead} />
             ) : null}
@@ -133,6 +162,8 @@ export function App() {
             example={example}
             onExample={studio.openExample}
             onFiles={studio.openFiles}
+            onPaths={studio.openPaths}
+            onPoses={current ? importPoses : null}
           />
         }
         left={tree && <Navigator tree={tree} selected={selected} onSelect={setSelected} />}

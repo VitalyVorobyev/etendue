@@ -29,9 +29,9 @@ use vision_calibration_core::{
     ProjectionParams, SensorParams,
 };
 
-use crate::detect::{MATCH_PX, nearest};
 use crate::measure::ProbeArgs;
-use crate::render::{PIXEL_CENTRE, checked_blender, run_blender};
+use etendue_cli::detect::{MATCH_PX, nearest};
+use etendue_cli::render::{PIXEL_CENTRE, run_blender};
 
 const RESOLUTION: [u32; 2] = [1280, 1024];
 /// Squares of the board (10 × 8, so 9 × 7 inner corners).
@@ -414,8 +414,8 @@ fn analytic_images(
 
 pub fn g4_2(args: &ProbeArgs) -> Result<()> {
     let root = std::env::current_dir()?;
-    let (exe, version) =
-        checked_blender(args.blender.as_deref(), args.allow_blender_version, &root)?;
+    let etendue_cli::render::Blender { exe, version, .. } =
+        crate::checked_blender(args.blender.as_deref(), args.allow_blender_version, &root)?;
     let params = camera();
     let model = params.build()?;
     let board = board()?;
@@ -521,7 +521,7 @@ pub fn g4_2(args: &ProbeArgs) -> Result<()> {
         };
         let dir = args.output.join(format!("s{s}"));
         let t = std::time::Instant::now();
-        run_blender(&exe, &job, &dir)?;
+        run_blender(&exe, &job, &dir, &crate::console())?;
         eprintln!(
             "  s = {s}: canonical {}×{}, {samples} samples, {:.0} s",
             canonical.resolution[0],

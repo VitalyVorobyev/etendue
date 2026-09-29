@@ -38,3 +38,8 @@ web/**/playwright-report/
 
 # Python bytecode (Blender script tests)
 __pycache__/
+
+# The studio's Tauri shell (its own cargo workspace): build output and the
+# capability schemas tauri-build generates.
+web/apps/studio/src-tauri/target/
+web/apps/studio/src-tauri/gen/

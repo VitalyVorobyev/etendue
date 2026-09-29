@@ -32,6 +32,8 @@ use etendue_synth::dataset::GroundTruth;
 use etendue_synth::images::read_png_raw;
 use serde::{Deserialize, Serialize};
 
+use crate::progress::{Control, Stage};
+
 /// A detection within this distance of a ground-truth corner is its match
 /// (also the G4.2 matching radius).
 pub const MATCH_PX: f64 = 1.5;
@@ -339,9 +341,16 @@ pub fn radon() -> DetectorConfig {
     DetectorConfig::radon()
 }
 
-/// `etendue detect <dir>`: detect every image of a dataset, write
-/// `<dir>/features.json`, and print a summary.
-pub fn run(dir: &Path) -> Result<()> {
+/// Detect every image of the dataset in `dir` (`dataset.json` and `gt.json`
+/// from `etendue gt`, images from `etendue render`) and write
+/// `<dir>/features.json`. Reports a [`Stage::Detect`] step per image.
+///
+/// # Errors
+///
+/// If a dataset file does not read or parse, the target is not a
+/// chessboard, an image does not read, or the run is cancelled
+/// ([`crate::progress::Cancelled`]).
+pub fn run(dir: &Path, ctl: &Control) -> Result<Features> {
     let read = |name: &str| -> Result<String> {
         let path = dir.join(name);
         std::fs::read_to_string(&path).with_context(|| format!("reading {}", path.display()))
@@ -375,10 +384,15 @@ pub fn run(dir: &Path) -> Result<()> {
     let labeller = ChessboardDetector::new(ChessboardParams::default())
         .map_err(|e| anyhow!("chessboard params: {e}"))?;
 
+    let total: usize = gt.captures.iter().map(|c| c.views.len()).sum();
+    let mut done = 0;
     let mut captures = Vec::with_capacity(gt.captures.len());
     for capture in &gt.captures {
         let mut views = Vec::with_capacity(capture.views.len());
         for view in &capture.views {
+            ctl.check()?;
+            ctl.step(Stage::Detect, done, total);
+            done += 1;
             let path = dir.join(&view.image);
             if !path.is_file() {
                 views.push(FeatureView {
@@ -431,62 +445,115 @@ pub fn run(dir: &Path) -> Result<()> {
             .into(),
         captures,
     };
+    ctl.step(Stage::Detect, total, total);
     let path = dir.join("features.json");
     std::fs::write(&path, serde_json::to_string_pretty(&features)? + "\n")
         .with_context(|| format!("writing {}", path.display()))?;
-    summarise(&features, &gt, &path);
-    Ok(())
+    Ok(features)
 }
 
-fn summarise(features: &Features, gt: &GroundTruth, path: &Path) {
-    println!(
-        "| camera | views ok | no board | partial | ambiguous | points | mislabelled | unmatched | RMS vs GT px | max px |"
-    );
-    println!("|---|---|---|---|---|---|---|---|---|---|");
-    for (i, camera) in gt.cameras.iter().enumerate() {
-        let views: Vec<&FeatureView> = features
-            .captures
-            .iter()
-            .map(|c| &c.views[i])
-            .filter(|v| v.status != ViewStatus::NoImage)
-            .collect();
-        if views.is_empty() {
-            println!("| {} | no images |", camera.id);
-            continue;
-        }
-        let count = |s: ViewStatus| views.iter().filter(|v| v.status == s).count();
-        let matched: usize = views.iter().map(|v| v.check.matched).sum();
-        let sq: f64 = views
-            .iter()
-            .map(|v| v.check.rms_px.powi(2) * v.check.matched as f64)
-            .sum();
-        println!(
-            "| {} | {}/{} | {} | {} | {} | {} | {} | {} | {:.4} | {:.4} |",
-            camera.id,
-            count(ViewStatus::Ok),
-            views.len(),
-            count(ViewStatus::NoBoard),
-            count(ViewStatus::Partial),
-            count(ViewStatus::Ambiguous),
-            views.iter().map(|v| v.points.len()).sum::<usize>(),
-            views.iter().map(|v| v.check.mislabelled).sum::<usize>(),
-            views.iter().map(|v| v.check.unmatched).sum::<usize>(),
-            (sq / matched.max(1) as f64).sqrt(),
-            views.iter().map(|v| v.check.max_px).fold(0.0, f64::max),
-        );
+/// Detection results of one camera.
+#[derive(Clone, Debug, Default, PartialEq, Serialize)]
+pub struct CameraSummary {
+    /// Camera id.
+    pub camera: String,
+    /// Views with an image.
+    pub views: usize,
+    /// Views by outcome.
+    pub ok: usize,
+    /// Views where no board was found.
+    pub no_board: usize,
+    /// Views where the board was cut off.
+    pub partial: usize,
+    /// Views whose rotation the colours did not decide.
+    pub ambiguous: usize,
+    /// Features found.
+    pub points: usize,
+    /// Features nearer another point's analytic pixel.
+    pub mislabelled: usize,
+    /// Features with no analytic pixel near.
+    pub unmatched: usize,
+    /// RMS distance of matched features to their analytic pixels.
+    pub rms_px: f64,
+    /// Largest such distance.
+    pub max_px: f64,
+}
+
+impl Features {
+    /// Per camera, in dataset order: what was found. Cameras without images
+    /// have `views == 0`.
+    #[must_use]
+    pub fn summary(&self) -> Vec<CameraSummary> {
+        let Some(first) = self.captures.first() else {
+            return vec![];
+        };
+        (0..first.views.len())
+            .map(|i| {
+                let views: Vec<&FeatureView> = self
+                    .captures
+                    .iter()
+                    .filter_map(|c| c.views.get(i))
+                    .filter(|v| v.status != ViewStatus::NoImage)
+                    .collect();
+                let count = |s: ViewStatus| views.iter().filter(|v| v.status == s).count();
+                let matched: usize = views.iter().map(|v| v.check.matched).sum();
+                let sq: f64 = views
+                    .iter()
+                    .map(|v| v.check.rms_px.powi(2) * v.check.matched as f64)
+                    .sum();
+                CameraSummary {
+                    camera: first.views[i].camera.clone(),
+                    views: views.len(),
+                    ok: count(ViewStatus::Ok),
+                    no_board: count(ViewStatus::NoBoard),
+                    partial: count(ViewStatus::Partial),
+                    ambiguous: count(ViewStatus::Ambiguous),
+                    points: views.iter().map(|v| v.points.len()).sum(),
+                    mislabelled: views.iter().map(|v| v.check.mislabelled).sum(),
+                    unmatched: views.iter().map(|v| v.check.unmatched).sum(),
+                    rms_px: (sq / matched.max(1) as f64).sqrt(),
+                    max_px: views.iter().map(|v| v.check.max_px).fold(0.0, f64::max),
+                }
+            })
+            .collect()
     }
-    let wrong: usize = features
-        .captures
-        .iter()
-        .flat_map(|c| &c.views)
-        .map(|v| v.check.mislabelled + v.check.unmatched)
-        .sum();
+}
+
+/// [`Features::summary`] as a Markdown table, plus a warning line if any
+/// feature disagrees with the ground truth.
+#[must_use]
+pub fn summary_table(summary: &[CameraSummary]) -> Vec<String> {
+    let mut lines = vec![
+        "| camera | views ok | no board | partial | ambiguous | points | mislabelled | unmatched | RMS vs GT px | max px |".to_owned(),
+        "|---|---|---|---|---|---|---|---|---|---|".to_owned(),
+    ];
+    for c in summary {
+        lines.push(if c.views == 0 {
+            format!("| {} | no images |", c.camera)
+        } else {
+            format!(
+                "| {} | {}/{} | {} | {} | {} | {} | {} | {} | {:.4} | {:.4} |",
+                c.camera,
+                c.ok,
+                c.views,
+                c.no_board,
+                c.partial,
+                c.ambiguous,
+                c.points,
+                c.mislabelled,
+                c.unmatched,
+                c.rms_px,
+                c.max_px
+            )
+        });
+    }
+    let wrong: usize = summary.iter().map(|c| c.mislabelled + c.unmatched).sum();
     if wrong > 0 {
-        eprintln!(
+        lines.push(format!(
             "warning: {wrong} feature(s) disagree with the ground truth; they are kept as detected"
-        );
+        ));
     }
-    println!("features → {}", path.display());
+    lines
 }
 
 #[cfg(test)]
