@@ -333,7 +333,11 @@ and ask; do not silently relax it.
   its refiners are off by 0.08–0.19 px RMS, the same as on the renders. s = 4 is converged, the
   mean bias is ≤ 0.013 px (no convention offset, `Integer` confirmed), sRGB output roughly
   doubles the error, and the render-vs-exact difference is 0.03 px at s = 4 (center of mass).
-  Awaiting a decision on the gate (`docs/measurements/g4_2_corner_bias.md`).
+  *Decided (2026-09-28):* G4.2 is a characterisation, and the current accuracy is the accepted
+  baseline, not a blocker (user decision). chess-corners' **Radon** detector is 2–6× closer than
+  the ChESS refiners: 0.032 px RMS at s = 4 on linear renders, 0.046 px on the exact image. The
+  synthetic-dataset defaults are s = 4, linear output, and Radon
+  (`docs/measurements/g4_2_corner_bias.md`).
 - **P4-4 — Cross-backend agreement.** Run the same frame, same camera, same detector on
   both backends. Done when gate **G4.3** passes: corner RMS difference ≤0.05 px. If it
   fails, suspect a convention error first.
@@ -365,8 +369,8 @@ and ask; do not silently relax it.
   *Status (2026-09-27):* **G5.1 passes on analytic correspondences**, for one camera and for the
   two-camera rig, 5–8 orders of magnitude inside every limit. The loop is `etendue gt`, then
   `tools/closed-loop` feeding calibration-rs's solver through the 0.8.2 Python wheel, on
-  `examples/closed_loop_ur5e` (20 poses at 0.45–0.55 m). CI runs it. The image-level loop waits
-  on the G4.2 detector decision. The loop found calibration-rs#124: identity-rotation mounts
+  `examples/closed_loop_ur5e` (20 poses at 0.45–0.55 m). CI runs it. The image-level loop is no
+  longer blocked (G4.2 decided 2026-09-28; its baseline is Radon's 0.032 px). The loop found calibration-rs#124: identity-rotation mounts
   were rejected by the hand-eye init (`docs/measurements/closed_loop.md`).
 - **P5-2 — Laser sheet in Cycles (spike).** Compare (a) a spot light with a slit
   texture against (b) an area light with near-zero spread behind a slit occluder.
