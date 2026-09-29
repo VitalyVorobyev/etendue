@@ -264,9 +264,86 @@ pub fn write_png_raw(image: &crate::sensor::RawImage, path: &Path) -> Result<()>
         .map_err(|e| bad(e.to_string()))
 }
 
+/// Read a grayscale PNG as [`write_png_raw`] writes it: an 8-bit file gives
+/// `bits = 8`, a 16-bit file `bits = 16` with the values as stored (still
+/// left-aligned, since PNG does not record the sensor's bit depth).
+///
+/// # Errors
+///
+/// [`Error::InvalidInput`] if the file does not read or is not an 8- or
+/// 16-bit grayscale PNG.
+pub fn read_png_raw(path: &Path) -> Result<crate::sensor::RawImage> {
+    let bad = |m: String| Error::InvalidInput(format!("{}: {m}", path.display()));
+    let file = std::fs::File::open(path).map_err(|e| bad(e.to_string()))?;
+    let mut reader = png::Decoder::new(std::io::BufReader::new(file))
+        .read_info()
+        .map_err(|e| bad(e.to_string()))?;
+    let (color, depth) = reader.output_color_type();
+    if color != png::ColorType::Grayscale {
+        return Err(bad(format!("{color:?} PNG, expected grayscale")));
+    }
+    let size = reader
+        .output_buffer_size()
+        .ok_or_else(|| bad("image too large".into()))?;
+    let mut buf = vec![0; size];
+    let info = reader
+        .next_frame(&mut buf)
+        .map_err(|e| bad(e.to_string()))?;
+    let bytes = &buf[..info.buffer_size()];
+    let (bits, dn) = match depth {
+        png::BitDepth::Eight => (8, bytes.iter().map(|&v| u16::from(v)).collect()),
+        png::BitDepth::Sixteen => (
+            16,
+            bytes
+                .chunks_exact(2)
+                .map(|b| u16::from_be_bytes([b[0], b[1]]))
+                .collect(),
+        ),
+        other => return Err(bad(format!("{other:?}-bit PNG, expected 8 or 16"))),
+    };
+    Ok(crate::sensor::RawImage {
+        width: info.width,
+        height: info.height,
+        bits,
+        dn,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::sensor::RawImage;
+
+    #[test]
+    fn raw_png_round_trips() {
+        let dir = std::env::temp_dir().join(format!("etendue-png-{}", std::process::id()));
+        for bits in [8, 12, 16] {
+            let image = RawImage {
+                width: 5,
+                height: 3,
+                bits,
+                dn: (0..15_u32)
+                    .map(|i| ((i * 4999) % (1 << bits)) as u16)
+                    .collect(),
+            };
+            let path = dir.join(format!("raw{bits}.png"));
+            write_png_raw(&image, &path).unwrap();
+            let back = read_png_raw(&path).unwrap();
+            assert_eq!((back.width, back.height), (5, 3));
+            if bits <= 8 {
+                assert_eq!(back, image);
+            } else {
+                // Left-aligned in 16 bits.
+                assert_eq!(back.bits, 16);
+                let shifted: Vec<u16> = image.dn.iter().map(|v| v << (16 - bits)).collect();
+                assert_eq!(back.dn, shifted);
+            }
+        }
+        let rgb = dir.join("rgb.png");
+        write_png_srgb(&LinearImage::black(2, 2), 1.0, &rgb).unwrap();
+        assert!(read_png_raw(&rgb).is_err());
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
 
     fn gradient(w: u32, h: u32) -> LinearImage {
         let mut img = LinearImage::black(w, h);

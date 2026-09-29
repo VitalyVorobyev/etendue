@@ -29,6 +29,7 @@ use vision_calibration_core::{
     ProjectionParams, SensorParams,
 };
 
+use crate::detect::{MATCH_PX, nearest};
 use crate::measure::ProbeArgs;
 use crate::render::{PIXEL_CENTRE, checked_blender, run_blender};
 
@@ -37,8 +38,6 @@ const RESOLUTION: [u32; 2] = [1280, 1024];
 const SQUARES: [u32; 2] = [10, 8];
 const SQUARE_M: f64 = 0.02;
 const SUPERSAMPLING: [f64; 4] = [1.0, 2.0, 4.0, 8.0];
-/// A detection within this distance of a visible ground-truth corner is its match.
-const MATCH_PX: f64 = 1.5;
 /// Keep corners this far from the image edge (the detector's ring radius and
 /// refiner window must fit).
 const MARGIN_PX: f64 = 12.0;
@@ -166,12 +165,14 @@ impl Stats {
 /// Match each visible ground-truth pixel to its nearest detection.
 fn score(truth: &[[f64; 2]], found: &[CornerDescriptor], stats: &mut Stats) {
     stats.visible += truth.len();
+    let found: Vec<[f64; 2]> = found
+        .iter()
+        .map(|c| [f64::from(c.x), f64::from(c.y)])
+        .collect();
     for t in truth {
-        let nearest = found
-            .iter()
-            .map(|c| [f64::from(c.x) - t[0], f64::from(c.y) - t[1]])
-            .min_by(|a, b| a[0].hypot(a[1]).total_cmp(&b[0].hypot(b[1])));
-        let matched = nearest.filter(|e| e[0].hypot(e[1]) <= MATCH_PX);
+        let matched = nearest(found.iter().copied(), *t)
+            .filter(|(_, d)| *d <= MATCH_PX)
+            .map(|(k, _)| [found[k][0] - t[0], found[k][1] - t[1]]);
         stats.errors.extend(matched);
         stats.per_corner.push(matched);
     }

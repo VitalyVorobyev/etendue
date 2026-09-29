@@ -111,6 +111,7 @@ jobs:
           # The camera square to the flange (calibration-rs#124, fixed in 0.8.3).
           cargo run -q -p etendue-cli -- gt examples/eye_in_hand_ur5e/scene.json examples/eye_in_hand_ur5e/scenario.json -o target/closed_loop_eih
           uv run --locked --project tools/closed-loop tools/closed-loop/closed_loop.py target/closed_loop_eih
+          uv run --locked --project tools/closed-loop python -m unittest discover -s tools/closed-loop -v
 
   # etendue-wasm (npm `@etendue/wasm`): wasm32 build, gate G0.1 — the wasm
   # build of the projection chain must match the native build bit-for-bit
