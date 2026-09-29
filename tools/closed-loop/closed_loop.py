@@ -2,6 +2,7 @@
 
     cargo run -p etendue-cli -- gt <scene.json> <scenario.json> -o <dir>
     uv run --locked --project tools/closed-loop tools/closed-loop/closed_loop.py <dir> [--camera ID]
+    uv run … closed_loop.py <dir> --features <dir>/features.json   # image level (P5-1b)
 
 Reads `<dir>/dataset.json`, `robot_poses.json` and `gt.json` (etendue-synth `dataset::emit`).
 The observations are the visible ground-truth corners: target points in the target frame,
@@ -13,6 +14,12 @@ Robot poses are read from `robot_poses.json` through the dataset's own column ma
 convention, as calibration-rs's dataset runner would read them. `--camera` calibrates a single
 camera of a rig dataset (single-camera hand-eye); by default a rig dataset is calibrated as a
 rig.
+
+`--features` takes the observations from `etendue detect` instead (render → detect → calibrate,
+P5-1b): the detected pixel of every board point the detector labelled, in views it kept. The
+truth it is compared with is still `gt.json`, and so are the limits, though G5.1 itself is
+defined on noise-free input. `--noise-px σ` instead adds white Gaussian noise (σ per axis, seeded)
+to the analytic pixels: what a detector with no bias and that RMS would give on these views.
 """
 
 from __future__ import annotations
@@ -127,15 +134,43 @@ def robot_poses(directory: Path, dataset: dict[str, Any]) -> list[Iso]:
     ]
 
 
-def observation(gt: dict[str, Any], view: dict[str, Any]) -> vc.Observation | None:
+def correspondences(view: dict[str, Any]) -> list[tuple[int, list[float]]]:
+    """(point index, pixel) pairs of a view: the visible points of a `gt.json` view, or every
+    point of a `features.json` view the detector kept."""
+    if "status" in view:
+        return [(p["point"], p["pixel"]) for p in view["points"]] if view["status"] == "ok" else []
+    return [(p["point"], p["pixel"]) for p in view["points"] if p.get("occluded") is None]
+
+
+def observation(
+    gt: dict[str, Any], view: dict[str, Any], noise: np.random.Generator | None = None, sigma: float = 0.0
+) -> vc.Observation | None:
     points = gt["target"]["points"]
     p3, p2 = [], []
-    for p in view["points"]:
-        if p.get("occluded") is None:
-            x, y = points[p["point"]]["position_m"]
-            p3.append((x, y, 0.0))
-            p2.append(tuple(p["pixel"]))
+    for point, pixel in correspondences(view):
+        x, y = points[point]["position_m"]
+        p3.append((x, y, 0.0))
+        if noise is not None:
+            pixel = [pixel[0] + noise.normal(0.0, sigma), pixel[1] + noise.normal(0.0, sigma)]
+        p2.append(tuple(pixel))
     return vc.Observation(points_3d=p3, points_2d=p2) if len(p3) >= 4 else None
+
+
+def observed_captures(gt: dict[str, Any], features: dict[str, Any] | None) -> list[dict[str, Any]]:
+    """The captures whose views give the observations: `gt.json`'s, or `features.json`'s
+    (checked to be the same captures and cameras, in the same order)."""
+    if features is None:
+        return gt["captures"]
+    if features.get("version") != 1:
+        sys.exit(f"unsupported features.json version {features.get('version')}")
+    captures = features["captures"]
+    same = len(captures) == len(gt["captures"]) and all(
+        f["id"] == g["id"] and [v["camera"] for v in f["views"]] == [v["camera"] for v in g["views"]]
+        for f, g in zip(captures, gt["captures"])
+    )
+    if not same:
+        sys.exit("features.json does not match gt.json's captures and cameras")
+    return captures
 
 
 # ── Comparison ────────────────────────────────────────────────────────────────
@@ -173,7 +208,13 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("directory", type=Path)
     parser.add_argument("--camera", help="calibrate this camera alone (single-camera hand-eye)")
+    parser.add_argument("--features", type=Path, help="observations from `etendue detect` (features.json)")
+    parser.add_argument("--noise-px", type=float, default=0.0, help="white noise σ per axis on analytic pixels")
+    parser.add_argument("--seed", type=int, default=0, help="seed of --noise-px")
     args = parser.parse_args()
+    if args.features and args.noise_px:
+        sys.exit("--noise-px applies to the analytic observations, not to --features")
+    noise = np.random.default_rng(args.seed) if args.noise_px else None
     directory: Path = args.directory
     dataset = json.loads((directory / "dataset.json").read_text())
     gt = json.loads((directory / "gt.json").read_text())
@@ -189,15 +230,22 @@ def main() -> int:
     base_se3_target = Iso.wire(handeye["base_se3_target"])
     # A camera without a rig is its own rig frame.
     cam_se3_rig = [Iso.wire(c["cam_se3_rig"]) if c.get("cam_se3_rig") else Iso(np.eye(3), np.zeros(3)) for c in cameras]
-    n_points = sum(1 for c in gt["captures"] for v in c["views"] for p in v["points"] if p.get("occluded") is None)
-    print(f"{directory}: {len(gt['captures'])} captures, cameras {ids}, {n_points} visible points")
+    features = json.loads(args.features.read_text()) if args.features else None
+    captures = observed_captures(gt, features)
+    n_points = sum(len(correspondences(v)) for c in captures for v in c["views"])
+    source = (
+        f"detected points ({args.features})"
+        if features
+        else f"visible points (analytic{f', noise σ = {args.noise_px} px' if args.noise_px else ''})"
+    )
+    print(f"{directory}: {len(gt['captures'])} captures, cameras {ids}, {n_points} {source}")
 
     if args.camera is not None or len(cameras) == 1:
         name = args.camera or ids[0]
         i = ids.index(name)
         views = []
-        for capture, base_se3_gripper in zip(gt["captures"], poses):
-            obs = observation(gt, capture["views"][i])
+        for capture, base_se3_gripper in zip(captures, poses):
+            obs = observation(gt, capture["views"][i], noise, args.noise_px)
             if obs is not None:
                 views.append(vc.SingleCamHandeyeView(observation=obs, base_se3_gripper=base_se3_gripper.to_pose()))
         config = vc.SingleCamHandeyeCalibrationConfig()
@@ -218,8 +266,8 @@ def main() -> int:
 
     # Rig: calibration-rs's rig frame is the reference camera's (index 0).
     views = []
-    for capture, base_se3_gripper in zip(gt["captures"], poses):
-        obs = [observation(gt, v) for v in capture["views"]]
+    for capture, base_se3_gripper in zip(captures, poses):
+        obs = [observation(gt, v, noise, args.noise_px) for v in capture["views"]]
         if any(o is not None for o in obs):
             views.append(vc.RigHandeyeView(cameras=obs, base_se3_gripper=base_se3_gripper.to_pose()))
     config = vc.RigHandeyeCalibrationConfig()

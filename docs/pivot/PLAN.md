@@ -372,6 +372,14 @@ and ask; do not silently relax it.
   `examples/closed_loop_ur5e` (20 poses at 0.45–0.55 m). CI runs it. The image-level loop is no
   longer blocked (G4.2 decided 2026-09-28; its baseline is Radon's 0.032 px). The loop found calibration-rs#124: identity-rotation mounts
   were rejected by the hand-eye init (`docs/measurements/closed_loop.md`).
+  *Status (2026-09-29), image level (P5-1b):* render → `etendue detect` (Radon corners,
+  calib-targets labels, checked against the GT) → calibration-rs. On `closed_loop_ur5e`, 40/40
+  views are detected, with 0 mislabels and 0.051 px RMS against the GT. The calibration is
+  limited by noise: every result sits inside the spread of unbiased white noise of the same RMS,
+  and the principal point and hand-eye are outside G5.1's noise-free limits (cy up to 0.56 px,
+  hand-eye 0.014° / 0.12 mm). How to gate the image-level loop awaits a decision
+  (`docs/measurements/closed_loop_images.md`). The renders found an IK branch in which the arm
+  hid the board (fixed with `initial_q`), and that the GT has no robot self-occlusion yet.
 - **P5-2 — Laser sheet in Cycles (spike).** Compare (a) a spot light with a slit
   texture against (b) an area light with near-zero spread behind a slit occluder.
   Measure the across-stripe profile on a matte plane. Done when gate **G5.2** passes:
