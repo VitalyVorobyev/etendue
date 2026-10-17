@@ -98,7 +98,8 @@ etendue/                                   (cargo workspace + bun workspace)
 - `etendue-kinematics` → `etendue-scene` and `urdf-rs`. `rs-opw-kinematics` sits behind
   an `opw` feature.
 - `etendue-synth` → `etendue-scene`, `etendue-kinematics`, `vision-calibration-core`,
-  `vision-calibration-dataset`, and `exr`.
+  `vision-calibration-dataset`, and `exr`, and since P5-3 `etendue-core` (without its
+  `solver` feature; ADR 0001).
 - `etendue-core` → it may depend on `etendue-scene` to build a `Scene` from a spec,
   and must not go the other way.
 - `etendue-wasm` → it may depend on any library crate and on no binary crate.
@@ -400,6 +401,15 @@ and ask; do not silently relax it.
 - **P5-3 — Laser closed loop.** Run the calibration-rs rig laserline problem on
   synthetic data. Done when gate **G5.3** passes: plane normal error ≤0.01° and distance
   error ≤0.05 mm.
+  *Status (2026-09-28):* **G5.3 passes on analytic correspondences** (`examples/laser_ur5e`):
+  the joint rig hand-eye laserline problem recovers the plane to 1.3e-7° and 1e-8 mm per
+  camera. `etendue-synth::laser` gives the stripe (via `etendue-core::laser`, now a dependency)
+  and the true planes, `etendue gt` writes a `rig_handeye_laserline` dataset, and CI runs the
+  loop. The Scheimpflug variant does not pass and is recorded as a characterisation; whether
+  G5.3 should gate Scheimpflug rigs is an open question for the user. Seeded as calibration-rs's
+  ADR 0022 prescribes, it stops in a flat tilt / principal-point valley (plane normal
+  0.008–0.010°, cy up to 2 px off), and the wheel lacks `manual_init`. Upstream drafts await
+  review (`docs/measurements/g5_3_laser_closed_loop.md`).
 
 ### P6 — Design overlays and egui retirement
 

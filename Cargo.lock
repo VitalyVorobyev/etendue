@@ -1335,6 +1335,7 @@ version = "0.1.0"
 dependencies = [
  "calib-targets-charuco",
  "calib-targets-print",
+ "etendue-core",
  "etendue-kinematics",
  "etendue-scene",
  "exr",

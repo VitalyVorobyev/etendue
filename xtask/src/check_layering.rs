@@ -30,7 +30,10 @@ const RULES: &[(&str, &[&str])] = &[
     ("etendue-scene", &[]),
     ("etendue-core", &["etendue-scene"]),
     ("etendue-kinematics", &["etendue-scene"]),
-    ("etendue-synth", &["etendue-scene", "etendue-kinematics"]),
+    (
+        "etendue-synth",
+        &["etendue-scene", "etendue-kinematics", "etendue-core"],
+    ),
     ("etendue-wasm", &["*lib"]),
     ("etendue-cli", &["*lib"]),
     ("etendue-ui", &["etendue-core"]),

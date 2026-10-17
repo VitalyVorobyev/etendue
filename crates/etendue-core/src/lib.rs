@@ -34,9 +34,9 @@
 //!   projection of that stripe into the camera's pixel space.
 //! - [`analysis`]: derived quantities over a scene — currently the per-target
 //!   defocus map.
-//! - [`solver`]: design-space solvers — the M9 Scheimpflug solver that
-//!   proposes optimal sensor tilt and focus distance for a target working
-//!   geometry.
+//! - `solver` (feature `solver`): design-space solvers — the M9 Scheimpflug
+//!   solver that proposes optimal sensor tilt and focus distance for a target
+//!   working geometry.
 
 pub mod analysis;
 pub mod bank;
@@ -45,6 +45,7 @@ pub mod geom;
 pub mod laser;
 pub mod optics;
 pub mod scene;
+#[cfg(feature = "solver")]
 pub mod solver;
 
 pub use error::{Error, Result};

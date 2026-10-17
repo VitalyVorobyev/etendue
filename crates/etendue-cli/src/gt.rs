@@ -69,6 +69,7 @@ pub fn write(loaded: &Loaded, baked: &BakedScenario, output: &Path) -> Result<Gt
         &EmitOptions {
             visibility: VisibilitySpec::default(),
             pixel_centre: PIXEL_CENTRE,
+            laser_spacing_m: 1e-3,
         },
     )?;
     std::fs::create_dir_all(output).with_context(|| format!("creating {}", output.display()))?;

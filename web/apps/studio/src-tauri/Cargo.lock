@@ -1138,6 +1138,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "etendue-core"
+version = "0.1.0"
+dependencies = [
+ "nalgebra",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+ "vision-calibration-core",
+]
+
+[[package]]
 name = "etendue-kinematics"
 version = "0.1.0"
 dependencies = [
@@ -1182,6 +1193,7 @@ version = "0.1.0"
 dependencies = [
  "calib-targets-charuco",
  "calib-targets-print",
+ "etendue-core",
  "etendue-scene",
  "exr",
  "nalgebra",

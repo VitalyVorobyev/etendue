@@ -17,7 +17,7 @@ name = "etendue-ui"
 path = "src/main.rs"
 
 [dependencies]
-etendue-core = { workspace = true }
+etendue-core = { workspace = true, features = ["solver"] }
 # Same workspace pin as etendue-core: the viewport's camera and GPU-packing
 # math (view/projection matrices, vertex narrowing) use nalgebra directly.
 # Sharing the one pinned 0.34 keeps a single nalgebra in the tree.

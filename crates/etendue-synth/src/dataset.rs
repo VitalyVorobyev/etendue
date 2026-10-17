@@ -14,8 +14,11 @@
 //!
 //! The topology comes from where the cameras and the target hang in the frame
 //! tree: both fixed → intrinsics / rig extrinsics; cameras on a robot →
-//! eye-in-hand; target on a robot → eye-to-hand. Lasers are not part of the
-//! geometric dataset yet (laser topologies are P5).
+//! eye-in-hand; target on a robot → eye-to-hand. A laser on a hand-eye rig
+//! makes it the joint rig hand-eye laserline problem (P5-3): each camera then
+//! also lists laser images (`images/<camera>/<capture>_laser.png`), and
+//! `gt.json` carries the true laser plane and the stripe's points
+//! ([`crate::laser`]). Other laser topologies are not emitted yet.
 
 use std::collections::BTreeMap;
 
@@ -27,10 +30,11 @@ use vision_calibration_core::{CameraParams, SensorParams};
 use vision_calibration_dataset::{DatasetSpec, Topology};
 
 use crate::gt::{BoardPoint, GtPoint, VisibilitySpec, project_points};
+use crate::laser::{GtPlane, plane_in, stripe};
 use crate::{Error, PixelCentre, Result};
 
-/// The `gt.json` format version.
-pub const GT_VERSION: u32 = 1;
+/// The `gt.json` format version. Version 2 adds the laser fields.
+pub const GT_VERSION: u32 = 2;
 
 /// Everything a synthetic dataset needs besides the renders.
 #[derive(Clone, Debug)]
@@ -63,8 +67,46 @@ pub struct GroundTruth {
     pub handeye: Option<GtHandeye>,
     /// The target and its feature points.
     pub target: GtTarget,
+    /// True laser planes, for laser topologies.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub lasers: Vec<GtLaser>,
     /// One entry per capture, in time order (= dataset image order).
     pub captures: Vec<GtCapture>,
+}
+
+/// A laser's true plane.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GtLaser {
+    /// Laser id in the scene.
+    pub id: String,
+    /// The plane in etendue's rig frame (the scene's rig entity). That is
+    /// **not** calibration-rs's rig frame, which is the first camera's: compare
+    /// a solved rig-frame plane with `camera_planes[0]` instead.
+    pub rig_plane: GtPlane,
+    /// The plane in each camera's frame, in dataset camera order.
+    pub camera_planes: Vec<GtPlane>,
+}
+
+/// A laser's stripe on the target at one capture.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GtStripe {
+    /// Laser id.
+    pub laser: String,
+    /// Stripe points in the target frame; [`GtPoint::point`] of a
+    /// [`GtStripeView`] indexes this. Empty if the laser misses the target.
+    pub points: Vec<BoardPoint>,
+}
+
+/// What one camera sees of one laser's stripe.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GtStripeView {
+    /// Laser id.
+    pub laser: String,
+    /// Every stripe point, projected, with visibility.
+    pub points: Vec<GtPoint>,
 }
 
 /// A camera's true parameters and mount.
@@ -136,6 +178,9 @@ pub struct GtCapture {
     pub base_se3_tcp: Option<Isometry3<f64>>,
     /// Target pose in the world.
     pub world_se3_target: Isometry3<f64>,
+    /// Each laser's stripe on the target, in [`GroundTruth::lasers`] order.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub laser_stripes: Vec<GtStripe>,
     /// One view per camera, in dataset camera order.
     pub views: Vec<GtView>,
 }
@@ -152,6 +197,15 @@ pub struct GtView {
     pub world_se3_camera: Isometry3<f64>,
     /// Every target point, projected, with visibility.
     pub points: Vec<GtPoint>,
+    /// Laser image path relative to the dataset directory, for laser
+    /// topologies. calibration-rs's dataset format requires laser frames, so
+    /// they are named; nothing renders them yet (the analytic loop reads the
+    /// stripe pixels from `laser_points` instead).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub laser_image: Option<String>,
+    /// Each laser's stripe, projected, in [`GtCapture::laser_stripes`] order.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub laser_points: Vec<GtStripeView>,
 }
 
 /// Options of [`emit`].
@@ -161,6 +215,8 @@ pub struct EmitOptions {
     pub visibility: VisibilitySpec,
     /// The pixel-centre convention of the emitted pixels.
     pub pixel_centre: PixelCentre,
+    /// Spacing of the laser-stripe points on the target, in metres.
+    pub laser_spacing_m: f64,
 }
 
 /// Where a frame is ultimately attached.
@@ -171,21 +227,42 @@ enum Anchor {
 }
 
 fn anchor(scene: &SceneSpec, id: &str) -> Result<Anchor> {
+    let (_, end) = ancestry(scene, id)?;
+    Ok(match end {
+        ParsedFrameRef::RobotLink { robot, .. } => Anchor::Robot {
+            robot: robot.to_owned(),
+        },
+        _ => Anchor::World,
+    })
+}
+
+/// Whether `id` hangs (through entity parents) below the entity `ancestor`.
+fn mounted_on(scene: &SceneSpec, id: &str, ancestor: &str) -> bool {
+    ancestry(scene, id).is_ok_and(|(chain, _)| chain.contains(&ancestor))
+}
+
+/// The entities above `id`, nearest first, and the frame the chain ends on
+/// (the world or a robot link).
+///
+/// # Errors
+///
+/// If an entity on the way is missing, a parent does not parse, or the
+/// parents form a cycle.
+fn ancestry<'s>(scene: &'s SceneSpec, id: &'s str) -> Result<(Vec<&'s str>, ParsedFrameRef<'s>)> {
     let parents: BTreeMap<&str, &etendue_scene::FrameRef> =
         scene.mounted().map(|m| (m.id, m.parent)).collect();
+    let mut chain = Vec::new();
     let mut at = id;
     for _ in 0..=parents.len() {
         let parent = parents
             .get(at)
             .ok_or_else(|| Error::InvalidInput(format!("no scene entity `{at}`")))?;
         match parent.parse().map_err(Error::InvalidInput)? {
-            ParsedFrameRef::World => return Ok(Anchor::World),
-            ParsedFrameRef::RobotLink { robot, .. } => {
-                return Ok(Anchor::Robot {
-                    robot: robot.to_owned(),
-                });
+            ParsedFrameRef::Entity(e) => {
+                chain.push(e);
+                at = e;
             }
-            ParsedFrameRef::Entity(e) => at = e,
+            end => return Ok((chain, end)),
         }
     }
     Err(Error::InvalidInput(format!("parent cycle above `{id}`")))
@@ -224,8 +301,9 @@ impl<'a> Poses<'a> {
 ///
 /// [`Error::InvalidInput`] if the scene does not describe one calibration
 /// problem calibration-rs can take: no camera, cameras not sharing one rig,
-/// not exactly one board target, cameras and target both on robots, a
-/// scenario without captures, or a frame missing from `baked`.
+/// not exactly one board target, cameras and target both on robots, a laser
+/// anywhere but on a hand-eye rig of two or more cameras (or more than one
+/// laser), a scenario without captures, or a frame missing from `baked`.
 pub fn emit(
     scene: &SceneSpec,
     baked: &BakedScenario,
@@ -289,7 +367,29 @@ pub fn emit(
         }
     };
     let n = scene.cameras.len();
+    // A laser on the hand-eye rig: the joint rig hand-eye laserline problem.
+    let laser = match scene.lasers.as_slice() {
+        [] => None,
+        [laser] => {
+            let on_rig = rig
+                .as_deref()
+                .is_some_and(|r| mounted_on(scene, &laser.id, r));
+            if robot.is_none() || n < 2 || !on_rig {
+                return bad(format!(
+                    "laser `{}`: the only laser topology emitted so far is a laser on a \
+                     hand-eye rig of two or more cameras (rig hand-eye laserline)",
+                    laser.id
+                ));
+            }
+            let extent = target.geometry.extent_m().ok_or_else(|| {
+                Error::InvalidInput(format!("target `{}` has no known extent", target.id))
+            })?;
+            Some((laser, extent))
+        }
+        more => return bad(format!("{} lasers: a dataset takes one", more.len())),
+    };
     let topology = match (&robot, n) {
+        _ if laser.is_some() => Topology::RigHandeyeLaserline,
         (None, 1) => match scene.cameras[0].params.sensor {
             SensorParams::Scheimpflug { .. } => Topology::ScheimpflugIntrinsics,
             _ => Topology::PlanarIntrinsics,
@@ -366,12 +466,37 @@ pub fn emit(
         _ => None,
     };
 
+    // The laser is on the rig, so its plane is fixed in the rig and camera
+    // frames: take it at the first capture.
+    let lasers = match (&laser, &rig) {
+        (Some((l, _)), Some(r)) => {
+            let world_se3_laser = poses.at(&l.id, first)?;
+            let camera_planes = scene
+                .cameras
+                .iter()
+                .map(|c| {
+                    Ok(plane_in(
+                        &c.id,
+                        &(poses.at(&c.id, first)?.inverse() * world_se3_laser),
+                    ))
+                })
+                .collect::<Result<Vec<_>>>()?;
+            vec![GtLaser {
+                id: l.id.clone(),
+                rig_plane: plane_in(r, &(poses.at(r, first)?.inverse() * world_se3_laser)),
+                camera_planes,
+            }]
+        }
+        _ => Vec::new(),
+    };
+
     let models = scene
         .cameras
         .iter()
         .map(|c| c.params.build())
         .collect::<std::result::Result<Vec<_>, _>>()?;
     let image = |camera: &str, capture: &str| format!("images/{camera}/{capture}.png");
+    let laser_image = |camera: &str, capture: &str| format!("images/{camera}/{capture}_laser.png");
     let mut gt_captures = Vec::with_capacity(captures.len());
     for &k in &captures {
         let sample = &baked.samples[k];
@@ -381,17 +506,27 @@ pub fn emit(
             .map(|c| c.id.clone())
             .unwrap_or_default();
         let world_se3_target = poses.at(&target.id, k)?;
+        let laser_stripes = match &laser {
+            Some((l, extent)) => vec![GtStripe {
+                laser: l.id.clone(),
+                points: stripe(
+                    l,
+                    &poses.at(&l.id, k)?,
+                    &world_se3_target,
+                    *extent,
+                    options.laser_spacing_m,
+                )?,
+            }],
+            None => Vec::new(),
+        };
         let views = scene
             .cameras
             .iter()
             .zip(&models)
             .map(|(c, model)| {
                 let world_se3_camera = poses.at(&c.id, k)?;
-                Ok(GtView {
-                    camera: c.id.clone(),
-                    image: image(&c.id, &id),
-                    world_se3_camera,
-                    points: project_points(
+                let project = |points: &[BoardPoint]| {
+                    project_points(
                         model,
                         c.resolution,
                         &world_se3_camera,
@@ -399,7 +534,21 @@ pub fn emit(
                         points,
                         &options.visibility,
                         options.pixel_centre.edge(),
-                    ),
+                    )
+                };
+                Ok(GtView {
+                    camera: c.id.clone(),
+                    image: image(&c.id, &id),
+                    world_se3_camera,
+                    points: project(points),
+                    laser_image: laser.is_some().then(|| laser_image(&c.id, &id)),
+                    laser_points: laser_stripes
+                        .iter()
+                        .map(|s| GtStripeView {
+                            laser: s.laser.clone(),
+                            points: project(&s.points),
+                        })
+                        .collect(),
                 })
             })
             .collect::<Result<Vec<_>>>()?;
@@ -409,6 +558,7 @@ pub fn emit(
             t: sample.t,
             base_se3_tcp: base_se3_tcp(k)?,
             world_se3_target,
+            laser_stripes,
             views,
         });
     }
@@ -433,15 +583,26 @@ pub fn emit(
         None
     };
 
+    let cameras_json = scene
+        .cameras
+        .iter()
+        .map(|c| {
+            let list = |path: &dyn Fn(&str, &str) -> String| {
+                json!({
+                    "kind": "list",
+                    "paths": gt_captures.iter().map(|g| path(&c.id, &g.id)).collect::<Vec<_>>(),
+                })
+            };
+            let mut camera = json!({ "id": c.id, "images": list(&image) });
+            if laser.is_some() {
+                camera["laser_images"] = list(&laser_image);
+            }
+            camera
+        })
+        .collect::<Vec<_>>();
     let mut dataset = json!({
         "version": 1,
-        "cameras": scene.cameras.iter().map(|c| json!({
-            "id": c.id,
-            "images": {
-                "kind": "list",
-                "paths": gt_captures.iter().map(|g| image(&c.id, &g.id)).collect::<Vec<_>>(),
-            },
-        })).collect::<Vec<_>>(),
+        "cameras": cameras_json,
         "target": board,
         "topology": topology,
     });
@@ -478,6 +639,7 @@ pub fn emit(
                 id: target.id.clone(),
                 points: points.to_vec(),
             },
+            lasers,
             captures: gt_captures,
         },
     })
