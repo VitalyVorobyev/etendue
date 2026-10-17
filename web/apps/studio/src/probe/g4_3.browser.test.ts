@@ -188,6 +188,11 @@ describe("G4.3 cross-backend agreement (web SensorView vs Blender)", () => {
   });
 
   for (const setup of SETUPS) {
+    // A detections.json from before a setup was added has no errors for it.
+    if (d.errors[String(SUPERSAMPLE)]?.[setup] === undefined) {
+      it.skip(`${setup}: not in detections.json (re-run \`etendue measure g4-2\`)`, () => {});
+      continue;
+    }
     it(`${setup}: web vs Blender (s = ${SUPERSAMPLE}) within ${GATE_PX} px RMS`, () => {
       const det = detector(setup, d.chess_threshold);
       const web: ([number, number] | null)[] = [];

@@ -46,10 +46,16 @@ const MARGIN_PX: f64 = 12.0;
 /// baseline below.
 const TARGET_PX: f64 = 0.02;
 /// The accepted baseline: Radon at s = 4 on sharp linear renders, 0.032 px
-/// RMS against the analytic ground truth (`g4_2_corner_bias.md`). A re-run
-/// above this plus Monte Carlo slack is a regression.
+/// RMS against the analytic ground truth (`g4_2_corner_bias.md`, rounded).
+/// A re-run above this plus the slack is a regression.
 const BASELINE_PX: f64 = 0.032;
+/// The render seed is fixed, so the slack is not for Monte Carlo noise: it
+/// absorbs device (Metal, CUDA, CPU), Cycles-version and build differences,
+/// and the baseline's rounding.
 const BASELINE_SLACK_PX: f64 = 0.005;
+/// The baseline's supersampling: the converged one. The best-row summary
+/// only considers s ≥ this.
+const BASELINE_S: f64 = 4.0;
 /// Gaussian PSF applied to the resampled image before detection (pixels): 0 is
 /// the perfectly sharp render; real lenses are ≳ 0.5 px.
 const PSF_SIGMA_PX: [f64; 4] = [0.0, 0.5, 0.7, 1.0];
@@ -444,6 +450,11 @@ fn analytic_images(
 }
 
 pub fn g4_2(args: &ProbeArgs) -> Result<()> {
+    // The baseline row must be measured: fail now, not after hours of rendering.
+    anyhow::ensure!(
+        SUPERSAMPLING.contains(&BASELINE_S) && PSF_SIGMA_PX.contains(&0.0),
+        "the G4.2 baseline (s = {BASELINE_S}, σ = 0) is not among the measured configurations"
+    );
     let root = std::env::current_dir()?;
     let etendue_cli::render::Blender { exe, version, .. } =
         crate::checked_blender(args.blender.as_deref(), args.allow_blender_version, &root)?;
@@ -567,6 +578,8 @@ pub fn g4_2(args: &ProbeArgs) -> Result<()> {
                 Ok(remap_image_box(&render, &lut, s.ceil() as u32))
             })
             .collect::<Result<_>>()?;
+        // s < BASELINE_S is not converged: its rows are reported, never the best.
+        let mut unconverged = None;
         for sigma in PSF_SIGMA_PX {
             let blurred: Vec<LinearImage> = images.iter().map(|i| blur(i, sigma)).collect();
             let errors = evaluate(
@@ -574,7 +587,11 @@ pub fn g4_2(args: &ProbeArgs) -> Result<()> {
                 &blurred,
                 &truth,
                 &mut line,
-                &mut best,
+                if s >= BASELINE_S {
+                    &mut best
+                } else {
+                    &mut unconverged
+                },
             )?;
             rendered.push((s, sigma, errors));
         }
@@ -631,24 +648,26 @@ pub fn g4_2(args: &ProbeArgs) -> Result<()> {
     }
 
     // G4.2 is a characterisation (user decision, 2026-09-28): report the best
-    // row, and check the accepted baseline (Radon, s = 4, sharp, linear).
+    // converged row, and check the accepted baseline (Radon, s = 4, sharp,
+    // linear).
     match &best {
-        Some((rms, what)) => line(format!("best complete row: {what} (RMS {rms:.4} px)")),
+        Some((rms, what)) => line(format!(
+            "best complete row at s ≥ {BASELINE_S}: {what} (RMS {rms:.4} px)"
+        )),
         None => line("best complete row: none (every setup missed a corner)".into()),
     }
     let baseline = rendered
         .iter()
-        .find(|(s, sigma, _)| *s == 4.0 && *sigma == 0.0)
+        .find(|(s, sigma, _)| *s == BASELINE_S && *sigma == 0.0)
         .and_then(|(_, _, errors)| errors.iter().find(|(k, _)| *k == (false, Setup::Radon)))
         .map(|(_, e)| e.as_slice())
-        .expect("s = 4, σ = 0 and Radon are measured");
-    let matched: Vec<[f64; 2]> = baseline.iter().flatten().copied().collect();
-    let baseline_rms = (matched
-        .iter()
-        .map(|e| e[0] * e[0] + e[1] * e[1])
-        .sum::<f64>()
-        / matched.len().max(1) as f64)
-        .sqrt();
+        .expect("checked before rendering");
+    let matched = Stats {
+        errors: baseline.iter().flatten().copied().collect(),
+        ..Stats::default()
+    };
+    let baseline_rms = matched.rms();
+    let matched = matched.errors;
     let regressed =
         matched.len() < baseline.len() || baseline_rms > BASELINE_PX + BASELINE_SLACK_PX;
     line(format!(
