@@ -217,25 +217,31 @@ struct DataRoot {
 
 impl DataRoot {
     /// The checkout, writing under its `target/studio/`; else the app's
-    /// bundled resources (read-only), writing under `Documents/etendue`.
+    /// bundled resources (read-only).
     fn find(app: &AppHandle) -> Option<Self> {
         if let Some(root) = checkout() {
             let datasets = root.join("target/studio");
             return Some(Self { root, datasets });
         }
-        let root = dunce::canonicalize(app.path().resource_dir().ok()?).ok()?;
-        if !root.join("examples").is_dir() {
-            return None;
-        }
         let documents = app
             .path()
             .document_dir()
             .or_else(|_| app.path().app_data_dir())
-            .ok()?;
-        Some(Self {
-            root,
-            datasets: documents.join("etendue"),
-        })
+            .ok();
+        Self::bundled(app.path().resource_dir().ok()?, documents)
+    }
+
+    /// The bundled resources at `resources` (if they hold the examples),
+    /// writing under `<documents>/etendue`, or the temporary folder when
+    /// there is no documents folder: a missing datasets folder does not
+    /// discard a valid root.
+    fn bundled(resources: PathBuf, documents: Option<PathBuf>) -> Option<Self> {
+        let root = dunce::canonicalize(resources).ok()?;
+        if !root.join("examples").is_dir() {
+            return None;
+        }
+        let datasets = documents.unwrap_or_else(std::env::temp_dir).join("etendue");
+        Some(Self { root, datasets })
     }
 }
 
@@ -383,6 +389,19 @@ mod tests {
         );
         // … but cannot climb out of a missing one.
         assert_eq!(resolve(&root.join("target/nope/../../..")), None);
+    }
+
+    #[test]
+    fn bundled_resources_are_a_data_root() {
+        let dir = tempfile::tempdir().unwrap();
+        assert!(DataRoot::bundled(dir.path().to_owned(), None).is_none());
+        std::fs::create_dir(dir.path().join("examples")).unwrap();
+        let docs = dir.path().join("Documents");
+        let found = DataRoot::bundled(dir.path().to_owned(), Some(docs.clone())).unwrap();
+        assert_eq!(found.root, dunce::canonicalize(dir.path()).unwrap());
+        assert_eq!(found.datasets, docs.join("etendue"));
+        let fallback = DataRoot::bundled(dir.path().to_owned(), None).unwrap();
+        assert_eq!(fallback.datasets, std::env::temp_dir().join("etendue"));
     }
 
     #[test]

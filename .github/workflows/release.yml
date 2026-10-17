@@ -83,10 +83,20 @@ jobs:
       - name: Build the CLI
         run: cargo build --release --locked -p etendue-cli
 
+      # The tag's version (the workspace version on a dry run).
+      - name: Version
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            VERSION=$(grep -m1 '^version = ' Cargo.toml | cut -d'"' -f2)
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
       - name: Package archive
         shell: bash
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
           NAME="etendue-cli-${VERSION}-${{ matrix.target }}"
           mkdir -p "dist/$NAME"
           cp LICENSE etendue.toml "dist/$NAME/"
@@ -168,18 +178,53 @@ jobs:
       - name: Robot meshes
         run: uv run --locked --project tools/robot-assets tools/robot-assets/build.py
 
+      # A release build reads its bundled resources, a path only release builds
+      # take: test the shell in that profile too.
+      - name: Shell tests (release profile)
+        shell: bash
+        run: |
+          mkdir -p web/apps/studio/dist
+          cargo test --release --locked --manifest-path web/apps/studio/src-tauri/Cargo.toml
+
+      # The bundle's version is the tag's (the workspace version on a dry run).
+      - name: Version
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            VERSION=$(grep -m1 '^version = ' Cargo.toml | cut -d'"' -f2)
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
       - name: Build the desktop app
         working-directory: web/apps/studio
         shell: bash
         run: |
-          bun run desktop:build --bundles ${{ matrix.bundles }} -- --locked
+          bun run desktop:build --bundles ${{ matrix.bundles }} --config "{\"version\": \"$VERSION\"}" -- --locked
 
+      - name: Bundled resources
+        shell: bash
+        run: |
+          # The examples and the robot meshes must be in what was bundled.
+          T=web/apps/studio/src-tauri/target/release
+          find "$T" -path '*examples/closed_loop_ur5e/scene.json' | grep -q . || { echo "examples not bundled"; exit 1; }
+          find "$T" -path '*assets/robots/ur5e/meshes/*.glb' | grep -q . || { echo "robot meshes not bundled"; exit 1; }
+
+      # Asset names without spaces (GitHub rewrites them): etendue-studio-<version>-<target>.<ext>.
       - name: Collect bundles
         shell: bash
         run: |
           mkdir -p dist
           B=web/apps/studio/src-tauri/target/release/bundle
-          find "$B" -maxdepth 2 -type f \( -name '*.dmg' -o -name '*.msi' -o -name '*-setup.exe' -o -name '*.AppImage' -o -name '*.deb' \) -exec cp {} dist/ \;
+          N="etendue-studio-${VERSION}-${{ matrix.target }}"
+          find "$B" -maxdepth 2 -type f \( -name '*.dmg' -o -name '*.msi' -o -name '*-setup.exe' -o -name '*.AppImage' -o -name '*.deb' \) -print0 |
+            while IFS= read -r -d '' f; do
+              case "$f" in
+                *-setup.exe) cp "$f" "dist/$N-setup.exe" ;;
+                *) cp "$f" "dist/$N.${f##*.}" ;;
+              esac
+            done
           ls -l dist
 
       - name: Upload artifact
@@ -191,7 +236,8 @@ jobs:
 
   release:
     name: Create GitHub Release
-    if: startsWith(github.ref, 'refs/tags/')
+    # Only a tag push publishes; a manual run is a dry run whatever its ref.
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
     needs: [gates, cli, desktop]
     runs-on: ubuntu-latest
     steps:

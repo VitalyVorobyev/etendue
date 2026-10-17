@@ -68,6 +68,9 @@ export function etendueRepo(): Plugin {
       });
     },
     generateBundle() {
+      // A Tauri build reads the examples and the robot library from its bundled resources (and
+      // the checkout in development), never from dist/repo: do not ship them twice.
+      if (process.env.TAURI_ENV_PLATFORM !== undefined) return;
       for (const dir of SERVED) {
         for (const file of walk(join(ROOT, dir))) {
           this.emitFile({
