@@ -80,7 +80,9 @@ pub struct GroundTruth {
 pub struct GtLaser {
     /// Laser id in the scene.
     pub id: String,
-    /// The plane in the rig frame.
+    /// The plane in etendue's rig frame (the scene's rig entity). That is
+    /// **not** calibration-rs's rig frame, which is the first camera's: compare
+    /// a solved rig-frame plane with `camera_planes[0]` instead.
     pub rig_plane: GtPlane,
     /// The plane in each camera's frame, in dataset camera order.
     pub camera_planes: Vec<GtPlane>,
@@ -196,7 +198,9 @@ pub struct GtView {
     /// Every target point, projected, with visibility.
     pub points: Vec<GtPoint>,
     /// Laser image path relative to the dataset directory, for laser
-    /// topologies.
+    /// topologies. calibration-rs's dataset format requires laser frames, so
+    /// they are named; nothing renders them yet (the analytic loop reads the
+    /// stripe pixels from `laser_points` instead).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub laser_image: Option<String>,
     /// Each laser's stripe, projected, in [`GtCapture::laser_stripes`] order.
@@ -223,39 +227,45 @@ enum Anchor {
 }
 
 fn anchor(scene: &SceneSpec, id: &str) -> Result<Anchor> {
+    let (_, end) = ancestry(scene, id)?;
+    Ok(match end {
+        ParsedFrameRef::RobotLink { robot, .. } => Anchor::Robot {
+            robot: robot.to_owned(),
+        },
+        _ => Anchor::World,
+    })
+}
+
+/// Whether `id` hangs (through entity parents) below the entity `ancestor`.
+fn mounted_on(scene: &SceneSpec, id: &str, ancestor: &str) -> bool {
+    ancestry(scene, id).is_ok_and(|(chain, _)| chain.contains(&ancestor))
+}
+
+/// The entities above `id`, nearest first, and the frame the chain ends on
+/// (the world or a robot link).
+///
+/// # Errors
+///
+/// If an entity on the way is missing, a parent does not parse, or the
+/// parents form a cycle.
+fn ancestry<'s>(scene: &'s SceneSpec, id: &'s str) -> Result<(Vec<&'s str>, ParsedFrameRef<'s>)> {
     let parents: BTreeMap<&str, &etendue_scene::FrameRef> =
         scene.mounted().map(|m| (m.id, m.parent)).collect();
+    let mut chain = Vec::new();
     let mut at = id;
     for _ in 0..=parents.len() {
         let parent = parents
             .get(at)
             .ok_or_else(|| Error::InvalidInput(format!("no scene entity `{at}`")))?;
         match parent.parse().map_err(Error::InvalidInput)? {
-            ParsedFrameRef::World => return Ok(Anchor::World),
-            ParsedFrameRef::RobotLink { robot, .. } => {
-                return Ok(Anchor::Robot {
-                    robot: robot.to_owned(),
-                });
+            ParsedFrameRef::Entity(e) => {
+                chain.push(e);
+                at = e;
             }
-            ParsedFrameRef::Entity(e) => at = e,
+            end => return Ok((chain, end)),
         }
     }
     Err(Error::InvalidInput(format!("parent cycle above `{id}`")))
-}
-
-/// Whether `id` hangs (through entity parents) below the entity `ancestor`.
-fn mounted_on(scene: &SceneSpec, id: &str, ancestor: &str) -> bool {
-    let parents: BTreeMap<&str, &etendue_scene::FrameRef> =
-        scene.mounted().map(|m| (m.id, m.parent)).collect();
-    let mut at = id;
-    for _ in 0..=parents.len() {
-        match parents.get(at).map(|p| p.parse()) {
-            Some(Ok(ParsedFrameRef::Entity(e))) if e == ancestor => return true,
-            Some(Ok(ParsedFrameRef::Entity(e))) => at = e,
-            _ => return false,
-        }
-    }
-    false
 }
 
 struct Poses<'a> {

@@ -405,7 +405,8 @@ and ask; do not silently relax it.
   the joint rig hand-eye laserline problem recovers the plane to 1.3e-7° and 1e-8 mm per
   camera. `etendue-synth::laser` gives the stripe (via `etendue-core::laser`, now a dependency)
   and the true planes, `etendue gt` writes a `rig_handeye_laserline` dataset, and CI runs the
-  loop. The Scheimpflug variant is a characterisation and does not pass. Seeded as calibration-rs's
+  loop. The Scheimpflug variant does not pass and is recorded as a characterisation; whether
+  G5.3 should gate Scheimpflug rigs is an open question for the user. Seeded as calibration-rs's
   ADR 0022 prescribes, it stops in a flat tilt / principal-point valley (plane normal
   0.008–0.010°, cy up to 2 px off), and the wheel lacks `manual_init`. Upstream drafts await
   review (`docs/measurements/g5_3_laser_closed_loop.md`).

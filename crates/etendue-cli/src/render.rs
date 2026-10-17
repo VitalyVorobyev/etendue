@@ -387,6 +387,12 @@ pub fn run(
     ctl: &Control,
 ) -> Result<RenderSummary> {
     let scene: &SceneSpec = &loaded.scene;
+    if !scene.lasers.is_empty() {
+        ctl.log(
+            "warning: lasers are not rendered yet: the board images have no stripe, and the \
+             dataset's laser images (`*_laser.png`) are not written",
+        );
+    }
 
     let selected: Vec<_> = scene
         .cameras

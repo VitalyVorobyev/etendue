@@ -7,7 +7,9 @@
     1e-8 mm in both cameras, 5–8 orders of magnitude inside the gate. Every G5.1 limit passes
     too.
   - **The Scheimpflug variant does not pass** (`examples/laser_scheimpflug_ur5e`, tilts of about
-    3° and 2°). It is recorded as a characterisation of calibration-rs, not gated. Seeded as
+    3° and 2°). PLAN's G5.3 names no sensor model, so it is recorded here as a characterisation
+    of calibration-rs. **Open question for the user:** should G5.3 also gate Scheimpflug rigs?
+    If so, G5.3 does not pass yet. Seeded as
     calibration-rs's ADR 0022 prescribes, the plane normal is 0.0080° / 0.0102° off, and the
     principal point misses the G5.1 limits by 0.3–2 px. Unseeded, it is worse. The cause is a flat
     valley in calibration-rs's Scheimpflug model; the details are below.
@@ -17,6 +19,9 @@
 - Measured: 2026-09-28, on etendue commit `e213946` plus the P5-3 change (branch
   `pivot/p5-3-laser-loop`), calibration-rs `76353753` (0.8.3), and the `vision-calibration`
   0.8.3 wheel from PyPI.
+- Re-run 2026-10-17 after the review fixes (both laser examples now start the arm at shoulder pan
+  π, as `closed_loop_ur5e` does since P5-1b): identical results, numbers below. The analytic
+  loop ignores robot links, so the starting branch only matters once lasers are rendered.
 - Re-run 2026-10-17 after merging P5-1b and P2-7 (the CLI pipeline as a library), on branch
   `pivot/p5-3-laser-loop` (merge commit `30468b3`), calibration-rs 0.8.3: identical
   results (plane normal 1.32e-7° / 1.21e-7°, distance 1e-8 mm; Scheimpflug variant 0.0080° /

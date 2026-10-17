@@ -33,6 +33,7 @@ import argparse
 import json
 import math
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -145,12 +146,17 @@ def robot_poses(directory: Path, dataset: dict[str, Any]) -> list[Iso]:
     ]
 
 
+def visible(point: dict[str, Any]) -> bool:
+    """Whether a `gt.json` point (board corner or laser-stripe point) is seen."""
+    return point.get("occluded") is None
+
+
 def correspondences(view: dict[str, Any]) -> list[tuple[int, list[float]]]:
     """(point index, pixel) pairs of a view: the visible points of a `gt.json` view, or every
     point of a `features.json` view the detector kept."""
     if "status" in view:
         return [(p["point"], p["pixel"]) for p in view["points"]] if view["status"] == "ok" else []
-    return [(p["point"], p["pixel"]) for p in view["points"] if p.get("occluded") is None]
+    return [(p["point"], p["pixel"]) for p in view["points"] if visible(p)]
 
 
 def observation(
@@ -203,11 +209,43 @@ def intrinsics_rows(estimated: vc.PinholeBrownConradyCamera, truth: dict[str, An
     return rows
 
 
+def rig_rows(
+    result: Any,
+    cameras: list[dict[str, Any]],
+    cam_se3_rig: list[Iso],
+    gripper_se3_rig: Iso,
+    base_se3_target: Iso,
+    per_camera: Callable[[int, dict[str, Any]], list[tuple[str, float, float | None]]] | None = None,
+) -> list[tuple[str, float, float | None]]:
+    """A rig hand-eye result against the truth: reprojection, intrinsics, `cam_se3_rig` and
+    `per_camera(i, camera)`'s rows per camera, then hand-eye and the target. calibration-rs's rig
+    frame is the reference camera's (index 0), so etendue's rig frame is mapped onto it."""
+    rig_se3_ref = cam_se3_rig[0].inv()
+    rot_err, trans_err = difference(Iso.pose(result.gripper_se3_rig), gripper_se3_rig * rig_se3_ref)
+    tr_err, tt_err = difference(Iso.pose(result.base_se3_target), base_se3_target)
+    rows = [("mean reprojection px", result.mean_reproj_error, GATE["mean_reproj_px"])]
+    for i, camera in enumerate(cameras):
+        rows += intrinsics_rows(result.cameras[i], camera, camera["id"])
+        if i > 0:
+            r, t = difference(Iso.pose(result.cam_se3_rig[i]), cam_se3_rig[i] * rig_se3_ref)
+            rows += [(f"{camera['id']} cam_se3_rig deg", r, None), (f"{camera['id']} cam_se3_rig mm", t, None)]
+        if per_camera is not None:
+            rows += per_camera(i, camera)
+    return rows + [
+        ("hand-eye rotation deg", rot_err, GATE["handeye_rot_deg"]),
+        ("hand-eye translation mm", trans_err, GATE["handeye_trans_mm"]),
+        ("base_se3_target rot deg", tr_err, None),
+        ("base_se3_target trans mm", tt_err, None),
+    ]
+
+
 def plane_rows(estimated: vc.LaserlinePlane, truth: dict[str, Any], name: str) -> list[tuple[str, float, float | None]]:
-    """Normal angle and offset difference of two planes n·p + d = 0 in one frame (sign-free)."""
+    """Normal angle and offset difference of two planes n·p + d = 0 in one frame (sign-free;
+    either plane may have a non-unit normal, with its offset in the same scale)."""
     n_e, d_e = np.asarray(estimated.normal_xyz, dtype=float), float(estimated.distance)
     n_t, d_t = np.asarray(truth["normal"], dtype=float), float(truth["distance"])
-    n_e, n_t = n_e / np.linalg.norm(n_e), n_t / np.linalg.norm(n_t)
+    s_e, s_t = float(np.linalg.norm(n_e)), float(np.linalg.norm(n_t))
+    n_e, d_e, n_t, d_t = n_e / s_e, d_e / s_e, n_t / s_t, d_t / s_t
     if float(n_e @ n_t) < 0:
         n_e, d_e = -n_e, -d_e
     angle = math.degrees(math.atan2(float(np.linalg.norm(np.cross(n_e, n_t))), float(n_e @ n_t)))
@@ -239,7 +277,7 @@ def report(title: str, rows: list[tuple[str, float, float | None]], gate: str = 
 def laser_pixels(view: dict[str, Any]) -> list[tuple[float, float]] | None:
     """The view's visible laser-stripe pixels (the scene's single laser), or None if too few."""
     [stripe] = view["laser_points"]
-    pixels = [tuple(p["pixel"]) for p in stripe["points"] if p.get("occluded") is None]
+    pixels = [tuple(p["pixel"]) for p in stripe["points"] if visible(p)]
     return pixels if len(pixels) >= 2 else None
 
 
@@ -319,25 +357,12 @@ def laser_loop(
         config.handeye.sensor = vc.ScheimpflugSensorMode(refine_scheimpflug_in_rig_ba=True)
         config.handeye.rig.refine_intrinsics_in_rig_ba = True
     result = vc.run_rig_handeye_laserline(vc.RigHandeyeLaserlineDataset(num_cameras=len(cameras), views=views), config)
-    rig_se3_ref = cam_se3_rig[0].inv()
-    rot_err, trans_err = difference(Iso.pose(result.gripper_se3_rig), gripper_se3_rig * rig_se3_ref)
-    tr_err, tt_err = difference(Iso.pose(result.base_se3_target), base_se3_target)
-    rows = [("mean reprojection px", result.mean_reproj_error, GATE["mean_reproj_px"])]
-    for i, camera in enumerate(cameras):
-        rows += intrinsics_rows(result.cameras[i], camera, camera["id"])
-        if scheimpflug(cameras):
-            rows += tilt_rows(result.sensors[i], camera, camera["id"])
-        if i > 0:
-            r, t = difference(Iso.pose(result.cam_se3_rig[i]), cam_se3_rig[i] * rig_se3_ref)
-            rows += [(f"{camera['id']} cam_se3_rig deg", r, None), (f"{camera['id']} cam_se3_rig mm", t, None)]
+    def per_camera(i: int, camera: dict[str, Any]) -> list[tuple[str, float, float | None]]:
+        rows = tilt_rows(result.sensors[i], camera, camera["id"]) if scheimpflug(cameras) else []
         plane = next(p for p in laser["camera_planes"] if p["frame"] == camera["id"])
-        rows += plane_rows(result.laser_planes_cam[i], plane, camera["id"])
-    rows += [
-        ("hand-eye rotation deg", rot_err, GATE["handeye_rot_deg"]),
-        ("hand-eye translation mm", trans_err, GATE["handeye_trans_mm"]),
-        ("base_se3_target rot deg", tr_err, None),
-        ("base_se3_target trans mm", tt_err, None),
-    ]
+        return rows + plane_rows(result.laser_planes_cam[i], plane, camera["id"])
+
+    rows = rig_rows(result, cameras, cam_se3_rig, gripper_se3_rig, base_se3_target, per_camera)
     n_laser = sum(len(px) for v in views for px in v.laser_pixels if px is not None)
     title = f"rig hand-eye laserline ({len(cameras)} cameras, {len(views)} views, {n_laser} laser pixels)"
     return 0 if report(title, rows, gate="G5.3") else 1
@@ -421,21 +446,7 @@ def main() -> int:
     config = vc.RigHandeyeCalibrationConfig()
     config.handeye_init.handeye_mode = "EyeInHand"
     result = vc.run_rig_handeye(vc.RigHandeyeDataset(num_cameras=len(cameras), views=views), config)
-    rig_se3_ref = cam_se3_rig[0].inv()
-    rot_err, trans_err = difference(Iso.pose(result.gripper_se3_rig), gripper_se3_rig * rig_se3_ref)
-    tr_err, tt_err = difference(Iso.pose(result.base_se3_target), base_se3_target)
-    rows = [("mean reprojection px", result.mean_reproj_error, GATE["mean_reproj_px"])]
-    for i, camera in enumerate(cameras):
-        rows += intrinsics_rows(result.cameras[i], camera, camera["id"])
-        if i > 0:
-            r, t = difference(Iso.pose(result.cam_se3_rig[i]), cam_se3_rig[i] * rig_se3_ref)
-            rows += [(f"{camera['id']} cam_se3_rig deg", r, None), (f"{camera['id']} cam_se3_rig mm", t, None)]
-    rows += [
-        ("hand-eye rotation deg", rot_err, GATE["handeye_rot_deg"]),
-        ("hand-eye translation mm", trans_err, GATE["handeye_trans_mm"]),
-        ("base_se3_target rot deg", tr_err, None),
-        ("base_se3_target trans mm", tt_err, None),
-    ]
+    rows = rig_rows(result, cameras, cam_se3_rig, gripper_se3_rig, base_se3_target)
     return 0 if report(f"rig hand-eye ({len(cameras)} cameras, {len(views)} views)", rows, gated=gated) else 1
 
 

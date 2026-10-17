@@ -100,25 +100,40 @@ pub fn stripe(
     }
     let fan = LaserPlane::from_entity(&entity);
     let width = GaussianBeamWidth::from_laser(&entity).map_err(core)?;
+    // The clipped segment once; its points are evenly spaced along it.
     let Some(ends) = stripe_on_target(&fan, &target, &width, 2) else {
         return Ok(Vec::new());
     };
-    let n = (ends.length_m() / spacing_m).ceil() as usize + 1;
-    let samples = stripe_on_target(&fan, &target, &width, n).map_or_else(Vec::new, |s| {
-        s.samples()
-            .iter()
-            .map(|s| {
-                let p: Point3<f64> = target_se3_world * s.point;
-                BoardPoint {
-                    position_m: [p.x, p.y],
-                    grid: None,
-                    id: None,
-                }
-            })
-            .collect()
-    });
+    let n = (ends.length_m() / spacing_m).ceil();
+    if n > MAX_SAMPLES as f64 {
+        return Err(Error::InvalidInput(format!(
+            "laser `{}`: a {:.3} m stripe at {spacing_m} m spacing is more than {MAX_SAMPLES} points",
+            laser.id,
+            ends.length_m()
+        )));
+    }
+    let n = n as usize + 1;
+    let [a, b] = [ends.samples()[0].point, ends.samples()[1].point];
+    let samples = (0..n)
+        .map(|i| {
+            let t = if n > 1 {
+                i as f64 / (n - 1) as f64
+            } else {
+                0.0
+            };
+            let p: Point3<f64> = target_se3_world * (a + (b - a) * t);
+            BoardPoint {
+                position_m: [p.x, p.y],
+                grid: None,
+                id: None,
+            }
+        })
+        .collect();
     Ok(samples)
 }
+
+/// The most points a stripe may have (a bound on `spacing_m`).
+const MAX_SAMPLES: usize = 100_000;
 
 #[cfg(test)]
 mod tests {
@@ -152,6 +167,19 @@ mod tests {
             UnitQuaternion::from_axis_angle(&Vector3::x_axis(), 0.1),
         );
         (world_se3_laser, world_se3_target)
+    }
+
+    #[test]
+    fn a_too_fine_spacing_is_an_error() {
+        let (world_se3_laser, world_se3_target) = geometry();
+        let fine = stripe(
+            &laser(0.6),
+            &world_se3_laser,
+            &world_se3_target,
+            [0.2, 0.14],
+            1e-12,
+        );
+        assert!(matches!(fine, Err(Error::InvalidInput(_))), "{fine:?}");
     }
 
     #[test]
