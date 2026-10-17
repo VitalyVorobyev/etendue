@@ -1,7 +1,8 @@
 //! Render jobs for the Blender backend ([ADR 0005](https://github.com/VitalyVorobyev/etendue/blob/main/docs/adrs/0005-blender-renderer.md)).
 //!
 //! A [`RenderJob`] is everything the embedded Blender script needs and nothing
-//! it would have to compute: meshes and boards bound to frame names, lights,
+//! it would have to compute: meshes and target surfaces (as triangles) bound
+//! to frame names, lights,
 //! each camera's canonical pinhole (ADR 0004), and per shot the baked
 //! `world_se3_frame` of every frame it uses, as row-major 4 × 4 matrices. The
 //! script builds the scene once and only sets matrices per shot — no
@@ -13,12 +14,16 @@ use etendue_scene::{BakedScenario, LightShape, SceneSpec, TargetGeometry};
 use nalgebra::Isometry3;
 use serde::{Deserialize, Serialize};
 
-pub use crate::board::Cell;
 use crate::remap::CanonicalCamera;
+use crate::target_mesh::geometry_mesh;
 use crate::{Error, Result};
 
-/// The job format version the embedded script reads.
-pub const JOB_VERSION: u32 = 2;
+/// The job format version the embedded script reads. Version 3 draws
+/// targets from triangle meshes (any calib-targets target, the PuzzlePole
+/// cylinder included) instead of planar cells. Version 4 adds laser views:
+/// cameras offset from their frame, depth-only outputs, and the Normal and
+/// Diffuse Color passes laser images are composited from.
+pub const JOB_VERSION: u32 = 4;
 
 /// Object-index pass value of targets (ADR 0006 occlusion: `IndexOB == this`
 /// means the target is visible at that pixel).
@@ -79,19 +84,42 @@ pub struct JobMesh {
     pub pass_index: u32,
 }
 
-/// A planar target, built by the script in the target frame (`z = 0`, facing
-/// +Z) from its cells: one quad per cell, ink or paper.
+/// A target surface, built by the script in its frame from triangles, ink or
+/// paper ([`crate::target_mesh`]).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct JobBoard {
+pub struct JobTarget {
     /// Object name.
     pub id: String,
     /// Frame it moves with.
     pub frame: String,
-    /// Non-overlapping patches that tile the target ([`target_cells`]).
-    pub cells: Vec<Cell>,
+    /// Vertex positions in the frame, metres.
+    pub positions: Vec<[f64; 3]>,
+    /// Triangles (counter-clockwise from outside).
+    pub triangles: Vec<[u32; 3]>,
+    /// Per triangle: ink (`true`) or paper.
+    pub dark: Vec<bool>,
     /// Object-index pass value.
     pub pass_index: u32,
+}
+
+impl JobTarget {
+    /// The job entry of target `id`, drawn at frame `frame`.
+    ///
+    /// # Errors
+    ///
+    /// As [`geometry_mesh`].
+    pub fn new(id: &str, frame: &str, geometry: &TargetGeometry) -> Result<Self> {
+        let mesh = geometry_mesh(geometry)?;
+        Ok(Self {
+            id: id.to_owned(),
+            frame: frame.to_owned(),
+            positions: mesh.positions,
+            triangles: mesh.triangles,
+            dark: mesh.dark,
+            pass_index: TARGET_PASS_INDEX,
+        })
+    }
 }
 
 /// A light (etendue `LightSpec`; directional lights emit along local +Z).
@@ -140,6 +168,21 @@ pub struct JobCamera {
     pub height: u32,
     /// Canonical focal length, pixels.
     pub focal_px: f64,
+    /// Pose of the camera in its frame, row-major 4 × 4, when it is not the
+    /// frame itself (a laser view: a CV camera frame in the laser's frame).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub frame_se3_self: Option<[f64; 16]>,
+}
+
+/// What an output is for.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum OutputKind {
+    /// A camera image at the job's samples.
+    #[default]
+    Image,
+    /// Only the Depth pass matters (a laser view, for shadows): one sample.
+    Depth,
 }
 
 /// One image to render.
@@ -150,6 +193,14 @@ pub struct JobOutput {
     pub camera: String,
     /// EXR path relative to the output directory.
     pub path: String,
+    /// What it is for.
+    #[serde(default, skip_serializing_if = "is_image")]
+    pub kind: OutputKind,
+}
+
+#[allow(clippy::trivially_copy_pass_by_ref)] // serde's skip_serializing_if signature
+fn is_image(kind: &OutputKind) -> bool {
+    *kind == OutputKind::Image
 }
 
 /// One posed instant: a capture of the scenario.
@@ -176,8 +227,8 @@ pub struct RenderJob {
     pub render: RenderSettings,
     /// Meshes (robot links, parts).
     pub meshes: Vec<JobMesh>,
-    /// Boards and plain targets.
-    pub boards: Vec<JobBoard>,
+    /// Targets.
+    pub targets: Vec<JobTarget>,
     /// Lights.
     pub lights: Vec<JobLight>,
     /// Emissive probe spheres (fixed in the world).
@@ -187,6 +238,9 @@ pub struct RenderJob {
     pub cameras: Vec<JobCamera>,
     /// Shots, in time order.
     pub shots: Vec<JobShot>,
+    /// Also write the Normal and Diffuse Color passes (for laser images).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub laser_passes: bool,
 }
 
 /// Row-major 4 × 4 of an isometry.
@@ -194,27 +248,6 @@ pub struct RenderJob {
 pub fn row_major(iso: &Isometry3<f64>) -> [f64; 16] {
     let m = iso.to_homogeneous();
     std::array::from_fn(|k| m[(k / 4, k % 4)])
-}
-
-/// The surface of a target as cells: the printed board
-/// ([`crate::board::layout`]) or, for a target calib-targets does not print (a
-/// plain rectangle, a ring grid), one paper cell over its extent.
-///
-/// # Errors
-///
-/// [`Error::InvalidInput`] if the board is invalid or its extent is unknown
-/// (a puzzleboard, until its named layouts are mapped).
-pub fn target_cells(geometry: &TargetGeometry) -> Result<Vec<Cell>> {
-    if let Some(layout) = crate::board::layout(geometry)? {
-        return Ok(layout.cells);
-    }
-    let [w, h] = geometry
-        .extent_m()
-        .ok_or_else(|| Error::InvalidInput("extent unknown for this layout".into()))?;
-    Ok(vec![Cell {
-        rect: [-w / 2.0, -h / 2.0, w / 2.0, h / 2.0],
-        dark: false,
-    }])
 }
 
 /// Build the job for every capture of `baked`.
@@ -227,8 +260,8 @@ pub fn target_cells(geometry: &TargetGeometry) -> Result<Vec<Cell>> {
 /// # Errors
 ///
 /// [`Error::InvalidInput`] if the scenario has no capture, a camera or frame
-/// is unknown, or a target's extent is undetermined (puzzleboard, until its
-/// layout source lands with P3-3).
+/// is unknown, or a target's surface is undetermined (a `board` puzzleboard
+/// named by layout).
 pub fn build_job(
     scene: &SceneSpec,
     baked: &BakedScenario,
@@ -240,18 +273,12 @@ pub fn build_job(
     if captures.is_empty() {
         return Err(Error::InvalidInput("the scenario has no capture".into()));
     }
-    let boards = scene
+    let targets = scene
         .targets
         .iter()
         .map(|t| {
-            let cells = target_cells(&t.geometry)
-                .map_err(|e| Error::InvalidInput(format!("target `{}`: {e}", t.id)))?;
-            Ok(JobBoard {
-                id: t.id.clone(),
-                frame: t.id.clone(),
-                cells,
-                pass_index: TARGET_PASS_INDEX,
-            })
+            JobTarget::new(&t.id, &t.id, &t.geometry)
+                .map_err(|e| Error::InvalidInput(format!("target `{}`: {e}", t.id)))
         })
         .collect::<Result<Vec<_>>>()?;
     let lights: Vec<JobLight> = scene
@@ -277,6 +304,7 @@ pub fn build_job(
                 width: canonical.resolution[0],
                 height: canonical.resolution[1],
                 focal_px: canonical.focal_px(),
+                frame_se3_self: None,
             })
         })
         .collect::<Result<Vec<_>>>()?;
@@ -284,7 +312,7 @@ pub fn build_job(
     let used: BTreeSet<&str> = meshes
         .iter()
         .map(|m| m.frame.as_str())
-        .chain(boards.iter().map(|b| b.frame.as_str()))
+        .chain(targets.iter().map(|b| b.frame.as_str()))
         .chain(lights.iter().map(|l| l.frame.as_str()))
         .chain(job_cameras.iter().map(|c| c.frame.as_str()))
         .collect();
@@ -322,6 +350,7 @@ pub fn build_job(
                     .map(|c| JobOutput {
                         camera: c.id.clone(),
                         path: format!("exr/{}/{capture}.exr", c.id),
+                        kind: OutputKind::Image,
                     })
                     .collect(),
                 capture,
@@ -334,12 +363,80 @@ pub fn build_job(
         version: JOB_VERSION,
         render,
         meshes,
-        boards,
+        targets,
         lights,
         spheres: Vec::new(),
         cameras: job_cameras,
         shots,
+        laser_passes: false,
     })
+}
+
+/// A depth-only view from a laser's origin, for its shadows.
+#[derive(Clone, Debug)]
+pub struct LaserView {
+    /// Camera id in the job (`<laser>/view<k>`).
+    pub id: String,
+    /// The laser.
+    pub laser: String,
+    /// The view's pinhole.
+    pub camera: CanonicalCamera,
+    /// Its CV camera frame in the laser frame.
+    pub laser_se3_view: Isometry3<f64>,
+}
+
+impl LaserView {
+    /// EXR path of this view at `capture`.
+    #[must_use]
+    pub fn path(&self, capture: &str) -> String {
+        format!("exr/{}/{capture}.exr", self.id)
+    }
+}
+
+/// Add laser images to `job`: the Normal and Diffuse Color passes on every
+/// image, and every view of `views` rendered (depth only) at every shot.
+///
+/// # Errors
+///
+/// [`Error::InvalidInput`] if a view's laser is not a frame of `baked`.
+pub fn add_laser_views(
+    job: &mut RenderJob,
+    baked: &BakedScenario,
+    views: &[LaserView],
+) -> Result<()> {
+    job.laser_passes = true;
+    for view in views {
+        let i = baked
+            .frames
+            .iter()
+            .position(|f| *f == view.laser)
+            .ok_or_else(|| {
+                Error::InvalidInput(format!(
+                    "laser `{}` is not in the baked scenario",
+                    view.laser
+                ))
+            })?;
+        job.cameras.push(JobCamera {
+            id: view.id.clone(),
+            frame: view.laser.clone(),
+            width: view.camera.resolution[0],
+            height: view.camera.resolution[1],
+            focal_px: view.camera.focal_px(),
+            frame_se3_self: Some(row_major(&view.laser_se3_view)),
+        });
+        for shot in &mut job.shots {
+            shot.poses.insert(
+                view.laser.clone(),
+                row_major(&baked.samples[shot.sample].world_se3_frame[i]),
+            );
+            shot.outputs.push(JobOutput {
+                camera: view.id.clone(),
+                path: view.path(&shot.capture),
+                kind: OutputKind::Depth,
+            });
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]

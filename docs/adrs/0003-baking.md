@@ -58,6 +58,26 @@ released in 2024.
   - Capture is **stop-and-shoot only**: a capture sample has zero joint
     velocity.
   - Motion blur and rolling shutter are deferred.
+  - *Amended 2026-10-17 (P7-2): motion model v2.*
+    - Profiles are jerk-limited and time-optimal: a 1-DoF Ruckig profile
+      (the `rsruckig` crate) of a path parameter `s ∈ [0, 1]`. For PTP,
+      `q = q₀ + s Δq` with the limits of `s` the tightest of `limit_i / |Δq_i|`
+      — a straight line in joint space, which is Ruckig's phase
+      synchronisation without its fallback to time synchronisation. For LIN,
+      the limits of `s` follow from the joint splines' exact bounds on the
+      first three derivatives. A joint without `max_jerk` gets the
+      trapezoid.
+    - Captures have zero velocity, acceleration and jerk.
+    - `ptp_pose` may store the joint configuration `q` it goes to; the
+      compiler checks that `q` reaches the pose (1e-6 m / rad) and uses it
+      without IK, so a bake can never switch to another IK branch.
+      `resolve` stores them all.
+    - A bake may record joint velocities and accelerations
+      (`joint_velocities`, `joint_accelerations`). A motion report
+      (`motion_report.schema.json`) gives each step's limit use, joint-limit
+      margin, smallest Jacobian singular value, IK source, and warnings.
+    - Gate G1.4 (`docs/measurements/g1_4_motion.md`) checks the limits,
+      captures at rest, and straight PTP on every library robot.
 - **Consumers only apply transforms.** The web `FrameTreeRuntime`, the Blender
   script, and the dataset exporter read `world_se3_frame` and never compute a
   pose from joint values.

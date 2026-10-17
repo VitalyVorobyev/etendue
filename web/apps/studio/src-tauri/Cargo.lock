@@ -128,6 +128,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3d62b7694a562cdf5a74227903507c56ab2cc8bdd1f781ed5cb4cf9c9f810bfc"
 
 [[package]]
+name = "arrayvec"
+version = "0.7.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d3fb67a6e08acf24fdeccbac2cb6ac4305825bd1f117462e0e6f2f193345ad56"
+
+[[package]]
 name = "atk"
 version = "0.18.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1123,7 +1129,11 @@ name = "etendue-cli"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "calib-targets-charuco",
  "calib-targets-chessboard",
+ "calib-targets-marker",
+ "calib-targets-print",
+ "calib-targets-puzzleboard",
  "chess-corners",
  "clap",
  "etendue-kinematics",
@@ -1154,6 +1164,7 @@ version = "0.1.0"
 dependencies = [
  "etendue-scene",
  "nalgebra",
+ "rsruckig",
  "thiserror 2.0.21",
  "urdf-rs",
 ]
@@ -1193,7 +1204,9 @@ version = "0.1.0"
 dependencies = [
  "calib-targets-charuco",
  "calib-targets-print",
+ "calib-targets-puzzleboard",
  "etendue-core",
+ "etendue-kinematics",
  "etendue-scene",
  "exr",
  "nalgebra",
@@ -3487,6 +3500,17 @@ name = "robust"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4e27ee8bb91ca0adcf0ecb116293afa12d393f9c2b9b9cd54d33e8078fe19839"
+
+[[package]]
+name = "rsruckig"
+version = "3.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e8302f2de93029610200d16b3e4b5b630b543522d10369ddbf415ce9ccbd80b9"
+dependencies = [
+ "arrayvec",
+ "num-traits",
+ "thiserror 2.0.21",
+]
 
 [[package]]
 name = "rustc-hash"

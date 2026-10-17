@@ -1,76 +1,69 @@
-//! Motion primitives: rest-to-rest trapezoidal profiles and natural cubic
-//! splines with exact derivative bounds.
+//! Motion primitives: rest-to-rest, jerk-limited profiles of a path
+//! parameter (Ruckig) and natural cubic splines with exact derivative
+//! bounds.
 
-/// A rest-to-rest trapezoidal (or triangular) profile moving a path
-/// parameter from 0 to 1, optionally slowed down by a uniform time scale.
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct Trapezoid {
-    /// Acceleration magnitude of the unscaled profile.
-    a: f64,
-    /// Cruise (peak) speed of the unscaled profile.
-    v: f64,
-    /// Acceleration phase length of the unscaled profile.
-    t_acc: f64,
-    /// Duration of the unscaled profile.
-    natural: f64,
-    /// Duration after scaling (`≥ natural`).
-    duration: f64,
+use rsruckig::prelude::{DataArrayOrVec, InputParameter, Ruckig, ThrowErrorHandler, Trajectory};
+
+/// A rest-to-rest profile moving a path parameter `s` from 0 to 1, with
+/// `|ṡ| ≤ v`, `|s̈| ≤ a` and `|s⃛| ≤ j` — time-optimal (Ruckig), or slowed
+/// down to a longer duration with the same limits.
+///
+/// An infinite `j` gives the second-order (trapezoidal) profile.
+#[derive(Clone, Debug)]
+pub(crate) struct PathProfile {
+    limits: [f64; 3],
+    trajectory: Trajectory<1>,
 }
 
-impl Trapezoid {
-    /// The fastest profile covering unit distance with `|ṡ| ≤ v_max` and
-    /// `|s̈| ≤ a_max` (both `> 0`).
-    pub(crate) fn fastest(v_max: f64, a_max: f64) -> Self {
-        let (t_acc, v, natural) = if v_max * v_max / a_max >= 1.0 {
-            // Triangular: accelerate to the midpoint, decelerate back.
-            let t_acc = (1.0 / a_max).sqrt();
-            (t_acc, a_max * t_acc, 2.0 * t_acc)
-        } else {
-            let t_acc = v_max / a_max;
-            (t_acc, v_max, 1.0 / v_max + t_acc)
-        };
-        Self {
-            a: a_max,
-            v,
-            t_acc,
-            natural,
-            duration: natural,
-        }
+impl PathProfile {
+    fn solve(limits: [f64; 3], minimum_duration: Option<f64>) -> std::result::Result<Self, String> {
+        let [v, a, j] = limits;
+        // The control cycle only matters to `update`; `calculate` is continuous.
+        let mut otg = Ruckig::<1, ThrowErrorHandler>::new(None, 1e-3);
+        let mut input = InputParameter::<1>::new(None);
+        input.current_position[0] = 0.0;
+        input.target_position[0] = 1.0;
+        input.max_velocity[0] = v;
+        input.max_acceleration[0] = a;
+        input.max_jerk[0] = j;
+        input.minimum_duration = minimum_duration;
+        let mut trajectory = Trajectory::<1>::new(None);
+        otg.calculate(&input, &mut trajectory)
+            .map_err(|e| format!("motion profile (v {v}, a {a}, j {j}): {e}"))?;
+        Ok(Self { limits, trajectory })
     }
 
-    /// Natural (unscaled) duration.
-    pub(crate) fn natural_duration(&self) -> f64 {
-        self.natural
+    /// The fastest profile (all limits `> 0`; `j` may be infinite).
+    pub(crate) fn fastest(v: f64, a: f64, j: f64) -> std::result::Result<Self, String> {
+        Self::solve([v, a, j], None)
     }
 
-    /// The same path, uniformly slowed down to `duration ≥ natural`. Speeds
-    /// scale by `natural / duration` and accelerations by its square, so
-    /// limits that held before still hold.
-    pub(crate) fn stretched(mut self, duration: f64) -> Self {
-        debug_assert!(duration >= self.natural);
-        self.duration = duration;
-        self
+    /// Duration, seconds.
+    pub(crate) fn duration(&self) -> f64 {
+        self.trajectory.get_duration()
     }
 
-    /// `(s, ṡ, s̈)` at time `t` (clamped to `[0, duration]`).
-    pub(crate) fn eval(&self, t: f64) -> (f64, f64, f64) {
-        let r = self.natural / self.duration;
-        let tau = (t * r).clamp(0.0, self.natural);
-        let (s, sd, sdd) = if tau < self.t_acc {
-            (0.5 * self.a * tau * tau, self.a * tau, self.a)
-        } else if tau < self.natural - self.t_acc {
-            (
-                0.5 * self.a * self.t_acc * self.t_acc + self.v * (tau - self.t_acc),
-                self.v,
-                0.0,
-            )
-        } else if tau < self.natural {
-            let rem = self.natural - tau;
-            (1.0 - 0.5 * self.a * rem * rem, self.a * rem, -self.a)
-        } else {
-            (1.0, 0.0, 0.0)
-        };
-        (s, sd * r, sdd * r * r)
+    /// The same move taking `duration ≥ self.duration()`, within the same
+    /// limits.
+    pub(crate) fn stretched(&self, duration: f64) -> std::result::Result<Self, String> {
+        debug_assert!(duration >= self.duration());
+        Self::solve(self.limits, Some(duration))
+    }
+
+    /// `[s, ṡ, s̈, s⃛]` at time `t` (clamped to `[0, duration]`).
+    pub(crate) fn eval(&self, t: f64) -> [f64; 4] {
+        let t = t.clamp(0.0, self.duration());
+        let mut state = [0.0; 4].map(|v| DataArrayOrVec::Stack([v]));
+        let [p, v, a, j] = &mut state;
+        self.trajectory.at_time(
+            t,
+            &mut Some(p),
+            &mut Some(v),
+            &mut Some(a),
+            &mut Some(j),
+            &mut None,
+        );
+        state.map(|x| x[0])
     }
 }
 
@@ -140,6 +133,19 @@ impl Spline {
         let yd = -m0 * w * w / (2.0 * h) + m1 * u * u / (2.0 * h) - a0 + a1;
         let ydd = (m0 * w + m1 * u) / h;
         (y, yd, ydd)
+    }
+
+    /// The third derivative at `s ∈ [0, 1]`: constant on each segment.
+    pub(crate) fn third(&self, s: f64) -> f64 {
+        let (k, _) = self.segment(s.clamp(0.0, 1.0));
+        (self.m[k + 1] - self.m[k]) / self.h
+    }
+
+    /// Exact max of the third derivative's magnitude over `[0, 1]`.
+    pub(crate) fn third_bound(&self) -> f64 {
+        self.m
+            .windows(2)
+            .fold(0.0_f64, |acc, w| acc.max((w[1] - w[0]).abs() / self.h))
     }
 
     /// Exact `max |y'|` and `max |y''|` over `[0, 1]`.
@@ -212,21 +218,40 @@ impl Spline {
 mod tests {
     use super::*;
 
+    /// Every profile reaches 1 at rest, within its limits, also when
+    /// stretched; an infinite jerk gives the trapezoid.
     #[test]
-    fn trapezoid_reaches_one_at_rest_within_limits() {
-        for (v, a) in [(1.0, 1.0), (0.5, 4.0), (3.0, 0.7), (10.0, 100.0)] {
-            let p = Trapezoid::fastest(v, a);
-            let (s, sd, _) = p.eval(p.natural_duration());
-            assert!((s - 1.0).abs() < 1e-12 && sd.abs() < 1e-12);
-            let n = 10_000;
-            for i in 0..=n {
-                let (_, sd, sdd) = p.eval(p.natural_duration() * i as f64 / n as f64);
-                assert!(sd <= v * (1.0 + 1e-12) && sdd.abs() <= a * (1.0 + 1e-12));
+    fn path_profiles_reach_one_at_rest_within_limits() {
+        for (v, a, j) in [
+            (1.0, 1.0, 10.0),
+            (0.5, 4.0, 40.0),
+            (3.0, 0.7, 7.0),
+            (10.0, 100.0, 1000.0),
+            (1.0, 2.0, f64::INFINITY),
+            (1e6, 1e7, 1e8),
+        ] {
+            let fast = PathProfile::fastest(v, a, j).unwrap();
+            for p in [fast.clone(), fast.stretched(1.7 * fast.duration()).unwrap()] {
+                let [s, sd, sdd, _] = p.eval(p.duration());
+                assert!(
+                    (s - 1.0).abs() < 1e-9 && sd.abs() < 1e-9 && sdd.abs() < 1e-9,
+                    "{v} {a} {j}"
+                );
+                assert_eq!(p.eval(0.0)[0], 0.0);
+                let n = 10_000;
+                for i in 0..=n {
+                    let [_, sd, sdd, sddd] = p.eval(p.duration() * i as f64 / n as f64);
+                    assert!(sd <= v * (1.0 + 1e-9), "v {sd} > {v}");
+                    assert!(sdd.abs() <= a * (1.0 + 1e-9), "a {sdd} > {a}");
+                    assert!(sddd.abs() <= j * (1.0 + 1e-9), "j {sddd} > {j}");
+                }
             }
-            let slow = p.stretched(2.0 * p.natural_duration());
-            let (s, sd, _) = slow.eval(2.0 * p.natural_duration());
-            assert!((s - 1.0).abs() < 1e-12 && sd.abs() < 1e-12);
         }
+        // The trapezoid's duration: v²/a < 1 here, so 1/v + v/a.
+        let t = PathProfile::fastest(1.0, 2.0, f64::INFINITY)
+            .unwrap()
+            .duration();
+        assert!((t - 1.5).abs() < 1e-9, "{t}");
     }
 
     #[test]

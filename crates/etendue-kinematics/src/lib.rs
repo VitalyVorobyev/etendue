@@ -9,8 +9,11 @@
 //! - Inverse kinematics: [`RobotModel::ik`], damped least squares with
 //!   deterministic restarts; with the `opw` feature also analytic OPW IK
 //!   (`RobotModel::ik_opw`, via `rs-opw-kinematics`).
-//! - Scenarios: [`compile`] (trapezoidal PTP and Cartesian LIN motions with
-//!   stop-and-shoot captures) and [`bake`] (→ [`etendue_scene::BakedScenario`]).
+//! - Scenarios: [`compile`] (jerk-limited PTP and Cartesian LIN motions,
+//!   Ruckig profiles, stop-and-shoot captures), [`bake`]
+//!   (→ [`etendue_scene::BakedScenario`]), [`resolve`] (pin every
+//!   `ptp_pose`'s IK solution) and [`report`] (limit use, joint margins,
+//!   singularities: [`etendue_scene::MotionReport`]).
 //!
 //! All poses are relative to the robot's base link and use the
 //! `a_se3_b` naming of calibration-rs ADR 0009. The crate does no I/O.
@@ -20,11 +23,16 @@ pub mod fk;
 pub mod ik;
 #[cfg(feature = "opw")]
 pub mod opw;
+pub mod report;
 pub mod scenario;
 mod trajectory;
 pub mod urdf;
 
 pub use error::{Error, Result};
 pub use ik::{IkOptions, IkSolution};
-pub use scenario::{JointState, Trajectory, TrajectorySample, bake, compile};
+pub use report::{ReportOptions, report, report_trajectory};
+pub use scenario::{
+    BakeOptions, JointState, StepSpan, Trajectory, TrajectorySample, bake, bake_trajectory,
+    bake_with, compile, resolve,
+};
 pub use urdf::{ActiveJoint, Joint, JointKind, RobotModel};

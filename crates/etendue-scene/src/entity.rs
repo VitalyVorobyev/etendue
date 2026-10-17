@@ -33,6 +33,11 @@ pub struct RigSpec {
         schemars(with = "vision_calibration_core::Iso3Schema")
     )]
     pub parent_se3_self: Isometry3<f64>,
+    /// The layout its cameras and lasers were made from, kept so it can be
+    /// edited again (`RigLayout::expand`). The cameras and lasers are the
+    /// source of truth; this is not checked against them.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub layout: Option<crate::rig::RigLayout>,
 }
 
 /// A camera. Its projection model is a calibration-rs [`CameraParams`] —
@@ -81,6 +86,17 @@ pub struct LaserSpec {
     pub wavelength_nm: f64,
     /// Beam-waist `1/e²` radius at the laser origin, in metres.
     pub beam_waist_m: f64,
+    /// Optical power in watts, as the camera responds to it (its spectral
+    /// response at the wavelength folded in), spread evenly over the fan's
+    /// angle. Only laser images use it; absent, they take etendue-synth's
+    /// default (0.5 mW).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub power_w: Option<f64>,
+    /// The camera that images this laser's line, in a rig with one laser
+    /// per camera: its laser images and laser-plane calibration use this
+    /// laser only. Lasers that name cameras must name different ones.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub camera: Option<String>,
 }
 
 /// A target surface.
@@ -119,6 +135,15 @@ pub enum TargetGeometry {
         /// ringgrid).
         board: vision_calibration_dataset::TargetSpec,
     },
+    /// A target as calib-targets prints it — chessboard, ChArUco, marker
+    /// board, PuzzleBoard, or the PuzzlePole cylinder — with its print
+    /// parameters (millimetres). Unlike `board`, every kind is drawn,
+    /// ground-truthed and detected; only those calibration-rs takes go into
+    /// a calibration dataset.
+    Printed {
+        /// The print.
+        target: crate::printed::PrintedTarget,
+    },
     /// A plain rectangle centred on the local origin in the `z = 0` plane
     /// (the `etendue-core` `TargetEntity`).
     Rectangle {
@@ -144,13 +169,15 @@ impl TargetGeometry {
     /// - ring grid: marker centres on a hex lattice (`pitch` apart in a row,
     ///   `pitch·√3/2` between rows) plus the outer radius on every side.
     ///
-    /// Returns `None` for a puzzleboard, whose size depends on a named
-    /// calib-targets layout this crate does not know.
+    /// Returns `None` for a `board` puzzleboard, whose size depends on a
+    /// named calib-targets layout this crate does not know, and for a
+    /// printed PuzzlePole, which is not planar.
     #[must_use]
     pub fn extent_m(&self) -> Option<[f64; 2]> {
         use vision_calibration_dataset::TargetSpec as Board;
         match self {
             Self::Rectangle { width, height } => Some([*width, *height]),
+            Self::Printed { target } => target.extent_m(),
             Self::Board { board } => match board {
                 Board::Chessboard {
                     rows,

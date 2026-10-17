@@ -7,12 +7,17 @@
 //! - files: [`pick`], [`read_text`], [`path_exists`], [`data_root`]. The
 //!   webview reads only under the data root (the checkout in development, the
 //!   bundled resources in an installed app), the datasets folder, and what
-//!   the user picked ([`Allowed`]), and loads assets (meshes, images) from
+//!   the user picked ([`Access`]), and loads assets (meshes, images) from
 //!   the same folders through the asset protocol;
 //! - dataset generation: [`generate_dataset`] (ground truth → Blender →
 //!   detection, with progress over a channel) and [`cancel_run`];
+//! - documents: [`save_dialog`], [`write_text`] and [`save_scene`]. The
+//!   webview writes only under the folders the user chose in a dialog (to
+//!   save or to pick) and the datasets folder ([`Access`]) — never into the
+//!   data root, so an example is saved elsewhere;
 //! - [`blender_status`] and [`scenario_from_poses`].
 
+mod docs;
 mod pipeline;
 
 use std::collections::HashMap;
@@ -75,38 +80,75 @@ fn resolve(path: &Path) -> Option<PathBuf> {
     }
 }
 
-/// The folders the webview may read under and load through the asset
-/// protocol: the data root, the folders of the files and folders the user
-/// picked, and the robot manifests a picked scene names.
+/// A list of folders, and whether a path is under one of them.
 #[derive(Default)]
-struct Allowed(Mutex<Vec<PathBuf>>);
+struct Folders(Mutex<Vec<PathBuf>>);
 
-impl Allowed {
-    fn add(&self, app: &AppHandle, dir: &Path) {
-        let Some(dir) = resolve(dir) else { return };
-        if let Err(e) = app.asset_protocol_scope().allow_directory(&dir, true) {
-            eprintln!("asset scope: {}: {e}", dir.display());
-        }
-        self.0.lock().expect("allowed lock").push(dir);
+impl Folders {
+    /// Add `dir` (resolved); its resolved form, if it resolves.
+    fn add(&self, dir: &Path) -> Option<PathBuf> {
+        let dir = resolve(dir)?;
+        self.0.lock().expect("folders lock").push(dir.clone());
+        Some(dir)
     }
 
-    /// `path` resolved, if it is under an allowed folder.
-    fn check(&self, path: &Path) -> Result<PathBuf, String> {
+    /// `path` resolved, if it is under one of the folders.
+    fn check(&self, path: &Path, outside: &str) -> Result<PathBuf, String> {
         let resolved = resolve(path).ok_or_else(|| format!("{}: no such path", path.display()))?;
         if self
             .0
             .lock()
-            .expect("allowed lock")
+            .expect("folders lock")
             .iter()
             .any(|dir| resolved.starts_with(dir))
         {
             Ok(resolved)
         } else {
-            Err(format!(
-                "{}: outside the folders opened in the studio",
-                path.display()
-            ))
+            Err(format!("{}: {outside}", path.display()))
         }
+    }
+}
+
+/// The folders the webview may use. It reads under, and loads through the
+/// asset protocol from, the data root, the folders of the files and folders
+/// the user picked or saved to, and the robot manifests a picked scene names.
+/// It writes only under the folders the user chose in a dialog and the
+/// datasets folder — never into the data root.
+#[derive(Default)]
+struct Access {
+    read: Folders,
+    write: Folders,
+}
+
+impl Access {
+    /// Let the webview read under `dir`.
+    fn allow_read(&self, app: &AppHandle, dir: &Path) {
+        let Some(dir) = self.read.add(dir) else {
+            return;
+        };
+        if let Err(e) = app.asset_protocol_scope().allow_directory(&dir, true) {
+            eprintln!("asset scope: {}: {e}", dir.display());
+        }
+    }
+
+    /// Let the webview read and write under `dir`.
+    fn allow_write(&self, app: &AppHandle, dir: &Path) {
+        self.allow_read(app, dir);
+        self.write.add(dir);
+    }
+
+    /// `path` resolved, if the webview may read it.
+    fn readable(&self, path: &Path) -> Result<PathBuf, String> {
+        self.read
+            .check(path, "outside the folders opened in the studio")
+    }
+
+    /// `path` resolved, if the webview may write it.
+    fn writable(&self, path: &Path) -> Result<PathBuf, String> {
+        self.write.check(
+            path,
+            "not in a folder chosen in the studio (use Save As… to choose one)",
+        )
     }
 }
 
@@ -145,7 +187,7 @@ async fn pick(
     title: String,
     multiple: bool,
     directory: bool,
-    allowed: State<'_, Allowed>,
+    access: State<'_, Access>,
 ) -> Result<Vec<PathBuf>, String> {
     use tauri_plugin_dialog::DialogExt;
     let dialog = app.dialog().file().set_title(title);
@@ -169,30 +211,100 @@ async fn pick(
         .collect();
     for path in &paths {
         if directory {
-            allowed.add(&app, path);
+            access.allow_write(&app, path);
         } else {
             if let Some(dir) = path.parent() {
-                allowed.add(&app, dir);
+                access.allow_write(&app, dir);
             }
             for dir in manifest_dirs(path) {
-                allowed.add(&app, &dir);
+                access.allow_read(&app, &dir);
             }
         }
     }
     Ok(paths)
 }
 
+/// Show a save dialog for a file named `name` by default, filtered to
+/// `extensions` (without dots) and starting in `dir` if given. The chosen
+/// file's folder becomes readable and writable. `None` if cancelled.
+#[tauri::command]
+async fn save_dialog(
+    app: AppHandle,
+    title: String,
+    name: String,
+    extensions: Vec<String>,
+    dir: Option<PathBuf>,
+    access: State<'_, Access>,
+) -> Result<Option<PathBuf>, String> {
+    use tauri_plugin_dialog::DialogExt;
+    let mut dialog = app.dialog().file().set_title(title).set_file_name(name);
+    if !extensions.is_empty() {
+        let ext: Vec<&str> = extensions.iter().map(String::as_str).collect();
+        dialog = dialog.add_filter(ext.join(", "), &ext);
+    }
+    if let Some(dir) = dir.filter(|d| d.is_dir()) {
+        dialog = dialog.set_directory(dir);
+    }
+    let Some(path) = dialog.blocking_save_file().and_then(|p| p.into_path().ok()) else {
+        return Ok(None);
+    };
+    if let Some(dir) = path.parent() {
+        access.allow_write(&app, dir);
+    }
+    Ok(Some(path))
+}
+
+/// Write a text file in a writable folder.
+#[tauri::command]
+fn write_text(path: PathBuf, text: String, access: State<'_, Access>) -> Result<(), String> {
+    let path = access.writable(&path)?;
+    std::fs::write(&path, text).map_err(|e| format!("{}: {e}", path.display()))
+}
+
+/// Save a scene (and its scenario) to `scene_path` (and `scenario_path`),
+/// both in writable folders. The scene's robot manifest paths are rewritten
+/// relative to its new folder: they are found relative to `from` (the folder
+/// it was read from), else in the robot library. Returns the scene as written.
+#[tauri::command]
+fn save_scene(
+    scene_path: PathBuf,
+    mut scene: serde_json::Value,
+    scenario_path: Option<PathBuf>,
+    scenario: Option<serde_json::Value>,
+    from: Option<PathBuf>,
+    access: State<'_, Access>,
+    root: State<'_, Option<DataRoot>>,
+) -> Result<serde_json::Value, String> {
+    let scene_path = access.writable(&scene_path)?;
+    let scenario = match (scenario_path, scenario) {
+        (Some(path), Some(doc)) => Some((access.writable(&path)?, doc)),
+        (None, None) => None,
+        _ => return Err("a scenario needs both a path and a document".into()),
+    };
+    let dir = scene_path
+        .parent()
+        .ok_or_else(|| format!("{}: no folder", scene_path.display()))?;
+    let library = root.inner().as_ref().map(|r| r.root.as_path());
+    docs::rebase_manifests(&mut scene, from.as_deref(), dir, library)
+        .map_err(|e| format!("{e:#}"))?;
+    docs::write_json(&scene_path, &scene).map_err(|e| format!("{e:#}"))?;
+    if let Some((path, doc)) = scenario {
+        docs::write_json(&path, &doc).map_err(|e| format!("{e:#}"))?;
+    }
+    Ok(scene)
+}
+
 /// Read a text file under an allowed folder.
 #[tauri::command]
-fn read_text(path: PathBuf, allowed: State<'_, Allowed>) -> Result<String, String> {
-    let path = allowed.check(&path)?;
+fn read_text(path: PathBuf, access: State<'_, Access>) -> Result<String, String> {
+    let path = access.readable(&path)?;
     std::fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))
 }
 
 /// Whether `path` is an existing file under an allowed folder.
 #[tauri::command]
-fn path_exists(path: PathBuf, allowed: State<'_, Allowed>) -> bool {
-    allowed.check(&path).is_ok_and(|p| p.is_file())
+fn path_exists(path: PathBuf, access: State<'_, Access>) -> bool {
+    access.readable(&path).is_ok_and(|p| p.is_file())
 }
 
 /// The etendue checkout this shell was built from, if it is still there and
@@ -269,9 +381,9 @@ fn scenario_from_poses(
     path: PathBuf,
     robot: String,
     speed_scale: f64,
-    allowed: State<'_, Allowed>,
+    access: State<'_, Access>,
 ) -> Result<etendue_scene::ScenarioSpec, String> {
-    let path = allowed.check(&path)?;
+    let path = access.readable(&path)?;
     let text = std::fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))?;
     etendue_cli::poses::scenario(&text, &robot, speed_scale, 0.01)
         .map_err(|e| format!("{}: {e:#}", path.display()))
@@ -287,19 +399,21 @@ async fn generate_dataset(
     mut request: DatasetRequest,
     on_progress: Channel<Progress>,
     runs: State<'_, Runs>,
-    allowed: State<'_, Allowed>,
+    access: State<'_, Access>,
     root: State<'_, Option<DataRoot>>,
 ) -> Result<Outcome, String> {
     request.pin_dir = root.inner().as_ref().map(|r| r.root.clone());
     // Every path the run reads or writes is one the studio opened.
-    request.scene = allowed.check(&request.scene)?;
-    request.output = allowed.check(&request.output)?;
+    if let Some(origin) = &request.origin {
+        request.origin = Some(access.readable(origin)?);
+    }
+    request.output = access.writable(&request.output)?;
     if let Some(sensor) = &request.sensor {
-        request.sensor = Some(allowed.check(sensor)?);
+        request.sensor = Some(access.readable(sensor)?);
     }
     std::fs::create_dir_all(&request.output)
         .map_err(|e| format!("{}: {e}", request.output.display()))?;
-    allowed.add(&app, &request.output);
+    access.allow_write(&app, &request.output);
     let cancel = runs.start(&run_id);
     let result = tauri::async_runtime::spawn_blocking(move || {
         let report = move |p: Progress| {
@@ -323,7 +437,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(Runs::default())
-        .manage(Allowed::default())
+        .manage(Access::default())
         .setup(|app| {
             // The examples, the robot library (meshes) and the datasets folder.
             let root = DataRoot::find(app.handle());
@@ -336,15 +450,20 @@ pub fn run() {
                 None => eprintln!("etendue studio: no data root (no examples bundled)"),
             }
             if let Some(root) = &root {
-                let allowed = app.state::<Allowed>();
-                allowed.add(app.handle(), &root.root);
-                allowed.add(app.handle(), &root.datasets);
+                let access = app.state::<Access>();
+                access.allow_read(app.handle(), &root.root);
+                // The datasets folder may not exist yet: create it, so it resolves.
+                let _ = std::fs::create_dir_all(&root.datasets);
+                access.allow_write(app.handle(), &root.datasets);
             }
             app.manage(root);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             pick,
+            save_dialog,
+            write_text,
+            save_scene,
             read_text,
             path_exists,
             data_root,

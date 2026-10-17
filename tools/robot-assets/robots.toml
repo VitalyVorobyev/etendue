@@ -15,12 +15,22 @@
 #                     the path from it to the arm must consist of fixed joints only
 #   tcp_link          flange/tool frame reported by the controller
 #   opw_preset        optional: matching rs-opw-kinematics 3.0.0 `Parameters::<preset>()`
-#   license_files     upstream licence texts copied next to robot.json
+#   license_files     upstream licence texts copied next to robot.json (may be empty)
+#   distribution      "redistributable" (default): built into assets/robots/<id>/, robot.json,
+#                     robot.urdf and LICENSE committed, meshes regenerated and bundled;
+#                     "local": no redistribution licence — built only with --include-local,
+#                     into the git-ignored assets/robots-local/<id>/, never committed or bundled
 #   [robot.xacro_args]    xacro `name:=value` mappings
+#   [[robot.frames]]      fixed links appended to the expanded URDF, for a description that
+#                         lacks the controller's frame: name, parent, xyz, rpy, reason
 #   [robot.acceleration]  where per-joint acceleration limits come from:
 #       kind = "yaml":    repository/revision/file + dotted `key` (`<joint>` = joint name)
 #       kind = "default": `value` (rad/s^2 or m/s^2) + `reason` (why no upstream number)
+#   [robot.jerk]          where per-joint jerk limits come from: as acceleration, plus
+#       kind = "derived": `factor` (1/s) times the acceleration limit + `reason`
 #   [robot.license]       SPDX ids + evidence at the pinned revision
+#
+# Adding a robot: see book/src/robots.md.
 
 [[robot]]
 id = "ur5e"
@@ -46,6 +56,14 @@ key = "joint_limits.<joint>.max_acceleration"
 # ur_description config/ur5e/joint_limits.yaml says "acceleration limits are not
 # publicly available" (has_acceleration_limits: false); UR's own MoveIt config
 # supplies values "chosen conservatively to work in most use cases".
+
+[robot.jerk]
+kind = "derived"
+factor = 10.0
+reason = """\
+no published jerk limit; 10/s x the acceleration limit, so an acceleration ramp takes 0.1 s, \
+which keeps profiles smooth without slowing short moves much\
+"""
 
 [robot.license]
 urdf = "BSD-3-Clause"
@@ -85,6 +103,14 @@ moveit/abb_irb1200_5_90_moveit_config/config/joint_limits.yaml sets has_accelera
 well below the real arm's capability, so trajectories are slow but always feasible\
 """
 
+[robot.jerk]
+kind = "derived"
+factor = 10.0
+reason = """\
+no published jerk limit; 10/s x the acceleration limit, so an acceleration ramp takes 0.1 s, \
+which keeps profiles smooth without slowing short moves much\
+"""
+
 [robot.license]
 urdf = "Apache-2.0"
 meshes = "Apache-2.0"
@@ -96,4 +122,102 @@ abb_irb1200_support/package.xml declares <license>Apache-2.0</license>; the mesh
 licence; abb_resources (common_materials.xacro, included by the xacro) is Apache-2.0 as well \
 (identical LICENSE, package.xml). No NOTICE file exists in the repository. The upstream LICENSE \
 is copied to LICENSE next to this file.\
+"""
+
+[[robot]]
+id = "igus_rebel_6dof"
+name = "igus ReBeL 6DOF"
+repository = "https://github.com/CommonplaceRobotics/iRC_ROS"
+revision = "41701e6df3398087d217f0f478622e60f694de41" # humble HEAD (2025-05-21)
+entry = "irc_ros_description/urdf/igus_rebel_6dof.urdf.xacro"
+packages = { irc_ros_description = "irc_ros_description" }
+base_link = "base_link"
+tcp_link = "tool0"
+license_files = ["LICENSE"]
+
+[robot.xacro_args]
+rebel_version = "01"
+continuous_last_joint = "false"
+hardware_protocol = "cprcanv2"
+gripper = "none"
+prefix = ""
+
+[robot.acceleration]
+kind = "yaml"
+repository = "https://github.com/CommonplaceRobotics/iRC_ROS"
+revision = "41701e6df3398087d217f0f478622e60f694de41"
+file = "irc_ros_moveit_config/config/joint_limits.yaml"
+key = "robot_description_planning.joint_limits.<prefix><joint>.max_acceleration"
+# The file keys joints as `<prefix>jointN` (a literal placeholder the launch files substitute);
+# with prefix "" the URDF joint is `jointN`.
+
+[robot.jerk]
+kind = "derived"
+factor = 10.0
+reason = """\
+no published jerk limit; 10/s x the acceleration limit, so an acceleration ramp takes 0.1 s, \
+which keeps profiles smooth without slowing short moves much\
+"""
+
+[robot.license]
+urdf = "Apache-2.0"
+meshes = "Apache-2.0"
+meshes_redistributable = true
+notes = """\
+Evidence at 41701e6d: LICENSE at the repository root is the Apache-2.0 text, and \
+irc_ros_description/package.xml declares <license>Apache-2.0</license>; the meshes \
+(irc_ros_description/meshes/igus_rebel_6dof_00/*.dae) live in that package and carry no separate \
+licence. No NOTICE file exists. rebel_version 01 uses the 00 kinematic description (the 01 macro \
+differs in ros2_control only). The upstream LICENSE is copied to LICENSE next to this file.\
+"""
+
+[[robot]]
+id = "fairino_fr5"
+name = "FAIRINO FR5"
+distribution = "local"
+repository = "https://github.com/FAIR-INNOVATION/frcobot_ros2"
+revision = "fcf0c7f0d60d949d8a9a4238f929a44d07f60379" # main HEAD (2026-09-23)
+entry = "fairino_description/urdf/fairino5_v6.urdf"
+packages = { fairino_description = "fairino_description" }
+base_link = "base_link"
+tcp_link = "tool0"
+license_files = []
+
+[robot.xacro_args]
+
+[[robot.frames]]
+name = "tool0"
+parent = "wrist3_link"
+xyz = [0.0, 0.0, 0.1]
+rpy = [0.0, 0.0, 0.0]
+reason = """\
+the description ends at wrist3_link, the wrist centre; the tool flange face is 0.1 m along its \
++Z (the wrist3 mesh ends at z = 0.099 m). UNVERIFIED against FAIRINO's controller: check the \
+flange offset (DH d6) before exporting poses to a real FR5\
+"""
+
+[robot.acceleration]
+kind = "yaml"
+repository = "https://github.com/FAIR-INNOVATION/frcobot_ros2"
+revision = "fcf0c7f0d60d949d8a9a4238f929a44d07f60379"
+file = "fairino5_v6_moveit2_config/config/joint_limits.yaml"
+key = "joint_limits.<joint>.max_acceleration"
+
+[robot.jerk]
+kind = "derived"
+factor = 10.0
+reason = """\
+no published jerk limit; 10/s x the acceleration limit, so an acceleration ramp takes 0.1 s, \
+which keeps profiles smooth without slowing short moves much\
+"""
+
+[robot.license]
+urdf = "LicenseRef-none"
+meshes = "LicenseRef-none"
+meshes_redistributable = false
+notes = """\
+Evidence at fcf0c7f0: the repository has no LICENSE file, GitHub reports no licence, and \
+fairino_description/package.xml declares <license>TODO: License declaration</license>. Without a \
+licence nothing may be redistributed, so this robot is local-only: build it with --include-local; \
+it is never committed or bundled. Ask FAIRINO for a licence before changing that.\
 """

@@ -85,6 +85,10 @@ pub struct ManifestJoint {
     pub max_velocity: f64,
     /// Maximum acceleration (rad/s² or m/s²), `> 0`.
     pub max_acceleration: f64,
+    /// Maximum jerk (rad/s³ or m/s³), `> 0`; absent means unlimited (motion
+    /// profiles are then trapezoidal).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_jerk: Option<f64>,
     /// Provenance of the limits (file and key, datasheet, or documented
     /// default).
     pub limit_source: String,
@@ -179,6 +183,9 @@ impl RobotManifest {
             }
             issues.check_positive(&format!("{path}.max_velocity"), j.max_velocity);
             issues.check_positive(&format!("{path}.max_acceleration"), j.max_acceleration);
+            if let Some(jerk) = j.max_jerk {
+                issues.check_positive(&format!("{path}.max_jerk"), jerk);
+            }
         }
         issues.finish()
     }

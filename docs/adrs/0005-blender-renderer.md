@@ -34,6 +34,11 @@ other `etendue-scene` type.
   untilted cameras.
 - Render settings: sample count, seed, device.
 
+*Amended 2026-10-17 (P7-4):* job version 3 draws targets from triangle meshes
+(`targets[].positions`, `triangles`, `dark` per triangle) instead of planar cells, so any
+calib-targets target, the PuzzlePole cylinder included, renders from the same mesh the studio
+shows.
+
 ### Invocation
 
 ```text
@@ -71,6 +76,44 @@ $ETENDUE_BLENDER -b --factory-startup --python-exit-code 1 \
 - Everything after the renderer happens in Rust (`etendue-synth`, reading EXR
   through the `exr` crate): the LUT remap, exposure, shot / read / PRNU noise,
   and quantisation.
+
+*Amended 2026-10-17 (P7-7): laser images.* Cycles does not render lasers. A
+sub-millimetre beam is a light a path tracer samples noisily, and the stripe must
+be deterministic. Instead `etendue-synth::laser_render` composites the stripe in
+Rust, per canonical pixel, before the LUT remap and the sensor model:
+
+- **Inputs:** the Depth pass gives the world point. Job version 4 adds the Normal
+  and Diffuse Color passes (`laser_passes`), which give the surface's normal and
+  albedo.
+- **Radiance:** Lambertian `ρ/π · E`. `E` is the line laser's irradiance: its
+  power spread evenly over the fan angle, a Gaussian beam across the fan
+  (etendue-core's `GaussianBeamWidth`), and the cosine of incidence.
+- **Shadows:** job v4 also renders, per laser and capture, depth-only **laser
+  views** from the laser's apex. These are pinholes along the fan, each covering
+  at most 60° of it, at one sample. A point the laser view sees a nearer surface
+  in front of is in shadow.
+- **Not modelled:**
+  - defocus: scene cameras have no aperture, and the renders are pinhole;
+  - speckle;
+  - the beam's specular reflection;
+  - interreflection.
+- **Output:** a camera that images a laser gets `<capture>_laser.png`, the
+  render dimmed to `--laser-ambient` (default 0.1) plus its lasers' stripes. The
+  board image stays laser-free.
+
+**Measured conventions (Blender 5.2.2, the 5.1.1 pin was not installed):**
+- Cycles' **Depth pass is planar depth**, the distance along the camera's +Z, not
+  along the ray. A 90° camera 2 m above a plane reads 2.0 m at its corner pixel,
+  where the ray length is 3.43 m.
+- The **Normal pass is in world space**.
+- **Diffuse Color is the diffuse albedo:** base colour 0.5 reads 0.474, because
+  the Principled BSDF's specular layer takes the rest.
+- Blender 5 writes **each pass as its own EXR part**. The reader finds channels
+  by name in any part.
+
+On two captures of `examples/rig3_laser_ur5e` (s = 2, 16 samples), the rendered
+stripe's per-column centroid lies on the analytic ground-truth stripe
+(`gt.json`'s `laser_points`) to within 0.04 px mean in every camera.
 
 ### Version pin
 

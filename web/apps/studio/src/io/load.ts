@@ -29,18 +29,38 @@ export interface LoadedScene {
    * The native pipeline (dataset generation) needs it; dropped files have none.
    */
   origin: string | null;
+  /** The scenario file's absolute path, as `origin`. */
+  scenarioOrigin: string | null;
   robots: LoadedRobot[];
 }
 
 /**
  * Where a robot manifest path from a scene may also be found in the repository's robot
- * library: `…/assets/robots/<id>/robot.json` → `assets/robots/<id>/robot.json`.
+ * library: `…/assets/robots/<id>/robot.json` → `assets/robots/<id>/robot.json` (likewise for the
+ * local-only `assets/robots-local/`), else `assets/robots/<folder>/robot.json`.
  */
 export function libraryPath(manifestPath: string): string | null {
-  const m = /(?:^|\/)(assets\/robots\/[^/]+\/[^/]+)$/.exec(manifestPath);
+  const m = /(?:^|\/)(assets\/robots(?:-local)?\/[^/]+\/[^/]+)$/.exec(manifestPath);
   if (m) return m[1]!;
   const dir = dirname(manifestPath).split("/").at(-1);
   return dir ? `assets/robots/${dir}/robot.json` : null;
+}
+
+/**
+ * Read a robot's manifest and URDF at `manifestPath` in `from`, for the scene robot `id`. Meshes
+ * are read later, by URL.
+ */
+export async function loadRobot(from: FileSource, manifestPath: string, id: string): Promise<LoadedRobot> {
+  const manifest = await parse<RobotManifest>(from, manifestPath);
+  const dir = dirname(manifestPath);
+  const urdf = await from.readText(join(dir, manifest.urdf));
+  return {
+    id,
+    manifest,
+    urdf,
+    manifestPath: `${from.name}: ${manifestPath}`,
+    meshUrl: (meshPath) => from.url(join(dir, meshPath)),
+  };
 }
 
 async function parse<T>(source: FileSource, path: string): Promise<T> {
@@ -79,16 +99,7 @@ export async function loadScene(
           throw new Error(`robot \`${robot.id}\`: manifest ${robot.manifest} not found in ${source.name}`);
         }
       }
-      const manifest = await parse<RobotManifest>(from, manifestPath);
-      const dir = dirname(manifestPath);
-      const urdf = await from.readText(join(dir, manifest.urdf));
-      return {
-        id: robot.id,
-        manifest,
-        urdf,
-        manifestPath: `${from.name}: ${manifestPath}`,
-        meshUrl: (meshPath) => from.url(join(dir, meshPath)),
-      };
+      return loadRobot(from, manifestPath, robot.id);
     }),
   );
   return {
@@ -97,6 +108,7 @@ export async function loadScene(
     scenario,
     robots,
     origin: source.absolute?.(scenePath) ?? null,
+    scenarioOrigin: scenarioPath === null ? null : (source.absolute?.(scenarioPath) ?? null),
   };
 }
 

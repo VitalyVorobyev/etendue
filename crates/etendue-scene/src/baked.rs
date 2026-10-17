@@ -55,8 +55,15 @@ pub struct BakedSample {
     )]
     pub world_se3_frame: Vec<Isometry3<f64>>,
     /// Joint positions per robot, aligned with [`BakedScenario::robots`].
-    /// For display only.
     pub joint_positions: Vec<Vec<f64>>,
+    /// Joint velocities per robot, as `joint_positions`, when the bake was
+    /// asked for derivatives.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub joint_velocities: Option<Vec<Vec<f64>>>,
+    /// Joint accelerations per robot, as `joint_positions`, when the bake
+    /// was asked for derivatives.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub joint_accelerations: Option<Vec<Vec<f64>>>,
     /// Set on the stationary sample at which images are captured.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub capture: Option<CaptureEvent>,
@@ -104,20 +111,27 @@ impl BakedScenario {
                     ),
                 );
             }
-            if s.joint_positions.len() != self.robots.len() {
-                issues.push(
-                    format!("{path}.joint_positions"),
-                    format!(
-                        "{} joint vectors for {} robots",
-                        s.joint_positions.len(),
-                        self.robots.len()
-                    ),
-                );
-            } else {
-                for (r, (q, robot)) in s.joint_positions.iter().zip(&self.robots).enumerate() {
+            for (field, values) in [
+                ("joint_positions", Some(&s.joint_positions)),
+                ("joint_velocities", s.joint_velocities.as_ref()),
+                ("joint_accelerations", s.joint_accelerations.as_ref()),
+            ] {
+                let Some(values) = values else { continue };
+                if values.len() != self.robots.len() {
+                    issues.push(
+                        format!("{path}.{field}"),
+                        format!(
+                            "{} joint vectors for {} robots",
+                            values.len(),
+                            self.robots.len()
+                        ),
+                    );
+                    continue;
+                }
+                for (r, (q, robot)) in values.iter().zip(&self.robots).enumerate() {
                     if q.len() != robot.joint_names.len() {
                         issues.push(
-                            format!("{path}.joint_positions[{r}]"),
+                            format!("{path}.{field}[{r}]"),
                             format!("{} values for {} joints", q.len(), robot.joint_names.len()),
                         );
                     }

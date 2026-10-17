@@ -12,7 +12,7 @@ For every robot in ``robots.toml`` this script:
    LINK frame, with the URDF ``<visual><origin>`` and mesh ``scale`` baked
    into the vertices;
 4. writes ``robot.json`` (the manifest parsed by ``etendue-scene``) and copies
-   the upstream licence text next to it;
+   the upstream licence text next to it (when upstream has one);
 5. runs gate G1.3: every GLB is reloaded from disk and its vertex positions
    are compared, face corner by face corner, with the source mesh transformed
    through an independently written code path (tolerance 1e-6 m).
@@ -30,6 +30,10 @@ Mesh interpretation follows RViz (the reference consumer of ROS descriptions):
 Exactly-duplicate vertices (same position, normal and UV in float64) are
 welded to keep the GLBs small; this is lossless and the gate compares face
 corners, so it is covered by the round-trip check.
+
+Robots whose licence does not allow redistribution (``distribution =
+"local"``) are built only with ``--include-local``, into the git-ignored
+``assets/robots-local/<id>/``, which release bundles never include.
 
 Usage (from the repository root)::
 
@@ -65,6 +69,7 @@ from lxml import etree
 TOOL_DIR = Path(__file__).resolve().parent
 REPO_ROOT = TOOL_DIR.parents[1]
 ASSETS_DIR = REPO_ROOT / "assets" / "robots"
+LOCAL_ASSETS_DIR = REPO_ROOT / "assets" / "robots-local"
 DEFAULT_CACHE = TOOL_DIR / ".cache"
 GATE_TOLERANCE_M = 1e-6
 MOVABLE = ("revolute", "continuous", "prismatic")
@@ -132,6 +137,40 @@ def expand_xacro(entry: Path, args: dict[str, str], packages: dict[str, Path], b
     for line in banner:
         doc.insertBefore(doc.createComment(f" {line} "), doc.documentElement)
     return doc.toprettyxml(indent="  ")
+
+
+def add_frames(urdf_text: str, frames: list[dict]) -> str:
+    """Append fixed child links (``[[robot.frames]]``) to an expanded URDF.
+
+    For descriptions that stop short of the frame the controller reports (an
+    arm whose last link is the wrist centre, not the flange). Each frame is a
+    new link on a fixed joint ``<parent>_to_<name>`` with the given origin.
+    """
+    if not frames:
+        return urdf_text
+    robot = etree.fromstring(urdf_text.encode())
+    names = {link.get("name") for link in robot.findall("link")}
+    for f in frames:
+        name, parent = f["name"], f["parent"]
+        if name in names:
+            raise BuildError(f"frames: link {name!r} already exists")
+        if parent not in names:
+            raise BuildError(f"frames: parent {parent!r} of {name!r} is not a link")
+        robot.append(etree.Comment(f" added by build.py: {f['reason'].strip()} "))
+        robot.append(etree.Element("link", name=name))
+        joint = etree.SubElement(robot, "joint", name=f"{parent}_to_{name}", type="fixed")
+        etree.SubElement(joint, "parent", link=parent)
+        etree.SubElement(joint, "child", link=name)
+        etree.SubElement(
+            joint,
+            "origin",
+            xyz=" ".join(repr(float(v)) for v in f.get("xyz", [0, 0, 0])),
+            rpy=" ".join(repr(float(v)) for v in f.get("rpy", [0, 0, 0])),
+        )
+        names.add(name)
+    etree.indent(robot, space="  ")
+    head = urdf_text[: urdf_text.index("<robot")]
+    return head + etree.tostring(robot, encoding="unicode") + "\n"
 
 
 # --------------------------------------------------------------------------- #
@@ -493,6 +532,19 @@ def _collada_position_rows(path: Path) -> np.ndarray:
     return np.unique(np.vstack(rows), axis=0)
 
 
+def _stl_position_rows(path: Path) -> np.ndarray:
+    """All vertex rows of a binary or ASCII STL file, parsed with numpy (not trimesh), as float64."""
+    data = path.read_bytes()
+    if len(data) >= 84:
+        count = int(np.frombuffer(data, dtype="<u4", count=1, offset=80)[0])
+        if 84 + 50 * count == len(data):
+            record = np.dtype([("normal", "<f4", 3), ("v", "<f4", (3, 3)), ("attr", "<u2")])
+            facets = np.frombuffer(data, dtype=record, count=count, offset=84)
+            return np.unique(facets["v"].reshape(-1, 3).astype(np.float64), axis=0)
+    rows = [line.split()[1:4] for line in data.decode("ascii").splitlines() if line.strip().startswith("vertex")]
+    return np.unique(np.asarray(rows, dtype=np.float32).astype(np.float64), axis=0)
+
+
 def _rows_subset(rows: np.ndarray, reference: np.ndarray) -> bool:
     view = np.dtype([("x", "<f8"), ("y", "<f8"), ("z", "<f8")])
     a = np.ascontiguousarray(rows, dtype="<f8").view(view).ravel()
@@ -522,13 +574,14 @@ def gate_check(link_meshes: list[LinkMesh], checkout: Path) -> list[GateRow]:
                 vertex_dtypes = {g.vertices.dtype for g in fresh.geometry.values()}
                 if vertex_dtypes != {np.dtype(np.float64)}:
                     raise BuildError(f"{part.source}: source parsed as {vertex_dtypes}, expected float64")
-                if part.source.suffix.lower() == ".dae":
-                    text_rows = _collada_position_rows(part.source)
+                suffix = part.source.suffix.lower()
+                if suffix in (".dae", ".stl"):
+                    text_rows = _collada_position_rows(part.source) if suffix == ".dae" else _stl_position_rows(part.source)
                     for g in fresh.geometry.values():
                         if len(g.vertices) != 3 * len(g.faces):
                             raise BuildError(f"{part.source}: source geometry was processed (vertices merged)")
                         if not _rows_subset(np.asarray(g.vertices), text_rows):
-                            raise BuildError(f"{part.source}: loaded vertices are not exact rows of the file's POSITION arrays")
+                            raise BuildError(f"{part.source}: loaded vertices are not exact rows of the file's vertex data")
                 sources[part.source] = {str(n): (np.asarray(fresh.graph[n][0]), fresh.geometry[fresh.graph[n][1]]) for n in fresh.graph.nodes_geometry}
                 units[part.source] = _pycollada_unit(part.source)
             node_tf, src = sources[part.source][part.source_node]
@@ -566,11 +619,28 @@ def gate_check(link_meshes: list[LinkMesh], checkout: Path) -> list[GateRow]:
 # --------------------------------------------------------------------------- #
 
 
-def acceleration_limits(spec: dict, joint_names: list[str], cache_dir: Path) -> dict[str, tuple[float, str]]:
+def limits_from(
+    spec: dict,
+    what: str,
+    joint_names: list[str],
+    cache_dir: Path,
+    acceleration: dict[str, tuple[float, str]] | None = None,
+) -> dict[str, tuple[float, str]]:
+    """Per-joint ``what`` limits (acceleration or jerk) as ``robots.toml`` says where they come from."""
     kind = spec["kind"]
     if kind == "default":
         value = float(spec["value"])
-        return {name: (value, f"default: {spec['reason']}") for name in joint_names}
+        return {name: (value, f"default: {spec['reason'].strip()}") for name in joint_names}
+    if kind == "derived":
+        if acceleration is None:
+            raise BuildError(f"{what}: kind 'derived' is only defined for jerk")
+        factor = float(spec["factor"])
+        if not factor > 0:
+            raise BuildError(f"{what}: derived factor must be > 0, got {factor}")
+        return {
+            name: (factor * acceleration[name][0], f"derived: {factor:g}/s x acceleration; {spec['reason'].strip()}")
+            for name in joint_names
+        }
     if kind == "yaml":
         checkout = fetch_repo(spec["repository"], spec["revision"], cache_dir)
         data = yaml.safe_load((checkout / spec["file"]).read_text())
@@ -582,14 +652,14 @@ def acceleration_limits(spec: dict, joint_names: list[str], cache_dir: Path) -> 
                 node = node[part]
             value = float(node)
             if not value > 0:
-                raise BuildError(f"{key}: acceleration limit must be > 0, got {value}")
+                raise BuildError(f"{key}: {what} limit must be > 0, got {value}")
             url = f"{spec['repository']}/blob/{spec['revision']}/{spec['file']}"
             out[name] = (value, f"{url} key {key}")
         return out
-    raise BuildError(f"unknown acceleration kind {kind!r}")
+    raise BuildError(f"unknown {what} kind {kind!r}")
 
 
-def joint_entries(chain: list[Joint], accel: dict[str, tuple[float, str]]) -> list[dict]:
+def joint_entries(chain: list[Joint], accel: dict[str, tuple[float, str]], jerk: dict[str, tuple[float, str]]) -> list[dict]:
     entries = []
     for j in chain:
         if j.kind not in MOVABLE:
@@ -608,6 +678,7 @@ def joint_entries(chain: list[Joint], accel: dict[str, tuple[float, str]]) -> li
         if not lower < upper or not velocity > 0:
             raise BuildError(f"joint {j.name}: invalid limits lower={lower} upper={upper} velocity={velocity}")
         max_acc, acc_src = accel[j.name]
+        max_jerk, jerk_src = jerk[j.name]
         entries.append(
             {
                 "name": j.name,
@@ -615,7 +686,8 @@ def joint_entries(chain: list[Joint], accel: dict[str, tuple[float, str]]) -> li
                 "upper": upper,
                 "max_velocity": velocity,
                 "max_acceleration": max_acc,
-                "limit_source": f"{position_src}; acceleration: {acc_src}",
+                "max_jerk": max_jerk,
+                "limit_source": f"{position_src}; acceleration: {acc_src}; jerk: {jerk_src}",
             }
         )
     return entries
@@ -631,6 +703,7 @@ class RobotResult:
     base_link: str
     tcp_link: str
     rows: list[GateRow]
+    local: bool = False
 
 
 def build_robot(cfg: dict, cache_dir: Path) -> RobotResult:
@@ -642,7 +715,7 @@ def build_robot(cfg: dict, cache_dir: Path) -> RobotResult:
     packages = {pkg: (checkout / rel).resolve() for pkg, rel in cfg["packages"].items()}
     xacro_args = dict(cfg.get("xacro_args", {}))
 
-    out_dir = ASSETS_DIR / rid
+    out_dir = (ASSETS_DIR if cfg.get("distribution", "redistributable") == "redistributable" else LOCAL_ASSETS_DIR) / rid
     mesh_dir = out_dir / "meshes"
     shutil.rmtree(mesh_dir, ignore_errors=True)
     mesh_dir.mkdir(parents=True)
@@ -654,7 +727,10 @@ def build_robot(cfg: dict, cache_dir: Path) -> RobotResult:
         f"entry: {cfg['entry']}   xacro args: {args_text}",
         "Do not edit: regenerate with build.py.",
     ]
-    urdf_text = expand_xacro(checkout / cfg["entry"], xacro_args, packages, banner)
+    frames = cfg.get("frames", [])
+    if frames:
+        banner.insert(3, "frames added by build.py: " + ", ".join(f"{f['name']} on {f['parent']}" for f in frames))
+    urdf_text = add_frames(expand_xacro(checkout / cfg["entry"], xacro_args, packages, banner), frames)
     (out_dir / "robot.urdf").write_text(urdf_text)
     urdf = parse_urdf(urdf_text)
     for link in (cfg["base_link"], cfg["tcp_link"]):
@@ -666,8 +742,9 @@ def build_robot(cfg: dict, cache_dir: Path) -> RobotResult:
         if j.kind not in (*MOVABLE, "fixed"):
             raise BuildError(f"joint {j.name}: unsupported type {j.kind!r} on the base->tcp chain")
     movable_names = [j.name for j in chain if j.kind in MOVABLE]
-    accel = acceleration_limits(cfg["acceleration"], movable_names, cache_dir)
-    joints = joint_entries(chain, accel)
+    accel = limits_from(cfg["acceleration"], "acceleration", movable_names, cache_dir)
+    jerk = limits_from(cfg["jerk"], "jerk", movable_names, cache_dir, acceleration=accel)
+    joints = joint_entries(chain, accel, jerk)
 
     link_meshes = []
     for link in urdf.links:
@@ -706,13 +783,24 @@ def build_robot(cfg: dict, cache_dir: Path) -> RobotResult:
         },
     }
     (out_dir / "robot.json").write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n")
-    license_text = "\n".join((checkout / f).read_text() for f in cfg["license_files"])
-    (out_dir / "LICENSE").write_text(license_text)
+    if cfg["license_files"]:
+        license_text = "\n".join((checkout / f).read_text() for f in cfg["license_files"])
+        (out_dir / "LICENSE").write_text(license_text)
 
     rows = gate_check(link_meshes, checkout)
     worst = max((r.max_error_m for r in rows), default=0.0)
     print(f"  root link: {urdf.root_link}; joints: {movable_names}; G1.3 max error {worst:.3e} m")
-    return RobotResult(rid, cfg["name"], cfg["revision"], cfg["repository"], urdf.root_link, cfg["base_link"], cfg["tcp_link"], rows)
+    return RobotResult(
+        rid,
+        cfg["name"],
+        cfg["revision"],
+        cfg["repository"],
+        urdf.root_link,
+        cfg["base_link"],
+        cfg["tcp_link"],
+        rows,
+        cfg.get("distribution", "redistributable") == "local",
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -761,19 +849,24 @@ def write_report(path: Path, results: list[RobotResult], command: str) -> bool:
         "|---|---|---|---|---|",
     ]
     for res in results:
+        local = " — **local only**" if res.local else ""
         lines.append(
-            f"| `{res.id}` ({res.name}) | {res.repository} | `{res.revision}` | `{res.root_link}` "
+            f"| `{res.id}` ({res.name}){local} | {res.repository} | `{res.revision}` | `{res.root_link}` "
             f"| `{res.base_link}` -> `{res.tcp_link}` |"
         )
     lines += [
         "",
         "Base frame: robot.json `base_link` is the REP-199 `base` link, the frame the controller",
-        "reports TCP poses in (ADR 0002). For UR5e it is `base_link`·Rz(π); for the ABB arm it is",
-        "identical to `base_link`. It is a fixed-joint sibling of the arm, not an ancestor of the TCP.",
-        "The GLBs are in each link's own frame, so this choice does not affect G1.3.",
+        "reports TCP poses in (ADR 0002). For UR5e it is `base_link`·Rz(π), a fixed-joint sibling of",
+        "the arm; for the ABB arm it is identical to `base_link`. The igus ReBeL and the FAIRINO FR5",
+        "descriptions have no `base` link; their `base_link` is the controller frame. The GLBs are in",
+        "each link's own frame, so this choice does not affect G1.3.",
         "",
         "The meshes are git-ignored (licence permits redistribution, but they are regenerated",
-        "byte-identically from the pinned SHAs instead of being committed).",
+        "byte-identically from the pinned SHAs instead of being committed). A **local only** robot",
+        "has no redistribution licence: nothing of it is committed or bundled; it is built with",
+        "`--include-local` into the git-ignored `assets/robots-local/`, and its rows here are the",
+        "gate run on the measuring machine.",
         "",
         "## Per-mesh results",
         "",
@@ -816,12 +909,25 @@ def main() -> int:
     parser.add_argument("--robot", action="append", help="build only this robot id (repeatable)")
     parser.add_argument("--cache-dir", type=Path, default=DEFAULT_CACHE, help="upstream checkout cache")
     parser.add_argument("--report", type=Path, help="write the G1.3 measurement report (Markdown) here")
+    parser.add_argument(
+        "--include-local",
+        action="store_true",
+        help="also build robots with distribution = 'local' (into the git-ignored assets/robots-local/)",
+    )
     opts = parser.parse_args()
 
     robots = tomllib.loads(opts.config.read_text())["robot"]
     ids = [r["id"] for r in robots]
     if len(set(ids)) != len(ids):
         raise BuildError("duplicate robot ids in robots.toml")
+    for r in robots:
+        if r.get("distribution", "redistributable") not in ("redistributable", "local"):
+            raise BuildError(f"{r['id']}: distribution must be 'redistributable' or 'local'")
+    if not opts.include_local:
+        skipped = [r["id"] for r in robots if r.get("distribution") == "local"]
+        if skipped:
+            print(f"skipping local-only robots {skipped} (pass --include-local to build them)")
+        robots = [r for r in robots if r.get("distribution") != "local"]
     if opts.robot:
         unknown = set(opts.robot) - set(ids)
         if unknown:

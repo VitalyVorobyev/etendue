@@ -8,7 +8,9 @@
 use std::path::Path;
 
 use anyhow::{Context, Result, bail};
-use etendue_scene::{BakedScenario, RobotManifest, ScenarioSpec, SceneSpec};
+use etendue_scene::{
+    BakedScenario, CaptureExport, MotionReport, RobotManifest, ScenarioSpec, SceneSpec,
+};
 use schemars::{JsonSchema, schema_for};
 
 fn render<T: JsonSchema>() -> Result<String> {
@@ -24,6 +26,8 @@ pub fn run(root: &Path, check: bool) -> Result<()> {
         ("scenario", render::<ScenarioSpec>()?),
         ("baked_scenario", render::<BakedScenario>()?),
         ("robot_manifest", render::<RobotManifest>()?),
+        ("motion_report", render::<MotionReport>()?),
+        ("captures", render::<CaptureExport>()?),
     ];
 
     if !check {

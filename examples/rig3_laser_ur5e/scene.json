@@ -1,0 +1,333 @@
+{
+  "version": 1,
+  "description": "Laser triangulation: a ring of three cameras on the UR5e flange, converging 0.5 m ahead, one line laser per camera, viewing a 9×6 chessboard (20 mm).",
+  "robots": [
+    {
+      "id": "ur5e",
+      "parent": "world",
+      "parent_se3_self": {
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "translation": [
+          0,
+          0,
+          0
+        ]
+      },
+      "manifest": "../../assets/robots/ur5e/robot.json",
+      "initial_q": [
+        3.141592653589793,
+        -1.5707963267948966,
+        1.5707963267948966,
+        -1.5707963267948966,
+        -1.5707963267948966,
+        0
+      ]
+    }
+  ],
+  "rigs": [
+    {
+      "id": "rig",
+      "parent": "ur5e/tool0",
+      "parent_se3_self": {
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "translation": [
+          0,
+          0,
+          0.05
+        ]
+      },
+      "layout": {
+        "count": 3,
+        "radius_m": 0.06,
+        "phase_rad": 0,
+        "working_distance_m": 0.5,
+        "image_x": "tangential",
+        "camera": {
+          "params": {
+            "projection": {
+              "type": "pinhole"
+            },
+            "distortion": {
+              "type": "brown_conrady5",
+              "k1": -0.08,
+              "k2": 0.02,
+              "k3": 0,
+              "p1": 0,
+              "p2": 0,
+              "iters": 8
+            },
+            "sensor": {
+              "type": "identity"
+            },
+            "intrinsics": {
+              "type": "fx_fy_cx_cy_skew",
+              "fx": 2318.8,
+              "fy": 2318.8,
+              "cx": 640,
+              "cy": 512,
+              "skew": 0
+            }
+          },
+          "resolution": [
+            1280,
+            1024
+          ]
+        },
+        "lasers": {
+          "radius_m": 0.025,
+          "azimuth_rad": 1.0471975511965976,
+          "fan_half_angle": 0.4363323129985824,
+          "fan_length": 1,
+          "wavelength_nm": 660,
+          "beam_waist_m": 0.0005
+        }
+      }
+    }
+  ],
+  "cameras": [
+    {
+      "id": "rig_cam0",
+      "parent": "rig",
+      "parent_se3_self": {
+        "rotation": [
+          -0.04219941206070871,
+          -0.04219941206070871,
+          0.7058464490395417,
+          0.7058464490395419
+        ],
+        "translation": [
+          0.06,
+          0,
+          0
+        ]
+      },
+      "params": {
+        "projection": {
+          "type": "pinhole"
+        },
+        "distortion": {
+          "type": "brown_conrady5",
+          "k1": -0.08,
+          "k2": 0.02,
+          "k3": 0,
+          "p1": 0,
+          "p2": 0,
+          "iters": 8
+        },
+        "sensor": {
+          "type": "identity"
+        },
+        "intrinsics": {
+          "type": "fx_fy_cx_cy_skew",
+          "fx": 2318.8,
+          "fy": 2318.8,
+          "cx": 640,
+          "cy": 512,
+          "skew": 0
+        }
+      },
+      "resolution": [
+        1280,
+        1024
+      ]
+    },
+    {
+      "id": "rig_cam1",
+      "parent": "rig",
+      "parent_se3_self": {
+        "rotation": [
+          0.015446056838986809,
+          -0.057645468899695525,
+          0.9642041805590523,
+          -0.25835773151951036
+        ],
+        "translation": [
+          -0.029999999999999985,
+          0.05196152422706632,
+          0
+        ]
+      },
+      "params": {
+        "projection": {
+          "type": "pinhole"
+        },
+        "distortion": {
+          "type": "brown_conrady5",
+          "k1": -0.08,
+          "k2": 0.02,
+          "k3": 0,
+          "p1": 0,
+          "p2": 0,
+          "iters": 8
+        },
+        "sensor": {
+          "type": "identity"
+        },
+        "intrinsics": {
+          "type": "fx_fy_cx_cy_skew",
+          "fx": 2318.8,
+          "fy": 2318.8,
+          "cx": 640,
+          "cy": 512,
+          "skew": 0
+        }
+      },
+      "resolution": [
+        1280,
+        1024
+      ]
+    },
+    {
+      "id": "rig_cam2",
+      "parent": "rig",
+      "parent_se3_self": {
+        "rotation": [
+          -0.05764546889969553,
+          0.015446056838986831,
+          -0.2583577315195107,
+          0.9642041805590523
+        ],
+        "translation": [
+          -0.030000000000000027,
+          -0.051961524227066305,
+          0
+        ]
+      },
+      "params": {
+        "projection": {
+          "type": "pinhole"
+        },
+        "distortion": {
+          "type": "brown_conrady5",
+          "k1": -0.08,
+          "k2": 0.02,
+          "k3": 0,
+          "p1": 0,
+          "p2": 0,
+          "iters": 8
+        },
+        "sensor": {
+          "type": "identity"
+        },
+        "intrinsics": {
+          "type": "fx_fy_cx_cy_skew",
+          "fx": 2318.8,
+          "fy": 2318.8,
+          "cx": 640,
+          "cy": 512,
+          "skew": 0
+        }
+      },
+      "resolution": [
+        1280,
+        1024
+      ]
+    }
+  ],
+  "lasers": [
+    {
+      "id": "rig_laser0",
+      "parent": "rig",
+      "parent_se3_self": {
+        "rotation": [
+          0.021626992963102405,
+          -0.012494148088268427,
+          0.00027029518501306394,
+          0.9996879995175671
+        ],
+        "translation": [
+          0.012500000000000004,
+          0.021650635094610966,
+          0
+        ]
+      },
+      "fan_half_angle": 0.4363323129985824,
+      "fan_length": 1,
+      "wavelength_nm": 660,
+      "beam_waist_m": 0.0005,
+      "camera": "rig_cam0"
+    },
+    {
+      "id": "rig_laser1",
+      "parent": "rig",
+      "parent_se3_self": {
+        "rotation": [
+          0.02163374612463644,
+          0.012482451269379767,
+          0.8658903510331653,
+          0.4996099172620418
+        ],
+        "translation": [
+          -0.025,
+          3.061616997868383e-18,
+          0
+        ]
+      },
+      "fan_half_angle": 0.4363323129985824,
+      "fan_length": 1,
+      "wavelength_nm": 660,
+      "beam_waist_m": 0.0005,
+      "camera": "rig_cam1"
+    },
+    {
+      "id": "rig_laser2",
+      "parent": "rig",
+      "parent_se3_self": {
+        "rotation": [
+          -0.0000067531615340367235,
+          -0.024976599357648187,
+          -0.8656200558481524,
+          0.5000780822555253
+        ],
+        "translation": [
+          0.012499999999999983,
+          -0.021650635094610977,
+          0
+        ]
+      },
+      "fan_half_angle": 0.4363323129985824,
+      "fan_length": 1,
+      "wavelength_nm": 660,
+      "beam_waist_m": 0.0005,
+      "camera": "rig_cam2"
+    }
+  ],
+  "targets": [
+    {
+      "id": "board",
+      "parent": "world",
+      "parent_se3_self": {
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "translation": [
+          0.42,
+          0.1,
+          0
+        ]
+      },
+      "geometry": {
+        "type": "board",
+        "board": {
+          "kind": "chessboard",
+          "rows": 6,
+          "cols": 9,
+          "square_size_m": 0.02
+        }
+      }
+    }
+  ]
+}

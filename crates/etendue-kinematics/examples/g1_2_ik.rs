@@ -40,22 +40,32 @@ fn percentile(sorted: &[usize], p: f64) -> usize {
 
 fn main() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let mut paths: Vec<PathBuf> = std::fs::read_dir(root.join("tools/fixtures/fk"))
-        .unwrap()
-        .map(|e| e.unwrap().path())
-        .filter(|p| p.extension().is_some_and(|x| x == "json"))
-        .collect();
-    paths.sort();
+    // The committed fixtures, then the local-only robots' where they were built.
+    let mut paths: Vec<(PathBuf, &str)> = Vec::new();
+    for (dir, assets) in [
+        ("tools/fixtures/fk", "assets/robots"),
+        ("tools/fixtures/fk-local", "assets/robots-local"),
+    ] {
+        let Ok(entries) = std::fs::read_dir(root.join(dir)) else {
+            continue;
+        };
+        let mut found: Vec<PathBuf> = entries
+            .map(|e| e.unwrap().path())
+            .filter(|p| p.extension().is_some_and(|x| x == "json"))
+            .collect();
+        found.sort();
+        paths.extend(found.into_iter().map(|p| (p, assets)));
+    }
     let opts = IkOptions::default();
     println!(
         "| robot | seeds | poses | failures | failure rate | iters p50 | iters p99 | iters max | worst residual (m / rad) |"
     );
     println!("|---|---|---|---|---|---|---|---|---|");
-    for path in paths {
+    for (path, assets) in paths {
         let fixture: Value =
             serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
         let id = fixture["robot"].as_str().unwrap();
-        let manifest_path = root.join(format!("assets/robots/{id}/robot.json"));
+        let manifest_path = root.join(format!("{assets}/{id}/robot.json"));
         let manifest: RobotManifest =
             serde_json::from_str(&std::fs::read_to_string(&manifest_path).unwrap()).unwrap();
         let urdf =

@@ -1,0 +1,112 @@
+{
+  "version": 1,
+  "id": "igus_rebel_6dof",
+  "name": "igus ReBeL 6DOF",
+  "urdf": "robot.urdf",
+  "base_link": "base_link",
+  "tcp_link": "tool0",
+  "joints": [
+    {
+      "name": "joint1",
+      "lower": -3.12413936106985,
+      "upper": 3.12413936106985,
+      "max_velocity": 0.7853981633974483,
+      "max_acceleration": 5.24,
+      "max_jerk": 52.400000000000006,
+      "limit_source": "urdf position/velocity; acceleration: https://github.com/CommonplaceRobotics/iRC_ROS/blob/41701e6df3398087d217f0f478622e60f694de41/irc_ros_moveit_config/config/joint_limits.yaml key robot_description_planning.joint_limits.<prefix>joint1.max_acceleration; jerk: derived: 10/s x acceleration; no published jerk limit; 10/s x the acceleration limit, so an acceleration ramp takes 0.1 s, which keeps profiles smooth without slowing short moves much"
+    },
+    {
+      "name": "joint2",
+      "lower": -1.9198621771937623,
+      "upper": 1.9198621771937623,
+      "max_velocity": 0.7853981633974483,
+      "max_acceleration": 5.24,
+      "max_jerk": 52.400000000000006,
+      "limit_source": "urdf position/velocity; acceleration: https://github.com/CommonplaceRobotics/iRC_ROS/blob/41701e6df3398087d217f0f478622e60f694de41/irc_ros_moveit_config/config/joint_limits.yaml key robot_description_planning.joint_limits.<prefix>joint2.max_acceleration; jerk: derived: 10/s x acceleration; no published jerk limit; 10/s x the acceleration limit, so an acceleration ramp takes 0.1 s, which keeps profiles smooth without slowing short moves much"
+    },
+    {
+      "name": "joint3",
+      "lower": -1.9198621771937623,
+      "upper": 1.9198621771937623,
+      "max_velocity": 0.7853981633974483,
+      "max_acceleration": 5.24,
+      "max_jerk": 52.400000000000006,
+      "limit_source": "urdf position/velocity; acceleration: https://github.com/CommonplaceRobotics/iRC_ROS/blob/41701e6df3398087d217f0f478622e60f694de41/irc_ros_moveit_config/config/joint_limits.yaml key robot_description_planning.joint_limits.<prefix>joint3.max_acceleration; jerk: derived: 10/s x acceleration; no published jerk limit; 10/s x the acceleration limit, so an acceleration ramp takes 0.1 s, which keeps profiles smooth without slowing short moves much"
+    },
+    {
+      "name": "joint4",
+      "lower": -3.12413936106985,
+      "upper": 3.12413936106985,
+      "max_velocity": 0.7853981633974483,
+      "max_acceleration": 5.24,
+      "max_jerk": 52.400000000000006,
+      "limit_source": "urdf position/velocity; acceleration: https://github.com/CommonplaceRobotics/iRC_ROS/blob/41701e6df3398087d217f0f478622e60f694de41/irc_ros_moveit_config/config/joint_limits.yaml key robot_description_planning.joint_limits.<prefix>joint4.max_acceleration; jerk: derived: 10/s x acceleration; no published jerk limit; 10/s x the acceleration limit, so an acceleration ramp takes 0.1 s, which keeps profiles smooth without slowing short moves much"
+    },
+    {
+      "name": "joint5",
+      "lower": -1.5271630954950381,
+      "upper": 1.7889624832941877,
+      "max_velocity": 0.7853981633974483,
+      "max_acceleration": 5.24,
+      "max_jerk": 52.400000000000006,
+      "limit_source": "urdf position/velocity; acceleration: https://github.com/CommonplaceRobotics/iRC_ROS/blob/41701e6df3398087d217f0f478622e60f694de41/irc_ros_moveit_config/config/joint_limits.yaml key robot_description_planning.joint_limits.<prefix>joint5.max_acceleration; jerk: derived: 10/s x acceleration; no published jerk limit; 10/s x the acceleration limit, so an acceleration ramp takes 0.1 s, which keeps profiles smooth without slowing short moves much"
+    },
+    {
+      "name": "joint6",
+      "lower": -3.12413936106985,
+      "upper": 3.12413936106985,
+      "max_velocity": 0.7853981633974483,
+      "max_acceleration": 5.24,
+      "max_jerk": 52.400000000000006,
+      "limit_source": "urdf position/velocity; acceleration: https://github.com/CommonplaceRobotics/iRC_ROS/blob/41701e6df3398087d217f0f478622e60f694de41/irc_ros_moveit_config/config/joint_limits.yaml key robot_description_planning.joint_limits.<prefix>joint6.max_acceleration; jerk: derived: 10/s x acceleration; no published jerk limit; 10/s x the acceleration limit, so an acceleration ramp takes 0.1 s, which keeps profiles smooth without slowing short moves much"
+    }
+  ],
+  "visuals": [
+    {
+      "link": "base_link",
+      "mesh": "meshes/base_link.glb"
+    },
+    {
+      "link": "link_1",
+      "mesh": "meshes/link_1.glb"
+    },
+    {
+      "link": "link_2",
+      "mesh": "meshes/link_2.glb"
+    },
+    {
+      "link": "link_5",
+      "mesh": "meshes/link_5.glb"
+    },
+    {
+      "link": "link_6",
+      "mesh": "meshes/link_6.glb"
+    },
+    {
+      "link": "link_7",
+      "mesh": "meshes/link_7.glb"
+    },
+    {
+      "link": "link_8",
+      "mesh": "meshes/link_8.glb"
+    }
+  ],
+  "source": {
+    "repository": "https://github.com/CommonplaceRobotics/iRC_ROS",
+    "revision": "41701e6df3398087d217f0f478622e60f694de41",
+    "entry": "irc_ros_description/urdf/igus_rebel_6dof.urdf.xacro",
+    "xacro_args": {
+      "rebel_version": "01",
+      "continuous_last_joint": "false",
+      "hardware_protocol": "cprcanv2",
+      "gripper": "none",
+      "prefix": ""
+    }
+  },
+  "license": {
+    "urdf": "Apache-2.0",
+    "meshes": "Apache-2.0",
+    "meshes_redistributable": true,
+    "notes": "Evidence at 41701e6d: LICENSE at the repository root is the Apache-2.0 text, and irc_ros_description/package.xml declares <license>Apache-2.0</license>; the meshes (irc_ros_description/meshes/igus_rebel_6dof_00/*.dae) live in that package and carry no separate licence. No NOTICE file exists. rebel_version 01 uses the 00 kinematic description (the 01 macro differs in ros2_control only). The upstream LICENSE is copied to LICENSE next to this file."
+  }
+}

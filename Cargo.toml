@@ -82,6 +82,12 @@ calib-targets-charuco = { version = "0.15.3", default-features = false }
 # corners, the same crate calibration-rs's detector uses (already in the tree
 # through calib-targets-print).
 calib-targets-chessboard = "0.15.3"
+# PuzzleBoard and PuzzlePole (P7-4): the supported pole periods, the pole's object frame,
+# and their detectors. Already in the tree through calib-targets-print.
+calib-targets-puzzleboard = "0.15.3"
+# `etendue detect` (P7-5): the marker board detector. Already in the tree through
+# calib-targets-print.
+calib-targets-marker = "0.15.3"
 # Sensor model noise (etendue-synth). Seeded only: ChaCha is stable across
 # platforms and versions; default features off keep `getrandom` (OS entropy)
 # out, per the determinism rule.

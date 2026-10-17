@@ -38,7 +38,9 @@ pub mod plane;
 pub mod project;
 pub mod width;
 
-pub use intersect::{LaserStripe, StripeSample, stripe_on_target, stripe_segments_on_mesh};
+pub use intersect::{
+    LaserStripe, StripeSample, stripe_on_cylinder, stripe_on_target, stripe_segments_on_mesh,
+};
 pub use plane::LaserPlane;
 pub use project::{ProjectedPoint, ProjectedStripe, project_stripe};
 pub use width::{GaussianBeamWidth, WidthModel};

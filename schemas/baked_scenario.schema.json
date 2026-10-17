@@ -83,9 +83,37 @@
             }
           ]
         },
+        "joint_accelerations": {
+          "description": "Joint accelerations per robot, as `joint_positions`, when the bake\nwas asked for derivatives.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number",
+              "format": "double"
+            }
+          }
+        },
         "joint_positions": {
-          "description": "Joint positions per robot, aligned with [`BakedScenario::robots`].\nFor display only.",
+          "description": "Joint positions per robot, aligned with [`BakedScenario::robots`].",
           "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number",
+              "format": "double"
+            }
+          }
+        },
+        "joint_velocities": {
+          "description": "Joint velocities per robot, as `joint_positions`, when the bake was\nasked for derivatives.",
+          "type": [
+            "array",
+            "null"
+          ],
           "items": {
             "type": "array",
             "items": {

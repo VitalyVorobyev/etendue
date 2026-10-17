@@ -39,6 +39,16 @@ class ConvertTest(unittest.TestCase):
         for i in range(4):
             self.assertTrue(close(back[i], pose[i]))
 
+    def test_a_camera_offset_in_its_frame(self):
+        # A laser 1 m up looking down (Rx(π)); its view turned 90° about the laser's Z.
+        laser = c.matmul([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 1.0], [0, 0, 0, 1]], c.rot_x(math.pi))
+        view = [[0.0, -1.0, 0.0, 0.0], [1.0, 0.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0]]
+        cam = c.camera_matrix(laser, view)
+        self.assertTrue(close(direction(cam, [0, 0, -1]), [0, 0, -1]))
+        # The view's CV +X is the laser's +Y, which looks along world −Y.
+        self.assertTrue(close(direction(cam, [1, 0, 0]), [0, -1, 0]))
+        self.assertTrue(close(apply(cam, [0, 0, 0]), [0, 0, 1.0]))
+
     def test_emitters_face_local_plus_z(self):
         light = c.emitter_matrix(c.identity())
         self.assertTrue(close(direction(light, [0, 0, -1]), [0, 0, 1]))

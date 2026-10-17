@@ -6,7 +6,7 @@
  * `etendue_cli::{progress, gt, render, detect}`.
  */
 
-import type { ScenarioSpec } from "@etendue/wasm";
+import type { ScenarioSpec, SceneSpec } from "@etendue/wasm";
 import { Channel, invoke } from "@tauri-apps/api/core";
 
 import { normalize } from "../io/tauri";
@@ -19,7 +19,10 @@ export type Progress = { kind: "step"; stage: Stage; done: number; total: number
 
 /** What to generate (`DatasetRequest`). */
 export interface DatasetRequest {
-  scene: string;
+  /** The scene as edited; the run writes it into the output folder. */
+  scene: SceneSpec;
+  /** The scene file it came from, if any (its robot manifests resolve relative to it). */
+  origin: string | null;
   scenario: ScenarioSpec;
   output: string;
   render: boolean;
@@ -54,9 +57,13 @@ export interface CameraSummary {
   no_board: number;
   partial: number;
   ambiguous: number;
+  /** Views whose grid was found but not identified (marker ids, PuzzleBoard code). */
+  undecoded: number;
   points: number;
   mislabelled: number;
   unmatched: number;
+  /** Labelled corners that name no point of the target. */
+  off_board: number;
   rms_px: number;
   max_px: number;
 }
@@ -145,4 +152,38 @@ export async function pickJsonFiles(title: string, multiple: boolean): Promise<s
 export async function pickDirectory(title: string): Promise<string | null> {
   const [picked] = await invoke<string[]>("pick", { title, multiple: false, directory: true });
   return picked === undefined ? null : normalize(picked);
+}
+
+/**
+ * Ask where to save a file named `name` (filtered to `extensions`, starting in `dir`). The chosen
+ * folder becomes writable for the studio. `null` if cancelled.
+ */
+export async function saveDialog(
+  title: string,
+  name: string,
+  extensions: string[],
+  dir: string | null = null,
+): Promise<string | null> {
+  const path = await invoke<string | null>("save_dialog", { title, name, extensions, dir });
+  return path === null ? null : normalize(path);
+}
+
+/** Write a text file in a folder the user chose (a save dialog, a pick) or the datasets folder. */
+export function writeText(path: string, text: string): Promise<void> {
+  return invoke<void>("write_text", { path, text });
+}
+
+/**
+ * Save a scene (and its scenario) to files in writable folders. The scene's robot manifest paths
+ * are rewritten relative to its new folder (found relative to `from`, the folder it was read
+ * from, else in the robot library). Returns the scene as written.
+ */
+export function saveScene(args: {
+  scenePath: string;
+  scene: SceneSpec;
+  scenarioPath: string | null;
+  scenario: ScenarioSpec | null;
+  from: string | null;
+}): Promise<SceneSpec> {
+  return invoke<SceneSpec>("save_scene", args);
 }

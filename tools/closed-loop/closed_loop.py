@@ -21,7 +21,9 @@ the estimated laser plane with the truth in each camera's frame; the G5.1 limits
 rest. Scheimpflug cameras are seeded as calibration-rs ADR 0022 prescribes ([`nominal_seed`]).
 
 `--features` takes the observations from `etendue detect` instead (render → detect → calibrate,
-P5-1b): the detected pixel of every board point the detector labelled, in views it kept. The
+P5-1b): the detected pixel of every board point the detector labelled, in views it kept. On a
+laser dataset the stripe pixels then come from `laser_features.json` (the stripes `etendue detect`
+extracted from the laser images, P7-7). The
 truth it is compared with is still `gt.json`, and so are the limits, though G5.1 itself is
 defined on noise-free input. `--noise-px σ` instead adds white Gaussian noise (σ per axis, seeded)
 to the analytic pixels: what a detector with no bias and that RMS would give on these views.
@@ -275,10 +277,29 @@ def report(title: str, rows: list[tuple[str, float, float | None]], gate: str = 
 
 
 def laser_pixels(view: dict[str, Any]) -> list[tuple[float, float]] | None:
-    """The view's visible laser-stripe pixels (the scene's single laser), or None if too few."""
-    [stripe] = view["laser_points"]
-    pixels = [tuple(p["pixel"]) for p in stripe["points"] if visible(p)]
+    """The view's laser-stripe pixels (the one laser this camera images), or None if too few: the
+    visible points of a `gt.json` view, or a `laser_features.json` view's extracted pixels."""
+    if "pixels" in view:
+        pixels = [tuple(p) for p in view["pixels"]]
+    else:
+        [stripe] = view["laser_points"]
+        pixels = [tuple(p["pixel"]) for p in stripe["points"] if visible(p)]
     return pixels if len(pixels) >= 2 else None
+
+
+def laser_views(gt: dict[str, Any], stripes: dict[str, Any] | None) -> list[list[dict[str, Any] | None]]:
+    """Per capture, per `gt.json` view: where its laser pixels come from — the `gt.json` view
+    itself, or its `laser_features.json` view (None if it has none)."""
+    if stripes is None:
+        return [list(capture["views"]) for capture in gt["captures"]]
+    if stripes.get("version") != 1:
+        sys.exit(f"unsupported laser_features.json version {stripes.get('version')}")
+    if [c["id"] for c in stripes["captures"]] != [c["id"] for c in gt["captures"]]:
+        sys.exit("laser_features.json does not match gt.json's captures")
+    return [
+        [next((v for v in s["views"] if v["camera"] == g["camera"]), None) for g in capture["views"]]
+        for s, capture in zip(stripes["captures"], gt["captures"])
+    ]
 
 
 def scheimpflug(cameras: list[dict[str, Any]]) -> bool:
@@ -331,22 +352,35 @@ class SeededLaserlineConfig(vc.RigHandeyeLaserlineCalibrationConfig):
 
 def laser_loop(
     gt: dict[str, Any],
+    captures: list[dict[str, Any]],
+    stripes: list[list[dict[str, Any] | None]],
     poses: list[Iso],
     gripper_se3_rig: Iso,
     base_se3_target: Iso,
     cam_se3_rig: list[Iso],
+    gated: bool,
 ) -> int:
-    """P5-3: the joint rig hand-eye laserline problem, gated on G5.3 (and G5.1's limits)."""
+    """P5-3: the joint rig hand-eye laserline problem, gated on G5.3 (and G5.1's limits) on
+    analytic input; `captures` and `stripes` give the corner and laser observations."""
     cameras = gt["cameras"]
-    [laser] = gt["lasers"]
+    lasers = gt["lasers"]
+
+    def laser_of(camera_id: str) -> dict[str, Any]:
+        """The laser a camera images: its own (one laser per camera), else the only one."""
+        own = [laser for laser in lasers if laser.get("camera") == camera_id]
+        if own:
+            return own[0]
+        [laser] = lasers
+        return laser
+
     views = []
-    for capture, base_se3_gripper in zip(gt["captures"], poses):
+    for capture, lasers_seen, base_se3_gripper in zip(captures, stripes, poses):
         obs = [observation(gt, v) for v in capture["views"]]
         if any(o is not None for o in obs):
             views.append(
                 vc.RigHandeyeLaserlineView(
                     cameras=obs,
-                    laser_pixels=[laser_pixels(v) for v in capture["views"]],
+                    laser_pixels=[laser_pixels(v) if v is not None else None for v in lasers_seen],
                     base_se3_gripper=base_se3_gripper.to_pose(),
                 )
             )
@@ -359,13 +393,13 @@ def laser_loop(
     result = vc.run_rig_handeye_laserline(vc.RigHandeyeLaserlineDataset(num_cameras=len(cameras), views=views), config)
     def per_camera(i: int, camera: dict[str, Any]) -> list[tuple[str, float, float | None]]:
         rows = tilt_rows(result.sensors[i], camera, camera["id"]) if scheimpflug(cameras) else []
-        plane = next(p for p in laser["camera_planes"] if p["frame"] == camera["id"])
+        plane = next(p for p in laser_of(camera["id"])["camera_planes"] if p["frame"] == camera["id"])
         return rows + plane_rows(result.laser_planes_cam[i], plane, camera["id"])
 
     rows = rig_rows(result, cameras, cam_se3_rig, gripper_se3_rig, base_se3_target, per_camera)
     n_laser = sum(len(px) for v in views for px in v.laser_pixels if px is not None)
     title = f"rig hand-eye laserline ({len(cameras)} cameras, {len(views)} views, {n_laser} laser pixels)"
-    return 0 if report(title, rows, gate="G5.3") else 1
+    return 0 if report(title, rows, gate="G5.3", gated=gated) else 1
 
 
 def main() -> int:
@@ -373,6 +407,11 @@ def main() -> int:
     parser.add_argument("directory", type=Path)
     parser.add_argument("--camera", help="calibrate this camera alone (single-camera hand-eye)")
     parser.add_argument("--features", type=Path, help="observations from `etendue detect` (features.json)")
+    parser.add_argument(
+        "--laser-features",
+        type=Path,
+        help="laser pixels from `etendue detect` (default: laser_features.json next to --features)",
+    )
     parser.add_argument("--noise-px", type=float, default=0.0, help="white noise σ per axis on analytic pixels")
     parser.add_argument("--seed", type=int, default=0, help="seed of --noise-px")
     args = parser.parse_args()
@@ -409,9 +448,17 @@ def main() -> int:
     if gt.get("lasers"):
         if args.camera is not None:
             sys.exit("--camera does not apply to a laser dataset (rig hand-eye laserline)")
-        if not gated:
-            sys.exit("--features and --noise-px do not apply to a laser dataset yet")
-        return laser_loop(gt, poses, gripper_se3_rig, base_se3_target, cam_se3_rig)
+        if args.noise_px:
+            sys.exit("--noise-px does not apply to a laser dataset")
+        stripes = None
+        if features is not None:
+            path = args.laser_features or args.features.parent / "laser_features.json"
+            if not path.is_file():
+                sys.exit(f"{path}: no laser features (run `etendue detect` on a dataset with laser images)")
+            stripes = json.loads(path.read_text())
+        return laser_loop(
+            gt, captures, laser_views(gt, stripes), poses, gripper_se3_rig, base_se3_target, cam_se3_rig, gated
+        )
 
     if args.camera is not None or len(cameras) == 1:
         name = args.camera or ids[0]

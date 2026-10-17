@@ -1,5 +1,10 @@
 # P5-1b: calibration closed loop on rendered images
 
+> Measured on the former 20-viewpoint scenario of `examples/closed_loop_ur5e` (from the retired
+> `make_scenario.py`; it is in git history). Since P7-6 the example has 24 generated viewpoints
+> (`closed_loop.md`). This loop has not been re-run on them: it needs Blender 5.1.1 (the pin),
+> and only 5.2.2 is installed.
+
 - Measures: what the rendered dataset, detected with the G4.2 default detector, gives
   calibration-rs. The pipeline is render → detect → calibrate (`docs/pivot/PLAN.md` P5-1).
 - Reference limits: **G5.1**'s (mean reprojection ≤ 0.05 px, fx/fy ≤ 1e-4 relative, cx/cy ≤

@@ -13,6 +13,10 @@ etendue-scene = { workspace = true }
 nalgebra = { workspace = true }
 thiserror = { workspace = true }
 urdf-rs = "0.10"
+# Jerk-limited, time-optimal motion profiles (Ruckig, pure Rust): every PTP
+# move and the path parameter of every LIN move. Its dependencies are
+# arrayvec, num-traits and thiserror: no nalgebra, nothing for wasm to avoid.
+rsruckig = "3"
 # Analytic OPW inverse kinematics (feature `opw`). Default features pull
 # collision checking, planning, and file loaders; none are used here. The
 # crate works in `glam`; conversion to nalgebra happens only at the boundary.

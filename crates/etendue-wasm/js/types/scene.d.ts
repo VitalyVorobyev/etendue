@@ -305,6 +305,12 @@ export interface LaserSpec {
    */
   beam_waist_m: number;
   /**
+   * The camera that images this laser's line, in a rig with one laser
+   * per camera: its laser images and laser-plane calibration use this
+   * laser only. Lasers that name cameras must name different ones.
+   */
+  camera?: string | null;
+  /**
    * Fan half-angle in radians, in `(0, π/2)`.
    */
   fan_half_angle: number;
@@ -321,6 +327,13 @@ export interface LaserSpec {
    */
   parent: string;
   parent_se3_self: Iso3Schema;
+  /**
+   * Optical power in watts, as the camera responds to it (its spectral
+   * response at the wavelength folded in), spread evenly over the fan's
+   * angle. Only laser images use it; absent, they take etendue-synth's
+   * default (0.5 mW).
+   */
+  power_w?: number | null;
   /**
    * Emission wavelength in nanometres.
    */
@@ -413,10 +426,99 @@ export interface RigSpec {
    */
   id: string;
   /**
+   * The layout its cameras and lasers were made from, kept so it can be
+   * edited again (`RigLayout::expand`). The cameras and lasers are the
+   * source of truth; this is not checked against them.
+   */
+  layout?: RigLayout | null;
+  /**
    * Parent frame (e.g. `"world"` or `"<robot>/tool0"` for eye-in-hand).
    */
   parent: string;
   parent_se3_self: Iso3Schema;
+}
+/**
+ * How a rig's cameras (and lasers) are laid out.
+ */
+export interface RigLayout {
+  camera: CameraTemplate;
+  /**
+   * Number of cameras: 1 (mono), 2 (stereo), 3, 6, …
+   */
+  count: number;
+  /**
+   * Which way each camera's image +X points.
+   */
+  image_x?: "tangential" | "radial";
+  /**
+   * One laser per camera, if any.
+   */
+  lasers?: LaserLayout | null;
+  /**
+   * Azimuth of camera 0 about the rig axis, radians.
+   */
+  phase_rad?: number;
+  /**
+   * Distance of each camera from the rig axis, metres (`0` only for one
+   * camera).
+   */
+  radius_m: number;
+  /**
+   * Angle between each camera's axis and the rig axis, radians; default
+   * `atan(radius / working_distance)`.
+   */
+  tilt_rad?: number | null;
+  /**
+   * Where the camera axes meet the rig axis (with the default tilt), and
+   * where the lasers aim: `(0, 0, working_distance_m)` in the rig frame.
+   */
+  working_distance_m: number;
+}
+/**
+ * The camera every position gets.
+ */
+export interface CameraTemplate {
+  params: CameraParams;
+  /**
+   * Image size in pixels, `[width, height]`.
+   *
+   * @minItems 2
+   * @maxItems 2
+   */
+  resolution: [number, number];
+}
+/**
+ * One line laser per camera.
+ */
+export interface LaserLayout {
+  /**
+   * Azimuth of laser `i` relative to camera `i`, radians.
+   */
+  azimuth_rad?: number;
+  /**
+   * Beam-waist `1/e²` radius at the laser, metres.
+   */
+  beam_waist_m: number;
+  /**
+   * Fan half-angle, radians, in `(0, π/2)`.
+   */
+  fan_half_angle: number;
+  /**
+   * Fan reach along its central ray, metres.
+   */
+  fan_length: number;
+  /**
+   * Optical power, watts (`LaserSpec::power_w`).
+   */
+  power_w?: number | null;
+  /**
+   * Distance of each laser from the rig axis, metres.
+   */
+  radius_m: number;
+  /**
+   * Wavelength, nanometres.
+   */
+  wavelength_nm: number;
 }
 /**
  * A robot placed in a scene.
@@ -542,6 +644,153 @@ export interface TargetSpec {
       }
     | {
         /**
+         * The print.
+         */
+        target:
+          | {
+              /**
+               * Inner corner columns.
+               */
+              inner_cols: number;
+              /**
+               * Inner corner rows.
+               */
+              inner_rows: number;
+              /**
+               * White inset in the black squares, as a fraction of the side.
+               */
+              inner_square_rel?: number | null;
+              kind: "chessboard";
+              /**
+               * Square side, mm.
+               */
+              square_size_mm: number;
+            }
+          | {
+              /**
+               * Marker border width in bits.
+               */
+              border_bits?: number;
+              /**
+               * Square columns.
+               */
+              cols: number;
+              /**
+               * ArUco dictionary, e.g. `"DICT_4X4_50"`.
+               */
+              dictionary: string;
+              /**
+               * White inset in the plain black squares, as a fraction of the side.
+               */
+              inner_square_rel?: number | null;
+              kind: "charuco";
+              /**
+               * Marker placement; `opencv_charuco` (OpenCV's modern layout).
+               */
+              marker_layout?: "opencv_charuco";
+              /**
+               * Marker side as a fraction of the square side.
+               */
+              marker_size_rel: number;
+              /**
+               * Square rows.
+               */
+              rows: number;
+              /**
+               * Square side, mm.
+               */
+              square_size_mm: number;
+            }
+          | {
+              /**
+               * Circle diameter as a fraction of the square side.
+               */
+              circle_diameter_rel?: number;
+              /**
+               * The three circles.
+               *
+               * @minItems 3
+               * @maxItems 3
+               */
+              circles: [MarkerCircle, MarkerCircle, MarkerCircle];
+              /**
+               * Inner corner columns.
+               */
+              inner_cols: number;
+              /**
+               * Inner corner rows.
+               */
+              inner_rows: number;
+              /**
+               * White inset in the black squares, as a fraction of the side.
+               */
+              inner_square_rel?: number | null;
+              kind: "marker_board";
+              /**
+               * Square side, mm.
+               */
+              square_size_mm: number;
+            }
+          | {
+              /**
+               * Square columns.
+               */
+              cols: number;
+              /**
+               * Edge-dot diameter as a fraction of the square side.
+               */
+              dot_diameter_rel?: number;
+              kind: "puzzle_board";
+              /**
+               * Master column of the board's first square.
+               */
+              origin_col?: number;
+              /**
+               * Master row of the board's first square.
+               */
+              origin_row?: number;
+              /**
+               * Square rows.
+               */
+              rows: number;
+              /**
+               * Square side, mm.
+               */
+              square_size_mm: number;
+            }
+          | {
+              /**
+               * Squares along the cylinder axis.
+               */
+              axial_squares: number;
+              /**
+               * Master column the strip is cut from.
+               */
+              axial_start_col?: number;
+              /**
+               * Squares around the circumference: a supported period (12, 18,
+               * 24, 30, 36 or 42).
+               */
+              circumference_squares: number;
+              /**
+               * Edge-dot diameter as a fraction of the square side.
+               */
+              dot_diameter_rel?: number;
+              kind: "puzzlepole";
+              /**
+               * Square side, mm.
+               */
+              square_size_mm: number;
+              /**
+               * Master row the strip is cut from (the seam); must match the
+               * period (see calib-targets `PuzzlePolePeriod`).
+               */
+              start_row: number;
+            };
+        type: "printed";
+      }
+    | {
+        /**
          * Extent along local Y, in metres.
          */
         height: number;
@@ -561,4 +810,21 @@ export interface TargetSpec {
    */
   parent: string;
   parent_se3_self: Iso3Schema;
+}
+/**
+ * A marker board circle: on square `(i, j)` (column, row), white or black.
+ */
+export interface MarkerCircle {
+  /**
+   * Square column.
+   */
+  i: number;
+  /**
+   * Square row.
+   */
+  j: number;
+  /**
+   * Disk colour.
+   */
+  polarity: "white" | "black";
 }

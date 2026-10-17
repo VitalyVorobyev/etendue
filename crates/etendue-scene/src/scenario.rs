@@ -25,6 +25,158 @@ pub struct ScenarioSpec {
     /// Free-text description.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
+    /// The generator the steps were made by, kept so it can be edited and
+    /// run again; the steps are the source of truth.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub generator: Option<GeneratorSpec>,
+}
+
+/// How a scenario's poses were generated, tagged on `type`.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
+#[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
+pub enum GeneratorSpec {
+    /// Poses on spheres around the target, the sensor looking at the centre.
+    Sphere(SphereGenerator),
+}
+
+/// Eye-in-hand poses on spheres around a target (`etendue-synth::poses`).
+///
+/// The sensor frame (`look`, a frame the robot's tool carries, offset by
+/// `look_se3_sensor`) is placed at radius `r`, polar angle `θ` from the
+/// sphere's pole and azimuth `φ`, its +Z towards the centre and its +Y along
+/// the target's print-down direction (so images read upright), then rolled
+/// about +Z. Every `(r, θ, φ, roll)` is a candidate; one is kept when the
+/// robot reaches it with joint margin and away from singularities, and every
+/// required camera sees enough of the target.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
+#[serde(deny_unknown_fields)]
+pub struct SphereGenerator {
+    /// The robot that carries the sensor.
+    pub robot: String,
+    /// The sensor frame: a rig, a camera, or any frame rigidly carried by
+    /// the robot's tool.
+    pub look: String,
+    /// The sensor axis relative to `look` (identity by default).
+    #[cfg_attr(
+        feature = "schemars",
+        schemars(with = "Option<vision_calibration_core::Iso3Schema>")
+    )]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub look_se3_sensor: Option<Isometry3<f64>>,
+    /// The target looked at.
+    pub target: String,
+    /// Sphere centre in the target frame, metres; default the target's
+    /// centre (a PuzzlePole's axis midpoint).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub centre_m: Option<[f64; 3]>,
+    /// The sphere's pole (θ = 0) in the target frame; default +Z, the
+    /// board's normal (for a PuzzlePole, +X, the seam's outward normal).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pole: Option<[f64; 3]>,
+    /// Sphere radii, metres.
+    pub radii_m: Vec<f64>,
+    /// Polar angles from the pole.
+    pub theta: AngleSteps,
+    /// Azimuths about the pole.
+    pub phi: AngleSteps,
+    /// Rolls of the sensor about its axis, radians (default `[0]`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub roll_rad: Vec<f64>,
+    /// Which cameras must see the target, and how much of it.
+    #[serde(default)]
+    pub require: Visibility,
+    /// Smallest distance of any joint from its limits (rad or m).
+    #[serde(default = "default_joint_margin")]
+    pub joint_margin_rad: f64,
+    /// Smallest singular value of the tool Jacobian.
+    #[serde(default = "default_min_sigma")]
+    pub min_sigma: f64,
+    /// Fraction of the joint limits the moves use, in `(0, 1]`.
+    #[serde(default = "default_generator_speed")]
+    pub speed_scale: f64,
+    /// Go back to the start configuration at the end.
+    #[serde(default)]
+    pub return_home: bool,
+}
+
+/// `steps` angles from `min_rad` to `max_rad`, both included (a full turn
+/// counts its start once).
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
+#[serde(deny_unknown_fields)]
+pub struct AngleSteps {
+    /// First angle, radians.
+    pub min_rad: f64,
+    /// Last angle, radians.
+    pub max_rad: f64,
+    /// Number of angles, ≥ 1.
+    pub steps: u32,
+}
+
+impl AngleSteps {
+    /// The angles.
+    #[must_use]
+    pub fn values(&self) -> Vec<f64> {
+        let n = self.steps.max(1);
+        if n == 1 {
+            return vec![self.min_rad];
+        }
+        let span = self.max_rad - self.min_rad;
+        // A full turn: the last angle would repeat the first.
+        let full = (span.abs() - std::f64::consts::TAU).abs() < 1e-9;
+        let parts = if full { f64::from(n) } else { f64::from(n - 1) };
+        (0..n)
+            .map(|k| self.min_rad + span * f64::from(k) / parts)
+            .collect()
+    }
+}
+
+/// Which cameras must see the target.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
+#[serde(deny_unknown_fields)]
+pub struct Visibility {
+    /// The cameras; all of the scene's when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cameras: Option<Vec<String>>,
+    /// Fraction of the target's points each must see, in `(0, 1]`.
+    #[serde(default = "default_visible_fraction")]
+    pub min_visible_fraction: f64,
+    /// Image border margin, pixels.
+    #[serde(default = "default_margin_px")]
+    pub margin_px: f64,
+}
+
+impl Default for Visibility {
+    fn default() -> Self {
+        Self {
+            cameras: None,
+            min_visible_fraction: default_visible_fraction(),
+            margin_px: default_margin_px(),
+        }
+    }
+}
+
+fn default_joint_margin() -> f64 {
+    0.05
+}
+
+fn default_min_sigma() -> f64 {
+    0.02
+}
+
+fn default_generator_speed() -> f64 {
+    0.5
+}
+
+fn default_visible_fraction() -> f64 {
+    1.0
+}
+
+fn default_margin_px() -> f64 {
+    2.0
 }
 
 fn default_speed_scale() -> f64 {
@@ -43,7 +195,7 @@ pub enum Step {
         robot: String,
         /// Target joint positions, manifest joint order.
         q: Vec<f64>,
-        /// Fraction of the joint velocity and acceleration limits, in
+        /// Fraction of the joint velocity, acceleration and jerk limits, in
         /// `(0, 1]`.
         #[serde(default = "default_speed_scale")]
         speed_scale: f64,
@@ -59,10 +211,17 @@ pub enum Step {
             schemars(with = "vision_calibration_core::Iso3Schema")
         )]
         base_se3_tool: Isometry3<f64>,
-        /// Fraction of the joint velocity and acceleration limits, in
+        /// Fraction of the joint velocity, acceleration and jerk limits, in
         /// `(0, 1]`.
         #[serde(default = "default_speed_scale")]
         speed_scale: f64,
+        /// The joint configuration that reaches `base_se3_tool`, when it has
+        /// been chosen (a pose generator, `resolve`): the move then goes
+        /// there without inverse kinematics, so baking can never switch to
+        /// another IK branch. It must reach the pose (checked when the
+        /// scenario is compiled).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        q: Option<Vec<f64>>,
     },
     /// Straight-line Cartesian move of the TCP (translation linear, rotation
     /// slerp), time-scaled so no joint limit is exceeded.
@@ -75,7 +234,7 @@ pub enum Step {
             schemars(with = "vision_calibration_core::Iso3Schema")
         )]
         base_se3_tool: Isometry3<f64>,
-        /// Fraction of the joint velocity and acceleration limits, in
+        /// Fraction of the joint velocity, acceleration and jerk limits, in
         /// `(0, 1]`.
         #[serde(default = "default_speed_scale")]
         speed_scale: f64,
@@ -133,8 +292,16 @@ impl ScenarioSpec {
                     robot,
                     base_se3_tool,
                     speed_scale,
+                    q,
+                } => {
+                    check_robot(&mut issues, &path, robot, robot_exists(robot));
+                    check_speed_scale(&mut issues, &path, *speed_scale);
+                    issues.check_pose(&format!("{path}.base_se3_tool"), base_se3_tool);
+                    if q.as_ref().is_some_and(|q| !q.iter().all(|v| v.is_finite())) {
+                        issues.push(format!("{path}.q"), "joint positions must be finite");
+                    }
                 }
-                | Step::Lin {
+                Step::Lin {
                     robot,
                     base_se3_tool,
                     speed_scale,
@@ -187,6 +354,7 @@ impl ScenarioSpec {
                         robot: robot.to_owned(),
                         base_se3_tool: *pose,
                         speed_scale,
+                        q: None,
                     },
                     Step::Capture { id: id.clone() },
                 ]
@@ -197,6 +365,7 @@ impl ScenarioSpec {
             dt,
             steps,
             description: Some(format!("{} tool poses of `{robot}`", poses.len())),
+            generator: None,
         }
     }
 }

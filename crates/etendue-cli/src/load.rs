@@ -6,7 +6,7 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, anyhow};
-use etendue_kinematics::{RobotModel, bake};
+use etendue_kinematics::{BakeOptions, RobotModel, bake_with};
 use etendue_scene::{BakedScenario, FrameGraph, RobotManifest, ScenarioSpec, SceneSpec};
 
 /// A scene with its robot models and manifests, read from disk.
@@ -83,8 +83,8 @@ pub fn load(path: &Path) -> Result<Loaded> {
 /// # Errors
 ///
 /// If the scenario does not read, parse or compile.
-pub fn bake_file(loaded: &Loaded, path: &Path) -> Result<BakedScenario> {
+pub fn bake_file(loaded: &Loaded, path: &Path, options: BakeOptions) -> Result<BakedScenario> {
     let scenario: ScenarioSpec = read_json(path, "scenario")?;
-    bake(&loaded.scene, &scenario, &loaded.models)
+    bake_with(&loaded.scene, &scenario, &loaded.models, options)
         .map_err(|e| anyhow!("scenario {}: {e}", path.display()))
 }

@@ -1,84 +1,221 @@
-import { Button, Select, ThemeToggle } from "@vitavision/ui";
+import {
+  Button,
+  DropdownMenu,
+  MenuItem,
+  MenuLabel,
+  MenuSeparator,
+  SegmentedControl,
+  ThemeToggle,
+} from "@vitavision/ui";
 import { FileDrop } from "@vitavision/workbench";
-import { Aperture, FileInput, FolderOpen } from "lucide-react";
+import { Aperture, Check, Download, FileInput, FolderOpen, Menu as MenuIcon, Redo2, Save, Undo2 } from "lucide-react";
+import { useRef } from "react";
 import examples from "virtual:etendue-examples";
 
 import { isTauri } from "../io/tauri";
 import { pickJsonFiles } from "../kernel/native";
 
+/** The studio's workspaces. Each keeps the 3D view or the camera images as its main surface. */
+export type Mode = "setup" | "motion" | "images" | "dataset";
+
+export const MODES: { value: Mode; label: string }[] = [
+  { value: "setup", label: "Setup" },
+  { value: "motion", label: "Motion" },
+  { value: "images", label: "Images" },
+  { value: "dataset", label: "Dataset" },
+];
+
+/** One entry of the File ▸ Export section. */
+export interface ExportItem {
+  label: string;
+  run: () => void;
+}
+
+const MOD = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘" : "Ctrl+";
+
 /**
- * The top bar: product name, what is loaded, the example picker, open files, theme. In the
- * Tauri shell also “Open scene…” (by path, so the native pipeline can use it) and “Import
- * poses…” (a scenario from tool poses).
+ * The top bar: the product, the open document (● while it has unsaved changes), the workspace
+ * switch, undo and redo, the File menu and the theme. Everything that opens, saves or exports is
+ * in the File menu, so the bar stays quiet.
  */
 export function Header({
   label,
   description,
+  dirty,
+  mode,
+  modes,
+  onMode,
+  undo,
+  redo,
+  onUndo,
+  onRedo,
   example,
   onExample,
   onFiles,
   onPaths,
   onPoses,
+  onSave,
+  exports,
 }: {
   label: string | null;
   description: string | null;
+  dirty: boolean;
+  mode: Mode;
+  modes: Mode[];
+  onMode: (mode: Mode) => void;
+  /** What Undo and Redo would do, latest last; empty when there is nothing to do. */
+  undo: string[];
+  redo: string[];
+  onUndo: () => void;
+  onRedo: () => void;
   example: string;
   onExample: (id: string) => void;
   onFiles: (files: File[]) => void;
   onPaths: (paths: string[]) => void;
   /** Import tool poses; `null` while nothing is loaded. */
   onPoses: ((path: string) => void) | null;
+  /** Save (`as`: ask where); `null` while nothing is loaded. */
+  onSave: ((as: boolean) => void) | null;
+  exports: ExportItem[];
 }) {
   const native = isTauri();
+  const input = useRef<HTMLInputElement>(null);
+  const lastUndo = undo.at(-1);
+  const lastRedo = redo.at(-1);
   return (
     <div className="flex h-11 items-center gap-3 border-b border-line bg-surface px-3">
-      <div className="flex items-center gap-2 text-sm font-semibold text-fg">
+      <div className="flex shrink-0 items-center gap-2 text-sm font-semibold text-fg">
         <Aperture className="size-4 text-signal" aria-hidden />
-        etendue studio
+        etendue
       </div>
       {label && (
-        <div className="min-w-0 truncate text-xs text-fg-muted" title={description ?? undefined}>
-          <span className="font-mono text-fg">{label}</span>
-          {description && <span className="ml-2">{description}</span>}
+        <div className="min-w-0 flex-1 truncate text-xs text-fg-muted" title={description ?? undefined}>
+          <span className="font-mono text-fg" data-testid="document-label">
+            {label}
+          </span>
+          {dirty && (
+            <span className="ml-1 text-signal" title="Unsaved changes" data-testid="dirty">
+              ●
+            </span>
+          )}
         </div>
       )}
-      <div className="ml-auto flex items-center gap-2">
-        <Select
-          value={example}
-          onValueChange={onExample}
-          options={examples.map((e) => ({ value: e.id, label: e.id, note: e.scenario ? "scene + scenario" : "scene" }))}
-          placeholder="Open an example…"
-          aria-label="Example scene"
-          className="w-56"
+      {!label && <div className="flex-1" />}
+      <SegmentedControl
+        value={mode}
+        options={MODES.filter((m) => modes.includes(m.value))}
+        onValueChange={(v) => v !== "" && onMode(v as Mode)}
+        aria-label="Workspace"
+      />
+      <div className="flex flex-1 items-center justify-end gap-1">
+        <Button
+          variant="ghost"
+          size="sm"
+          icon={<Undo2 className="size-4" />}
+          aria-label={lastUndo ? `Undo ${lastUndo}` : "Undo"}
+          title={lastUndo ? `Undo ${lastUndo} (${MOD}Z)` : "Nothing to undo"}
+          disabled={!lastUndo}
+          onClick={onUndo}
         />
-        {native && (
-          <>
-            <Button
+        <Button
+          variant="ghost"
+          size="sm"
+          icon={<Redo2 className="size-4" />}
+          aria-label={lastRedo ? `Redo ${lastRedo}` : "Redo"}
+          title={lastRedo ? `Redo ${lastRedo} (${MOD}⇧Z)` : "Nothing to redo"}
+          disabled={!lastRedo}
+          onClick={onRedo}
+        />
+        <DropdownMenu
+          align="end"
+          trigger={
+            <Button size="sm" icon={<MenuIcon className="size-4" />}>
+              File
+            </Button>
+          }
+        >
+          {native ? (
+            <MenuItem
               icon={<FolderOpen className="size-4" />}
-              onClick={() => void pickJsonFiles("Open a scene (and its scenario)", true).then(onPaths)}
+              onSelect={() => void pickJsonFiles("Open a scene (and its scenario)", true).then(onPaths)}
             >
               Open scene…
-            </Button>
-            <Button
+            </MenuItem>
+          ) : (
+            <MenuItem icon={<FolderOpen className="size-4" />} onSelect={() => input.current?.click()}>
+              Open files…
+            </MenuItem>
+          )}
+          {native && (
+            <MenuItem
               icon={<FileInput className="size-4" />}
               disabled={onPoses === null}
-              title="A stop-and-shoot scenario from a JSON list of tool poses"
-              onClick={() => void pickJsonFiles("Tool poses", false).then(([p]) => p !== undefined && onPoses?.(p))}
+              onSelect={() => void pickJsonFiles("Tool poses", false).then(([p]) => p !== undefined && onPoses?.(p))}
             >
-              Import poses…
-            </Button>
-          </>
-        )}
-        <FileDrop
-          onFiles={onFiles}
-          accept=".json,.urdf,.glb"
-          multiple
-          overlay
-          buttonLabel="Open files…"
-          overlayMessage="Drop a scene.json (with its scenario.json and robot assets)"
-        />
+              Import tool poses…
+            </MenuItem>
+          )}
+          <MenuSeparator />
+          <MenuItem
+            icon={<Save className="size-4" />}
+            shortcut={`${MOD}S`}
+            disabled={onSave === null}
+            onSelect={() => onSave?.(false)}
+          >
+            {native ? "Save" : "Download scene"}
+          </MenuItem>
+          {native && (
+            <MenuItem shortcut={`${MOD}⇧S`} disabled={onSave === null} onSelect={() => onSave?.(true)}>
+              Save as…
+            </MenuItem>
+          )}
+          {exports.length > 0 && (
+            <>
+              <MenuSeparator />
+              <MenuLabel>Export</MenuLabel>
+              {exports.map((e) => (
+                <MenuItem key={e.label} icon={<Download className="size-4" />} onSelect={e.run}>
+                  {e.label}
+                </MenuItem>
+              ))}
+            </>
+          )}
+          <MenuSeparator />
+          <MenuLabel>Examples</MenuLabel>
+          {examples.map((e) => (
+            <MenuItem
+              key={e.id}
+              icon={e.id === example ? <Check className="size-4" /> : undefined}
+              onSelect={() => onExample(e.id)}
+            >
+              {e.id}
+            </MenuItem>
+          ))}
+        </DropdownMenu>
         <ThemeToggle />
       </div>
+      {/* Drops anywhere open files; the menu's “Open files…” uses the input below. */}
+      <FileDrop
+        onFiles={onFiles}
+        accept=".json,.urdf,.glb"
+        multiple
+        overlay
+        className="hidden"
+        overlayMessage="Drop a scene.json (with its scenario.json and robot assets)"
+      />
+      <input
+        ref={input}
+        type="file"
+        accept=".json,.urdf,.glb"
+        multiple
+        hidden
+        data-testid="open-files"
+        onChange={(e) => {
+          const files = [...(e.target.files ?? [])];
+          e.target.value = "";
+          if (files.length > 0) onFiles(files);
+        }}
+      />
     </div>
   );
 }

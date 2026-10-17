@@ -34,8 +34,12 @@
 
 pub mod baked;
 pub mod entity;
+pub mod export;
 pub mod frame;
 pub mod light;
+pub mod printed;
+pub mod report;
+pub mod rig;
 pub mod robot;
 pub mod scenario;
 pub mod validate;
@@ -47,12 +51,18 @@ use serde::{Deserialize, Serialize};
 
 pub use baked::{BakedRobot, BakedSample, BakedScenario, CaptureEvent};
 pub use entity::{CameraSpec, LaserSpec, PartSpec, RigSpec, TargetGeometry, TargetSpec};
+pub use export::{CaptureExport, CaptureRow, ExportError};
 pub use frame::{FrameGraph, FrameRef, FrameSpec, ParsedFrameRef, WORLD, is_valid_id};
 pub use light::{LightShape, LightSpec};
+pub use printed::{CharucoLayout, MarkerCircle, Polarity, PrintedTarget};
+pub use report::{Binding, IkReport, JointPeak, MotionReport, MotionWarning, Quantity, StepReport};
+pub use rig::{CameraTemplate, ImageX, LaserLayout, RigLayout};
 pub use robot::{
     ManifestJoint, ManifestLicense, ManifestSource, ManifestVisual, RobotManifest, RobotSpec,
 };
-pub use scenario::{ScenarioSpec, Step, default_capture_id};
+pub use scenario::{
+    AngleSteps, GeneratorSpec, ScenarioSpec, SphereGenerator, Step, Visibility, default_capture_id,
+};
 pub use validate::{Issue, UNIT_QUATERNION_TOLERANCE, ValidationError};
 
 use validate::Issues;
@@ -261,8 +271,25 @@ impl SceneSpec {
                 );
             }
         }
+        for (i, r) in self.rigs.iter().enumerate() {
+            if let Some(layout) = &r.layout {
+                layout.check(issues, &format!("rigs[{i}].layout"));
+            }
+        }
+        let mut imaged: Vec<&str> = Vec::new();
         for (i, l) in self.lasers.iter().enumerate() {
             let path = format!("lasers[{i}]");
+            if let Some(camera) = &l.camera {
+                if !self.cameras.iter().any(|c| &c.id == camera) {
+                    issues.push(format!("{path}.camera"), format!("no camera `{camera}`"));
+                } else if imaged.contains(&camera.as_str()) {
+                    issues.push(
+                        format!("{path}.camera"),
+                        format!("camera `{camera}` already images another laser"),
+                    );
+                }
+                imaged.push(camera);
+            }
             if !(l.fan_half_angle.is_finite()
                 && l.fan_half_angle > 0.0
                 && l.fan_half_angle < std::f64::consts::FRAC_PI_2)
@@ -275,11 +302,20 @@ impl SceneSpec {
             issues.check_positive(&format!("{path}.fan_length"), l.fan_length);
             issues.check_positive(&format!("{path}.wavelength_nm"), l.wavelength_nm);
             issues.check_positive(&format!("{path}.beam_waist_m"), l.beam_waist_m);
+            if let Some(p) = l.power_w {
+                issues.check_positive(&format!("{path}.power_w"), p);
+            }
         }
         for (i, t) in self.targets.iter().enumerate() {
-            if let TargetGeometry::Rectangle { width, height } = t.geometry {
-                issues.check_positive(&format!("targets[{i}].geometry.width"), width);
-                issues.check_positive(&format!("targets[{i}].geometry.height"), height);
+            match &t.geometry {
+                TargetGeometry::Rectangle { width, height } => {
+                    issues.check_positive(&format!("targets[{i}].geometry.width"), *width);
+                    issues.check_positive(&format!("targets[{i}].geometry.height"), *height);
+                }
+                TargetGeometry::Printed { target } => {
+                    target.check(issues, &format!("targets[{i}].geometry.target"));
+                }
+                TargetGeometry::Board { .. } => {}
             }
         }
         for (i, l) in self.lights.iter().enumerate() {

@@ -26,26 +26,39 @@ struct Fixture {
     json: Value,
 }
 
-fn fixtures() -> Vec<Fixture> {
-    let dir = repo_root().join("tools/fixtures/fk");
-    let mut paths: Vec<PathBuf> = std::fs::read_dir(&dir)
-        .expect("fixture directory")
+/// The JSON files of `dir`, sorted; none if it does not exist.
+fn json_files(dir: &Path) -> Vec<PathBuf> {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return Vec::new();
+    };
+    let mut paths: Vec<PathBuf> = entries
         .map(|e| e.unwrap().path())
         .filter(|p| p.extension().is_some_and(|x| x == "json"))
         .collect();
     paths.sort();
+    paths
+}
+
+/// Every robot's fixture: the committed ones (`tools/fixtures/fk`, robots of
+/// `assets/robots`) and, where they were built, the local-only robots'
+/// (`tools/fixtures/fk-local`, `assets/robots-local`; both git-ignored).
+fn fixtures() -> Vec<Fixture> {
+    let dir = repo_root().join("tools/fixtures/fk");
+    let committed = json_files(&dir);
     assert!(
-        paths.len() >= 2,
-        "expected FK fixtures for both robots in {}",
+        committed.len() >= 3,
+        "expected FK fixtures for every committed robot in {}",
         dir.display()
     );
-    paths
+    let local = json_files(&repo_root().join("tools/fixtures/fk-local"));
+    committed
         .into_iter()
-        .map(|p| {
+        .map(|p| (p, "assets/robots"))
+        .chain(local.into_iter().map(|p| (p, "assets/robots-local")))
+        .map(|(p, assets)| {
             let json: Value = serde_json::from_str(&std::fs::read_to_string(&p).unwrap()).unwrap();
             let id = json["robot"].as_str().unwrap();
-            let (manifest, model) =
-                load(&repo_root().join(format!("assets/robots/{id}/robot.json")));
+            let (manifest, model) = load(&repo_root().join(format!("{assets}/{id}/robot.json")));
             assert_eq!(json["base_link"], manifest.base_link.as_str());
             assert_eq!(json["tcp_link"], manifest.tcp_link.as_str());
             let names: Vec<&str> = json["joint_names"]

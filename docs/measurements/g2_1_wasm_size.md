@@ -6,6 +6,17 @@
 - Measured: 2026-09-27, on etendue commit `71e7b8a` (branch `pivot/p2`).
 - Re-run 2026-10-17 on calibration-rs 0.9.0 (etendue `e989eed`): **PASS**, 319 111 B gzip -9 (the
   last recorded re-run was 319 254 B; budget 1 572 864 B) (`calibration_rs_0_9.md`).
+- Re-run 2026-10-17 after P7-0–P7-2 (`f05a157` plus the uncommitted P7 work): **PASS**, 459 673 B
+  gzip -9 (29 % of the budget). The growth (+140 kB) is the Ruckig motion profiles (`rsruckig`)
+  and the motion report and export code.
+- Re-run 2026-10-17 after P7-3–P7-7 (same base): **PASS**, 618 037 B gzip -9 (39 % of the
+  budget; raw 1 659 699 B). The growth (+158 kB) is:
+  - P7-4: the target meshes, with calib-targets' printed layouts including the PuzzleBoard and
+    marker-board code;
+  - P7-6: the pose generator;
+  - P7-7: the laser stripe overlay, through `etendue-core::laser`.
+
+  G0.1 still has 0 bit mismatches. The wasm graph has no `getrandom`.
 
 ## Environment
 

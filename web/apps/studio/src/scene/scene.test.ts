@@ -1,8 +1,8 @@
-import type { BakedScenario, SceneSpec, TargetSpec } from "@etendue/wasm";
+import type { BakedScenario, SceneSpec } from "@etendue/wasm";
 import { describe, expect, it } from "vitest";
 
 import { findNode, sceneTree, walk } from "./model";
-import { checkerOf, targetPolylines } from "./targets";
+import { targetOutline } from "./targets";
 
 const I = { rotation: [0, 0, 0, 1], translation: [0, 0, 0] };
 
@@ -33,19 +33,11 @@ describe("sceneTree", () => {
 });
 
 describe("targets", () => {
-  const board = (b: object) => ({ geometry: { type: "board", board: b } }) as unknown as TargetSpec;
-
-  it("derives checker squares per board kind", () => {
-    expect(checkerOf(board({ kind: "chessboard", rows: 6, cols: 9 }))).toEqual({ cols: 10, rows: 7 });
-    expect(checkerOf(board({ kind: "charuco", rows: 5, cols: 7 }))).toEqual({ cols: 7, rows: 5 });
-    expect(checkerOf(board({ kind: "ringgrid" }))).toBeNull();
-    expect(checkerOf({ geometry: { type: "rectangle", width: 1, height: 1 } } as TargetSpec)).toBeNull();
-  });
-
-  it("samples the grid lines of the board in its plane", () => {
-    const lines = targetPolylines([0.4, 0.2], { cols: 4, rows: 2 }, 2);
-    expect(lines).toHaveLength(5 + 3);
-    expect(Array.from(lines[0]!)).toEqual([-0.2, -0.1, 0, -0.2, 0, 0, -0.2, 0.1, 0]);
-    expect(targetPolylines([1, 1], null)).toHaveLength(4);
+  it("samples a planar target's outline as one closed polyline", () => {
+    const line = targetOutline([0.4, 0.2], 2);
+    // 4 edges × 2 samples, plus the closing corner.
+    expect(line.length).toBe(9 * 3);
+    expect(Array.from(line.subarray(0, 6))).toEqual([-0.2, -0.1, 0, 0, -0.1, 0]);
+    expect(Array.from(line.subarray(24))).toEqual([-0.2, -0.1, 0]);
   });
 });

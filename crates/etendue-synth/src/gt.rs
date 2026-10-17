@@ -10,18 +10,58 @@ use nalgebra::{Isometry3, Point3, Vector3};
 use serde::{Deserialize, Serialize};
 use vision_calibration_core::CameraModel;
 
-/// A target feature point, in the target frame: the `z = 0` plane, metres.
+/// A target feature point, in the target frame, metres.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct BoardPoint {
-    /// Position `[x, y]` in the target frame, metres.
+    /// Position on the target surface, metres: `[x, y]` in the target
+    /// frame's `z = 0` plane for a planar target; for a PuzzlePole the
+    /// unrolled `[z, arc]` (calib-targets' surface position).
     pub position_m: [f64; 2],
+    /// Position in the target frame, when the target is not planar (a
+    /// PuzzlePole); a planar point is `[x, y, 0]`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub xyz_m: Option<[f64; 3]>,
+    /// Outward surface normal there, when the target is not planar; a planar
+    /// target faces +Z.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub normal: Option<[f64; 3]>,
     /// Grid coordinate on the board (column, row), if the layout has one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub grid: Option<[i32; 2]>,
     /// Point id within the board, if the layout numbers its points.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub id: Option<u32>,
+}
+
+impl BoardPoint {
+    /// A point of a planar target.
+    #[must_use]
+    pub fn planar(position_m: [f64; 2], grid: Option<[i32; 2]>, id: Option<u32>) -> Self {
+        Self {
+            position_m,
+            xyz_m: None,
+            normal: None,
+            grid,
+            id,
+        }
+    }
+
+    /// Position in the target frame.
+    #[must_use]
+    pub fn xyz(&self) -> Point3<f64> {
+        let [x, y, z] = self
+            .xyz_m
+            .unwrap_or([self.position_m[0], self.position_m[1], 0.0]);
+        Point3::new(x, y, z)
+    }
+
+    /// Outward surface normal in the target frame.
+    #[must_use]
+    pub fn surface_normal(&self) -> Vector3<f64> {
+        let [x, y, z] = self.normal.unwrap_or([0.0, 0.0, 1.0]);
+        Vector3::new(x, y, z)
+    }
 }
 
 /// Why a point is not visible, if it is not.
@@ -92,15 +132,15 @@ pub fn project_points(
     edge: f64,
 ) -> Vec<GtPoint> {
     let camera_se3_target = world_se3_camera.inverse() * world_se3_target;
-    // The target's outward normal (+Z) in the camera frame.
-    let normal = camera_se3_target * Vector3::z();
     let (w, h) = (f64::from(resolution[0]), f64::from(resolution[1]));
     let m = visibility.margin_px;
     points
         .iter()
         .enumerate()
         .map(|(i, bp)| {
-            let p = camera_se3_target * Point3::new(bp.position_m[0], bp.position_m[1], 0.0);
+            let p = camera_se3_target * bp.xyz();
+            // The surface's outward normal there, in the camera frame.
+            let normal = camera_se3_target * bp.surface_normal();
             let pixel = if p.z > 0.0 {
                 camera.project_point_c(&p.coords)
             } else {
@@ -159,11 +199,7 @@ mod tests {
     }
 
     fn pt(x: f64, y: f64) -> BoardPoint {
-        BoardPoint {
-            position_m: [x, y],
-            grid: None,
-            id: None,
-        }
+        BoardPoint::planar([x, y], None, None)
     }
 
     #[test]

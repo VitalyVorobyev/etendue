@@ -62,9 +62,11 @@ async function installShell(page: Page): Promise<void> {
                   no_board: 0,
                   partial: 0,
                   ambiguous: 0,
+                  undecoded: 0,
                   points: 1080,
                   mislabelled: 0,
                   unmatched: 0,
+                  off_board: 0,
                   rms_px: 0.0505,
                   max_px: 0.1417,
                 },
@@ -83,10 +85,12 @@ test("generates a dataset through the native pipeline", async ({ page }) => {
   await installShell(page);
   await page.goto("/?example=closed_loop_ur5e");
   await expect(page.getByRole("treeitem", { name: /cam_left/ })).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByRole("button", { name: "Open scene…" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Import poses…" })).toBeEnabled();
+  await page.getByRole("button", { name: "File" }).click();
+  await expect(page.getByRole("menuitem", { name: "Open scene…" })).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: "Import tool poses…" })).toBeEnabled();
+  await page.keyboard.press("Escape");
 
-  await page.getByRole("tab", { name: "Dataset" }).click();
+  await page.getByRole("radio", { name: "Dataset" }).click();
   const panel = page.getByTestId("dataset-panel");
   await expect(panel.getByTestId("blender-status")).toContainText("Blender 5.1.1");
   // Examples of the checkout write into target/, never into examples/.
@@ -103,8 +107,8 @@ test("generates a dataset through the native pipeline", async ({ page }) => {
   await expect(panel.getByTestId("dataset-log")).toContainText("etendue: rendered exr/cam_left/cap_000.exr");
   await expect(panel.getByRole("button", { name: "Cancel" })).toBeVisible();
   // The run outlives the panel: away and back, it still shows, and cannot start twice.
-  await page.getByRole("tab", { name: "cam_left" }).click();
-  await page.getByRole("tab", { name: "Dataset" }).click();
+  await page.getByRole("radio", { name: "Images" }).click();
+  await page.getByRole("radio", { name: "Dataset" }).click();
   await expect(page.getByTestId("dataset-panel").getByRole("button", { name: "Cancel" })).toBeVisible();
   await expect(page.getByTestId("dataset-panel").getByRole("button", { name: "Generate" })).toBeDisabled();
 
@@ -118,7 +122,7 @@ test("generates a dataset through the native pipeline", async ({ page }) => {
   expect(requests).toHaveLength(1);
   const request = requests[0]!;
   expect(request).toMatchObject({
-    scene: "/repo/examples/closed_loop_ur5e/scene.json",
+    origin: "/repo/examples/closed_loop_ur5e/scene.json",
     output: "/repo/target/studio/closed_loop_ur5e",
     render: true,
     samples: 16,
@@ -126,12 +130,16 @@ test("generates a dataset through the native pipeline", async ({ page }) => {
     sensor: "/repo/examples/closed_loop_ur5e/sensor_linear.json",
     cameras: [],
   });
-  expect((request.scenario as { steps: unknown[] }).steps).toHaveLength(40);
+  expect((request.scenario as { steps: unknown[] }).steps).toHaveLength(48);
+  // The scene goes as the studio holds it (edits included), not as a path.
+  expect((request.scene as { cameras: unknown[] }).cameras).toHaveLength(2);
 });
 
 test("a plain browser has no Dataset tab", async ({ page }) => {
   await page.goto("/?example=closed_loop_ur5e");
   await expect(page.getByRole("treeitem", { name: /cam_left/ })).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByRole("tab", { name: "Dataset" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Open scene…" })).toHaveCount(0);
+  await expect(page.getByRole("radio", { name: "Dataset" })).toHaveCount(0);
+  await page.getByRole("button", { name: "File" }).click();
+  await expect(page.getByRole("menuitem", { name: "Open scene…" })).toHaveCount(0);
+  await expect(page.getByRole("menuitem", { name: "Open files…" })).toBeVisible();
 });

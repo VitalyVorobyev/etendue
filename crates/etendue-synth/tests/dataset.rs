@@ -26,10 +26,12 @@ fn chessboard_points() -> Vec<BoardPoint> {
     let s = 0.025;
     (0..6)
         .flat_map(|r| {
-            (0..9).map(move |c| BoardPoint {
-                position_m: [(f64::from(c) - 4.0) * s, (f64::from(r) - 2.5) * s],
-                grid: Some([c, r]),
-                id: None,
+            (0..9).map(move |c| {
+                BoardPoint::planar(
+                    [(f64::from(c) - 4.0) * s, (f64::from(r) - 2.5) * s],
+                    Some([c, r]),
+                    None,
+                )
             })
         })
         .collect()
@@ -38,14 +40,23 @@ fn chessboard_points() -> Vec<BoardPoint> {
 fn example(name: &str) -> (SceneSpec, etendue_scene::BakedScenario, Vec<RobotManifest>) {
     let scene: SceneSpec =
         serde_json::from_str(&read(&format!("examples/{name}/scene.json"))).unwrap();
+    let (baked, manifests) = bake_example(&scene, name);
+    (scene, baked, manifests)
+}
+
+/// `scene` (an edit of example `name`'s, on the UR5e) baked with that
+/// example's scenario.
+fn bake_example(
+    scene: &SceneSpec,
+    name: &str,
+) -> (etendue_scene::BakedScenario, Vec<RobotManifest>) {
     let scenario: ScenarioSpec =
         serde_json::from_str(&read(&format!("examples/{name}/scenario.json"))).unwrap();
     let manifest: RobotManifest =
         serde_json::from_str(&read("assets/robots/ur5e/robot.json")).unwrap();
     let model =
         RobotModel::from_urdf_str(&read("assets/robots/ur5e/robot.urdf"), &manifest).unwrap();
-    let baked = bake(&scene, &scenario, &[model]).unwrap();
-    (scene, baked, vec![manifest])
+    (bake(scene, &scenario, &[model]).unwrap(), vec![manifest])
 }
 
 const OPTIONS: EmitOptions = EmitOptions {
@@ -59,8 +70,11 @@ fn eye_in_hand_example_emits_a_valid_rig_handeye_dataset() {
     let (scene, baked, manifests) = example("eye_in_hand_ur5e");
     let points = chessboard_points();
     let bundle = emit(&scene, &baked, &manifests, &points, &OPTIONS).unwrap();
-    validate(&bundle.dataset).expect("calibration-rs accepts the manifest");
-    assert_eq!(bundle.dataset.topology, Topology::RigHandeye);
+    validate(bundle.dataset.as_ref().unwrap()).expect("calibration-rs accepts the manifest");
+    assert_eq!(
+        bundle.dataset.as_ref().unwrap().topology,
+        Topology::RigHandeye
+    );
 
     let gt = &bundle.gt;
     let captures = baked.capture_indices().count();
@@ -133,8 +147,11 @@ fn eye_in_hand_example_emits_a_valid_rig_handeye_dataset() {
 fn eye_to_hand_example_emits_an_eye_to_hand_dataset() {
     let (scene, baked, manifests) = example("eye_to_hand_ur5e");
     let bundle = emit(&scene, &baked, &manifests, &chessboard_points(), &OPTIONS).unwrap();
-    validate(&bundle.dataset).expect("calibration-rs accepts the manifest");
-    assert_eq!(bundle.dataset.topology, Topology::RigHandeye);
+    validate(bundle.dataset.as_ref().unwrap()).expect("calibration-rs accepts the manifest");
+    assert_eq!(
+        bundle.dataset.as_ref().unwrap().topology,
+        Topology::RigHandeye
+    );
     let Some(GtHandeye::EyeToHand {
         gripper_se3_target, ..
     }) = &bundle.gt.handeye
@@ -186,9 +203,12 @@ fn laser_example_emits_a_valid_rig_handeye_laserline_dataset() {
         let (scene, baked, manifests) = example(name);
         let points = laser_board_points(&scene);
         let bundle = emit(&scene, &baked, &manifests, &points, &OPTIONS).unwrap();
-        validate(&bundle.dataset).expect("calibration-rs accepts the manifest");
-        assert_eq!(bundle.dataset.topology, Topology::RigHandeyeLaserline);
-        for c in &bundle.dataset.cameras {
+        validate(bundle.dataset.as_ref().unwrap()).expect("calibration-rs accepts the manifest");
+        assert_eq!(
+            bundle.dataset.as_ref().unwrap().topology,
+            Topology::RigHandeyeLaserline
+        );
+        for c in &bundle.dataset.as_ref().unwrap().cameras {
             assert!(c.laser_images.is_some(), "{name} {}: laser images", c.id);
         }
 
@@ -261,4 +281,104 @@ fn rejects_laser_topologies_not_emitted_yet() {
     extra.id = "laser2".into();
     two.lasers.push(extra);
     assert!(emit(&two, &baked, &manifests, &points, &OPTIONS).is_err());
+}
+
+#[test]
+fn one_laser_per_camera_gives_each_camera_its_own_plane() {
+    let (mut scene, _, _) = example("laser_ur5e");
+    scene.lasers[0].camera = Some("cam_left".into());
+    let mut right = scene.lasers[0].clone();
+    right.id = "laser_right".into();
+    right.camera = Some("cam_right".into());
+    right.parent_se3_self =
+        nalgebra::Isometry3::translation(0.01, 0.0, 0.0) * right.parent_se3_self;
+    scene.lasers.push(right);
+    scene.validate().unwrap();
+    let (baked, manifests) = bake_example(&scene, "laser_ur5e");
+    let points = laser_board_points(&scene);
+    let bundle = emit(&scene, &baked, &manifests, &points, &OPTIONS).unwrap();
+    validate(bundle.dataset.as_ref().unwrap()).unwrap();
+    let gt = &bundle.gt;
+    assert_eq!(gt.topology, Topology::RigHandeyeLaserline);
+    let linked: Vec<(&str, Option<&str>)> = gt
+        .lasers
+        .iter()
+        .map(|l| (l.id.as_str(), l.camera.as_deref()))
+        .collect();
+    assert_eq!(
+        linked,
+        [
+            ("laser", Some("cam_left")),
+            ("laser_right", Some("cam_right"))
+        ]
+    );
+    let mut seen = 0;
+    for capture in &gt.captures {
+        assert_eq!(capture.laser_stripes.len(), 2);
+        for view in &capture.views {
+            // Each camera images its own laser only.
+            let [stripe] = view.laser_points.as_slice() else {
+                panic!("one stripe per view");
+            };
+            let own = gt
+                .lasers
+                .iter()
+                .find(|l| l.camera.as_deref() == Some(view.camera.as_str()));
+            assert_eq!(Some(stripe.laser.as_str()), own.map(|l| l.id.as_str()));
+            seen += stripe.points.iter().filter(|p| p.visible()).count();
+        }
+    }
+    assert!(seen > 0, "the stripes are seen");
+    // A laser linked to a camera that does not exist is a scene error.
+    let mut dangling = scene.clone();
+    dangling.lasers[1].camera = Some("nope".into());
+    assert!(dangling.validate().is_err());
+    // Two lasers naming one camera, too.
+    let mut twice = scene;
+    twice.lasers[1].camera = Some("cam_left".into());
+    assert!(twice.validate().is_err());
+}
+
+#[test]
+fn a_puzzlepole_has_ground_truth_but_no_dataset() {
+    let (mut scene, _, _) = example("laser_ur5e");
+    // A 12-period pole (30 mm squares, 115 mm across) standing where the board was.
+    scene.targets[0].geometry = serde_json::from_value(serde_json::json!({
+        "type": "printed",
+        "target": {"kind": "puzzlepole", "circumference_squares": 12, "start_row": 73,
+                   "axial_squares": 6, "square_size_mm": 30.0}
+    }))
+    .unwrap();
+    scene.validate().unwrap();
+    let (baked, manifests) = bake_example(&scene, "laser_ur5e");
+    let layout = etendue_synth::board::layout(&scene.targets[0].geometry)
+        .unwrap()
+        .unwrap();
+    let bundle = emit(&scene, &baked, &manifests, &layout.points, &OPTIONS).unwrap();
+    // calibration-rs takes no cylinder yet: ground truth only.
+    assert!(bundle.dataset.is_none());
+    let gt = &bundle.gt;
+    assert_eq!(gt.target.points.len(), 60);
+    let mut visible = 0;
+    let mut stripe_points = 0;
+    for capture in &gt.captures {
+        let [stripe] = capture.laser_stripes.as_slice() else {
+            panic!("one laser")
+        };
+        for p in &stripe.points {
+            // On the cylinder (radius 57.3 mm), within its printed length.
+            let [x, y, z] = p.xyz_m.unwrap();
+            assert!((x.hypot(y) - 12.0 * 0.030 / std::f64::consts::TAU).abs() < 1e-9);
+            assert!((0.0..=0.18).contains(&z));
+        }
+        stripe_points += stripe.points.len();
+        visible += capture
+            .views
+            .iter()
+            .flat_map(|v| &v.points)
+            .filter(|p| p.visible())
+            .count();
+    }
+    assert!(visible > 0, "the pole's corners are seen");
+    assert!(stripe_points > 0, "the laser hits the pole");
 }

@@ -31,6 +31,7 @@ Usage (from the repository root)::
 
     uv run tools/fixtures/fk_fixture.py            # all robots
     uv run tools/fixtures/fk_fixture.py --robot ur5e
+    uv run tools/fixtures/fk_fixture.py --include-local   # also assets/robots-local/ → fk-local/
 """
 
 from __future__ import annotations
@@ -49,6 +50,9 @@ import pinocchio as pin
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ROBOTS_DIR = REPO_ROOT / "assets" / "robots"
 OUT_DIR = Path(__file__).resolve().parent / "fk"
+# Robots without a redistribution licence: their fixtures stay local (git-ignored) too.
+LOCAL_ROBOTS_DIR = REPO_ROOT / "assets" / "robots-local"
+LOCAL_OUT_DIR = Path(__file__).resolve().parent / "fk-local"
 SEED = 20260926
 N_SAMPLES = 10_000
 N_ALL_LINKS = 100
@@ -247,7 +251,9 @@ def build_fixture(robot_dir: Path) -> Path:
         "all_links_samples": all_links,
     }
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    out = OUT_DIR / f"{rid}.json"
+    out_dir = LOCAL_OUT_DIR if robot_dir.parent == LOCAL_ROBOTS_DIR else OUT_DIR
+    out_dir.mkdir(exist_ok=True)
+    out = out_dir / f"{rid}.json"
     out.write_text(json.dumps(fixture, separators=(",", ":")) + "\n")
     print(f"[{rid}] wrote {out.relative_to(REPO_ROOT)} ({out.stat().st_size / 1e6:.2f} MB, {len(links)} links)")
     return out
@@ -256,8 +262,15 @@ def build_fixture(robot_dir: Path) -> Path:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Generate Pinocchio FK fixtures (gate G1.1).")
     parser.add_argument("--robot", action="append", help="only this robot id (repeatable)")
+    parser.add_argument(
+        "--include-local",
+        action="store_true",
+        help="also the local-only robots of assets/robots-local/ (fixtures go to the git-ignored fk-local/)",
+    )
     opts = parser.parse_args()
     robot_dirs = sorted(p.parent for p in ROBOTS_DIR.glob("*/robot.json"))
+    if opts.include_local:
+        robot_dirs += sorted(p.parent for p in LOCAL_ROBOTS_DIR.glob("*/robot.json"))
     if opts.robot:
         robot_dirs = [d for d in robot_dirs if d.name in opts.robot]
         missing = set(opts.robot) - {d.name for d in robot_dirs}

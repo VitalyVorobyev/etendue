@@ -19,8 +19,8 @@ use chess_corners::{ChessRefiner, CornerDescriptor, Detector, DetectorConfig, Pe
 use etendue_synth::gt::{VisibilitySpec, project_points};
 use etendue_synth::images::{LinearImage, read_exr_combined, remap_image_box, srgb_encode};
 use etendue_synth::job::{
-    Device, JOB_VERSION, JobBoard, JobCamera, JobOutput, JobShot, RenderJob, RenderSettings,
-    TARGET_PASS_INDEX, row_major,
+    Device, JOB_VERSION, JobCamera, JobOutput, JobShot, JobTarget, OutputKind, RenderJob,
+    RenderSettings, TARGET_PASS_INDEX, row_major,
 };
 use etendue_synth::{CanonicalCamera, CanonicalSpec, remap_lut};
 use nalgebra::{Isometry3, Translation3, UnitQuaternion, Vector3};
@@ -461,7 +461,7 @@ pub fn g4_2(args: &ProbeArgs) -> Result<()> {
     let params = camera();
     let model = params.build()?;
     let board = board()?;
-    let points = board.points;
+    let points = board.points.clone();
     let poses = poses();
     let [cols, rows] = SQUARES;
     let vis = VisibilitySpec {
@@ -529,11 +529,16 @@ pub fn g4_2(args: &ProbeArgs) -> Result<()> {
                 clip: [0.01, 10.0],
             },
             meshes: vec![],
-            boards: vec![JobBoard {
-                id: "board".into(),
-                frame: "board".into(),
-                cells: board.cells.clone(),
-                pass_index: TARGET_PASS_INDEX,
+            targets: vec![{
+                let mesh = etendue_synth::target_mesh::target_mesh(&board);
+                JobTarget {
+                    id: "board".into(),
+                    frame: "board".into(),
+                    positions: mesh.positions,
+                    triangles: mesh.triangles,
+                    dark: mesh.dark,
+                    pass_index: TARGET_PASS_INDEX,
+                }
             }],
             lights: vec![],
             spheres: vec![],
@@ -543,6 +548,7 @@ pub fn g4_2(args: &ProbeArgs) -> Result<()> {
                 width: canonical.resolution[0],
                 height: canonical.resolution[1],
                 focal_px: canonical.focal_px(),
+                frame_se3_self: None,
             }],
             shots: poses
                 .iter()
@@ -557,9 +563,11 @@ pub fn g4_2(args: &ProbeArgs) -> Result<()> {
                     outputs: vec![JobOutput {
                         camera: "cam".into(),
                         path: format!("exr/{name}.exr"),
+                        kind: OutputKind::Image,
                     }],
                 })
                 .collect(),
+            laser_passes: false,
         };
         let dir = args.output.join(format!("s{s}"));
         let t = std::time::Instant::now();

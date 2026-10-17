@@ -87,7 +87,7 @@ etendue scenario from-poses poses.json --robot ur5e -o scenario.json --scene sce
 |---|---|
 | `examples/eye_in_hand_ur5e` | A stereo rig on a UR5e's flange views a chessboard on the table. |
 | `examples/eye_to_hand_ur5e` | A static stereo rig views a chessboard held by the UR5e. |
-| `examples/closed_loop_ur5e` | A rig mounted off square, 20 viewpoints for a hand-eye calibration, and a linear sensor model. |
+| `examples/closed_loop_ur5e` | A rig mounted off square, 24 generated viewpoints for a hand-eye calibration, and a linear sensor model. |
 | `examples/laser_ur5e` | The same rig with a line laser: a laser-plane calibration dataset. |
 | `examples/laser_scheimpflug_ur5e` | The laser rig with Scheimpflug-tilted sensors. |
 
