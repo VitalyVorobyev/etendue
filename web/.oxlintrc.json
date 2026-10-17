@@ -9,13 +9,7 @@
     "node": true,
     "es2024": true
   },
-  "ignorePatterns": [
-    "**/dist/**",
-    "**/test-results/**",
-    "**/playwright-report/**",
-    "**/src-tauri/**",
-    "**/node_modules/**"
-  ],
+  "ignorePatterns": ["**/src-tauri/**"],
   "rules": {
     "typescript/no-explicit-any": "error",
     "typescript/consistent-type-imports": "error",
@@ -64,21 +58,27 @@
     "prefer-const": "error",
     "prefer-rest-params": "error",
     "prefer-spread": "error",
-    "react-hooks-compiler/purity": "error",
-    "react-hooks-compiler/refs": "error",
-    "react-hooks-compiler/immutability": "error",
-    "react-hooks-compiler/set-state-in-effect": "error",
-    "react-hooks-compiler/set-state-in-render": "error",
-    "react-hooks-compiler/static-components": "error",
-    "react-hooks-compiler/use-memo": "error",
-    "react-hooks-compiler/preserve-manual-memoization": "error",
-    "react-hooks-compiler/globals": "error",
-    "react-hooks-compiler/error-boundaries": "error",
-    "react-hooks-compiler/incompatible-library": "error",
-    "react-hooks-compiler/unsupported-syntax": "error",
-    "react-hooks-compiler/config": "error",
-    "react-hooks-compiler/gating": "error",
-    "react-hooks-compiler/void-use-memo": "error"
+    "react/purity": "error",
+    "react/refs": "error",
+    "react/immutability": "error",
+    "react/set-state-in-effect": "error",
+    "react/set-state-in-render": "error",
+    "react/static-components": "error",
+    "react/use-memo": "error",
+    "react/preserve-manual-memoization": "error",
+    "react/globals": "error",
+    "react/error-boundaries": "error",
+    "react/incompatible-library": "error",
+    "react/unsupported-syntax": "error",
+    "react/void-use-memo": "error",
+    "typescript/no-empty-object-type": "error",
+    "typescript/no-namespace": "error",
+    "typescript/no-require-imports": "error",
+    "typescript/no-unsafe-function-type": "error",
+    "typescript/no-unnecessary-type-constraint": "error",
+    "no-array-constructor": "error",
+    "react/jsx-no-constructed-context-values": "error",
+    "react/jsx-no-target-blank": "error"
   },
   "overrides": [
     {
@@ -106,7 +106,11 @@
         "typescript/no-implied-eval": "off",
         "typescript/no-array-delete": "off",
         "typescript/no-for-in-array": "off",
-        "typescript/no-base-to-string": "off"
+        "typescript/no-base-to-string": "off",
+        "typescript/no-misused-spread": "off",
+        "typescript/require-array-sort-compare": "off",
+        "typescript/no-meaningless-void-operator": "off",
+        "typescript/no-unnecessary-parameter-property-assignment": "off"
       }
     },
     {
@@ -129,11 +133,5 @@
       }
     }
   ],
-  "jsPlugins": [
-    "./scripts/oxlint/tokens-only.js",
-    {
-      "name": "react-hooks-compiler",
-      "specifier": "eslint-plugin-react-hooks"
-    }
-  ]
+  "jsPlugins": ["./scripts/oxlint/tokens-only.js"]
 }

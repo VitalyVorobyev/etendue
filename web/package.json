@@ -14,11 +14,11 @@
     "check:deps": "bun scripts/check-deps.ts",
     "build": "bun run --filter './apps/*' build",
     "typecheck": "tsc -p tsconfig.json && bun run --filter '*' typecheck",
-    "test": "bun run --filter '*' test",
+    "test": "bun test scripts && bun run --filter '*' test",
     "lint": "oxlint --type-aware --deny-warnings",
     "dev": "bun run --filter @etendue/studio dev",
     "format": "cd .. && oxfmt web crates/etendue-wasm/js crates/etendue-wasm/scripts crates/etendue-wasm/tests",
-    "format:check": "cd .. && oxfmt --check web crates/etendue-wasm/js crates/etendue-wasm/scripts crates/etendue-wasm/tests"
+    "format:check": "bun run format --check"
   },
   "devDependencies": {
     "@tailwindcss/vite": "4.3.3",
@@ -32,7 +32,6 @@
     "@vitejs/plugin-react": "^6.1.1",
     "@vitest/browser-playwright": "5.0.2",
     "@vitest/coverage-v8": "5.0.2",
-    "eslint-plugin-react-hooks": "7.1.1",
     "happy-dom": "^20.11.1",
     "json-schema-to-typescript": "^15.0.4",
     "oxfmt": "0.73.0",

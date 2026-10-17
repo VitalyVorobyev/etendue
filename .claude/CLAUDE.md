@@ -193,9 +193,10 @@ absent. `etendue-cli`'s lib is the top of the stack: no workspace crate may depe
 **`web/`** — bun workspace: `@vitavision/config-{ts,vitest}`, TypeScript 7.0.2 (the native
 `tsc`), Tailwind v4, tokens only. Lint is oxlint (`web/.oxlintrc.json`): `--type-aware` through
 `oxlint-tsgolint`, the rules of lab-ui's old ESLint preset (typescript-eslint's type-checked set,
-React hooks), the React Compiler rules of `eslint-plugin-react-hooks` 7 as a JS plugin
-(`react-hooks-compiler/*`), and lab-ui's `tokens-only` rule as a local JS plugin
-(`web/scripts/oxlint/`). Not ported: `@eslint-react`'s rules beyond oxlint's react plugin. Formatting is oxfmt (`.oxfmtrc.json` at the root, width 120); the
+React hooks and the React Compiler rules, which oxlint's react plugin has natively), oxlint's
+equivalents of `@eslint-react`'s context-value and target-blank rules, and lab-ui's `tokens-only`
+rule as a local JS plugin (`web/scripts/oxlint/`, with its test). Not ported: `@eslint-react`'s
+leaked-listener/timer rules and `no-unstable-default-props`, which oxlint lacks. Formatting is oxfmt (`.oxfmtrc.json` at the root, width 120); the
 one-time reformat is in `.git-blame-ignore-revs`. `apps/studio` is the studio (not published to npm). The
 `@vitavision/*` packages it uses come from npm, published from lab-ui (the incubated copies were
 dropped on 2026-10-17 once lab-ui released them): `three` (no React, no kinematics, no camera

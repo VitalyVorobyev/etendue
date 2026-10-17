@@ -45,7 +45,9 @@ function dedupe(ts: string): string {
 
 /** `ts` as oxfmt formats it under the repository's `.oxfmtrc.json` (what `bun run format` keeps). */
 function format(ts: string, path: string): string {
-  const run = Bun.spawnSync([join(ROOT, "web/node_modules/.bin/oxfmt"), `--stdin-filepath=${path}`], {
+  const oxfmt = Bun.which("oxfmt", { PATH: join(ROOT, "web/node_modules/.bin") });
+  if (oxfmt === null) throw new Error("oxfmt not found: run `bun install` in web/");
+  const run = Bun.spawnSync([oxfmt, `--stdin-filepath=${path}`], {
     cwd: ROOT,
     stdin: Buffer.from(ts),
   });
