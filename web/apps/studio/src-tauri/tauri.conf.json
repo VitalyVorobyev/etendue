@@ -44,6 +44,13 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "resources": {
+      "../../../../examples/": "examples/",
+      "../../../../assets/robots/": "assets/robots/",
+      "../../../../etendue.toml": "etendue.toml"
+    },
+    "category": "DeveloperTool",
+    "shortDescription": "Design robot–camera–laser calibration cells and generate synthetic calibration datasets"
   }
 }

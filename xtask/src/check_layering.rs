@@ -40,7 +40,6 @@ const RULES: &[(&str, &[&str])] = &[
     ),
     ("etendue-wasm", &["*lib"]),
     ("etendue-cli", &["*lib"]),
-    ("etendue-ui", &["etendue-core"]),
     ("xtask", &["*lib"]),
 ];
 

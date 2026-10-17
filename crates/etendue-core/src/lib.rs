@@ -55,9 +55,8 @@ pub use scene::{CameraEntity, LaserEntity, MeshTarget, PhysicalOptics, Scene, Ta
 /// Re-export of the upstream calibration kernel.
 ///
 /// Re-exported (rather than left as an opaque dependency) so that downstream
-/// crates — chiefly `etendue-ui` — and `etendue-core`'s own future modules
-/// share one identical set of `nalgebra` types and camera models across the
-/// crate boundary.
+/// crates and `etendue-core`'s own modules share one identical set of
+/// `nalgebra` types and camera models across the crate boundary.
 pub use vision_calibration_core as calibration;
 
 #[cfg(test)]

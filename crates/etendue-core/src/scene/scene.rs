@@ -3,8 +3,8 @@
 //!
 //! # Coordinate convention
 //!
-//! The scene lives in a right-handed, **`+Z`-up** world frame — the same frame
-//! the `etendue-ui` viewport orbits and the ground grid lies in (`z = 0`).
+//! The scene lives in a right-handed, **`+Z`-up** world frame, with the ground
+//! in the `z = 0` plane (the scene documents' world frame).
 //! Every entity carries an `Isometry3<f64>` pose mapping its local frame into
 //! this world frame; see [`entity`](crate::scene::entity) for each entity's
 //! local-frame conventions (notably: a camera looks down its local `+z`).

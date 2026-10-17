@@ -50,8 +50,8 @@ The `docs/pivot/PLAN.md` §2 tree is created phase by phase, never up front.
 | `etendue-cli` | P1 | crates.io (binary) | `etendue bake / render / gt / validate`. Embeds the Blender script ([ADR 0005](0005-blender-renderer.md)). |
 | `etendue-wasm` | P0 stub, P2 API | npm `@etendue/wasm` only | wasm-bindgen facade. `publish = false` on crates.io. |
 | `@vitavision/three`, `@vitavision/three-react` | P2 | npm, from the **lab-ui** repo (ticket L8-1) | Reusable three.js / R3F scene components. |
-| `web/apps/studio` | P2 | not published | Vite app that wires the packages together. |
-| `etendue-ui` | frozen | never (`publish = false`) | Kept building and green. Deleted at parity gate G6.3. |
+| `web/apps/studio` | P2 | GitHub Releases (Tauri bundles), not npm | The studio: the main app since 2026-10-17, a Tauri desktop app and a plain web build ([ADR 0007](0007-tauri-studio-shell.md)). |
+| `etendue-ui` | deleted 2026-10-17 | never | The egui app. Deleted before its parity gate; see §4. |
 
 ### 2. Dependency rules
 
@@ -99,6 +99,13 @@ It gets no new features. It keeps building and passing its tests, and is marked
 It is deleted at parity gate G6.3, once the user has confirmed that every
 feature has a web equivalent: viewport, parameter panel, simulated-image panel,
 and heatmap.
+
+**Amended 2026-10-17:** the user waived G6.3 and had `etendue-ui` deleted
+before parity, to make the Tauri studio the one app. The last commit with it
+is tagged `egui-ui-final`. Its analyses stay in `etendue-core` (defocus map,
+working volume, Scheimpflug solver behind `solver`, symmetric rigs); bringing
+the heatmap, the simulated-image panel, the solver UI and the rig builder to
+the studio stays P6 work (PLAN P6-1, P6-3).
 
 ### 5. Publishing
 

@@ -8,9 +8,9 @@
 //!
 //! # Coordinate conventions
 //!
-//! - **World frame.** Right-handed, `+Z`-up. This matches the viewport's
-//!   `OrbitCamera` (`etendue-ui`) and the ground grid lying in the `z = 0`
-//!   plane. Entity poses place objects in this frame.
+//! - **World frame.** Right-handed, `+Z`-up, the ground in the `z = 0` plane
+//!   (the scene documents' world frame). Entity poses place objects in this
+//!   frame.
 //! - **Entity-local frame.** Every entity owns a `pose: Isometry3<f64>` that
 //!   maps a point expressed in the entity's *local* frame into the world
 //!   frame (`p_world = pose * p_local`). The inverse, `pose.inverse()`, takes

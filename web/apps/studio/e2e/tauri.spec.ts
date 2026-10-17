@@ -1,7 +1,7 @@
 /**
  * The studio in its Tauri shell, against a mocked shell: `window.__TAURI_INTERNALS__` is
  * injected before the app loads, so `invoke` reaches canned commands instead of Rust. The
- * "filesystem" is the preview server: the mocked `repo_root` is `/repo`, and files under it are
+ * "filesystem" is the preview server: the mocked `data_root` is `/repo`, and files under it are
  * fetched from the served repository, so absolute paths and URLs coincide.
  *
  * The native pipeline itself is tested in Rust (`src-tauri`, `cargo test`); this checks the
@@ -27,8 +27,8 @@ async function installShell(page: Page): Promise<void> {
       convertFileSrc: (path: string) => path,
       invoke: async (cmd: string, args: Record<string, unknown>) => {
         switch (cmd) {
-          case "repo_root":
-            return "/repo";
+          case "data_root":
+            return { root: "/repo", datasets: "/repo/target/studio" };
           case "path_exists":
             return (await fetch(args.path as string, { method: "HEAD" })).ok;
           case "read_text": {

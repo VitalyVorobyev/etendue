@@ -13,7 +13,7 @@ import { type LoadedScene, documentKind, loadScene } from "../io/load";
 import { type FileSource, filePath, filesSource, urlSource } from "../io/source";
 import { fsSource, isTauri, splitAbsolute } from "../io/tauri";
 import { type Baked, type KernelFailure, bakeScene, describeFailure } from "../kernel/etendue";
-import { type Dataset, repoRoot } from "../kernel/native";
+import { type Dataset, dataRoot } from "../kernel/native";
 
 /** A snapshot of the studio. Replaced, never mutated. */
 export interface StudioState {
@@ -32,13 +32,13 @@ let repoSource: Promise<FileSource> | null = null;
 
 /**
  * The repository's examples and robot library: served over HTTP in a browser; in the Tauri
- * shell, read from the checkout on disk, so scenes opened from it have filesystem paths (the
- * native pipeline needs them).
+ * shell, read from disk (the checkout, or the app's bundled copy), so scenes opened from it
+ * have filesystem paths (the native pipeline needs them).
  */
 function repository(): Promise<FileSource> {
   repoSource ??= isTauri()
-    ? repoRoot()
-        .then((root) => (root === null ? served : fsSource(root, "repository")))
+    ? dataRoot()
+        .then((data) => (data === null ? served : fsSource(data.root, "repository")))
         .catch(() => served)
     : Promise.resolve(served);
   return repoSource;

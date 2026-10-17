@@ -19,8 +19,7 @@
 //! - [`voxel_overlap`](mod@voxel_overlap) — the [`voxelized_overlap`](voxelized_overlap())
 //!   function and its [`VoxelOverlap`] output: a 3D scalar field counting,
 //!   per voxel, how many `(camera, laser)` pairs of an M10 multi-pair rig
-//!   simultaneously see, illuminate, and focus on that voxel. Headless
-//!   companion to the `voxel_overlap_mesh` viewport overlay in `etendue-ui`.
+//!   simultaneously see, illuminate, and focus on that voxel.
 
 pub mod defocus_map;
 pub mod voxel_overlap;

@@ -2,7 +2,7 @@
   "name": "@etendue/studio",
   "private": true,
   "type": "module",
-  "description": "etendue studio: load a scene and scenario, bake them with @etendue/wasm, and play them back in 3D (docs/pivot/PLAN.md P2-5). Not published.",
+  "description": "etendue studio: open a scene and scenario, play them back in 3D, and (in the desktop app) generate synthetic calibration datasets. Not published to npm.",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -11,7 +11,9 @@
     "test": "vitest run",
     "test:e2e": "playwright test",
     "test:perf": "playwright test --config playwright.perf.config.ts",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "desktop:dev": "tauri dev",
+    "desktop:build": "node ../../../crates/etendue-wasm/scripts/build-npm.mjs && bun install --cwd ../.. --frozen-lockfile && tauri build"
   },
   "dependencies": {
     "@etendue/wasm": "workspace:*",

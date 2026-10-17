@@ -156,8 +156,8 @@ pub fn blender_path(arg: Option<&Path>) -> PathBuf {
     }
 }
 
-/// The pinned Blender version from the nearest `etendue.toml` above each of
-/// `search`, in order.
+/// The pinned Blender version from the nearest `etendue.toml` with a
+/// `[blender] version` above each of `search`, in order.
 fn pinned_version(search: &[&Path]) -> Result<Option<(String, PathBuf)>> {
     for &start in search {
         let mut dir = Some(start);
@@ -173,7 +173,10 @@ fn pinned_version(search: &[&Path]) -> Result<Option<(String, PathBuf)>> {
                     .and_then(|b| b.get("version"))
                     .and_then(|v| v.as_str())
                     .map(str::to_owned);
-                return Ok(version.map(|v| (v, file)));
+                // A file without a pin (other tool settings) does not end the search.
+                if let Some(v) = version {
+                    return Ok(Some((v, file)));
+                }
             }
             dir = d.parent();
         }

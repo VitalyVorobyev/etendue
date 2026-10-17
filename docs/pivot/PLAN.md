@@ -76,9 +76,9 @@ etendue/                                   (cargo workspace + bun workspace)
 │   ├── etendue-wasm/        NEW P2    wasm-bindgen facade                      → npm @etendue/wasm
 │   ├── etendue-cli/         NEW P1    `etendue bake|render|gt|validate`,        → crates.io (binary)
 │   │                                  embeds the Blender script
-│   └── etendue-ui/          FROZEN    removed at parity gate G6.3
+│   └── (etendue-ui)         DELETED   2026-10-17, before parity (ADR 0001 §4 amended)
 ├── web/                     NEW P2    bun workspace
-│   ├── apps/studio/                   Vite app (not published); Tauri only if §8 trigger fires
+│   ├── apps/studio/                   the studio, the main app: Tauri desktop bundles + web build
 │   └── packages/                      incubating @vitavision/* packages (private), each moved to
 │                                      lab-ui by PR once stable: three, three-react (L8-1),
 │                                      workbench (new), ui-next (additions to @vitavision/ui)
@@ -418,9 +418,10 @@ and ask; do not silently relax it.
 - **P6-2 — Performance trigger.** If any analysis takes >100 ms per UI update in WASM
   (measured), escalate by adding the analysis as a Tauri command or as a Web Worker
   with a wasm threads build. Do not do this pre-emptively.
-- **P6-3 — Parity gate.** Every `etendue-ui` feature (viewport, parameter panel,
-  simulated-image panel, heatmap) has a web equivalent, confirmed by the user. When that
-  holds, delete `crates/etendue-ui`.
+- **P6-3 — Parity.** Every former `etendue-ui` feature (viewport, parameter panel,
+  simulated-image panel, heatmap; also the Scheimpflug solver UI and the rig builder) gets a
+  studio equivalent. *Status (2026-10-17):* the user waived the gate and `crates/etendue-ui`
+  is deleted (tag `egui-ui-final`); the features remain to be brought to the studio.
 
 ### Deferred (not planned; do not scaffold)
 

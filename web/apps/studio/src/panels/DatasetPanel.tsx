@@ -14,7 +14,8 @@ import {
   pathExists,
   pickDirectory,
   pickJsonFiles,
-  repoRoot,
+  type DataRoot,
+  dataRoot,
 } from "../kernel/native";
 import { type DatasetRunner, useDatasetRun } from "../state/datasetRun";
 
@@ -28,13 +29,13 @@ const STAGES: Record<Stage, string> = {
 /** Lines of the run log kept on screen. */
 const LOG_LINES = 8;
 
-/** Where a scene's dataset goes by default: `target/studio/<example>` inside the checkout for
- * its examples (never into `examples/`), else `dataset/` beside the scene. */
-function defaultOutput(origin: string, root: string | null): string {
+/** Where a scene's dataset goes by default: `<datasets>/<example>` for the built-in examples
+ * (never into `examples/`, which may be read-only), else `dataset/` beside the scene. */
+function defaultOutput(origin: string, data: DataRoot | null): string {
   const dir = parentDir(origin);
-  const examples = root === null ? null : `${root.replace(/\/+$/, "")}/examples/`;
-  if (examples !== null && dir.startsWith(examples)) {
-    return `${root!.replace(/\/+$/, "")}/target/studio/${dir.slice(examples.length)}`;
+  const examples = data === null ? null : `${data.root.replace(/\/+$/, "")}/examples/`;
+  if (data !== null && examples !== null && dir.startsWith(examples)) {
+    return `${data.datasets.replace(/\/+$/, "")}/${dir.slice(examples.length)}`;
   }
   return `${dir}/dataset`;
 }
@@ -53,14 +54,14 @@ function useDefaults(origin: string | null): Defaults | null {
     let live = true;
     const dir = parentDir(origin);
     void Promise.all([
-      repoRoot().catch(() => null),
+      dataRoot().catch(() => null),
       pathExists(`${dir}/sensor_linear.json`).catch(() => false),
       blenderStatus(dir).catch(() => null),
-    ]).then(([root, sensor, blender]) => {
+    ]).then(([data, sensor, blender]) => {
       if (live) {
         setFound({
           origin,
-          value: { output: defaultOutput(origin, root), sensor: sensor ? `${dir}/sensor_linear.json` : null, blender },
+          value: { output: defaultOutput(origin, data), sensor: sensor ? `${dir}/sensor_linear.json` : null, blender },
         });
       }
     });
