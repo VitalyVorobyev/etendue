@@ -21,7 +21,7 @@
 //! [`ThickLens::coc_diameter`] is deliberately a small, self-contained method
 //! taking a 3D object point. It is the candidate to become an
 //! `ApertureModel` trait method upstreamed into `calibration-rs` once the
-//! model stabilises (see the development plan, deferred section). Taking a 3D
+//! model stabilises. Taking a 3D
 //! point — rather than a scalar `(depth, off_axis)` pair — is the right
 //! signature: under Scheimpflug tilt the circle of confusion depends on the
 //! point's *full* position relative to the tilted plane of best focus, and a
@@ -54,7 +54,7 @@ pub fn scheimpflug_tilt(params: &CameraParams) -> (f64, f64) {
 /// A thick-lens optical design: a camera spec plus its physical lens
 /// parameters.
 ///
-/// This is the "user-chosen design" the M4 defocus model operates on. It pairs
+/// This is the "user-chosen design" the defocus model operates on. It pairs
 /// the [`CameraParams`] projection/sensor spec (which retains the Scheimpflug
 /// tilt — see the module doc-comment) with the four scalar thick-lens
 /// parameters and the sensor pixel pitch.

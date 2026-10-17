@@ -338,7 +338,8 @@ also run its gates (`cargo clippy/test --manifest-path web/apps/studio/src-tauri
 | Gate measurements | `docs/measurements/` |
 | Original design doc (constraints partly superseded by ADR 0001) | `docs/handoff.md` |
 | Scheimpflug CoC derivation | `docs/derivations/scheimpflug_pobf.md` |
-| mdBook (architecture, chapters) | `book/` |
+| User docs (mdBook: user guide, CLI, formats, optics) | `book/`; `README.md` is user-facing and links no dev material |
+| Developer guide (layout, build, checks, conventions, releases) | `CONTRIBUTING.md` |
 | Seed component bank | `crates/etendue-core/assets/bank/*.json` |
 | calibration-rs source | `../calibration-rs/` |
 

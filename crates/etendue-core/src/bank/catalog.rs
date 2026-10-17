@@ -1,10 +1,9 @@
 //! Component catalogue: the in-memory registry of [`SensorSpec`], [`LensSpec`],
 //! and [`LaserSpec`] entries loaded from JSON bank files.
 //!
-//! The catalogue is intentionally a simple wrapper over three `Vec`s — the MVP
-//! needs load + list, nothing more. A future picker UI will add indexing,
-//! filtering, and fuzzy search on top of this structure without a schema
-//! change.
+//! The catalogue is intentionally a simple wrapper over three `Vec`s: it
+//! offers load + list, nothing more. Indexing, filtering, and fuzzy search can
+//! be layered on top of this structure without a schema change.
 
 use std::path::Path;
 

@@ -31,7 +31,7 @@ mod measure;
 #[command(
     name = "etendue",
     version,
-    about = "etendue scene, scenario, and baking tools"
+    about = "etendue: calibration-cell scenes and scenarios, ground truth, Blender rendering and detection"
 )]
 struct Cli {
     #[command(subcommand)]
@@ -62,7 +62,7 @@ enum Command {
         #[arg(long)]
         pretty: bool,
     },
-    /// Write the analytic ground truth of a scenario (ADR 0006): `dataset.json`
+    /// Write the analytic ground truth of a scenario: `dataset.json`
     /// (calibration-rs `DatasetSpec`), `robot_poses.json` and `gt.json`. The
     /// images it names are what `etendue render` writes into the same directory.
     Gt {
@@ -87,7 +87,7 @@ enum Command {
         #[command(subcommand)]
         command: ScenarioCommand,
     },
-    /// Render every capture of a scenario with Blender (ADR 0005): canonical
+    /// Render every capture of a scenario with Blender: canonical
     /// pinhole EXRs, remapped onto each calibrated camera as PNGs.
     Render {
         /// Scene file.
@@ -112,7 +112,7 @@ enum Command {
         /// Canonical pixels per camera pixel at the image centre.
         #[arg(long, default_value_t = render::DEFAULT_SUPERSAMPLE)]
         supersample: f64,
-        /// Linear scale before sRGB encoding (placeholder for the P4-6 sensor model).
+        /// Linear scale before sRGB encoding (without `--sensor`).
         #[arg(long, default_value_t = render::DEFAULT_EXPOSURE)]
         exposure: f32,
         /// Radiance of a uniform white environment (0 = scene lights only).
@@ -132,8 +132,9 @@ enum Command {
         #[arg(long)]
         sensor: Option<PathBuf>,
     },
-    /// Measure a gate that needs Blender (local only; results go to
+    /// Measure a gate that needs Blender (development only; results go to
     /// docs/measurements/).
+    #[command(hide = true)]
     Measure {
         /// Which gate.
         #[arg(value_enum)]
@@ -205,7 +206,7 @@ enum Gate {
     P45,
 }
 
-/// Render backends (ADR 0005: Blender is the only photometric one).
+/// Render backends (Blender is the only one).
 #[derive(Clone, Copy, Debug, clap::ValueEnum)]
 enum Backend {
     /// Blender / Cycles.

@@ -1,10 +1,9 @@
 //! Optical model: thick-lens conjugates, the Scheimpflug plane of best focus,
 //! and the geometric circle of confusion.
 //!
-//! This is the M4 defocus physics — the single most correctness-critical part
-//! of `etendue-core`. It is headless: pure `f64` functions, no UI, no
-//! rendering. The analysis layer ([`crate::analysis`]) samples it over a
-//! target; the UI renders the result.
+//! This is the defocus physics — the single most correctness-critical part
+//! of `etendue-core`. It is headless: pure `f64` functions, no rendering. The
+//! analysis layer ([`crate::analysis`]) samples it over a target.
 //!
 //! # Contents
 //!
@@ -17,8 +16,8 @@
 //!   parameters and exposes a clean `coc_diameter` API.
 //! - [`psf`] — Gaussian point-spread function model: the
 //!   [`coc_to_gaussian_sigma`] conversion from the geometric CoC diameter to a
-//!   FWHM-matched Gaussian sigma, used by the simulated-image panel's
-//!   Gaussian-halo band visualisation.
+//!   FWHM-matched Gaussian sigma, for drawing a Gaussian-halo band around an
+//!   imaged line.
 //!
 //! # The model, in brief
 //!

@@ -2,8 +2,8 @@
 //!
 //! [`defocus_map`] takes a [`CameraEntity`] and a planar [`TargetEntity`] and
 //! returns a [`DefocusMap`] — a regular grid of geometric circle-of-confusion
-//! values, in pixels, sampled across the target's surface. It is the headless
-//! M4a deliverable that M4b renders as a focus heatmap on the target quad.
+//! values, in pixels, sampled across the target's surface, ready for a caller
+//! to draw as a focus heatmap on the target quad.
 //!
 //! # What is sampled
 //!
@@ -14,7 +14,7 @@
 //!
 //! 1. the point is transformed target-local → world → camera-local;
 //! 2. its geometric circle of confusion, in pixels, is evaluated with the
-//!    camera's M4 [`ThickLens`] model
+//!    camera's [`ThickLens`] model
 //!    ([`ThickLens::coc_diameter_px`](crate::optics::ThickLens::coc_diameter_px)).
 //!
 //! A sample whose point cannot be imaged — behind the camera, or at/inside the
@@ -40,7 +40,7 @@ use crate::scene::{CameraEntity, TargetEntity};
 ///
 /// Sample `(row, col)` sits at target-local coordinates
 /// `(local_x(col), local_y(row), 0)` — see [`DefocusMap::local_x`] /
-/// [`DefocusMap::local_y`] — which lets the renderer (M4b) place each value on
+/// [`DefocusMap::local_y`] — which lets a renderer place each value on
 /// the target quad without re-deriving the lattice.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DefocusMap {
@@ -145,7 +145,7 @@ impl DefocusMap {
 ///
 /// Samples the `target` rectangle on a `cols × rows` lattice and evaluates the
 /// geometric circle of confusion, in pixels, at each sample using the
-/// `camera`'s M4 thick-lens model. See the module doc-comment for the sampling
+/// `camera`'s thick-lens model. See the module doc-comment for the sampling
 /// scheme.
 ///
 /// The `camera`'s [`ThickLens`] is built once and reused for every sample. A

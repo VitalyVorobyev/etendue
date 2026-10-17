@@ -1,32 +1,29 @@
 # Summary
 
-[Introduction](introduction.md)
-[Getting Started](getting_started.md)
-[Architecture](architecture.md)
+[etendue](introduction.md)
 
 ---
 
-# Kernel
+# User guide
 
-- [Scene and Geometry](scene_and_geometry.md)
-- [Thick Lens and Defocus](thick_lens.md)
-- [Scheimpflug Derivation](scheimpflug.md)
-- [Laser Line Projection](laser.md)
-- [Working Volume](working_volume.md)
-- [Component Bank Schema](bank.md)
+- [Installation](installation.md)
+- [The studio](studio.md)
+- [Scenes and scenarios](scenes.md)
+- [Command line](cli.md)
+- [Rendering](rendering.md)
+- [Datasets](datasets.md)
+- [Examples](examples.md)
+
+---
+
+# Optics
+
+- [The optics kernel's scene](scene_and_geometry.md)
+- [Thick lens and defocus](thick_lens.md)
+- [Scheimpflug plane of best focus](scheimpflug.md)
+- [Laser line projection](laser.md)
+- [Working volume](working_volume.md)
 - [Gaussian PSF](gaussian_psf.md)
-
----
-
-# Application
-
-- [The UI Layer](ui.md)
-- [Camera Anatomy](camera_anatomy.md)
-- [Scheimpflug Solver](scheimpflug_solver.md)
-- [Symmetric Rigs and N-View Voxel Overlap](symmetric_rigs.md)
-
----
-
-# Project
-
-- [Roadmap](roadmap.md)
+- [Scheimpflug solver](scheimpflug_solver.md)
+- [Symmetric rigs and N-view overlap](symmetric_rigs.md)
+- [Component bank](bank.md)

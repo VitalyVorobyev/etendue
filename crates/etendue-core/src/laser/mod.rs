@@ -1,10 +1,10 @@
 //! The laser-line model: the laser fan, its cross-section width, where it
 //! strikes a target, and how that stripe projects into the camera.
 //!
-//! This is the M5 layer. It turns a posed [`LaserEntity`](crate::scene::LaserEntity)
-//! into the geometry and physics of a projected laser line — the headless
-//! companion to the UI's 3D laser stripe and 2D "simulated image" panel.
-//! Everything here is pure `f64`, with no UI and no `wgpu` dependency.
+//! It turns a posed [`LaserEntity`](crate::scene::LaserEntity) into the
+//! geometry and physics of a projected laser line: the 3D stripe on the target
+//! and its 2D image in the camera. Everything here is pure `f64`, with no
+//! rendering dependency.
 //!
 //! # The pipeline
 //!
@@ -26,12 +26,11 @@
 //! 3. [`stripe_on_target`] / [`LaserStripe`] ([`intersect`]) — the laser fan
 //!    plane intersected with a planar [`TargetEntity`](crate::scene::TargetEntity),
 //!    clipped to the fan extent and the target rectangle, and sampled into a
-//!    3D polyline with a per-sample width. **MVP scope: plane∩plane only — a
-//!    single straight segment, no triangle-mesh stitching** (development plan,
-//!    de-risking spike #3).
+//!    3D polyline with a per-sample width. **Scope: plane∩plane only — a
+//!    single straight segment, no triangle-mesh stitching.**
 //! 4. [`project_stripe`] / [`ProjectedStripe`] ([`project`]) — the 3D stripe
 //!    pushed through the scene camera into pixel space, with a per-vertex
-//!    pixel width that combines the geometric cross-section and the M4 defocus
+//!    pixel width that combines the geometric cross-section and the defocus
 //!    blur **in quadrature**.
 
 pub mod intersect;

@@ -1,7 +1,7 @@
 //! Geometric and physical kernel for **etendue** — an interactive tool for
 //! designing laser-triangulation optical systems.
 //!
-//! This crate holds the headless, UI-free core: scene geometry, the thick-lens
+//! This crate holds the headless core: scene geometry, the thick-lens
 //! and circle-of-confusion optics model, the laser-line model, and the
 //! analysis layer that turns a posed camera + laser + target into a working
 //! volume, a defocus map, and a projected laser line.
@@ -34,7 +34,7 @@
 //!   projection of that stripe into the camera's pixel space.
 //! - [`analysis`]: derived quantities over a scene — currently the per-target
 //!   defocus map.
-//! - `solver` (feature `solver`): design-space solvers — the M9 Scheimpflug
+//! - `solver` (feature `solver`): design-space solvers — the Scheimpflug
 //!   solver that proposes optimal sensor tilt and focus distance for a target
 //!   working geometry.
 

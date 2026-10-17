@@ -1,9 +1,8 @@
 //! Thick-lens conjugates, the Scheimpflug plane of best focus, and the
 //! geometric circle of confusion — derived from first principles.
 //!
-//! This module is the **physics core** of the M4 defocus model. Everything
-//! here is a pure `f64` function with no UI, no rendering, and no `wgpu`
-//! dependency. [`ThickLens`](crate::optics::ThickLens) wraps these functions
+//! This module is the **physics core** of the defocus model. Everything
+//! here is a pure `f64` function with no rendering dependency. [`ThickLens`](crate::optics::ThickLens) wraps these functions
 //! with a camera-aware API; the [`analysis`](crate::analysis) layer samples
 //! them over a target.
 //!
@@ -257,8 +256,8 @@ impl PlaneOfBestFocus {
     ///
     /// The plane `z = s_o + x * tan(theta_y) + y * tan(theta_x)` has normal
     /// proportional to `(-tan(theta_y), -tan(theta_x), 1)`. For a
-    /// fronto-parallel sensor this is `+z`. Useful for rendering the in-focus
-    /// plane in M4b.
+    /// fronto-parallel sensor this is `+z`. Useful for drawing the in-focus
+    /// plane.
     #[must_use]
     pub fn normal(&self) -> Vector3<f64> {
         Vector3::new(-self.tan_tilt_y, -self.tan_tilt_x, 1.0).normalize()

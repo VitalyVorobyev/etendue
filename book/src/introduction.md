@@ -1,78 +1,38 @@
-# Introduction
+# etendue
 
-**etendue** is a pure-Rust desktop tool for the interactive design of
-laser-triangulation 3D-sensor optical systems. It is a parametric design aid
-for a single working point in the design space: pick a camera, a laser, and a
-target; tweak focal length, f-number, focus distance, Scheimpflug tilt, fan
-angle, and beam waist; watch the working volume, the defocus heatmap on the
-target, and the projected laser line on the simulated image update in real
-time.
+etendue designs robot–camera–laser calibration cells and generates synthetic calibration
+datasets with exact ground truth.
 
-## The design questions it answers
+A calibration cell is a robot, one or more camera rigs, optional line lasers and lights, and a
+calibration board. You describe it in a **scene**, and the robot's moves and captures in a
+**scenario**. etendue then:
 
-A typical question early in a triangulation-sensor project is: *given a real
-target standoff and a real measurement region, can a 16 mm f/2.8 lens on this
-sensor, this laser, and this baseline cover the volume sharply?* The tool
-answers four such questions simultaneously, in one view:
+1. **bakes** the scenario with the robot's kinematics: every frame's pose at every sample;
+2. computes the **ground truth**: where every board corner and laser-stripe point lands in every
+   camera at every capture, with visibility, through the full camera model (distortion,
+   Scheimpflug tilt);
+3. **renders** each capture with Blender (Cycles), through an ideal pinhole camera that etendue
+   then resamples onto the real camera model, optionally through a sensor model;
+4. **detects** the board in the rendered images and checks every detection against the ground
+   truth.
 
-- **Working volume sizing.** Where on the laser fan is the point both
-  illuminated by the laser, visible to the camera, and within the camera's
-  depth of field? The MVP renders this as a translucent patch on the fan plane
-  with an area (m²) and a depth range (m) readout.
-- **Depth of focus + Scheimpflug.** How does the geometric circle of confusion
-  vary across an obliquely viewed target? The defocus heatmap on the target
-  shows it directly; sliding the Scheimpflug tilt rotates the in-focus band.
-- **Laser line in pixel space.** What does the projected stripe look like on
-  the simulated sensor image? Width is the geometric beam cross-section and
-  the defocus blur combined in quadrature.
-- **Multi-camera coverage.** A symmetric N-pair rig (the M10 builder)
-  rotates a camera/laser pair around an axis; the N-view voxel-overlap
-  analysis then counts, per voxel, how many pairs see, illuminate, and focus
-  on it.
+The output is a dataset in [calibration-rs](https://github.com/VitalyVorobyev/calibration-rs)'s
+format, plus the ground truth that calibrating it should recover. That makes etendue a test bench
+for calibration: how well does a setup, a set of viewpoints, a detector or a solver recover a
+cell you know exactly?
 
-## Status
+## The parts
 
-All milestones M0–M10 are in, plus the post-MVP optics work. The M0–M6 MVP —
-a hand-written winit + wgpu + egui render loop, a 3D viewport with
-depth-tested opaque and translucent passes, the posed scene with JSON
-save/load, the thick-lens defocus physics and on-target heatmap, the
-laser-line projection with the 2D simulated-image panel, and the
-working-volume analysis on the fan plane — is joined by the M8 camera-anatomy
-renderer, the M9 `argmin` Scheimpflug solver, the M10 symmetric-rig builder
-with N-view voxel-overlap analysis, a Gaussian-PSF blur model, and a
-triangle-mesh kernel with mesh laser intersection. **247 tests** pass; the M4
-Scheimpflug kill gate (numerical agreement with hand-computed
-circle-of-confusion regimes) is met.
+- **etendue studio**, the desktop app: open a scene, play the scenario in 3D, see what each
+  camera sees, and generate a dataset. See [The studio](studio.md).
+- **`etendue`**, the command line: the same steps, for scripts and batch runs. See
+  [Command line](cli.md).
+- **Documents**: scenes, scenarios and robot manifests are versioned JSON with published JSON
+  Schemas. See [Scenes and scenarios](scenes.md).
+- **Libraries**: the Rust crates the tools are built on (`etendue-scene`, `etendue-kinematics`,
+  `etendue-synth`, `etendue-core`) and the `@etendue/wasm` npm package. Their API documentation is
+  at [`/api`](https://vitalyvorobyev.github.io/etendue/api/).
 
-## Scope
-
-The tool is a **parametric model**, not a sequential ray tracer. A camera is a
-[vision-calibration-core] `Camera` projection chain plus four thick-lens
-scalars (`f`, `N`, `s_o`, `g`). A laser is a posed planar fan with a
-Gaussian-beam waist. A target is a finite rectangle. The defocus model is the
-geometric circle of confusion derived from the Gaussian conjugate relation
-and the Scheimpflug tilt — see [the Scheimpflug chapter](scheimpflug.md). The
-laser stripe width is the cross-section diameter combined with the
-circle-of-confusion diameter in quadrature.
-
-## Out of scope
-
-- An etendue-owned renderer. Realistic synthetic rendering (path tracing,
-  materials, sensor noise) comes into scope **only** as the Blender/Cycles
-  backend of the pivot — see `docs/adrs/0001-pivot.md` and
-  `docs/adrs/0005-blender-renderer.md`. `etendue-core` itself stays free of
-  rendering code. Speckle remains out of scope.
-- Component-level optical design (the Zemax world): per-surface ray tracing,
-  aspherics, wavefront analysis, Seidel/Zernike aberrations.
-- Polarization. Coherent diffraction. Wavelength dependence beyond a single
-  nominal wavelength.
-- A database of real lens prescriptions.
-
-## Reader assumption
-
-A domain expert. The text assumes a working command of paraxial optics, the
-Scheimpflug principle, the pinhole camera model, `nalgebra` poses
-(`Isometry3<f64>`), and Rust 2024 idioms. Physics derivations stay tight:
-no first-principles re-introduction of the thin-lens equation.
-
-[vision-calibration-core]: https://github.com/VitalyVorobyev/calibration-rs
+The last part of this book, **Optics**, describes the optics kernel (`etendue-core`): the thick
+lens and defocus model, the Scheimpflug plane of best focus, the laser line, the working volume,
+and the design solvers built on them.

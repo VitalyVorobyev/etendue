@@ -38,8 +38,7 @@
 //!
 //! Only the **across-stripe** width is modelled — the dimension that, combined
 //! with defocus, sets the imaged line's thickness. The *along-fan* intensity /
-//! width profile is explicitly out of scope for the MVP (development plan, M5
-//! "Out of scope"). The model is also the ideal Gaussian-beam law: no
+//! width profile is explicitly out of scope. The model is also the ideal Gaussian-beam law: no
 //! truncation by the laser aperture, no astigmatism.
 //!
 //! # User override

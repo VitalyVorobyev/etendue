@@ -2,8 +2,8 @@
 
 This note derives, from first principles, the optical model implemented in
 `etendue-core::optics` (`optics/coc.rs` and `optics/thick_lens.rs`). It is the
-written companion to the `coc.rs` module doc-comment. Milestone **M4a** rests
-on this derivation being correct — it has an explicit kill gate.
+written companion to the `coc.rs` module doc-comment, and the tests of both
+modules check the results below.
 
 The lens is treated as **ideal**: Gaussian (paraxial) imaging only. Seidel /
 Zernike aberrations, field curvature, and chromatic effects are explicitly out
@@ -137,8 +137,7 @@ This is the exact geometric CoC diameter **at the sensor**, in length units. It
 is the textbook lens-defocus CoC; (6) is derived purely by similar triangles on
 the converging image-side cone.
 
-Two properties worth stating explicitly, because the kill-gate tests check
-them:
+Two properties worth stating explicitly, because the tests check them:
 
 - `z = s_o  =>  s_i(z) = v0  =>  c = 0`. A point on the focus plane is sharp.
 - `c(z)` depends on `z` **only**. For a fronto-parallel sensor the CoC has **no
@@ -258,8 +257,8 @@ regime). The PoBF, the lens plane, and the sensor pivot about the common
 Scheimpflug line — the "hinge". A downward sensor tilt (`+tau_x` here) lowers
 the near edge of the in-focus plane and raises the far edge: the in-focus band
 sweeps across depth as a function of field height. This is the correct,
-expected behaviour of a Scheimpflug system, and it is what the M4 focus
-heatmap will visualise.
+expected behaviour of a Scheimpflug system, and it is what a defocus map over
+the target shows.
 
 **Two-axis tilt.** `tau_x` and `tau_y` act on orthogonal axes and, to first
 order, independently. The PoBF is the plane through the on-axis focus point
@@ -317,7 +316,7 @@ tilted sensor surface is at that image location**.
 
    In pixels, `c_px(P) = c(P) / p`.
 
-**Consistency checks (these are exactly the kill-gate regimes).**
+**Consistency checks (these are the regimes the tests cover).**
 
 - *On the PoBF, `c = 0`.* The PoBF was *defined* in Section 4 as the conjugate
   locus of the tilted sensor; equivalently, equation (10) is precisely the
@@ -363,7 +362,7 @@ Because the camera-frame object depth `z` enters the model only through the
 combination `z + g` (Section 1), the gap `g` is a genuine, load-bearing
 parameter: with `g > 0` an object at the same camera depth `z` is further from
 H and focuses differently; with `g = 0` the model collapses, term by term, onto
-the thin lens. The kill-gate test (d) verifies this reduction numerically.
+the thin lens. Test (d) verifies this reduction numerically.
 
 ## 7. Worked numbers (used verbatim as test expectations)
 

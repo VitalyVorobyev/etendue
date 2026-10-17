@@ -1,6 +1,6 @@
 [package]
 name = "etendue-synth"
-description = "Synthetic-image support for etendue: canonical render cameras and remap LUTs onto calibration-rs camera models"
+description = "Synthetic calibration data for etendue: ground truth, calibration-rs datasets, canonical render cameras and remap LUTs, sensor model"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

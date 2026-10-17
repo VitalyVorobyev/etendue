@@ -34,14 +34,14 @@
 //!   is captured exactly by the projection — and the offset direction is the
 //!   one in which the stripe's thickness is most visible to the camera.
 //! - **`defocus_px`** — the circle-of-confusion *diameter* in pixels at that
-//!   3D point, from M4's [`ThickLens::coc_diameter_px`]. Reusing the M4 model
-//!   here is the intended design (development plan, M5).
+//!   3D point, from [`ThickLens::coc_diameter_px`]. Reusing the thick-lens
+//!   defocus model here is the intended design.
 //!
 //! # Output
 //!
 //! [`project_stripe`] returns a [`ProjectedStripe`] — a polyline of
 //! [`ProjectedPoint`]s, each a pixel coordinate plus its `total_px` width (and
-//! the `geom_px` / `defocus_px` components, kept for inspection and the UI
+//! the `geom_px` / `defocus_px` components, kept for inspection and for a
 //! legend). Stripe samples that cannot be imaged are dropped; the projected
 //! polyline therefore has between `0` and `stripe.len()` vertices.
 
@@ -64,16 +64,16 @@ pub struct ProjectedPoint {
     /// The stripe sample's image coordinate, in pixels.
     pub pixel: Point2<f64>,
     /// The stripe sample's 3D position in **world** coordinates (metres). The
-    /// M8 `resolution_mm_per_px` summary computes mm/px from polyline
+    /// `resolution_mm_per_px` summary computes mm/px from polyline
     /// differences in this field and the pixel field; downstream consumers
-    /// (the Scheimpflug solver, the simulated-image panel) can also read
+    /// (the Scheimpflug solver, an image simulator) can also read
     /// world position without re-running the projection.
     pub world_m: Point3<f64>,
     /// The geometric line width in pixels — the physical cross-section `w(d)`
     /// as seen by the camera (projective, obliquity-aware).
     pub geom_px: f64,
     /// The defocus line width in pixels — the circle-of-confusion diameter
-    /// from the M4 [`ThickLens`] model at this 3D point.
+    /// from the [`ThickLens`] model at this 3D point.
     pub defocus_px: f64,
     /// The total imaged line width in pixels: `sqrt(geom_px² + defocus_px²)`.
     pub total_px: f64,
@@ -116,7 +116,7 @@ impl ProjectedStripe {
     /// The largest total line width over the projected vertices, in pixels,
     /// or `None` if the line has no vertices.
     ///
-    /// Useful for scaling the simulated-image panel's thickness encoding.
+    /// Useful for scaling a drawn line's thickness encoding.
     #[must_use]
     pub fn max_total_px(&self) -> Option<f64> {
         self.points
@@ -166,7 +166,7 @@ impl ProjectedStripe {
     /// across the stripe, in mm/px. `None` if the polyline has fewer than
     /// two vertices.
     ///
-    /// The simulated-image panel reports these three numbers so the designer
+    /// These three numbers let the designer
     /// can see at a glance whether the stripe's metrology resolution is
     /// uniform (min ≈ median ≈ max) or varies — e.g., an obliquely viewed
     /// stripe will have a noticeable spread between the near and far ends.
@@ -237,7 +237,7 @@ pub fn project_stripe(
             continue;
         };
 
-        // --- Defocus blur in pixels (M4 model) --------------------------
+        // --- Defocus blur in pixels (thick-lens model) -------------------
         // The CoC diameter at this 3D point. If the lens cannot image the
         // point (at/inside the focal point), there is no defocus figure;
         // treat it as zero rather than dropping the otherwise-projectable
@@ -554,7 +554,7 @@ mod tests {
 
     #[test]
     fn the_line_broadens_out_of_focus() {
-        // The M5 checkpoint: an oblique target leaves part of the stripe out
+        // The checkpoint: an oblique target leaves part of the stripe out
         // of the depth of field. With the camera focused on the near end, the
         // far end of the stripe is more defocused — defocus_px (and the total
         // width) grows along the stripe.
@@ -700,7 +700,7 @@ mod tests {
 
     #[test]
     fn projected_pixels_land_on_the_sensor_for_the_default_scene() {
-        // The real default MVP scene: its camera frames the target, and the
+        // The real default scene: its camera frames the target, and the
         // laser stripe sits well inside it — so the projected line must land
         // on the 1280x1024 sensor.
         let scene = crate::scene::Scene::default_mvp();

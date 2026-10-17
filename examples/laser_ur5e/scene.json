@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "description": "P5-3 laser closed loop: UR5e, two-camera rig with a line laser, mounted 15\u00b0/10\u00b0 off square, 9\u00d76 chessboard (20 mm) at 0.5 m.",
+  "description": "Laser-line calibration: the hand-eye rig with a line laser, viewing a 9×6 chessboard (20 mm) at 0.5 m.",
   "robots": [
     {
       "id": "ur5e",

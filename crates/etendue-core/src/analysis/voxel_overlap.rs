@@ -6,7 +6,7 @@
 //! caller-specified bounding box, count how many of the scene's
 //! (camera, laser) pairs can simultaneously **see**, **illuminate**, and
 //! **focus on** that voxel. The result is a 3D scalar field — the
-//! "agreement" of the rig — that the M10 industrial-inspection use case
+//! "agreement" of the rig — that the industrial-inspection use case
 //! cares about (how many pairs reach every point of the inspection volume).
 //!
 //! # The three predicates per pair
@@ -376,10 +376,10 @@ mod tests {
     use super::*;
     use crate::scene::Scene;
 
-    /// A small, easily-debugged voxel grid spanning the default-MVP scene's
+    /// A small, easily-debugged voxel grid spanning the default scene's
     /// inspection volume: a cube ~30 cm on a side centred on the target.
     fn default_scene_voxel_box() -> VoxelBox {
-        // Default-MVP target sits at world (0, 0, 0.30); the working volume
+        // The default target sits at world (0, 0, 0.30); the working volume
         // is a small patch in front of it. Use a 0.30 m cube centred there.
         VoxelBox {
             min: Point3::new(-0.15, -0.15, 0.15),
@@ -430,7 +430,7 @@ mod tests {
 
     #[test]
     fn default_scene_has_some_covered_voxels() {
-        // The default MVP scene's single pair must cover at least one voxel
+        // The default scene's single pair must cover at least one voxel
         // of a box centred on the target. Otherwise the working-volume
         // analysis would also show empty, which other tests already
         // disprove.

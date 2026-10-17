@@ -1,5 +1,5 @@
 //! The [`Scene`] aggregate: the posed cameras, lasers, and targets a design
-//! consists of, plus the default MVP scene the application opens with.
+//! consists of, plus a ready-made default scene.
 //!
 //! # Coordinate convention
 //!
@@ -20,9 +20,9 @@ use super::entity::{CameraEntity, LaserEntity, MeshTarget, PhysicalOptics, Targe
 
 /// A complete optical-design scene: every camera, laser, and target.
 ///
-/// M2 constructs scenes in code (see [`Scene::default_mvp`]); M3 adds the
-/// editing UI and JSON load. The `Vec` fields are public so the UI can pose
-/// and append entities directly.
+/// Scenes are built in code (see [`Scene::default_mvp`]) or loaded from JSON.
+/// The `Vec` fields are public so a caller can pose and append entities
+/// directly.
 ///
 /// # Serde backwards compatibility
 ///
@@ -37,10 +37,9 @@ pub struct Scene {
     pub lasers: Vec<LaserEntity>,
     /// Inspection targets.
     pub targets: Vec<TargetEntity>,
-    /// Triangle-mesh inspection targets (post-MVP, defaults to empty).
+    /// Triangle-mesh inspection targets (defaults to empty).
     ///
-    /// These are rendered as opaque meshes in the viewport, and each laser
-    /// is intersected against them via
+    /// Each laser is intersected against them via
     /// [`stripe_segments_on_mesh`](crate::laser::stripe_segments_on_mesh).
     #[serde(default)]
     pub mesh_targets: Vec<MeshTarget>,
@@ -53,7 +52,7 @@ impl Scene {
         Self::default()
     }
 
-    /// The default MVP scene: one camera, one laser, one target, arranged as a
+    /// The default scene: one camera, one laser, one target, arranged as a
     /// plausible laser-triangulation setup.
     ///
     /// # Geometry
@@ -88,7 +87,7 @@ impl Scene {
     /// on-axis target point. Because the upright target is oblique to the
     /// off-set camera, its depth varies across the frame, and the f/2.8
     /// aperture is open enough that the circle of confusion runs from ~0 at
-    /// the focused band to ~2.6 px at the target edges: the M4 heatmap then
+    /// the focused band to ~2.6 px at the target edges: the defocus heatmap then
     /// shows a genuine sharp **band** (a depth iso-line) with a visible blur
     /// falloff, rather than a uniformly in-focus quad. Tilting the Scheimpflug
     /// τ rotates that band. An 8 mm f/4 lens — wide enough to frame a larger
@@ -126,7 +125,7 @@ impl Scene {
         // ~17 deg half-angle fan, reaching a touch past the target standoff.
         // 660 nm red diode with a 0.25 mm beam-waist radius — a typical
         // machine-vision line laser. With a 660 nm wavelength that waist gives
-        // a Rayleigh range of ~0.30 m, so the M5 Gaussian-beam width model
+        // a Rayleigh range of ~0.30 m, so the Gaussian-beam width model
         // keeps the stripe a few-tenths-of-a-millimetre thick across the
         // 0.60 m standoff and visibly broadens it past that.
         let laser = LaserEntity::new(laser_pose, 0.30, 0.75, 660.0, 0.25e-3)
@@ -147,7 +146,7 @@ impl Scene {
         // lens gives a ~15.7° × 12.6° field of view that frames the
         // 0.15 m × 0.12 m target with a margin, and the f/2.8 aperture makes
         // the circle of confusion run ~0..2.6 px across the obliquely-viewed
-        // target — enough for the M4 heatmap to show a sharp band with a
+        // target — enough for the defocus heatmap to show a sharp band with a
         // visible falloff (see the coherence note on this function).
         //
         // The PHYSICAL optics parameters (focal length, f-number, focus
@@ -158,9 +157,9 @@ impl Scene {
         // `cx`/`cy` are kept as the sensor centre.
         //
         // The sensor is Scheimpflug at zero tilt — geometrically identical to
-        // Identity at tau_x = tau_y = 0, but the M3 UI exposes τ sliders that
-        // need backing fields, and M4 reads the (here zero) tilt to place the
-        // plane of best focus.
+        // Identity at tau_x = tau_y = 0, but it gives the τ tilt angles a
+        // home for a caller to edit, and the defocus model reads the (here
+        // zero) tilt to place the plane of best focus.
         let camera_focal_length_m = 0.016; // 16 mm lens
         let camera_f_number = 2.8; // f/2.8
         let camera_focus_distance_m = camera_target_distance_m; // focus on target
@@ -223,7 +222,7 @@ impl Scene {
     /// vectors of N cameras and N lasers; the caller assembles them into a
     /// scene with whatever target(s) the rig inspects.
     ///
-    /// This is the M10 "symmetric inspection rig" builder: industrial setups
+    /// This is the "symmetric inspection rig" builder: industrial setups
     /// frequently view a tool from 3, 6, or 8 sides at once, with each side a
     /// camera + line-laser pair. The same lens and laser are replicated, so
     /// every pair has the same metrology resolution and depth of field — only
@@ -426,7 +425,7 @@ mod tests {
 
     #[test]
     fn default_mvp_camera_field_of_view_covers_the_target() {
-        // FOV coherence (M4): the camera's lens must be wide enough that every
+        // FOV coherence: the camera's lens must be wide enough that every
         // point of the default target is imageable. `defocus_map` records a
         // sample as `None` exactly when it cannot be imaged (behind the camera
         // or outside the projection chain), so a map with no `None` cell over
@@ -452,7 +451,7 @@ mod tests {
             "the focused band of the default target should be near-sharp, \
              got a minimum CoC of {min} px"
         );
-        // Defocus coherence (the M4 visual checkpoint): the default scene
+        // Defocus coherence (the visual checkpoint): the default scene
         // must also leave part of the target *out* of the depth of field, so
         // the heatmap shows a sharp band with a falloff rather than a
         // uniformly in-focus quad. The chosen 16 mm f/2.8 lens gives a peak

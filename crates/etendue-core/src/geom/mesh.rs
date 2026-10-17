@@ -2,12 +2,12 @@
 //!
 //! [`TriMesh`] is the pure-geometry mesh representation used throughout
 //! `etendue-core`: `f64` vertices, `[u32; 3]` triangle indices, and a
-//! per-vertex normal for every vertex. It carries no rendering state — the UI
-//! crate packs it down to `f32` GPU buffers at its own boundary.
+//! per-vertex normal for every vertex. It carries no rendering state — a renderer
+//! packs it down to `f32` GPU buffers at its own boundary.
 //!
 //! Normals are stored **per vertex**. Primitive constructors that need hard
 //! edges (a cube) duplicate the shared corner positions so each face gets its
-//! own flat normal; smooth surfaces (added in later milestones) can share
+//! own flat normal; smooth surfaces can share
 //! vertices and average normals. Keeping a single per-vertex normal field
 //! makes the GPU vertex layout uniform regardless of which constructor built
 //! the mesh.
@@ -262,8 +262,8 @@ impl TriMesh {
     /// A flat rectangular quad of size `width` x `height`, centred on the
     /// origin and lying in the `z = 0` plane, normal pointing toward `+Z`.
     ///
-    /// Two triangles, four shared vertices. Used by the M1 demo scene as the
-    /// translucent test object and, in later milestones, as the target plane.
+    /// Two triangles, four shared vertices. Useful as a planar test object or
+    /// a target plane.
     ///
     /// # Panics
     ///

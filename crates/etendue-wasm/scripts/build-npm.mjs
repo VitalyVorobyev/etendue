@@ -28,6 +28,7 @@ execFileSync("wasm-pack", ["build", crate, "--target", "web", dev ? "--dev" : "-
 rmSync(join(pkg, ".gitignore"), { force: true });
 
 cpSync(join(crate, "js"), pkg, { recursive: true });
+cpSync(join(crate, "README.md"), join(pkg, "README.md"));
 
 const cargo = readFileSync(join(crate, "../../Cargo.toml"), "utf8");
 const version = /^\[workspace\.package\][^[]*?^version\s*=\s*"([^"]+)"/ms.exec(cargo)?.[1];
@@ -36,7 +37,8 @@ if (!version) throw new Error("workspace version not found in Cargo.toml");
 const manifest = {
   name: "@etendue/wasm",
   version,
-  description: "WebAssembly build of the etendue kernel: scene validation, scenario baking, camera projection.",
+  description:
+    "The etendue kernel in WebAssembly: scenes, scenario baking with robot kinematics, camera projection and remap tables.",
   license: "MIT",
   repository: {
     type: "git",
