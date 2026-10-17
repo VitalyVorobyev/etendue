@@ -268,6 +268,17 @@ and ask; do not silently relax it.
   incubated as `@vitavision/ui-next`. Done when the lab-ui PRs are open for review; the
   swap to published versions follows their release.
 
+- **P2-7 — Studio desktop shell (Tauri).** D4's trigger fired: launching renders from the UI
+  ([ADR 0007](../adrs/0007-tauri-studio-shell.md), proposed). Tauri 2 around the studio, in its own
+  cargo workspace (`web/apps/studio/src-tauri`), on the `etendue_cli` library. Native commands do
+  dataset generation (ground truth → Blender → detection, with progress and cancel), Blender's
+  status and scenarios from tool poses. `@etendue/wasm` stays the per-frame kernel. Done when the
+  studio opens a scene from disk, generates a dataset, and shows its images, all from the UI.
+  *Status (2026-09-29):* built. Covers the Dataset panel, "Open scene…", "Import poses…", and the
+  dataset image in camera views. The Rust tests pass (`cargo test` in `studio-tauri`), and so does
+  the mocked-shell e2e (`e2e/tauri.spec.ts`). The interactive check in `bun run tauri dev` waits
+  for the user.
+
 ### P3 — Geometric synthesis (Rust + web)
 
 - **P3-1 — Canonical render camera and LUT** in `etendue-synth::remap`. Done when gate

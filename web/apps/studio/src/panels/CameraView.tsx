@@ -10,7 +10,7 @@ import {
   useStage,
 } from "@vitavision/stage2d";
 import { SensorImage } from "@vitavision/three-react";
-import { Grid3x3 } from "lucide-react";
+import { Grid3x3, Image as ImageIcon } from "lucide-react";
 import { type FrameTreeRuntime, matrixFromIso3 } from "@vitavision/three";
 import { type Playhead, usePlayhead } from "@vitavision/workbench";
 import { useMemo, useState } from "react";
@@ -85,6 +85,9 @@ const PIXEL_CENTRE = "integer";
  *   distortion and sensor tilt are the calibrated model's (ADR 0004);
  * - over it, the targets' outlines and square grids projected analytically by the kernel.
  *   Where the two agree the render is registered with the model.
+ *
+ * With a generated dataset (the Tauri shell), the toolbar switches the live render for the
+ * dataset's Blender image at each capture.
  */
 export function CameraView({
   session,
@@ -92,16 +95,22 @@ export function CameraView({
   camera,
   targets,
   playhead,
+  renderedAt,
 }: {
   session: EtendueScene;
   runtime: FrameTreeRuntime;
   camera: CameraSpec;
   targets: readonly TargetSpec[];
   playhead: Playhead;
+  /** The dataset image of `camera` at sample `k`, if one was rendered there. */
+  renderedAt?: ((camera: string, k: number) => string | null) | undefined;
 }) {
   const k = usePlayhead(playhead);
   const [view, setView] = useState<StageView | null>(null);
   const [overlay, setOverlay] = useState(true);
+  const [showRendered, setShowRendered] = useState(true);
+  const rendered = showRendered ? (renderedAt?.(camera.id, k) ?? null) : null;
+  const hasDataset = renderedAt !== undefined && renderedAt(camera.id, k) !== null;
   const remap = useMemo(() => {
     const { canonical, lut } = session.remap(camera.id, { supersample: 1 }, PIXEL_CENTRE);
     const k = canonical.params.intrinsics;
@@ -140,19 +149,35 @@ export function CameraView({
             <StageButton label="Projected targets" pressed={overlay} onClick={() => setOverlay(!overlay)}>
               <Grid3x3 className="size-4" aria-hidden />
             </StageButton>
+            {hasDataset && (
+              <StageButton label="Dataset image (Blender)" pressed={showRendered} onClick={() => setShowRendered(!showRendered)}>
+                <ImageIcon className="size-4" aria-hidden />
+              </StageButton>
+            )}
           </StageToolbar>
         }
         readout={<StageReadout cursor={cursor} />}
       >
-        <SensorImage
-          runtime={runtime}
-          frame={camera.id}
-          canonical={remap.canonical}
-          lut={remap.lut}
-          playhead={playhead}
-          className="absolute inset-0 h-full w-full border border-line-strong"
-          label={`${camera.id} rendered image`}
-        />
+        {rendered !== null ? (
+          <img
+            src={rendered}
+            alt={`${camera.id} dataset image`}
+            data-testid={`dataset-image-${camera.id}`}
+            className="absolute inset-0 h-full w-full border border-line-strong"
+            style={{ imageRendering: "pixelated" }}
+            draggable={false}
+          />
+        ) : (
+          <SensorImage
+            runtime={runtime}
+            frame={camera.id}
+            canonical={remap.canonical}
+            lut={remap.lut}
+            playhead={playhead}
+            className="absolute inset-0 h-full w-full border border-line-strong"
+            label={`${camera.id} rendered image`}
+          />
+        )}
         {/* Only what lands on the sensor is drawn. */}
         {overlay && (
           <div className="absolute inset-0 overflow-hidden">

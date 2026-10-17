@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "The studio window: its own commands. File dialogs run in the shell (the `pick` command), so the webview gets no dialog permission of its own.",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

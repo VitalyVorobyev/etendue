@@ -231,3 +231,47 @@ jobs:
         with:
           name: playwright-report
           path: web/apps/studio/playwright-report
+
+  # The studio's Tauri shell (ADR 0007): its own cargo workspace, so the jobs
+  # above do not see it. Rust only; its frontend is the studio the `web` job
+  # tests (the Dataset panel's e2e runs there against a mocked shell).
+  studio-tauri:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Clone calibration-rs sibling ([patch.crates-io] target)
+        run: git clone --depth 1 --branch "$CALIBRATION_RS_REF" https://github.com/VitalyVorobyev/calibration-rs.git ../calibration-rs
+
+      - name: System libraries (WebKitGTK)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache cargo artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: web/apps/studio/src-tauri -> target
+
+      # tauri::generate_context! needs frontendDist to exist; the web job builds it.
+      - name: Placeholder frontend
+        run: mkdir -p web/apps/studio/dist
+
+      - name: Single nalgebra (hard pin) in the shell's graph
+        run: cargo xtask check-layering --manifest-path web/apps/studio/src-tauri/Cargo.toml
+
+      - name: Cargo fmt
+        run: cargo fmt --manifest-path web/apps/studio/src-tauri/Cargo.toml --check
+
+      - name: Cargo clippy
+        run: cargo clippy --manifest-path web/apps/studio/src-tauri/Cargo.toml --all-targets --locked -- -D warnings
+
+      - name: Cargo test
+        run: cargo test --manifest-path web/apps/studio/src-tauri/Cargo.toml --locked
