@@ -334,8 +334,9 @@ and ask; do not silently relax it.
   mean bias is ≤ 0.013 px (no convention offset, `Integer` confirmed), sRGB output roughly
   doubles the error, and the render-vs-exact difference is 0.03 px at s = 4 (center of mass).
   *Decided (2026-09-28):* G4.2 is a characterisation, and the current accuracy is the accepted
-  baseline, not a blocker (user decision). chess-corners' **Radon** detector is 2–6× closer than
-  the ChESS refiners: 0.032 px RMS at s = 4 on linear renders, 0.046 px on the exact image. The
+  baseline, not a blocker (user decision). chess-corners' **Radon** detector is closer than every
+  ChESS refiner: 0.032 px RMS at s = 4 on linear renders (2.3–5.7×), 0.046 px on the exact image
+  (1.7–4.1×). The
   synthetic-dataset defaults are s = 4, linear output, and Radon
   (`docs/measurements/g4_2_corner_bias.md`).
 - **P4-4 — Cross-backend agreement.** Run the same frame, same camera, same detector on

@@ -11,9 +11,10 @@
     same board, chess-corners' ChESS refiners are off by 0.08–0.19 px RMS. That is the same level
     as on the Blender renders, and it matches chess-corners' own synthetic benchmark
     (`chess-rs/docs/reference/refiner-comparison.md`: mean 0.06–0.11 px on clean corners).
-  - **The Radon detector** (chess-corners' `DetectorConfig::radon()`, Duda & Frese 2018) is 2–6×
-    closer: **0.032 px RMS at s = 4** on linear renders, 0.046 px on the exact image. It is the
-    recommended detector for synthetic datasets.
+  - **The Radon detector** (chess-corners' `DetectorConfig::radon()`, Duda & Frese 2018) is
+    closer than every ChESS refiner: **0.032 px RMS at s = 4** on linear renders (2.3–5.7× closer),
+    0.046 px on the exact image (1.7–4.1× closer). It is the recommended detector for synthetic
+    datasets.
 - Measured: 2026-09-27, on etendue commit `9061863` (branch `pivot/p4-corners`),
   calibration-rs `b7e470b2`, chess-corners 1.2.0, Blender 5.1.1 (Cycles, Metal, Apple M4 Pro).
 - Re-run 2026-09-28 on the calib-targets board (P3-3), with the same results to within Monte
@@ -56,8 +57,9 @@ cargo run --release -p etendue-cli -- measure g4-2 -o target/g4_2   # full table
   - ChESS: `DetectorConfig::chess()` with calib-targets' workspace threshold of 15, run with each
     refiner (`center_of_mass`, the chess-corners default; `forstner`; `saddle_point`).
   - Radon: `DetectorConfig::radon()` with its preset (relative) threshold, run with each peak fit
-    (`radon`: Gaussian, the default; `radon_parabolic`). The luminance is used either
-  linear, as a sensor delivers it, or sRGB-encoded, as `etendue render` writes by default.
+    (`radon`: Gaussian, the default; `radon_parabolic`).
+  - Both families see the luminance either linear, as a sensor delivers it, or sRGB-encoded, as
+    `etendue render` writes by default.
 - **Matching:** the nearest detection within 1.5 px of each visible ground-truth corner. Every
   configuration matched 315/315 corners, except `saddle_point` on sRGB (311–314 in four rows).
 
@@ -73,8 +75,11 @@ RMS / max in px, over 315 corners:
 | Blender s = 8 | 0.186 / 0.389 | 0.071 / 0.271 | 0.127 / 0.283 | 0.033 / 0.085 | 0.035 / 0.092 |
 | **exact image** | 0.189 / 0.395 | 0.079 / 0.253 | 0.130 / 0.293 | 0.046 / 0.103 | 0.047 / 0.109 |
 
-The ChESS columns are the 2026-09-27 run; the Radon columns are the 2026-09-28 run, whose ChESS
-rows agree with these to ≤ 0.003 px.
+The ChESS columns are the 2026-09-27 run (calibration-rs `b7e470b2`); the Radon columns are the
+2026-09-28 run (calibration-rs 0.8.3), whose ChESS rows agree with these to ≤ 0.003 px. The two
+column sets therefore come from different builds and Monte Carlo draws; the ratios quoted above are
+good to that 0.003 px. A single consistent run needs the pinned Blender 5.1.1 and is not repeated
+here (`etendue measure g4-2` now checks the Radon baseline itself, below).
 
 What the table shows:
 - **The mean error is at most 0.013 px on sharp linear images** (every s, the exact image, and
@@ -139,3 +144,8 @@ try the Radon detector, and accept the current accuracy as the baseline. G4.2 is
   images (0.073 px) and saddle point under blur (0.076 px at σ = 1 px).
 - The image-level closed loop (P5-1) is no longer blocked. It inherits this baseline as its
   per-corner noise floor.
+- `etendue measure g4-2` reports G4.2 as this characterisation: the last column marks the rows
+  within the original 0.02 px, and the run fails only if the baseline regresses (Radon, s = 4,
+  sharp, linear above 0.032 + 0.005 px RMS, or a missed corner).
+- G4.3 (`web/apps/studio/src/probe/g4_3.browser.test.ts`) covers the Radon setups too. Its last
+  recorded run predates them; the Radon rows are measured on the next `measure g4-2` run.
