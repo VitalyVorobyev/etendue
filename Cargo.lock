@@ -1272,6 +1272,7 @@ name = "etendue-cli"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "calib-targets-chessboard",
  "chess-corners",
  "clap",
  "etendue-kinematics",

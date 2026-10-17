@@ -5,6 +5,7 @@
 //! etendue bake <scene.json> <scenario.json> -o <baked.json> [--pretty]
 //! etendue render <scene.json> <scenario.json> -o <out_dir> [--samples N] [--supersample S]
 //! etendue gt <scene.json> <scenario.json> -o <out_dir>
+//! etendue detect <dataset_dir>
 //! ```
 //!
 //! Robot manifests (`robot.json`) are resolved relative to the scene file;
@@ -19,6 +20,7 @@ use etendue_kinematics::{RobotModel, bake, compile};
 use etendue_scene::{FrameGraph, RobotManifest, ScenarioSpec, SceneSpec};
 
 mod corners;
+mod detect;
 mod measure;
 mod render;
 
@@ -68,6 +70,14 @@ enum Command {
         /// Output directory.
         #[arg(short, long)]
         output: PathBuf,
+    },
+    /// Detect the chessboard in a rendered dataset (`etendue gt` plus
+    /// `etendue render` in one directory) and write `features.json`: the
+    /// detected pixel of each board point per view, checked against the
+    /// analytic ground truth.
+    Detect {
+        /// Dataset directory (dataset.json, gt.json, images/).
+        dir: PathBuf,
     },
     /// Render every capture of a scenario with Blender (ADR 0005): canonical
     /// pinhole EXRs, remapped onto each calibrated camera as PNGs.
@@ -295,6 +305,7 @@ fn run(cli: Cli) -> Result<()> {
             scenario,
             output,
         } => gt_command(&scene, &scenario, &output),
+        Command::Detect { dir } => detect::run(&dir),
         Command::Render {
             scene,
             scenario,

@@ -230,10 +230,11 @@ pub fn write_png_srgb(image: &LinearImage, exposure: f32, path: &Path) -> Result
         .map_err(|e| bad(e.to_string()))
 }
 
-/// Write a sensor image as a grayscale PNG: 8-bit for ≤ 8-bit sensors, otherwise 16-bit
-/// with the values left-aligned (`dn << (16 − bits)`, the PNG convention for sub-16-bit
-/// data, so a 12-bit image uses the full 16-bit range). The true bit depth is the sensor
-/// model's `bits` (the `png` crate writes no `sBIT` chunk).
+/// Write a sensor image as a grayscale PNG: 8-bit for ≤ 8-bit sensors, otherwise 16-bit,
+/// with the values left-aligned in either (`dn << (8 − bits)` or `dn << (16 − bits)`, the
+/// PNG convention for data below the file's depth, so a 6-bit image uses the full 8-bit
+/// range and a 12-bit one the full 16-bit range). The true bit depth is the sensor model's
+/// `bits` (the `png` crate writes no `sBIT` chunk).
 ///
 /// # Errors
 ///
@@ -248,7 +249,8 @@ pub fn write_png_raw(image: &crate::sensor::RawImage, path: &Path) -> Result<()>
     encoder.set_color(png::ColorType::Grayscale);
     let bytes: Vec<u8> = if image.bits <= 8 {
         encoder.set_depth(png::BitDepth::Eight);
-        image.dn.iter().map(|&v| v as u8).collect()
+        let shift = 8 - image.bits;
+        image.dn.iter().map(|&v| (v << shift) as u8).collect()
     } else {
         encoder.set_depth(png::BitDepth::Sixteen);
         let shift = 16 - image.bits;
@@ -264,9 +266,187 @@ pub fn write_png_raw(image: &crate::sensor::RawImage, path: &Path) -> Result<()>
         .map_err(|e| bad(e.to_string()))
 }
 
+/// Read a grayscale PNG as [`write_png_raw`] writes it: an 8-bit file gives
+/// `bits = 8`, a 16-bit file `bits = 16`, with the values as stored (still
+/// left-aligned, since PNG does not record the sensor's bit depth).
+///
+/// # Errors
+///
+/// [`Error::InvalidInput`] if the file does not read or is not an 8- or
+/// 16-bit grayscale PNG.
+pub fn read_png_raw(path: &Path) -> Result<crate::sensor::RawImage> {
+    let bad = |m: String| Error::InvalidInput(format!("{}: {m}", path.display()));
+    let file = std::fs::File::open(path).map_err(|e| bad(e.to_string()))?;
+    let mut reader = png::Decoder::new(std::io::BufReader::new(file))
+        .read_info()
+        .map_err(|e| bad(e.to_string()))?;
+    let (color, depth) = reader.output_color_type();
+    if color != png::ColorType::Grayscale {
+        return Err(bad(format!("{color:?} PNG, expected grayscale")));
+    }
+    let size = reader
+        .output_buffer_size()
+        .ok_or_else(|| bad("image too large".into()))?;
+    let mut buf = vec![0; size];
+    let info = reader
+        .next_frame(&mut buf)
+        .map_err(|e| bad(e.to_string()))?;
+    let bytes = &buf[..info.buffer_size()];
+    let (bits, dn) = match depth {
+        png::BitDepth::Eight => (8, bytes.iter().map(|&v| u16::from(v)).collect()),
+        png::BitDepth::Sixteen => (
+            16,
+            bytes
+                .chunks_exact(2)
+                .map(|b| u16::from_be_bytes([b[0], b[1]]))
+                .collect(),
+        ),
+        other => return Err(bad(format!("{other:?}-bit PNG, expected 8 or 16"))),
+    };
+    Ok(crate::sensor::RawImage {
+        width: info.width,
+        height: info.height,
+        bits,
+        dn,
+    })
+}
+
+/// The inverse of [`srgb_encode`]: an sRGB-encoded value in `[0, 1]` to linear.
+#[must_use]
+pub fn srgb_decode(encoded: f32) -> f32 {
+    let x = encoded.clamp(0.0, 1.0);
+    if x <= 0.040_45 {
+        x / 12.92
+    } else {
+        ((x + 0.055) / 1.055).powf(2.4)
+    }
+}
+
+/// An 8-bit single-channel image, row-major.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Gray8 {
+    /// Width in pixels.
+    pub width: u32,
+    /// Height in pixels.
+    pub height: u32,
+    /// `width × height` values.
+    pub data: Vec<u8>,
+}
+
+/// Read a PNG as 8-bit luminance for a corner detector. A grayscale file
+/// ([`write_png_raw`]) gives its values, 16-bit rounded to 8; an RGB or RGBA
+/// file ([`write_png_srgb`]) gives its **linear** luminance (sRGB decoded,
+/// Rec. 709 weights), since detectors are closer to the truth on linear input
+/// (G4.2).
+///
+/// # Errors
+///
+/// [`Error::InvalidInput`] if the file does not read or has another layout.
+pub fn read_png_luma8(path: &Path) -> Result<Gray8> {
+    let bad = |m: String| Error::InvalidInput(format!("{}: {m}", path.display()));
+    let file = std::fs::File::open(path).map_err(|e| bad(e.to_string()))?;
+    let mut reader = png::Decoder::new(std::io::BufReader::new(file))
+        .read_info()
+        .map_err(|e| bad(e.to_string()))?;
+    let (color, depth) = reader.output_color_type();
+    let size = reader
+        .output_buffer_size()
+        .ok_or_else(|| bad("image too large".into()))?;
+    let mut buf = vec![0; size];
+    let info = reader
+        .next_frame(&mut buf)
+        .map_err(|e| bad(e.to_string()))?;
+    let bytes = &buf[..info.buffer_size()];
+    let data: Vec<u8> = match (color, depth) {
+        (png::ColorType::Grayscale, png::BitDepth::Eight) => bytes.to_vec(),
+        (png::ColorType::Grayscale, png::BitDepth::Sixteen) => bytes
+            .chunks_exact(2)
+            .map(|b| ((u32::from(u16::from_be_bytes([b[0], b[1]])) + 128) >> 8).min(255) as u8)
+            .collect(),
+        (png::ColorType::Rgb | png::ColorType::Rgba, png::BitDepth::Eight) => {
+            let channels = if color == png::ColorType::Rgb { 3 } else { 4 };
+            bytes
+                .chunks_exact(channels)
+                .map(|p| {
+                    let [r, g, b] = [p[0], p[1], p[2]].map(|v| srgb_decode(f32::from(v) / 255.0));
+                    let y = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+                    (y * 255.0 + 0.5) as u8
+                })
+                .collect()
+        }
+        other => {
+            return Err(bad(format!(
+                "{other:?} PNG, expected grayscale or 8-bit RGB"
+            )));
+        }
+    };
+    Ok(Gray8 {
+        width: info.width,
+        height: info.height,
+        data,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::sensor::RawImage;
+
+    #[test]
+    fn raw_png_round_trips() {
+        let dir = std::env::temp_dir().join(format!("etendue-png-{}", std::process::id()));
+        for bits in [6, 8, 12, 16] {
+            let image = RawImage {
+                width: 5,
+                height: 3,
+                bits,
+                dn: (0..15_u32)
+                    .map(|i| ((i * 4999) % (1 << bits)) as u16)
+                    .collect(),
+            };
+            let path = dir.join(format!("raw{bits}.png"));
+            write_png_raw(&image, &path).unwrap();
+            let back = read_png_raw(&path).unwrap();
+            assert_eq!((back.width, back.height), (5, 3));
+            // Left-aligned in the file's 8 or 16 bits.
+            let depth = if bits <= 8 { 8 } else { 16 };
+            assert_eq!(back.bits, depth);
+            let shifted: Vec<u16> = image.dn.iter().map(|v| v << (depth - bits)).collect();
+            assert_eq!(back.dn, shifted);
+            // As luminance: 16-bit rounds to 8.
+            let luma = read_png_luma8(&path).unwrap();
+            let expect: Vec<u8> = shifted
+                .iter()
+                .map(|&v| match depth {
+                    8 => v as u8,
+                    _ => ((u32::from(v) + 128) >> 8).min(255) as u8,
+                })
+                .collect();
+            assert_eq!(luma.data, expect);
+        }
+        let rgb = dir.join("rgb.png");
+        let mut image = LinearImage::black(2, 1);
+        image.rgb = vec![0.0, 0.0, 0.0, 0.5, 0.5, 0.5];
+        write_png_srgb(&image, 1.0, &rgb).unwrap();
+        assert!(read_png_raw(&rgb).is_err());
+        // RGB reads back as linear luminance.
+        let luma = read_png_luma8(&rgb).unwrap();
+        assert_eq!(luma.data[0], 0);
+        assert!(
+            (i32::from(luma.data[1]) - 128).abs() <= 1,
+            "{:?}",
+            luma.data
+        );
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn srgb_decode_inverts_encode() {
+        for i in 0..=100 {
+            let x = i as f32 / 100.0;
+            assert!((srgb_decode(srgb_encode(x)) - x).abs() < 1e-5, "{x}");
+        }
+    }
 
     fn gradient(w: u32, h: u32) -> LinearImage {
         let mut img = LinearImage::black(w, h);
