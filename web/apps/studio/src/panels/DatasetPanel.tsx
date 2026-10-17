@@ -204,7 +204,7 @@ export function DatasetPanel({
                   value={form.samples}
                   min={1}
                   step={1}
-                  onChange={(e) => set({ samples: Math.max(1, Math.round(Number(e.target.value)) || 1) })}
+                  onValueChange={(v) => set({ samples: Math.round(v) })}
                   disabled={running}
                 />
               </Field>
@@ -213,7 +213,7 @@ export function DatasetPanel({
                   value={form.supersample}
                   min={1}
                   step={1}
-                  onChange={(e) => set({ supersample: Math.max(1, Number(e.target.value) || 1) })}
+                  onValueChange={(supersample) => set({ supersample })}
                   disabled={running}
                 />
               </Field>

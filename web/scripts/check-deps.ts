@@ -42,7 +42,9 @@ function imports(file: string): string[] {
 const packageOf = (spec: string) => (spec.startsWith("@") ? spec.split("/").slice(0, 2).join("/") : spec.split("/")[0]!);
 
 const errors: string[] = [];
-const dirs = readdirSync(join(ROOT, "apps")).map((d) => join(ROOT, "apps", d));
+const dirs = readdirSync(join(ROOT, "apps"))
+  .map((d) => join(ROOT, "apps", d))
+  .filter((d) => statSync(d).isDirectory());
 for (const dir of dirs) {
   const m = JSON.parse(readFileSync(join(dir, "package.json"), "utf8")) as Manifest;
   const declared = new Set([...Object.keys(m.dependencies ?? {}), ...Object.keys(m.peerDependencies ?? {})]);

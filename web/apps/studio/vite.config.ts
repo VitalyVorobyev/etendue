@@ -8,7 +8,6 @@ import { etendueRepo } from "./etendueRepo";
 
 export default defineConfig({
   plugins: [react(), tailwindcss(), etendueRepo()],
-  // The @vitavision packages incubating in web/packages resolve to their sources.
   // wasm-bindgen's `new URL("…_bg.wasm", import.meta.url)` must not be pre-bundled away.
   optimizeDeps: { exclude: ["@etendue/wasm"] },
   server: {

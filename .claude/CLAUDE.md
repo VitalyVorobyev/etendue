@@ -20,7 +20,7 @@ gzip -9c crates/etendue-wasm/pkg/etendue_wasm_bg.wasm | wc -c       # gate G2.1:
 # web/ (bun workspace; build @etendue/wasm first — it is a workspace member)
 cd web && bun install
 bun run generate:types        # crates/etendue-wasm/js/types from schemas/ (CI: generate:types:check)
-bun run check:deps            # web layering rules
+bun run check:deps            # the studio imports only what it declares
 bun run typecheck && bun run lint && bun run test && bun run build
 bun run dev                   # studio at http://localhost:5178 (blocks; do not run non-interactively)
 cd apps/studio && bun run desktop:dev   # the desktop app (Tauri, reads the checkout; blocks; interactive only)
