@@ -79,9 +79,8 @@ etendue/                                   (cargo workspace + bun workspace)
 │   └── (etendue-ui)         DELETED   2026-10-17, before parity (ADR 0001 §4 amended)
 ├── web/                     NEW P2    bun workspace
 │   ├── apps/studio/                   the studio, the main app: Tauri desktop bundles + web build
-│   └── packages/                      incubating @vitavision/* packages (private), each moved to
-│                                      lab-ui by PR once stable: three, three-react (L8-1),
-│                                      workbench (new), ui-next (additions to @vitavision/ui)
+│   └── (packages/)                    the incubated @vitavision/* packages, dropped 2026-10-17:
+│                                      lab-ui publishes three, three-react, workbench, ui
 ├── crates/etendue-cli/blender/etendue_blender/
 │                            NEW P4    pure-Python render script (bpy only), embedded in etendue-cli
 │                                      (inside the crate so `cargo package` includes it)
@@ -268,6 +267,8 @@ and ask; do not silently relax it.
   and additions to `@vitavision/ui` (`NumberInput` unit, `VectorInput`, `PoseInput`),
   incubated as `@vitavision/ui-next`. Done when the lab-ui PRs are open for review; the
   swap to published versions follows their release.
+  *Status (2026-10-17):* done. The studio uses the published `@vitavision/three` 0.2,
+  `three-react` 0.2, `workbench` 0.3 and `ui` 0.12, and `web/packages/` is gone.
 
 - **P2-7 — Studio desktop shell (Tauri).** D4's trigger fired: launching renders from the UI
   ([ADR 0007](../adrs/0007-tauri-studio-shell.md), proposed). Tauri 2 around the studio, in its own

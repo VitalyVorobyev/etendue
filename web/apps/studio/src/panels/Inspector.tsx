@@ -1,7 +1,6 @@
 import type { Iso3Schema } from "@etendue/wasm";
 import { type FrameTreeRuntime, quaternionFromRpy, rpyFromQuaternion } from "@vitavision/three";
-import { Badge, Callout, Panel, ReadoutStrip, Section, Table } from "@vitavision/ui";
-import { PoseInput, type RotationView } from "@vitavision/ui-next";
+import { Badge, Callout, Panel, PoseInput, ReadoutStrip, type RotationView, Section, Table } from "@vitavision/ui";
 import type { Playhead } from "@vitavision/workbench";
 import type { ReactNode } from "react";
 

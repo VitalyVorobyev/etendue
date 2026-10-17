@@ -1,5 +1,4 @@
-import { Button, Callout, Checkbox, Field, Input, ProgressBar, StatusDot, Switch, Table } from "@vitavision/ui";
-import { NumberInput } from "@vitavision/ui-next";
+import { Button, Callout, Checkbox, Field, Input, NumberInput, ProgressBar, StatusDot, Switch, Table } from "@vitavision/ui";
 import { FolderOpen, Play, Square } from "lucide-react";
 import { useEffect, useState } from "react";
 

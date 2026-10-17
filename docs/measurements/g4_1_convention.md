@@ -8,6 +8,10 @@
   0.0049 px on the web; mean bias ≤ 0.0005 px.
 - Measured: 2026-09-27, on etendue commit `d3b7f0f` (branch `pivot/p4-blender`), calibration-rs
   `b7e470b2`, Blender 5.1.1 (Cycles, Metal, Apple M4 Pro), Chromium 153 (SwiftShader WebGL).
+- Web side re-run 2026-10-17 on the published `@vitavision/three` 0.2.0 (the studio's
+  `SensorView` before came from the incubated copy), branch `web/published-packages`: **PASS**,
+  worst 0.0049 px (brown 0.0037 / 0.0040, offcentre_skew_tilt 0.0041 / 0.0049 px, integer / half),
+  mean ≤ 0.0006 px. The Blender side is unchanged and was not re-run.
 
 ## Procedure
 
