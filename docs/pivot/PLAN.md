@@ -459,7 +459,8 @@ collision checking. Order: P7-0 → (P7-1, P7-3, P7-4) → P7-2 → P7-5 → P7-
   studio's rig builder done; G5.3 still passes on `laser_ur5e`. **G5.3b passes** on
   `examples/rig3_laser_ur5e` (made by the rig builder and the P7-6 generator; every camera's own
   plane within 1.2e-5° / 2.8e-7 mm), and CI runs it.
-  `etendue-core::Scene::triangulation_ring` is kept until the user decides on its removal.
+  `etendue-core::Scene::triangulation_ring` is deleted (user's decision, 2026-10-17): the rig
+  layout is the ring's one home.
 - **P7-4 — Every printable target.** Chessboard, ChArUco, marker board, PuzzleBoard and the
   PuzzlePole cylinder as one target mesh for Blender and the web, 3-D ground truth. Gate
   **G3.2**: mesh area, coverage, circle chord error ≤1 µm, pole points vs calib-targets ≤1e-3 mm.

@@ -452,23 +452,35 @@ mod tests {
 
     #[test]
     fn ring_increases_overlap_count() {
-        // A 6-pair triangulation ring around the target should cover some
+        // A 6-pair ring around the target should cover some
         // voxels with overlap > 1 (the central region viewed by multiple
         // pairs simultaneously). max_overlap should rise above the
         // single-pair case for at least some voxels near the target.
         let scene = Scene::default_mvp();
         let centre = scene.targets[0].pose * Point3::origin();
-        let (cams, lasers) = Scene::triangulation_ring(
-            6,
-            nalgebra::Vector3::z(),
-            centre,
-            &scene.cameras[0],
-            &scene.lasers[0],
-        )
-        .unwrap();
+        // Pair i is pair 0 rotated by 2πi/6 about the vertical through the centre.
+        let pivot = |i: usize| {
+            let r = nalgebra::UnitQuaternion::from_axis_angle(
+                &nalgebra::Vector3::z_axis(),
+                i as f64 * std::f64::consts::TAU / 6.0,
+            );
+            nalgebra::Isometry3::from_parts((centre.coords - r * centre.coords).into(), r)
+        };
         let mut ring_scene = scene.clone();
-        ring_scene.cameras = cams;
-        ring_scene.lasers = lasers;
+        ring_scene.cameras = (0..6)
+            .map(|i| {
+                let mut cam = scene.cameras[0].clone();
+                cam.pose = pivot(i) * cam.pose;
+                cam
+            })
+            .collect();
+        ring_scene.lasers = (0..6)
+            .map(|i| {
+                let mut laser = scene.lasers[0].clone();
+                laser.pose = pivot(i) * laser.pose;
+                laser
+            })
+            .collect();
         let res = VoxelResolution {
             nx: 16,
             ny: 16,

@@ -1,54 +1,16 @@
 # Symmetric Rigs and N-View Voxel Overlap
 
-Two related library features cover rigs with more than one camera and laser:
+Two related features cover rigs with more than one camera and laser:
 a **symmetric-rig builder** that replicates a camera+laser pair around a
 rotation axis, and an **N-view voxel-overlap analysis** that counts, per
 voxel, how many pairs simultaneously see, illuminate, and focus on it.
 
 ## Symmetric-rig builder
 
-`Scene::triangulation_ring` generates N rotated copies of a template
-`(camera, laser)` pair:
-
-```rust
-pub fn triangulation_ring(
-    n:                usize,          // >= 2
-    axis:             Vector3<f64>,   // world-space rotation axis (normalised internally)
-    target_center:    Point3<f64>,    // pivot point
-    camera_template:  &CameraEntity,
-    laser_template:   &LaserEntity,
-) -> Result<(Vec<CameraEntity>, Vec<LaserEntity>)>
-```
-
-Pair `i` is the template rigidly rotated by `2π · i / n` around the line
-through `target_center` in the direction `axis`; pair 0 is the template
-itself. The baseline distance, fan half-angle, and lens parameters are
-preserved by the rigid rotation. `n < 2`, a zero or non-finite axis, or a
-non-finite `target_center` return `Error::InvalidInput`.
-
-To use the ring as a rig, replace the scene's cameras and lasers with the
-returned vectors; targets and mesh targets are unaffected:
-
-```rust
-let centre = scene.targets[0].pose * Point3::origin();
-let (cameras, lasers) = Scene::triangulation_ring(
-    6, Vector3::z(), centre, &scene.cameras[0], &scene.lasers[0],
-)?;
-scene.cameras = cameras;
-scene.lasers = lasers;
-```
-
-### Tests
-
-Among the ring tests:
-
-- `triangulation_ring_has_n_fold_rotational_symmetry`: rotating pair 1's
-  camera back by `-2π/n` about the axis lands exactly on pair 0's camera.
-- `triangulation_ring_preserves_distance_to_target_centre`: every
-  generated camera and laser sits at the same world distance to
-  `target_center` as the template (the rigid rotation preserves distances).
-- `triangulation_ring_pairs_all_look_at_the_target_centre`: every generated
-  camera still aims at the pivot.
+A rig's `layout` builds a ring of N camera and laser pairs around the rig axis
+(see [Rig layouts](scenes.md#rig-layouts)). The studio's rig builder and
+`expandRig` in `@etendue/wasm` lay it out. `voxelized_overlap` below works on an
+`etendue-core` `Scene`, pairing its cameras and lasers by index.
 
 ## N-view voxel overlap
 

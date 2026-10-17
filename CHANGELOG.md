@@ -104,8 +104,9 @@ calibration datasets with exact ground truth. The 0.1.0 desktop app is replaced 
 ### Removed
 
 - The 0.1.0 egui desktop app (`etendue-ui`). Its optics — defocus, Scheimpflug plane of best
-  focus, laser line, working volume, the Scheimpflug solver and symmetric rigs — remain in
-  `etendue-core`; bringing its heatmap and design panels to the studio is planned.
+  focus, laser line, working volume and the Scheimpflug solver — remain in `etendue-core`;
+  bringing its heatmap and design panels to the studio is planned.
+- `etendue-core`'s `Scene::triangulation_ring`: rig layouts (`RigSpec.layout`) build rings.
 
 ## [0.1.0] - 2026-05-20
 
