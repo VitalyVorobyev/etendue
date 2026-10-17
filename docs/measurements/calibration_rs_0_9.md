@@ -5,7 +5,7 @@
   `CALIBRATION_RS_REF` → `v0.9.0`. 0.9.0 changes nothing etendue calls: the dataset crate adds
   `ChessCornersDetectorSpec::strategy` (etendue does not build detector specs), and core's
   changes are documentation. The schemas are unchanged (`cargo xtask emit-schemas --check`).
-- Measured: 2026-10-17, on etendue commit `SHA_PENDING` (branch `deps/calibration-rs-0.9`), against
+- Measured: 2026-10-17, on etendue commit `e989eed` (branch `deps/calibration-rs-0.9`), against
   calibration-rs `v0.9.0` (`5a862a24`) exactly: a `git archive` of the tag, not the sibling
   checkout's `main`, which is ahead of the tag.
 - Result: **every re-run gate gives the same result as on 0.8.3.**
