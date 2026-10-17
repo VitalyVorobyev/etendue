@@ -47,7 +47,7 @@ async function installShell(page: Page): Promise<void> {
             const send = (index: number, message: unknown) => callbacks.get(channel)?.({ index, message });
             send(0, { kind: "step", stage: "render", done: 1, total: 2 });
             send(1, { kind: "log", line: "etendue: rendered exr/cam_left/cap_000.exr" });
-            await new Promise((resolve) => setTimeout(resolve, 1500));
+            await new Promise((resolve) => setTimeout(resolve, 5000));
             const request = args.request as { output: string };
             return {
               kind: "ok",
