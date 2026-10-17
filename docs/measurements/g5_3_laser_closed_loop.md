@@ -17,6 +17,10 @@
 - Measured: 2026-09-28, on etendue commit `e213946` plus the P5-3 change (branch
   `pivot/p5-3-laser-loop`), calibration-rs `76353753` (0.8.3), and the `vision-calibration`
   0.8.3 wheel from PyPI.
+- Re-run 2026-10-17 after merging P5-1b and P2-7 (the CLI pipeline as a library), on branch
+  `pivot/p5-3-laser-loop` (commit SHA in the next line's commit), calibration-rs 0.8.3: identical
+  results (plane normal 1.32e-7° / 1.21e-7°, distance 1e-8 mm; Scheimpflug variant 0.0080° /
+  0.0102°).
 
 ## Procedure
 

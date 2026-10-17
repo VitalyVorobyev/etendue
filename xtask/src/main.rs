@@ -2,8 +2,9 @@
 //!
 //! - `emit-schemas [--check]`: write (or verify) the JSON Schemas of the
 //!   `etendue-scene` document types into `schemas/`.
-//! - `check-layering`: enforce the crate dependency rules of ADR 0001 §2 and
-//!   the single-nalgebra hard pin.
+//! - `check-layering [--manifest-path <Cargo.toml>]`: enforce the crate
+//!   dependency rules of ADR 0001 §2 and the single-nalgebra hard pin (with a
+//!   manifest: the pin alone, for a crate outside the workspace).
 
 mod check_layering;
 mod emit_schemas;
@@ -24,8 +25,16 @@ fn main() -> Result<()> {
             };
             emit_schemas::run(&root, check)
         }
-        Some("check-layering") => check_layering::run(&root),
-        _ => bail!("usage: cargo xtask <emit-schemas [--check] | check-layering>"),
+        Some("check-layering") => match (args.get(1).map(String::as_str), args.get(2)) {
+            (None, _) => check_layering::run(&root),
+            (Some("--manifest-path"), Some(path)) => {
+                check_layering::run_manifest(&root, Path::new(path))
+            }
+            _ => bail!("usage: cargo xtask check-layering [--manifest-path <Cargo.toml>]"),
+        },
+        _ => bail!(
+            "usage: cargo xtask <emit-schemas [--check] | check-layering [--manifest-path <Cargo.toml>]>"
+        ),
     }
 }
 

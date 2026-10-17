@@ -21,8 +21,8 @@ use vision_calibration_core::{
     ProjectionParams, ScheimpflugParams, SensorParams,
 };
 
-use crate::Loaded;
-use crate::render::{PIXEL_CENTRE, checked_blender, meshes, run_blender};
+use etendue_cli::Loaded;
+use etendue_cli::render::{PIXEL_CENTRE, meshes, run_blender};
 
 /// Options of `etendue measure g4-1`.
 pub struct ProbeArgs {
@@ -146,8 +146,8 @@ fn centroid(img: &LinearImage, near: [f64; 2], centre: PixelCentre) -> Option<[f
 
 pub fn g4_1(args: &ProbeArgs) -> Result<()> {
     let root = std::env::current_dir()?;
-    let (exe, version) =
-        checked_blender(args.blender.as_deref(), args.allow_blender_version, &root)?;
+    let etendue_cli::render::Blender { exe, version, .. } =
+        crate::checked_blender(args.blender.as_deref(), args.allow_blender_version, &root)?;
     let out = &args.output;
     let spec = CanonicalSpec {
         supersample: args.supersample,
@@ -206,7 +206,7 @@ pub fn g4_1(args: &ProbeArgs) -> Result<()> {
                 }],
             };
             let dir = out.join(format!("{name}-{centre:?}").to_lowercase());
-            run_blender(&exe, &job, &dir)?;
+            run_blender(&exe, &job, &dir, &crate::console())?;
             let render = read_exr_combined(&dir.join(format!("exr/{name}.exr")))?;
             let lut = remap_lut(&params, RESOLUTION, &canonical)?;
             let taps = args.supersample.ceil() as u32;
@@ -260,7 +260,7 @@ pub fn determinism(
     baked: &etendue_scene::BakedScenario,
     args: &ProbeArgs,
 ) -> Result<()> {
-    let (exe, version) = checked_blender(
+    let etendue_cli::render::Blender { exe, version, .. } = crate::checked_blender(
         args.blender.as_deref(),
         args.allow_blender_version,
         &loaded.dir,
@@ -301,7 +301,7 @@ pub fn determinism(
             job.render.device = device;
             let dir = args.output.join(format!("{device:?}-{run}").to_lowercase());
             let t = std::time::Instant::now();
-            run_blender(&exe, &job, &dir)?;
+            run_blender(&exe, &job, &dir, &crate::console())?;
             let secs = t.elapsed().as_secs_f64();
             renders.push((device, run, secs, read_exr_combined(&dir.join(exr))?));
         }

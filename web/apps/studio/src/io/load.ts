@@ -24,6 +24,11 @@ export interface LoadedScene {
   scene: SceneSpec;
   /** `null` when no scenario was given: the rest pose is shown. */
   scenario: ScenarioSpec | null;
+  /**
+   * The scene file's absolute path, when the source is the filesystem (the Tauri shell).
+   * The native pipeline (dataset generation) needs it; dropped files have none.
+   */
+  origin: string | null;
   robots: LoadedRobot[];
 }
 
@@ -86,7 +91,13 @@ export async function loadScene(
       };
     }),
   );
-  return { label: scenePath.replace(/\/[^/]*$/, ""), scene, scenario, robots };
+  return {
+    label: scenePath.replace(/\/[^/]*$/, ""),
+    scene,
+    scenario,
+    robots,
+    origin: source.absolute?.(scenePath) ?? null,
+  };
 }
 
 /** What a dropped JSON document is, judged by its fields. */

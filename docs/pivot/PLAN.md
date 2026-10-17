@@ -269,6 +269,17 @@ and ask; do not silently relax it.
   incubated as `@vitavision/ui-next`. Done when the lab-ui PRs are open for review; the
   swap to published versions follows their release.
 
+- **P2-7 — Studio desktop shell (Tauri).** D4's trigger fired: launching renders from the UI
+  ([ADR 0007](../adrs/0007-tauri-studio-shell.md), proposed). Tauri 2 around the studio, in its own
+  cargo workspace (`web/apps/studio/src-tauri`), on the `etendue_cli` library. Native commands do
+  dataset generation (ground truth → Blender → detection, with progress and cancel), Blender's
+  status and scenarios from tool poses. `@etendue/wasm` stays the per-frame kernel. Done when the
+  studio opens a scene from disk, generates a dataset, and shows its images, all from the UI.
+  *Status (2026-09-29):* built. Covers the Dataset panel, "Open scene…", "Import poses…", and the
+  dataset image in camera views. The Rust tests pass (`cargo test` in `studio-tauri`), and so does
+  the mocked-shell e2e (`e2e/tauri.spec.ts`). The interactive check in `bun run tauri dev` waits
+  for the user.
+
 ### P3 — Geometric synthesis (Rust + web)
 
 - **P3-1 — Canonical render camera and LUT** in `etendue-synth::remap`. Done when gate
@@ -334,7 +345,12 @@ and ask; do not silently relax it.
   its refiners are off by 0.08–0.19 px RMS, the same as on the renders. s = 4 is converged, the
   mean bias is ≤ 0.013 px (no convention offset, `Integer` confirmed), sRGB output roughly
   doubles the error, and the render-vs-exact difference is 0.03 px at s = 4 (center of mass).
-  Awaiting a decision on the gate (`docs/measurements/g4_2_corner_bias.md`).
+  *Decided (2026-09-28):* G4.2 is a characterisation, and the current accuracy is the accepted
+  baseline, not a blocker (user decision). chess-corners' **Radon** detector is closer than every
+  ChESS refiner: 0.032 px RMS at s = 4 on linear renders (2.3–5.7×), 0.046 px on the exact image
+  (1.7–4.1×). The
+  synthetic-dataset defaults are s = 4, linear output, and Radon
+  (`docs/measurements/g4_2_corner_bias.md`).
 - **P4-4 — Cross-backend agreement.** Run the same frame, same camera, same detector on
   both backends. Done when gate **G4.3** passes: corner RMS difference ≤0.05 px. If it
   fails, suspect a convention error first.
@@ -366,9 +382,17 @@ and ask; do not silently relax it.
   *Status (2026-09-27):* **G5.1 passes on analytic correspondences**, for one camera and for the
   two-camera rig, 5–8 orders of magnitude inside every limit. The loop is `etendue gt`, then
   `tools/closed-loop` feeding calibration-rs's solver through the 0.8.2 Python wheel, on
-  `examples/closed_loop_ur5e` (20 poses at 0.45–0.55 m). CI runs it. The image-level loop waits
-  on the G4.2 detector decision. The loop found calibration-rs#124: identity-rotation mounts
+  `examples/closed_loop_ur5e` (20 poses at 0.45–0.55 m). CI runs it. The image-level loop is no
+  longer blocked (G4.2 decided 2026-09-28; its baseline is Radon's 0.032 px). The loop found calibration-rs#124: identity-rotation mounts
   were rejected by the hand-eye init (`docs/measurements/closed_loop.md`).
+  *Status (2026-09-29), image level (P5-1b):* render → `etendue detect` (Radon corners,
+  calib-targets labels, checked against the GT) → calibration-rs. On `closed_loop_ur5e`, 40/40
+  views are detected, with 0 mislabels and 0.051 px RMS against the GT. The calibration is
+  limited by noise: every result sits inside the spread of unbiased white noise of the same RMS,
+  and the principal point and hand-eye are outside G5.1's noise-free limits (cy up to 0.56 px,
+  hand-eye 0.014° / 0.12 mm). How to gate the image-level loop awaits a decision
+  (`docs/measurements/closed_loop_images.md`). The renders found an IK branch in which the arm
+  hid the board (fixed with `initial_q`), and that the GT has no robot self-occlusion yet.
 - **P5-2 — Laser sheet in Cycles (spike).** Compare (a) a spot light with a slit
   texture against (b) an area light with near-zero spread behind a slit occluder.
   Measure the across-stripe profile on a matte plane. Done when gate **G5.2** passes:

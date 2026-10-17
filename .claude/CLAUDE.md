@@ -5,7 +5,7 @@
 ```bash
 cargo build --workspace                                    # build all crates
 cargo run -p etendue-ui                                    # launch the (frozen) GUI (blocks until window closed)
-cargo test --workspace --locked                            # run all 287 tests
+cargo test --workspace --locked                            # run all 298 tests
 cargo clippy --workspace --all-targets -- -D warnings      # lint (must be clean)
 cargo fmt --all                                            # format
 cargo fmt --all --check                                    # CI format check
@@ -24,6 +24,8 @@ bun run generate:types        # crates/etendue-wasm/js/types from schemas/ (CI: 
 bun run check:deps            # web layering rules
 bun run typecheck && bun run lint && bun run test && bun run build
 bun run dev                   # studio at http://localhost:5178 (blocks; do not run non-interactively)
+cd apps/studio && bun run tauri dev    # the studio in its Tauri shell (blocks; interactive only)
+cd apps/studio && bun run tauri build --debug --no-bundle   # compile the shell against the built frontend
 cd apps/studio && bun run test:e2e     # Playwright, SwiftShader, bakes the reference with etendue-cli
 cd apps/studio && bun run test:perf    # gate G2.2, headed Chromium on the GPU (local only)
 
@@ -31,6 +33,7 @@ cd apps/studio && bun run test:perf    # gate G2.2, headed Chromium on the GPU (
 cargo run -p etendue-cli -- validate examples/eye_in_hand_ur5e/scene.json examples/eye_in_hand_ur5e/scenario.json
 cargo run -p etendue-cli -- bake <scene.json> <scenario.json> -o target/baked.json
 cargo run -p etendue-cli -- gt <scene.json> <scenario.json> -o target/gt                                   # dataset.json, robot_poses.json, gt.json
+cargo run -p etendue-cli -- scenario from-poses <poses.json> --robot ur5e --scene <scene.json> -o <scenario.json>  # stop-and-shoot from TCP poses
 cargo run --release -p etendue-cli -- render <scene.json> <scenario.json> -o target/render --samples 16   # Blender, local only
 python3 -m unittest discover -s crates/etendue-cli/blender/tests                                          # Blender conventions
 cargo run --release -p etendue-cli -- measure g4-1 -o target/g4_1                                          # gate G4.1, Blender side
@@ -40,9 +43,19 @@ cargo run --release -p etendue-cli -- measure g4-2 -o target/g4_2               
 cd web/apps/studio && bun x vitest run --project browser src/probe/g4_3.browser.test.ts                   # G4.3 web vs Blender (after g4-2)
 cargo test -p etendue-synth --release --test ptc -- --nocapture                                           # P4-6 photon transfer
 uv run --locked --project tools/closed-loop tools/closed-loop/closed_loop.py target/gt [--camera ID]     # G5.1 closed loop (after `etendue gt`); G5.3 on a laser dataset (examples/laser_ur5e)
+# P5-1b image-level loop (Blender, local only): gt, then render linear at s = 4, detect, calibrate
+cargo run --release -p etendue-cli -- render examples/closed_loop_ur5e/{scene,scenario}.json -o target/gt --supersample 4 --samples 16 --sensor examples/closed_loop_ur5e/sensor_linear.json
+cargo run --release -p etendue-cli -- detect target/gt                                                    # features.json (Radon + calib-targets labels, checked vs GT)
+uv run --locked --project tools/closed-loop tools/closed-loop/closed_loop.py target/gt --features target/gt/features.json
+uv run --locked --project tools/closed-loop python -m unittest discover -s tools/closed-loop              # closed-loop input tests
 
 # Workspace policy (CI job `checks`)
 cargo xtask check-layering                                 # ADR 0001 dependency rules + single nalgebra
+cargo xtask check-layering --manifest-path web/apps/studio/src-tauri/Cargo.toml   # the shell's nalgebra pin
+
+# Studio Tauri shell (own cargo workspace; CI job `studio-tauri`; needs web/apps/studio/dist to exist)
+cargo clippy --manifest-path web/apps/studio/src-tauri/Cargo.toml --all-targets -- -D warnings
+cargo test --manifest-path web/apps/studio/src-tauri/Cargo.toml
 cargo xtask emit-schemas [--check]                         # schemas/*.schema.json from etendue-scene
 
 # Kinematics gates
@@ -68,10 +81,11 @@ across the whole workspace.
 | `etendue-scene` | `schemars` | JSON Schema derives (xtask enables it to emit `schemas/`) |
 | `etendue-kinematics` | `opw` | analytic OPW IK via `rs-opw-kinematics` (`default-features = false`) |
 | `etendue-synth` | `images` | canonical camera, remap LUT, GT, dataset, render jobs; `images` = EXR ingest + PNG (native render path, off in wasm) |
-| `etendue-cli` | none | binary `etendue` |
+| `etendue-cli` | none | lib `etendue_cli` (the pipeline) + binary `etendue` |
 | `etendue-wasm` | none | wasm32 build + G0.1 parity in CI job `wasm` |
 | `etendue-ui` | none | frozen, binary `etendue-ui` |
 | `xtask` | none | not published |
+| `etendue-studio` (`web/apps/studio/src-tauri`) | `custom-protocol` (default) | Tauri shell, its own workspace, not published |
 
 CI job `checks` runs clippy and tests with `--all-features` for `etendue-core`,
 `etendue-scene`, `etendue-kinematics` and `etendue-synth`, and the Blender script's
@@ -86,7 +100,8 @@ family (`docs/pivot/PLAN.md`, `docs/adrs/0001-pivot.md`). New crates are created
 by phase, never up front. P0 and P1 are done.
 
 ```
-etendue-cli (bin `etendue`) ──► etendue-kinematics ──► etendue-scene ──► vision-calibration-{core,dataset}
+etendue-cli (lib `etendue_cli` + bin `etendue`) ──► etendue-kinematics, etendue-synth ──► etendue-scene ──► vision-calibration-{core,dataset}
+web/apps/studio/src-tauri (Tauri shell, own workspace) ──► etendue-cli (lib)
 etendue-ui  (bin `etendue-ui`, FROZEN) ──► etendue-core[solver] ──► vision-calibration-core
 etendue-wasm (npm @etendue/wasm) ──► etendue-kinematics ──► etendue-scene, etendue-synth ──► etendue-core, vision-calibration-core
 web/apps/studio ──► @etendue/wasm, @vitavision/{ui,stage2d,charts} (npm), web/packages/* (incubating)
@@ -120,10 +135,14 @@ spline-timed LIN, and stop-and-shoot captures.
 **Closed loop** (P5-1) — `etendue gt` writes a scene's analytic ground truth as a
 calibration-rs dataset; `tools/closed-loop` (uv, the `vision-calibration` wheel) solves it with
 calibration-rs and checks the truth is recovered (G5.1). `examples/closed_loop_ur5e` is its
-scene; `make_scenario.py` generates the scenario. CI runs it. With a laser on the rig (P5-3,
-`examples/laser_ur5e`) the dataset is `rig_handeye_laserline`: `etendue-synth::laser` gives the
-stripe (via `etendue-core::laser`) and the true plane, and the loop checks the plane (G5.3).
-`examples/laser_scheimpflug_ur5e` is its Scheimpflug characterisation (seeded; it does not pass).
+scene; `make_scenario.py` generates the scenario. CI runs it. The image-level loop (P5-1b) renders
+the same dataset, `etendue detect` finds the board (chess-corners Radon, calib-targets labels, the
+180° ambiguity settled by square colour, every label checked against the GT but never corrected)
+and writes `features.json`, and `closed_loop.py --features` calibrates from it. It needs Blender,
+so it runs locally. With a laser on the rig (P5-3, `examples/laser_ur5e`) the dataset is
+`rig_handeye_laserline`: `etendue-synth::laser` gives the stripe (via `etendue-core::laser`) and
+the true plane, and the loop checks the plane (G5.3). `examples/laser_scheimpflug_ur5e` is its
+Scheimpflug characterisation (seeded; it does not pass).
 
 **Robot assets** — `assets/robots/<id>/{robot.urdf, robot.json, LICENSE}` are committed.
 `meshes/*.glb` are git-ignored and regenerated byte-identically by
@@ -162,6 +181,15 @@ as JSON text (bit-exact with `float_roundtrip`). `scripts/build-npm.mjs` wraps t
 wasm-pack output with the typed layer in `js/` (types generated from `schemas/` by
 `web/scripts/generate-wasm-types.ts`). The wasm graph has no `getrandom` at all (since
 calibration-rs 0.8.2); keep it that way. Never call entropy from kernel code.
+
+**Studio Tauri shell** (ADR 0007, P2-7) — `web/apps/studio/src-tauri`, Tauri 2, its own cargo
+workspace (restates the calibration-rs patch and dev profile; `check-layering --manifest-path`
+guards its nalgebra). Native commands on the `etendue_cli` library: `generate_dataset` (gt →
+Blender → detect, progress over a channel, `cancel_run`), `blender_status`, `scenario_from_poses`,
+`read_text`/`path_exists` (reading a file adds its directory to the asset-protocol scope),
+`repo_root`. `@etendue/wasm` stays the per-frame kernel. The frontend checks `isTauri()`
+(`src/io/tauri.ts`, `src/kernel/native.ts`); in a browser the Dataset tab and the native buttons are
+absent. `etendue-cli`'s lib is the top of the stack: no workspace crate may depend on it.
 
 **`web/`** — bun workspace (lab-ui toolchain: `@vitavision/config-{ts,eslint,vitest}`, TS
 6.0.3, Tailwind v4, tokens only). `apps/studio` is the P2-5 studio (not published).

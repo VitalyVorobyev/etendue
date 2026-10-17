@@ -79,6 +79,10 @@ png = "0.18"
 # layout and the dictionary lookup, the same ones calibration-rs's detector uses.
 calib-targets-print = "0.15.3"
 calib-targets-charuco = { version = "0.15.3", default-features = false }
+# `etendue detect` (P5-1b): calib-targets' chessboard labeller over chess-corners'
+# corners, the same crate calibration-rs's detector uses (already in the tree
+# through calib-targets-print).
+calib-targets-chessboard = "0.15.3"
 # Sensor model noise (etendue-synth). Seeded only: ChaCha is stable across
 # platforms and versions; default features off keep `getrandom` (OS entropy)
 # out, per the determinism rule.

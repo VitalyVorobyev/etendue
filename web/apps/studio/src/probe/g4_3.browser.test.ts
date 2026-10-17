@@ -16,6 +16,7 @@ import initDetector, {
   ChessRefiner,
   DetectorConfig,
   ForstnerConfig,
+  PeakFitMode,
   SaddlePointConfig,
 } from "@vitavision/chess-corners";
 import { SensorView, matrixFromIso3 } from "@vitavision/three";
@@ -50,7 +51,7 @@ interface Detections {
   poses: { name: string; camera_se3_target: Iso3 }[];
   /** Visible ground-truth corners per pose, in pose order. */
   truth: [number, number][][];
-  /** Blender per-corner errors (detection − truth, or null) by supersampling, then refiner. */
+  /** Blender per-corner errors (detection − truth, or null) by supersampling, then detector setup. */
   errors: Record<string, Record<string, ([number, number] | null)[]>>;
 }
 
@@ -64,7 +65,8 @@ const data = text === undefined ? undefined : (JSON.parse(text) as Detections);
 
 const SUPERSAMPLE = 4;
 const GATE_PX = 0.05;
-const REFINERS = ["center_of_mass", "forstner", "saddle_point"] as const;
+/** The detector setups of `etendue measure g4-2`: ChESS with each refiner, Radon with each peak fit. */
+const SETUPS = ["center_of_mass", "forstner", "saddle_point", "radon", "radon_parabolic"] as const;
 
 /** Unlit constant radiance: what the Blender scene gives each surface under its white sky. */
 const radiance = (value: number) =>
@@ -74,14 +76,24 @@ const radiance = (value: number) =>
     fragmentShader: /* glsl */ `void main() { gl_FragColor = vec4(vec3(${value.toFixed(6)}), 1.0); }`,
   });
 
-function detector(refiner: (typeof REFINERS)[number], threshold: number): ChessDetector {
-  const r =
-    refiner === "forstner"
-      ? ChessRefiner.withForstner(new ForstnerConfig())
-      : refiner === "saddle_point"
-        ? ChessRefiner.withSaddlePoint(new SaddlePointConfig())
-        : ChessRefiner.withCenterOfMass(new CenterOfMassConfig());
-  return ChessDetector.withConfig(DetectorConfig.chess().withThreshold(threshold).withChessRefiner(r));
+function detector(setup: (typeof SETUPS)[number], threshold: number): ChessDetector {
+  switch (setup) {
+    // Radon's threshold is relative to the frame's peak response: keep the preset's.
+    case "radon":
+      return ChessDetector.withConfig(DetectorConfig.radon());
+    case "radon_parabolic":
+      return ChessDetector.withConfig(DetectorConfig.radon().withRadon({ peakFit: PeakFitMode.Parabolic }));
+    case "forstner":
+      return chess(ChessRefiner.withForstner(new ForstnerConfig()), threshold);
+    case "saddle_point":
+      return chess(ChessRefiner.withSaddlePoint(new SaddlePointConfig()), threshold);
+    case "center_of_mass":
+      return chess(ChessRefiner.withCenterOfMass(new CenterOfMassConfig()), threshold);
+  }
+}
+
+function chess(refiner: ChessRefiner, threshold: number): ChessDetector {
+  return ChessDetector.withConfig(DetectorConfig.chess().withThreshold(threshold).withChessRefiner(refiner));
 }
 
 describe("G4.3 cross-backend agreement (web SensorView vs Blender)", () => {
@@ -175,9 +187,9 @@ describe("G4.3 cross-backend agreement (web SensorView vs Blender)", () => {
     scene?.free();
   });
 
-  for (const refiner of REFINERS) {
-    it(`${refiner}: web vs Blender (s = ${SUPERSAMPLE}) within ${GATE_PX} px RMS`, () => {
-      const det = detector(refiner, d.chess_threshold);
+  for (const setup of SETUPS) {
+    it(`${setup}: web vs Blender (s = ${SUPERSAMPLE}) within ${GATE_PX} px RMS`, () => {
+      const det = detector(setup, d.chess_threshold);
       const web: ([number, number] | null)[] = [];
       d.truth.forEach((truth, p) => {
         const found = det.detect(images[p]!, W, H);
@@ -191,7 +203,7 @@ describe("G4.3 cross-backend agreement (web SensorView vs Blender)", () => {
         }
       });
       det.free();
-      const blender = d.errors[String(SUPERSAMPLE)]![refiner]!;
+      const blender = d.errors[String(SUPERSAMPLE)]![setup]!;
       expect(blender.length).toBe(web.length);
       const diffs: number[] = [];
       const webErr: number[] = [];
@@ -203,7 +215,7 @@ describe("G4.3 cross-backend agreement (web SensorView vs Blender)", () => {
       const rms = (xs: number[]) => Math.sqrt(xs.reduce((a, x) => a + x * x, 0) / Math.max(xs.length, 1));
       const matched = web.filter((w) => w !== null).length;
       console.log(
-        `G4.3 ${refiner}: web matched ${matched}/${web.length}, web vs GT RMS ${rms(webErr).toFixed(4)} px; ` +
+        `G4.3 ${setup}: web matched ${matched}/${web.length}, web vs GT RMS ${rms(webErr).toFixed(4)} px; ` +
           `web vs Blender over ${diffs.length} corners RMS ${rms(diffs).toFixed(4)} px, max ${Math.max(...diffs).toFixed(4)} px`,
       );
       expect(matched).toBe(web.length);
