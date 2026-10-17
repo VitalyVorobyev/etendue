@@ -3970,7 +3970,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.3.4",
+ "getrandom 0.4.2",
  "once_cell",
  "rustix 1.1.4",
  "windows-sys 0.61.2",
@@ -4354,8 +4354,6 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 [[package]]
 name = "vision-calibration-core"
 version = "0.8.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "258d26f399cd713f2480daecfcc863025029bbb26de4c97c0a34775c477d6bd9"
 dependencies = [
  "nalgebra",
  "rand 0.10.1",
@@ -4367,8 +4365,6 @@ dependencies = [
 [[package]]
 name = "vision-calibration-dataset"
 version = "0.8.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2f013295087a16a2425fc259cd89ee28ed65829f7ad848573fddf633ac4cefc3"
 dependencies = [
  "schemars",
  "serde",
@@ -5619,11 +5615,3 @@ dependencies = [
  "syn 2.0.117",
  "winnow 1.0.3",
 ]
-
-[[patch.unused]]
-name = "vision-calibration-core"
-version = "0.9.0"
-
-[[patch.unused]]
-name = "vision-calibration-dataset"
-version = "0.9.0"
