@@ -21,7 +21,8 @@ gzip -9c crates/etendue-wasm/pkg/etendue_wasm_bg.wasm | wc -c       # gate G2.1:
 cd web && bun install
 bun run generate:types        # crates/etendue-wasm/js/types from schemas/ (CI: generate:types:check)
 bun run check:deps            # the studio imports only what it declares
-bun run typecheck && bun run lint && bun run test && bun run build
+bun run typecheck && bun run lint && bun run format:check && bun run test && bun run build
+bun run format                # oxfmt over web/ and crates/etendue-wasm/{js,scripts,tests} (.oxfmtrc.json)
 bun run dev                   # studio at http://localhost:5178 (blocks; do not run non-interactively)
 cd apps/studio && bun run desktop:dev   # the desktop app (Tauri, reads the checkout; blocks; interactive only)
 cd apps/studio && bun run desktop:build [--bundles app]   # wasm + frontend + release bundle (needs the robot meshes)
@@ -189,8 +190,13 @@ the CLI archives; its `workflow_dispatch` is a dry run. The shell has its own `d
 (`src/io/tauri.ts`, `src/kernel/native.ts`); in a browser the Dataset tab and the native buttons are
 absent. `etendue-cli`'s lib is the top of the stack: no workspace crate may depend on it.
 
-**`web/`** — bun workspace (lab-ui toolchain: `@vitavision/config-{ts,eslint,vitest}`, TS
-6.0.3, Tailwind v4, tokens only). `apps/studio` is the studio (not published to npm). The
+**`web/`** — bun workspace: `@vitavision/config-{ts,vitest}`, TypeScript 7.0.2 (the native
+`tsc`), Tailwind v4, tokens only. Lint is oxlint (`web/.oxlintrc.json`): `--type-aware` through
+`oxlint-tsgolint`, the rules of lab-ui's old ESLint preset (typescript-eslint's type-checked set,
+React hooks), the React Compiler rules of `eslint-plugin-react-hooks` 7 as a JS plugin
+(`react-hooks-compiler/*`), and lab-ui's `tokens-only` rule as a local JS plugin
+(`web/scripts/oxlint/`). Not ported: `@eslint-react`'s rules beyond oxlint's react plugin. Formatting is oxfmt (`.oxfmtrc.json` at the root, width 120); the
+one-time reformat is in `.git-blame-ignore-revs`. `apps/studio` is the studio (not published to npm). The
 `@vitavision/*` packages it uses come from npm, published from lab-ui (the incubated copies were
 dropped on 2026-10-17 once lab-ui released them): `three` (no React, no kinematics, no camera
 math), `three-react` (R3F; per-frame work in `useFrame`, never React state), `workbench`
@@ -311,7 +317,8 @@ cargo build --workspace
 cargo clippy -p etendue-wasm --target wasm32-unknown-unknown -- -D warnings
 # when web/ or etendue-wasm changes (after build-npm.mjs):
 cd web && bun run generate:types:check && bun run check:deps && bun run typecheck \
-  && bun run lint && bun run test && bun run build && (cd apps/studio && bun run test:e2e)
+  && bun run lint && bun run format:check && bun run test && bun run build \
+  && (cd apps/studio && bun run test:e2e)
 ```
 
 When `etendue-wasm` or anything on the projection path changes, also re-run the G0.1

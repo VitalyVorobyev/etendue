@@ -1,0 +1,5 @@
+{
+  "$schema": "./web/node_modules/oxfmt/configuration_schema.json",
+  "printWidth": 120,
+  "ignorePatterns": ["**/dist/**", "**/src-tauri/**", "**/test-results/**", "**/playwright-report/**", "**/pkg/**"]
+}

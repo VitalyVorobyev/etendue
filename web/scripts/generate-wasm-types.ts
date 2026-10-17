@@ -14,7 +14,6 @@ import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 
 import { compileFromFile } from "json-schema-to-typescript";
-import { format } from "prettier";
 
 const ROOT = resolve(dirname(new URL(import.meta.url).pathname), "../..");
 const OUT = join(ROOT, "crates/etendue-wasm/js/types");
@@ -44,6 +43,16 @@ function dedupe(ts: string): string {
   return out;
 }
 
+/** `ts` as oxfmt formats it under the repository's `.oxfmtrc.json` (what `bun run format` keeps). */
+function format(ts: string, path: string): string {
+  const run = Bun.spawnSync([join(ROOT, "web/node_modules/.bin/oxfmt"), `--stdin-filepath=${path}`], {
+    cwd: ROOT,
+    stdin: Buffer.from(ts),
+  });
+  if (run.exitCode !== 0) throw new Error(`oxfmt ${path}: ${run.stderr.toString()}`);
+  return run.stdout.toString();
+}
+
 const check = process.argv.includes("--check");
 let drifted = 0;
 mkdirSync(OUT, { recursive: true });
@@ -57,8 +66,8 @@ for (const name of SCHEMAS) {
     format: false,
     cwd: dirname(schema),
   });
-  const text = await format(dedupe(ts), { parser: "typescript", printWidth: 100 });
   const out = join(OUT, `${name.replaceAll("_", "-")}.d.ts`);
+  const text = format(dedupe(ts), out);
   if (check) {
     let current = "";
     try {
