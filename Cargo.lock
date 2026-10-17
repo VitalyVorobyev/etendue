@@ -4353,7 +4353,7 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
 name = "vision-calibration-core"
-version = "0.8.3"
+version = "0.9.0"
 dependencies = [
  "nalgebra",
  "rand 0.10.1",
@@ -4364,7 +4364,7 @@ dependencies = [
 
 [[package]]
 name = "vision-calibration-dataset"
-version = "0.8.3"
+version = "0.9.0"
 dependencies = [
  "schemars",
  "serde",

@@ -4,6 +4,8 @@
 - Criterion: the release `.wasm` of `@etendue/wasm` is **≤ 1.5 MB gzipped** (1,572,864 B).
 - Result: **PASS**. 310,354 B gzipped (20% of the budget).
 - Measured: 2026-09-27, on etendue commit `71e7b8a` (branch `pivot/p2`).
+- Re-run 2026-10-17 on calibration-rs 0.9.0 (etendue `e989eed`): **PASS**, 319 111 B gzip -9 (the
+  last recorded re-run was 319 254 B; budget 1 572 864 B) (`calibration_rs_0_9.md`).
 
 ## Environment
 

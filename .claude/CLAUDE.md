@@ -200,7 +200,7 @@ playhead store), `ui-next` (additions to `@vitavision/ui`). They follow lab-ui's
 of Done so the move is a copy. `scripts/check-deps.ts` enforces their layering.
 
 **calibration-rs dependency: crates.io + `[patch.crates-io]`**
-- `vision-calibration-core = "0.8"` and `vision-calibration-dataset = "0.8"` come from
+- `vision-calibration-core = "0.9.0"` and `vision-calibration-dataset = "0.9.0"` come from
   crates.io, so the library crates are publishable.
 - The root `Cargo.toml` `[patch.crates-io]` redirects them to
   `../calibration-rs/crates/*` for local development. The sibling checkout must exist

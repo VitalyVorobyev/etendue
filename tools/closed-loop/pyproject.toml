@@ -5,8 +5,10 @@ description = "P5-1 closed loop: calibrate etendue ground truth with calibration
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "numpy>=2.2",
-    "vision-calibration==0.8.3",
+    "vision-calibration==0.9.0",
 ]
 
 [tool.uv]
 package = false
+# uv.lock is lock-format revision 5, which older uv cannot read.
+required-version = ">=0.13"
