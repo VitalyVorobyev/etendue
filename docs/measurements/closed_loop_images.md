@@ -22,6 +22,13 @@
 - Measured: 2026-09-29, on etendue commit `dc2b3ff` (branch `pivot/p5-1b-image-loop`),
   `vision-calibration` 0.8.3 wheel, calibration-rs 0.8.3, calib-targets 0.15.3,
   chess-corners 1.2.0, Blender 5.1.1 (Cycles, Metal, Apple M4 Pro).
+- Changed after this run (PR #13 review): `etendue detect` decides the half-turn by comparing
+  the two square classes' mean intensities instead of a global midpoint threshold, which
+  survives an illumination gradient. It also reads `render`'s default sRGB PNGs, as linear
+  luminance, and rounds 16-bit images to 8 bits instead of truncating. On this run's input
+  (8-bit linear, uniform light, a full board in every view) the decision is not expected to
+  change. It has **not been re-run**, because Blender 5.1.1 (the pin) was not installed when
+  the change was made.
 
 ## Procedure
 
@@ -51,7 +58,8 @@ EXRs take 4.5 GB.
   - Corners come from chess-corners' `DetectorConfig::radon()`.
   - They are labelled by calib-targets' chessboard detector (`ChessboardParams::default()`).
   - A view is kept when its labels span the whole board. The half-turn ambiguity is settled by
-    the colour of the squares between the corners, read from the print.
+    the colour of the squares between the corners, read from the print: the darker of the two
+    square classes (alternate squares) is the ink.
   - Every label is then checked against the analytic ground truth: the corner's nearest
     analytic pixel within 1.5 px must be its own point's. The check reports; it never corrects.
 - **Calibration:** `tools/closed-loop/closed_loop.py --features`, which runs calibration-rs's

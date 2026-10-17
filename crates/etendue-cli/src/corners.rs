@@ -165,14 +165,14 @@ impl Stats {
 /// Match each visible ground-truth pixel to its nearest detection.
 fn score(truth: &[[f64; 2]], found: &[CornerDescriptor], stats: &mut Stats) {
     stats.visible += truth.len();
-    let found: Vec<[f64; 2]> = found
-        .iter()
-        .map(|c| [f64::from(c.x), f64::from(c.y)])
-        .collect();
+    let xy = |c: &CornerDescriptor| [f64::from(c.x), f64::from(c.y)];
     for t in truth {
-        let matched = nearest(found.iter().copied(), *t)
+        let matched = nearest(found.iter().map(xy), *t)
             .filter(|(_, d)| *d <= MATCH_PX)
-            .map(|(k, _)| [found[k][0] - t[0], found[k][1] - t[1]]);
+            .map(|(k, _)| {
+                let p = xy(&found[k]);
+                [p[0] - t[0], p[1] - t[1]]
+            });
         stats.errors.extend(matched);
         stats.per_corner.push(matched);
     }
