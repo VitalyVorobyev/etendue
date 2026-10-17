@@ -216,9 +216,13 @@ jobs:
         working-directory: web
         run: bun run typecheck
 
-      - name: Lint
+      - name: Lint (oxlint, type-aware)
         working-directory: web
         run: bun run lint
+
+      - name: Format (oxfmt)
+        working-directory: web
+        run: bun run format:check
 
       - name: Install Chromium
         working-directory: web

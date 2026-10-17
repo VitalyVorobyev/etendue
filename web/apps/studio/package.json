@@ -1,8 +1,8 @@
 {
   "name": "@etendue/studio",
   "private": true,
-  "type": "module",
   "description": "etendue studio: open a scene and scenario, play them back in 3D, and (in the desktop app) generate synthetic calibration datasets. Not published to npm.",
+  "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

@@ -1,4 +1,15 @@
-import { Button, Callout, Checkbox, Field, Input, NumberInput, ProgressBar, StatusDot, Switch, Table } from "@vitavision/ui";
+import {
+  Button,
+  Callout,
+  Checkbox,
+  Field,
+  Input,
+  NumberInput,
+  ProgressBar,
+  StatusDot,
+  Switch,
+  Table,
+} from "@vitavision/ui";
 import { FolderOpen, Play, Square } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -175,7 +186,11 @@ export function DatasetPanel({
           ) : (
             <StatusDot tone="defect">Blender not found</StatusDot>
           )}
-          {blender?.message && <span className="truncate text-fg-muted" title={blender.message}>{blender.message}</span>}
+          {blender?.message && (
+            <span className="truncate text-fg-muted" title={blender.message}>
+              {blender.message}
+            </span>
+          )}
         </div>
         <Field label="Output folder">
           <div className="flex gap-2">
@@ -222,7 +237,9 @@ export function DatasetPanel({
               <div className="flex gap-2">
                 <Input value={sensor ?? ""} placeholder="none (sRGB)" readOnly className="font-mono text-xs" />
                 <Button
-                  onClick={() => void pickJsonFiles("Sensor model", false).then(([p]) => p !== undefined && set({ sensor: p }))}
+                  onClick={() =>
+                    void pickJsonFiles("Sensor model", false).then(([p]) => p !== undefined && set({ sensor: p }))
+                  }
                   disabled={running}
                 >
                   Choose…
@@ -239,9 +256,7 @@ export function DatasetPanel({
                     key={id}
                     label={id}
                     checked={cameras.includes(id)}
-                    onCheckedChange={(on) =>
-                      set({ cameras: on ? [...cameras, id] : cameras.filter((c) => c !== id) })
-                    }
+                    onCheckedChange={(on) => set({ cameras: on ? [...cameras, id] : cameras.filter((c) => c !== id) })}
                     disabled={running}
                   />
                 ))}
@@ -282,7 +297,10 @@ export function DatasetPanel({
           />
         )}
         {run && run.log.length > 0 && (
-          <pre className="max-h-40 overflow-auto rounded border border-line bg-canvas p-2 font-mono text-[11px] text-fg-muted" data-testid="dataset-log">
+          <pre
+            className="max-h-40 overflow-auto rounded border border-line bg-canvas p-2 font-mono text-[11px] text-fg-muted"
+            data-testid="dataset-log"
+          >
             {run.log.slice(-LOG_LINES).join("\n")}
           </pre>
         )}
@@ -299,7 +317,12 @@ export function DatasetPanel({
               {dataset.render && ` · ${dataset.render.images} images`}
             </div>
             {dataset.detection.length > 0 && (
-              <Table columns={COLUMNS} rows={dataset.detection} rowKey={(r) => r.camera} caption="Detection against the ground truth" />
+              <Table
+                columns={COLUMNS}
+                rows={dataset.detection}
+                rowKey={(r) => r.camera}
+                caption="Detection against the ground truth"
+              />
             )}
           </div>
         )}

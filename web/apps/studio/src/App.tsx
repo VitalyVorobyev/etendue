@@ -75,7 +75,8 @@ export function App() {
   const cameras = scene?.cameras ?? [];
   const robots = current?.baked.robots ?? [];
   const selectedRobot =
-    robots.find((r) => r.id === selected || (selected !== null && selected.startsWith(`${r.id}/`)))?.id ?? robots[0]?.id;
+    robots.find((r) => r.id === selected || (selected !== null && selected.startsWith(`${r.id}/`)))?.id ??
+    robots[0]?.id;
   const tabs = [
     ...cameras.map((c) => ({ id: c.id, label: c.id })),
     ...(robots.length > 0 ? [{ id: "joints", label: "Joints" }] : []),
@@ -103,12 +104,24 @@ export function App() {
     void scenarioFromPoses(path, robot)
       .then((scenario) => studio.setScenario(scenario, `poses ${path.split(/[\\/]/).at(-1) ?? path}`))
       .catch((e: unknown) =>
-        toast({ title: "Could not import the poses", description: e instanceof Error ? e.message : String(e), tone: "error" }),
+        toast({
+          title: "Could not import the poses",
+          description: e instanceof Error ? e.message : String(e),
+          tone: "error",
+        }),
       );
   };
 
   const main = current ? (
-    <SplitPane orientation="vertical" sizedPane="end" defaultSize="38%" minSize={160} maxSize="70%" storageKey="etendue-studio:bottom" aria-label="Resize the camera panel">
+    <SplitPane
+      orientation="vertical"
+      sizedPane="end"
+      defaultSize="38%"
+      minSize={160}
+      maxSize="70%"
+      storageKey="etendue-studio:bottom"
+      aria-label="Resize the camera panel"
+    >
       {[
         <div key="viewport" className="relative h-full min-h-0">
           <Viewport
@@ -121,7 +134,13 @@ export function App() {
           {loading && <div className="absolute top-2 left-2 text-xs text-fg-muted">Loading…</div>}
         </div>,
         <div key="bottom" className="flex h-full min-h-0 flex-col bg-surface">
-          <Tabs items={tabs} active={activeTab} onSelect={(id) => setTab({ scene: current, value: id })} label="Camera and joint views" className="px-2" />
+          <Tabs
+            items={tabs}
+            active={activeTab}
+            onSelect={(id) => setTab({ scene: current, value: id })}
+            label="Camera and joint views"
+            className="px-2"
+          />
           <div className="min-h-0 flex-1 p-2" role="tabpanel">
             {activeCamera && runtime ? (
               <CameraView
@@ -174,13 +193,7 @@ export function App() {
         main={main}
         right={
           current && (
-            <Inspector
-              current={current}
-              runtime={runtime}
-              selected={selected}
-              failure={failure}
-              playhead={playhead}
-            />
+            <Inspector current={current} runtime={runtime} selected={selected} failure={failure} playhead={playhead} />
           )
         }
         bottom={

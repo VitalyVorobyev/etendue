@@ -90,7 +90,9 @@ test("generates a dataset through the native pipeline", async ({ page }) => {
   const panel = page.getByTestId("dataset-panel");
   await expect(panel.getByTestId("blender-status")).toContainText("Blender 5.1.1");
   // Examples of the checkout write into target/, never into examples/.
-  await expect(panel.getByRole("textbox", { name: "Output folder" })).toHaveValue("/repo/target/studio/closed_loop_ur5e");
+  await expect(panel.getByRole("textbox", { name: "Output folder" })).toHaveValue(
+    "/repo/target/studio/closed_loop_ur5e",
+  );
   await expect(panel.getByRole("textbox", { name: /Sensor model/ })).toHaveValue(
     "/repo/examples/closed_loop_ur5e/sensor_linear.json",
   );
@@ -110,7 +112,9 @@ test("generates a dataset through the native pipeline", async ({ page }) => {
   await expect(result).toContainText("20 captures, 40 views, 2160 visible points");
   await expect(result.getByRole("cell", { name: "0.0505 px" })).toBeVisible();
 
-  const requests = await page.evaluate(() => (window as unknown as { __requests: Record<string, unknown>[] }).__requests);
+  const requests = await page.evaluate(
+    () => (window as unknown as { __requests: Record<string, unknown>[] }).__requests,
+  );
   expect(requests).toHaveLength(1);
   const request = requests[0]!;
   expect(request).toMatchObject({

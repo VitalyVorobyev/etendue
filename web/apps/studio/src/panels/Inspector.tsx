@@ -16,8 +16,8 @@ const URDF_RPY: RotationView = { toEuler: rpyFromQuaternion, fromEuler: quaterni
 
 /** A pose as translation (mm) and roll/pitch/yaw (°). */
 function PoseReadout({ pose, label }: { pose: Iso3Schema; label: string }) {
-  const [qx = 0, qy = 0, qz = 0, qw = 1] = pose.rotation;
-  const [tx = 0, ty = 0, tz = 0] = pose.translation;
+  const [qx, qy, qz, qw] = pose.rotation;
+  const [tx, ty, tz] = pose.translation;
   return (
     <PoseInput
       readOnly
@@ -43,7 +43,7 @@ function entityOf(current: Baked, id: string): { kind: string; entity: Entity } 
     ["target", s.targets],
     ["part", s.parts],
   ] as const) {
-    const e = (list as Entity[] | undefined)?.find((x) => x.id === id);
+    const e = list?.find((x) => x.id === id);
     if (e) return { kind, entity: e };
   }
   return null;
@@ -130,7 +130,12 @@ function Details({ current, id, k }: { current: Baked; id: string; k: number }):
     const rows = loaded.manifest.joints.map((j, i) => ({ ...j, q: q[i] ?? 0 }));
     return (
       <Section title={loaded.manifest.name}>
-        <ReadoutStrip items={[{ label: "base", value: loaded.manifest.base_link }, { label: "tcp", value: loaded.manifest.tcp_link }]} />
+        <ReadoutStrip
+          items={[
+            { label: "base", value: loaded.manifest.base_link },
+            { label: "tcp", value: loaded.manifest.tcp_link },
+          ]}
+        />
         <Table
           rows={rows}
           rowKey={(row) => row.name}
@@ -172,7 +177,12 @@ export function Inspector({
   const { scene } = current.loaded;
   const { baked } = current;
   const found = selected !== null ? entityOf(current, selected) : null;
-  const frame = selected === null ? null : found?.kind === "robot" ? `${selected}/${current.loaded.robots.find((r) => r.id === selected)?.manifest.base_link}` : selected;
+  const frame =
+    selected === null
+      ? null
+      : found?.kind === "robot"
+        ? `${selected}/${current.loaded.robots.find((r) => r.id === selected)?.manifest.base_link}`
+        : selected;
   const world = frame !== null && runtime ? runtime.pose(frame, k) : undefined;
   const sample = baked.samples[k];
 

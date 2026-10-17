@@ -60,7 +60,9 @@ async function loadPaths(paths: string[]): Promise<LoadedScene> {
   const scenes = docs.filter((d) => d.kind === "scene");
   const scenarios = docs.filter((d) => d.kind === "scenario");
   if (scenes.length !== 1) {
-    throw new Error(scenes.length === 0 ? "No scene among the picked files." : `${scenes.length} scenes picked; pick one.`);
+    throw new Error(
+      scenes.length === 0 ? "No scene among the picked files." : `${scenes.length} scenes picked; pick one.`,
+    );
   }
   if (scenarios.length > 1) throw new Error(`${scenarios.length} scenarios picked; pick at most one.`);
   const scene = scenes[0]!;
@@ -87,7 +89,9 @@ async function loadDropped(files: File[]): Promise<LoadedScene> {
   const scenarios = docs.filter((d) => d.kind === "scenario");
   if (scenes.length !== 1) {
     throw new Error(
-      scenes.length === 0 ? "No scene among the dropped files." : `${scenes.length} scenes dropped; drop one at a time.`,
+      scenes.length === 0
+        ? "No scene among the dropped files."
+        : `${scenes.length} scenes dropped; drop one at a time.`,
     );
   }
   if (scenarios.length > 1) throw new Error(`${scenarios.length} scenarios dropped; drop at most one.`);

@@ -8,7 +8,14 @@
 import { toast } from "@vitavision/workbench";
 import { useSyncExternalStore } from "react";
 
-import { type Dataset, type DatasetRequest, type Progress, type Stage, cancelRun, generateDataset } from "../kernel/native";
+import {
+  type Dataset,
+  type DatasetRequest,
+  type Progress,
+  type Stage,
+  cancelRun,
+  generateDataset,
+} from "../kernel/native";
 import type { Studio } from "./studio";
 
 /** A run in flight. */

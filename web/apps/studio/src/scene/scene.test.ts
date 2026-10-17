@@ -15,7 +15,9 @@ describe("sceneTree", () => {
     targets: [{ id: "board", parent: "fixture", parent_se3_self: I }],
     frames: [{ id: "fixture", parent: "world", parent_se3_self: I }],
   } as unknown as SceneSpec;
-  const baked = { frames: ["world", "arm/base", "arm/link1", "arm/tool0", "rig", "cam", "fixture", "board"] } as BakedScenario;
+  const baked = {
+    frames: ["world", "arm/base", "arm/link1", "arm/tool0", "rig", "cam", "fixture", "board"],
+  } as BakedScenario;
 
   it("nests entities under their parents and folds bare links", () => {
     const tree = sceneTree(scene, baked);

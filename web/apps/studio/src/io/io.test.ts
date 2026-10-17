@@ -45,7 +45,13 @@ describe("filesSource", () => {
 });
 
 describe("loadScene", () => {
-  const manifest = { version: 1, id: "r", urdf: "robot.urdf", joints: [], visuals: [{ link: "a", mesh: "meshes/a.glb" }] };
+  const manifest = {
+    version: 1,
+    id: "r",
+    urdf: "robot.urdf",
+    joints: [],
+    visuals: [{ link: "a", mesh: "meshes/a.glb" }],
+  };
   const scene = {
     version: 1,
     robots: [{ id: "arm", parent: "world", manifest: "../../assets/robots/r/robot.json" }],
