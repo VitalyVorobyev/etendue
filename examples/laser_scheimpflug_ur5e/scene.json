@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "description": "P5-3 laser closed loop, Scheimpflug variant (a characterisation): examples/laser_ur5e with sensors tilted about 3\u00b0 and 2\u00b0.",
+  "description": "Laser-line calibration with Scheimpflug sensors: the laser rig with its sensors tilted about 3° and 2°.",
   "robots": [
     {
       "id": "ur5e",

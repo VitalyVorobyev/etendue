@@ -7,15 +7,15 @@
 //! samples the surviving segment into a [`LaserStripe`] polyline with a
 //! per-sample cross-section width.
 //!
-//! # Why this is one straight segment (MVP scope)
+//! # Why this is one straight segment
 //!
 //! Two planes — the laser fan plane and the target plane — meet in a single
-//! straight line. Restricting the MVP target to an analytic plane (development
-//! plan, de-risking spike #3) makes the laser stripe **one straight 3D
-//! segment**, with no polyline stitching across triangle boundaries. The
-//! general triangle-mesh intersection (a piecewise-linear curve) is explicitly
-//! post-MVP. The output type is still a polyline so the projection layer
-//! ([`super::project`]) and a future mesh intersection share one interface.
+//! straight line. Restricting [`stripe_on_target`] to an analytic plane makes
+//! the laser stripe **one straight 3D segment**, with no polyline stitching
+//! across triangle boundaries. The general triangle-mesh intersection (a
+//! piecewise-linear curve) is [`stripe_segments_on_mesh`]. The output type is
+//! still a polyline so the projection layer ([`super::project`]) and the mesh
+//! intersection share one interface.
 //!
 //! # The construction
 //!
@@ -65,7 +65,7 @@ pub struct StripeSample {
 /// The laser stripe on a planar target: a sampled 3D polyline with a
 /// per-sample cross-section width.
 ///
-/// Produced by [`stripe_on_target`]. Because the MVP target is a single
+/// Produced by [`stripe_on_target`]. Because a planar target is a single
 /// analytic plane, the stripe is one straight segment; [`LaserStripe::samples`]
 /// holds it as `>= 2` evenly-spaced [`StripeSample`]s so the projection layer
 /// can treat it as a general polyline.
@@ -828,7 +828,7 @@ mod tests {
 
     #[test]
     fn an_oblique_target_still_produces_a_clean_segment() {
-        // The M5 checkpoint geometry: a tilted target. The stripe must still
+        // The checkpoint geometry: a tilted target. The stripe must still
         // be a single straight segment with monotone arc length.
         let laser = laser_aimed_along_y(0.6, 0.4, 2.0);
         let tilt = UnitQuaternion::from_axis_angle(&Vector3::x_axis(), 0.3);

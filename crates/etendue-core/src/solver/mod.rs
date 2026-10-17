@@ -1,12 +1,12 @@
 //! Design-space solvers — turn etendue from a viewer into a designer.
 //!
-//! The M9 [`scheimpflug`] solver takes a target working geometry — optimal
+//! The [`scheimpflug`] solver takes a target working geometry — optimal
 //! working distance plus a depth-of-field window — and proposes the camera
 //! Scheimpflug tilt and focus distance that minimise the worst-case circle of
 //! confusion across the working volume. Physics is reused from
 //! [`crate::optics::coc`]; this module wraps it in a min-max optimisation.
 //!
-//! # Scope (M9)
+//! # Scope
 //!
 //! - **Decision variables**: `tau_x`, `tau_y` (sensor tilt about camera `x` /
 //!   `y`), `s_o` (object-side focus distance from `H'`).

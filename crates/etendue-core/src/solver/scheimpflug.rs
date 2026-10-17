@@ -38,8 +38,8 @@
 //! sample CoC evaluations per call), so a derivative-free simplex method is
 //! the natural choice. The initial simplex is built around the camera's
 //! current `(tau_x, tau_y, s_o)` with small perturbations in each variable.
-//! A smoothed-objective gradient-based pass is an explicit follow-up — see
-//! the M9 plan — should the simplex method prove brittle on real designs.
+//! A smoothed-objective gradient-based pass is a possible follow-up, should
+//! the simplex method prove brittle on real designs.
 
 use std::f64::consts::FRAC_PI_2;
 
@@ -67,7 +67,7 @@ pub struct SampleGrid {
 }
 
 impl SampleGrid {
-    /// The default 32×32 sampling grid the M9 UI uses.
+    /// The default 32×32 sampling grid.
     pub const DEFAULT: Self = Self { rows: 32, cols: 32 };
 }
 
@@ -79,14 +79,14 @@ impl Default for SampleGrid {
 
 /// Solver inputs: the target working geometry the user wants to achieve.
 ///
-/// `d_opt` is currently only carried as metadata (for the UI to display the
-/// designer's intent); the cost itself is driven by `depth_range` — the
+/// `d_opt` is currently only carried as metadata (recording the designer's
+/// intent); the cost itself is driven by `depth_range` — the
 /// camera-frame `z` window over which the worst-case CoC is minimised.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SolverSpec {
     /// The user's optimal working distance, in metres (camera-frame `z`).
     /// Carried as design intent; the solver does not enforce it directly
-    /// (the depth window does that). Stored so the UI can show a "spec" line.
+    /// (the depth window does that). Stored so a caller can report it.
     pub d_opt: f64,
     /// The camera-frame depth window `(d_min, d_max)`, in metres, over which
     /// the solver minimises worst-case CoC. Samples outside this window are
@@ -132,7 +132,7 @@ pub struct SolverResult {
 /// on `SolverError`. The solver carries its own error type rather than folding
 /// into `crate::Error` because solver failures are distinct in kind from
 /// geometry / optics validation errors and are typically matched separately by
-/// the UI.
+/// the caller.
 #[non_exhaustive]
 #[derive(Clone, Debug, thiserror::Error)]
 pub enum SolverError {
@@ -180,8 +180,8 @@ pub fn solve_scheimpflug(
     let initial = vec![tau_x0, tau_y0, s_o0];
 
     // Simplex perturbations: 1° in tilt, 5 % of d_opt in focus (or 5 mm,
-    // whichever is larger). Chosen so the simplex spans a region the user
-    // would notice in the UI but small enough that the cost surface stays
+    // whichever is larger). Chosen so the simplex spans a region large
+    // enough to matter to a designer but small enough that the cost surface stays
     // approximately convex around the optimum.
     let d_tau = 1.0_f64.to_radians();
     let d_s = (0.05 * spec.d_opt).max(5.0e-3);
@@ -229,7 +229,7 @@ pub fn solve_scheimpflug(
 }
 
 /// Validation of the user-facing spec, separate from the inner cost so the
-/// UI receives a single coherent error before any optimiser work runs.
+/// caller receives a single coherent error before any optimiser work runs.
 fn validate_spec(spec: &SolverSpec) -> Result<(), SolverError> {
     if !(spec.d_opt.is_finite() && spec.d_opt > 0.0) {
         return Err(SolverError::InvalidSpec(format!(
@@ -673,7 +673,7 @@ mod tests {
 
     #[test]
     fn solver_returns_finite_diagnostics_for_default_scene() {
-        // Integration-style: the standard default MVP scene runs through the
+        // Integration-style: the standard default scene runs through the
         // solver without errors, returns finite (tau, s_o), and the recorded
         // iteration count is small (Nelder-Mead converges or hits the cap).
         let scene = crate::scene::Scene::default_mvp();
@@ -693,8 +693,8 @@ mod tests {
         assert!(res.s_o.is_finite() && res.s_o > 0.0);
         assert!(res.iterations <= 500, "iter cap respected");
         // A non-empty fan should give us at least a few valid samples; the
-        // default scene's working volume is non-empty (a property the M6
-        // tests already established), so the solver must find some.
+        // default scene's working volume is non-empty (a property the
+        // working-volume tests already established), so the solver must find some.
         let _ = res.n_valid_samples; // diagnostic
         assert_relative_eq!(res.max_coc_px.is_finite() as u8 as f64, 1.0);
     }

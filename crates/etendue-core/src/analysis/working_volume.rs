@@ -13,11 +13,12 @@
 //!    depth-of-field pixel threshold (via [`ThickLens::coc_diameter_px`]).
 //!
 //! Because the fan is planar, every illuminated point lies on the fan plane.
-//! The working volume of an **MVP** single-laser/single-camera triangulation
-//! sensor is therefore a **2D region** on the laser plane — *not* a 3D voxel
-//! grid. (Voxel analysis is post-MVP.) Computing it as a planar region keeps
-//! the analysis cheap, lets the UI paint it directly on top of the rendered
-//! fan, and matches the designer's intuition about what "the measurement
+//! The working volume of a single-laser/single-camera triangulation sensor is
+//! therefore a **2D region** on the laser plane — *not* a 3D voxel grid. (For
+//! the 3D coverage of a multi-pair rig, see
+//! [`voxel_overlap`](mod@crate::analysis::voxel_overlap).) Computing it as a
+//! planar region keeps the analysis cheap, lets a caller draw it directly on
+//! top of the fan, and matches the designer's intuition about what "the measurement
 //! volume" means for a single-line sensor.
 //!
 //! # The sampling scheme
@@ -37,7 +38,7 @@
 //! Re-using the laser-plane parameterisation (instead of a `(x, y)` grid in
 //! world space) means every sample lies on the fan plane by construction —
 //! the illumination predicate then reduces to a pair of cheap bound checks
-//! and the grid lays out cleanly for the UI to tessellate.
+//! and the grid lays out cleanly for a renderer to tessellate.
 //!
 //! # Why sample-and-mask rather than polygon clipping
 //!
@@ -209,7 +210,7 @@ impl WorkingVolume {
     ///
     /// For an all-out-of-volume grid this is exactly `0.0`. A coarser grid
     /// systematically underestimates the area along the boundary of the
-    /// in-volume region, but for the MVP's 128×128 default the error is
+    /// in-volume region, but at a 128×128 grid the error is
     /// well below the practical precision a designer cares about.
     #[must_use]
     pub fn area_m2(&self) -> f64 {
@@ -283,7 +284,7 @@ impl WorkingVolume {
 
     /// The number of cells in the working volume.
     ///
-    /// Useful for sanity checks and tests; the headline UI readouts are
+    /// Useful for sanity checks and tests; the headline figures are
     /// [`area_m2`](Self::area_m2) and [`depth_range_m`](Self::depth_range_m).
     #[must_use]
     pub fn in_volume_count(&self) -> usize {
@@ -303,12 +304,12 @@ impl WorkingVolume {
 ///   predicate.
 /// - `laser`: the line-projecting laser; its [`LaserPlane`] supplies the
 ///   illumination geometry and the natural `(r, phi)` parameterisation.
-/// - `rows`, `cols`: grid resolution (both `>= 2`). The MVP UI uses 128×128
-///   — fine enough that the in-volume region's boundary reads as a clean
+/// - `rows`, `cols`: grid resolution (both `>= 2`). 128×128 is a good
+///   choice — fine enough that the in-volume region's boundary reads as a clean
 ///   curve, cheap enough to recompute on every scene change.
 /// - `coc_threshold_px`: the depth-of-field pixel threshold for the focus
 ///   predicate. The classic 1-pixel criterion (see
-///   [`DEFAULT_COC_THRESHOLD_PX`]) is the MVP default.
+///   [`DEFAULT_COC_THRESHOLD_PX`]) is the default.
 ///
 /// # Errors
 ///
@@ -348,7 +349,7 @@ pub fn working_volume(
 
     // Sample the fan in its natural parameterisation: (phi, r) on a regular
     // grid. Row sweeps the angle, column sweeps the radius — the same
-    // ordering the UI tessellates and renders.
+    // ordering a renderer tessellates.
     let mut cells = Vec::with_capacity(rows * cols);
     for row in 0..rows {
         let t_phi = row as f64 / (rows - 1) as f64;
@@ -550,7 +551,7 @@ mod tests {
 
     #[test]
     fn default_mvp_scene_has_a_non_empty_working_volume() {
-        // The default scene was tuned (M2/M4 work) so the camera frames the
+        // The default scene was tuned so the camera frames the
         // target and the lens places some of the fan inside the depth of
         // field. The working volume must therefore be a non-empty region,
         // with a positive area and a sensible camera-frame depth range.
@@ -587,7 +588,7 @@ mod tests {
 
     #[test]
     fn detuning_focus_shrinks_the_working_volume() {
-        // The MVP "useful" check: if you move the focus distance away from
+        // The basic "useful" check: if you move the focus distance away from
         // the target, the in-focus band on the fan plane shrinks (the
         // intersection of the depth of field with the fan plane is smaller),
         // so the working-volume area falls. This is the most basic property

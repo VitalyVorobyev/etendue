@@ -17,10 +17,6 @@
 //! Seed component JSON files live under `assets/bank/` in the
 //! `etendue-core` crate; they are `include_str!`-embedded in the catalogue
 //! unit tests to catch schema drift at compile time.
-//!
-//! # Component-picker UI
-//!
-//! Post-MVP. Schema + catalogue + seed files only for M3.
 
 pub mod catalog;
 pub mod schema;

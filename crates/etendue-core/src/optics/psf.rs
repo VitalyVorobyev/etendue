@@ -4,10 +4,10 @@
 //! [`crate::optics::coc`] computes the geometric circle of confusion — a
 //! sharp-edged disc of diameter `c` at the sensor. That is the textbook
 //! paraxial result for an ideal (aberration-free) lens, and it is what the
-//! M4 / M5 / M6 / M9 analyses use. A real defocused image is not a hard disc:
+//! defocus, laser-line, working-volume and solver analyses use. A real defocused image is not a hard disc:
 //! diffraction at the aperture and residual lens aberrations smear the blur
 //! out, producing a profile much closer to a 2D Gaussian. For visualisation
-//! (the simulated-image panel) we need a Gaussian-PSF model with a defensible
+//! (a simulated image) we need a Gaussian-PSF model with a defensible
 //! sigma.
 //!
 //! # The width convention — FWHM matching
@@ -33,9 +33,8 @@
 //!
 //! Out of scope (deliberately):
 //!
-//! - 2D rendering of a Gaussian image. That belongs to the UI's
-//!   simulated-image panel, which composes per-vertex sigma with the
-//!   stripe polyline.
+//! - 2D rendering of a Gaussian image. That belongs to the caller that draws
+//!   it, which composes per-vertex sigma with the stripe polyline.
 //! - Diffraction-limited PSF or the Airy pattern. The Gaussian approximation
 //!   is good enough for designer-facing visualisation; the Airy is the
 //!   correct limit at small apertures and we will add it only if it

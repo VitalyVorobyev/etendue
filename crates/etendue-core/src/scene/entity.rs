@@ -3,8 +3,8 @@
 //! Each entity is a *posed* optical or geometric object. A [`CameraEntity`] is
 //! a simulated triangulation sensor, a [`LaserEntity`] a line-projecting laser,
 //! and a [`TargetEntity`] the planar surface being inspected. All three carry
-//! the parameters that the UI binds sliders to in M3 and that the optics,
-//! laser, and analysis layers consume in M4–M6.
+//! the design parameters that the optics, laser, and analysis layers
+//! consume.
 //!
 //! # Coordinate conventions
 //!
@@ -80,14 +80,14 @@ pub struct PhysicalOptics {
 /// [`CameraModel`](vision_calibration_core::CameraModel). The reason is
 /// Scheimpflug tilt: `CameraParams::build()` compiles a `SensorParams::Scheimpflug`
 /// into an `AnySensor::Homography`, and the built model no longer carries the
-/// tilt angles `(tau_x, tau_y)`. The M4 defocus model needs those angles to
+/// tilt angles `(tau_x, tau_y)`. The defocus model needs those angles to
 /// place the tilted plane of best focus, so they must be retained here.
 /// Consumers that only need the projection chain call [`CameraParams::build`]
 /// to obtain a `CameraModel` on demand.
 ///
 /// # Physical optics parameters are the source of truth
 ///
-/// M4 adds five **physical** optics fields ([`effective_focal_length_m`],
+/// The camera carries five **physical** optics fields ([`effective_focal_length_m`],
 /// [`f_number`], [`focus_distance_m`], [`principal_gap_m`], [`pixel_pitch_m`]).
 /// These — not the pixel-unit intrinsics — are authoritative for the lens.
 /// The pinhole focal length in `params.intrinsics` is *derived* from them:
@@ -98,8 +98,8 @@ pub struct PhysicalOptics {
 ///
 /// [`CameraEntity::new`] establishes this consistency at construction (via
 /// [`CameraEntity::sync_intrinsics_from_physical`]), and
-/// [`CameraEntity::thick_lens`] hands the physical parameters to the M4
-/// defocus model. A UI that edits the physical fields must call
+/// [`CameraEntity::thick_lens`] hands the physical parameters to the
+/// defocus model. A caller that edits the physical fields must call
 /// [`CameraEntity::sync_intrinsics_from_physical`] afterwards to keep the
 /// derived intrinsics in step.
 ///
@@ -116,7 +116,7 @@ pub struct CameraEntity {
     pub pose: Isometry3<f64>,
     /// The camera's projection/distortion/sensor/intrinsics parameter spec.
     /// Retained (rather than a built `CameraModel`) so Scheimpflug tilt angles
-    /// survive for the M4 defocus model — see the type-level note above.
+    /// survive for the defocus model — see the type-level note above.
     ///
     /// The pinhole focal length here is **derived** from the physical optics
     /// fields; treat the physical fields as authoritative and call
@@ -315,7 +315,7 @@ impl CameraEntity {
     /// derived intrinsics. `cx`, `cy`, and `skew` are left untouched — only
     /// `fx` and `fy` are rewritten.
     ///
-    /// [`CameraEntity::new`] calls this once at construction; a UI editing the
+    /// [`CameraEntity::new`] calls this once at construction; a caller editing the
     /// physical fields must call it after each edit.
     pub fn sync_intrinsics_from_physical(&mut self) {
         let fx = self.focal_length_px();
@@ -324,7 +324,7 @@ impl CameraEntity {
         params.fy = fx;
     }
 
-    /// Build the M4 [`ThickLens`] defocus model for this camera.
+    /// Build the [`ThickLens`] defocus model for this camera.
     ///
     /// Bundles the retained [`CameraParams`] (which carries the Scheimpflug
     /// tilt) with this entity's physical optics parameters. Use it for the
@@ -350,8 +350,8 @@ impl CameraEntity {
 
 /// A line-projecting laser placed in the world.
 ///
-/// The MVP laser is a flat fan with a half-angle and a finite extent, plus the
-/// one physical-optics parameter the M5 line model needs: the Gaussian-beam
+/// The laser is a flat fan with a half-angle and a finite extent, plus the
+/// one physical-optics parameter the line model needs: the Gaussian-beam
 /// waist. The geometric line model itself — a [`LaserPlane`] with a
 /// Gaussian-beam cross-section width — lives in [`crate::laser`]; this entity
 /// only carries the parameters it consumes.
@@ -372,7 +372,7 @@ pub struct LaserEntity {
     /// Emission wavelength, in nanometres (e.g. `660.0` for a red diode).
     pub wavelength_nm: f64,
     /// Beam-waist radius `w0`, in **metres** — the `1/e²` radius of the laser
-    /// beam's cross-section at its narrowest point. The M5
+    /// beam's cross-section at its narrowest point. The
     /// [`GaussianBeamWidth`](crate::laser::GaussianBeamWidth) model places the
     /// waist at the laser origin and grows the cross-section away from it via
     /// `w(d) = w0·sqrt(1 + (d/zR)²)`, `zR = π·w0²/λ`. A typical machine-vision
@@ -440,8 +440,8 @@ impl LaserEntity {
 
 /// A planar inspection target placed in the world.
 ///
-/// The MVP target is a finite rectangle. For triangle-mesh targets see
-/// [`MeshTarget`] — the F7 addition that supports fan-plane × triangle-mesh
+/// The target is a finite rectangle. For triangle-mesh targets see
+/// [`MeshTarget`], which supports fan-plane × triangle-mesh
 /// laser-stripe intersection via `laser::stripe_segments_on_mesh`.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TargetEntity {
@@ -496,7 +496,7 @@ impl TargetEntity {
 /// Use [`MeshTarget::new`] for validated construction, or build the [`TriMesh`]
 /// with one of the primitive constructors ([`TriMesh::unit_cube`],
 /// [`TriMesh::quad`]) and pass it in. A unit-cube mesh target is the
-/// recommended default for "add a mesh target" UI buttons.
+/// recommended default mesh target.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct MeshTarget {
     /// Pose of the mesh in the world: maps mesh-local coordinates into world

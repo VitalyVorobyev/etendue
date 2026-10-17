@@ -1,7 +1,7 @@
 {
   "version": 1,
   "dt": 0.01,
-  "description": "P5-1 closed loop: 20 viewpoints of the board at 0.45\u20130.55 m (tools/closed-loop/make_scenario.py).",
+  "description": "Hand-eye calibration: 20 viewpoints of the board at 0.45\u20130.55 m (tools/closed-loop/make_scenario.py).",
   "steps": [
     {
       "type": "ptp_pose",

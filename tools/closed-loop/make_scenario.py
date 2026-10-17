@@ -25,9 +25,9 @@ from closed_loop import Iso, quat
 ROOT = Path(__file__).resolve().parents[2]
 N = 20
 DESCRIPTIONS = {
-    "closed_loop_ur5e": "P5-1 closed loop",
-    "laser_ur5e": "P5-3 laser closed loop",
-    "laser_scheimpflug_ur5e": "P5-3 laser closed loop, Scheimpflug variant",
+    "closed_loop_ur5e": "Hand-eye calibration",
+    "laser_ur5e": "Laser-line calibration",
+    "laser_scheimpflug_ur5e": "Laser-line calibration, Scheimpflug sensors",
 }
 
 

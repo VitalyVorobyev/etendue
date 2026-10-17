@@ -2,112 +2,107 @@
 
 [![CI](https://github.com/VitalyVorobyev/etendue/actions/workflows/ci.yml/badge.svg)](https://github.com/VitalyVorobyev/etendue/actions/workflows/ci.yml)
 [![Docs](https://github.com/VitalyVorobyev/etendue/actions/workflows/publish-docs.yml/badge.svg)](https://vitalyvorobyev.github.io/etendue)
-[![Audit](https://github.com/VitalyVorobyev/etendue/actions/workflows/audit.yml/badge.svg)](https://github.com/VitalyVorobyev/etendue/actions/workflows/audit.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Interactive design of laser-triangulation 3D-sensor optical systems. Pure Rust, native
-desktop (egui + wgpu). Lets a mechanical/optical designer pick focal length, f-number,
-focus distance, Scheimpflug tilt, laser geometry, and see — live — where the working
-volume lands, how the laser line projects, and where focus falls off.
+etendue designs robot–camera–laser calibration cells and generates synthetic calibration
+datasets with exact ground truth.
 
-## Status
+You describe a cell — a robot, camera rigs, line lasers, lights, a calibration board — and a
+scenario of robot moves and captures. etendue bakes the motion with the robot's kinematics,
+computes where every board corner and laser-stripe point lands in every camera, renders the
+images with Blender, and detects the board in them. The result is a dataset in
+[calibration-rs](https://github.com/VitalyVorobyev/calibration-rs)'s format, together with the
+ground truth that a calibration of it should recover.
 
-M0–M10 plus post-MVP features complete. **247** tests pass. Scheimpflug
-circle-of-confusion physics derived from first principles and validated against hand
-calculations (M4 kill gate passed): on-PoBF cancellation exact to machine epsilon
-(~1e-18); off-axis regime (b) c = 51.6529 µm = 14.97185 px matches the textbook
-formula independently. M9 Scheimpflug solver convergence validated against the analytic
-fronto-parallel optimum; M10 N-view voxel overlap and symmetric ring geometry verified.
-Gaussian PSF and triangle-mesh laser intersection shipped in the post-MVP pass.
+![etendue studio: the hand-eye calibration example, with the UR5e, its two-camera rig and the board in 3D, and the left camera's view at a capture below](book/src/images/studio.png)
 
-## Screenshot
+## What it does
 
-![etendue UI — default MVP scene with defocus heatmap and working-volume overlay](docs/ui.png)
+- **The studio** (a desktop app; built from source, it also runs in a browser, without dataset
+  generation) shows the cell in 3D, plays the scenario back, and shows what each camera sees at
+  every capture, with the board's corners projected through the full camera model (distortion,
+  Scheimpflug tilt).
+- **Ground truth**: for every capture, the camera poses, the robot pose and the pixel of every
+  board corner and laser-stripe point, with visibility. Written as calibration-rs datasets: single
+  camera intrinsics (planar or Scheimpflug), rig extrinsics, eye-in-hand and eye-to-hand hand-eye
+  for one camera or a rig, and a laser-line rig.
+- **Synthetic images**: Blender (Cycles) renders each capture through an ideal pinhole, and
+  etendue resamples it onto the real camera model, so distortion and tilt are exact. An optional
+  sensor model adds exposure, noise and quantisation and writes raw images.
+- **Detection**: chessboard corners are found and labelled in the rendered images and checked
+  against the ground truth, so the image-level loop can be calibrated end to end.
+- **Robots**: URDF robots with forward and inverse kinematics; the Universal Robots UR5e and the
+  ABB IRB 1200 are included. Scenarios move the robot point to point or in straight lines, or
+  come from a list of tool poses.
 
-Default MVP scene: the 3D viewport shows the camera frustum, laser fan, and target quad;
-the parameter panel (left) exposes focal-length, f-number, Scheimpflug tilt, and pose sliders;
-the defocus heatmap colors the target from sharp green through yellow to blurry red, and the
-translucent working-volume patch on the laser fan marks the in-focus, in-view measurement region.
+## Install
 
-## Quick start
+Download the desktop app and the command-line tool from the
+[releases page](https://github.com/VitalyVorobyev/etendue/releases) (once a version is released;
+until then, build from source):
+
+| Platform | Desktop app | Command line |
+|---|---|---|
+| macOS (Apple silicon) | `.dmg` | `etendue-cli-…-aarch64-apple-darwin.tar.gz` |
+| Windows (x64) | `.msi` or `-setup.exe` | `etendue-cli-…-x86_64-pc-windows-msvc.zip` |
+| Linux (x64) | `.AppImage` or `.deb` | `etendue-cli-…-x86_64-unknown-linux-gnu.tar.gz` |
+
+The builds are not signed yet. On macOS, open the app the first time with right-click → Open
+(or run `xattr -dr com.apple.quarantine "/Applications/etendue studio.app"`); on Windows,
+choose "More info → Run anyway" in SmartScreen.
+
+Rendering needs [Blender 5.1.1](https://www.blender.org/download/releases/5-1/). etendue looks
+for it in `$ETENDUE_BLENDER`, then in the default install location (`/Applications/Blender.app`
+on macOS, `blender` on the `PATH` elsewhere). Everything else works without it.
+
+To build from source instead, see the
+[installation chapter](https://vitalyvorobyev.github.io/etendue/installation.html) of the
+documentation.
+
+## Quick start: the studio
+
+1. Open **etendue studio**. It starts with a built-in example; pick another from the example
+   menu, or open your own scene (and scenario) with **Open scene…**.
+2. Press play to watch the scenario. Select a camera in the scene tree to see its view, with
+   the board's corners projected at each capture. The **Joints** tab plots the robot's motion.
+3. In the **Dataset** tab, choose an output folder and press **Generate**: etendue writes the
+   ground truth, renders every capture with Blender, and detects the board. The camera views
+   then show the rendered images.
+
+## Quick start: the command line
 
 ```bash
-# etendue depends on the crates.io `vision-calibration-*` crates; for local
-# development the workspace redirects them to a sibling calibration-rs
-# checkout via `[patch.crates-io]`, so both repos must live under the same
-# parent directory to build this workspace.
-git clone https://github.com/VitalyVorobyev/calibration-rs
-git clone https://github.com/VitalyVorobyev/etendue
-cd etendue
-cargo run -p etendue-ui      # the (frozen) desktop app
-cargo run -p etendue-cli -- validate examples/eye_in_hand_ur5e/scene.json examples/eye_in_hand_ur5e/scenario.json
+etendue validate scene.json scenario.json          # check the cell and that every move is reachable
+etendue gt       scene.json scenario.json -o out   # ground truth: dataset.json, gt.json (+ robot_poses.json)
+etendue render   scene.json scenario.json -o out --supersample 4 --samples 16   # images/<camera>/<capture>.png
+etendue detect   out                               # features.json, checked against the ground truth
+etendue scenario from-poses poses.json --robot ur5e -o scenario.json --scene scene.json
 ```
 
-## Architecture
+`etendue <command> --help` describes every option.
 
-```
-etendue-ui (binary)
-    │  winit + wgpu + egui + egui-wgpu render loop
-    │  viewport, parameter panel, simulated-image panel
-    │
-    └──depends on──► etendue-core (kernel)
-                         │  scene, geometry, thick-lens optics
-                         │  Scheimpflug CoC, laser projection,
-                         │  working-volume analysis, bank schema
-                         │
-                         └──crates.io dep──► vision-calibration-core
-                                  (patched to ../calibration-rs locally)
-```
+## Examples
 
-| Crate | Role |
+| Example | What it shows |
 |---|---|
-| `etendue-core` | Geometry and optics kernel (concrete `f64`). `Scene`, `ThickLens`, Scheimpflug CoC, laser projection, working-volume analysis, component-bank schema. |
-| `etendue-ui` | The binary. winit + wgpu + egui + egui-wgpu render loop; 3D viewport, parameter panel, simulated-image panel. |
+| `examples/eye_in_hand_ur5e` | A stereo rig on a UR5e's flange views a chessboard on the table. |
+| `examples/eye_to_hand_ur5e` | A static stereo rig views a chessboard held by the UR5e. |
+| `examples/closed_loop_ur5e` | A rig mounted off square, 20 viewpoints for a hand-eye calibration, and a linear sensor model. |
+| `examples/laser_ur5e` | The same rig with a line laser: a laser-plane calibration dataset. |
+| `examples/laser_scheimpflug_ur5e` | The laser rig with Scheimpflug-tilted sensors. |
 
-## MVP demo
+## File formats
 
-1. Launch `cargo run -p etendue-ui`. The default scene opens with a camera–laser–target triangulation
-   rig, the defocus heatmap, and the working-volume overlay both on.
-2. In the parameter panel, note the **Optimal distance (m)** readout or use the
-   Scheimpflug solver section to solve for tilt + focus given a depth window.
-3. Drag the **Focus distance** slider until the green in-focus band on the heatmap covers
-   your target depth range.
-4. Adjust **Focal length** and **f-number** to trade field width against depth of field.
-5. Tune **Scheimpflug tilt** (τx) to tilt the plane of best focus to follow the laser
-   plane at an oblique angle.
-6. Adjust the laser **fan angle** and the **laser pose** until the working-volume area
-   (mm²) and depth-range (mm) readouts match what you would write on a sensor spec sheet.
-7. Save the scene as JSON with **File → Save scene** for a reproducible record of the
-   parameter set.
+Scenes, scenarios, baked scenarios and robot manifests are versioned JSON documents. Their JSON
+Schemas are in [`schemas/`](schemas/); editors that understand JSON Schema validate and complete
+them. The [documentation](https://vitalyvorobyev.github.io/etendue) describes each one, and the
+dataset layout etendue writes.
 
 ## Documentation
 
-- Book: https://vitalyvorobyev.github.io/etendue (built by `publish-docs.yml`)
-- Scheimpflug derivation: [`docs/derivations/scheimpflug_pobf.md`](docs/derivations/scheimpflug_pobf.md)
-- Original design doc: [`docs/handoff.md`](docs/handoff.md)
-
-## Roadmap
-
-The following items remain open (all other post-MVP queue items have shipped):
-
-1. Promote `ThickLens` to a first-class `ApertureModel<S>` trait in calibration-rs
-   (upstream PR, requires calibration-rs maintainer review).
-2. Component-picker UI — browse `assets/bank/`, drag components onto the scene.
-
-## Reuse from calibration-rs
-
-etendue depends on `vision-calibration-core` from the sibling
-[calibration-rs](https://github.com/VitalyVorobyev/calibration-rs) workspace via path
-dependency. New optics functionality (the `ThickLens` model) will be upstreamed to
-calibration-rs as a first-class `ApertureModel<S>` trait once it stabilizes. The
-dependency is never vendored or forked.
-
-## Diligence statement
-
-This project is developed with AI coding assistants (Claude Code) as implementation
-tools. The project author is an expert in computer vision and physics, validates all
-algorithmic behavior and numerical results, and enforces quality gates
-(`fmt`/`clippy`/tests) before release.
+The user guide, the CLI reference and the optics behind the design tools are at
+**https://vitalyvorobyev.github.io/etendue**. The Rust API documentation is at
+https://vitalyvorobyev.github.io/etendue/api/.
 
 ## License
 

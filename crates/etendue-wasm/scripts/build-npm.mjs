@@ -36,7 +36,8 @@ if (!version) throw new Error("workspace version not found in Cargo.toml");
 const manifest = {
   name: "@etendue/wasm",
   version,
-  description: "WebAssembly build of the etendue kernel: scene validation, scenario baking, camera projection.",
+  description:
+    "The etendue kernel in WebAssembly: scenes, scenario baking with robot kinematics, camera projection and remap tables.",
   license: "MIT",
   repository: {
     type: "git",

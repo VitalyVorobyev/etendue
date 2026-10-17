@@ -1,6 +1,6 @@
 [package]
 name = "etendue-cli"
-description = "Command-line interface of etendue: validate scenes and scenarios, bake robot motion, render with Blender"
+description = "The etendue command line: validate scenes and scenarios, bake robot motion, write calibration ground truth, render with Blender, detect the board"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

@@ -1,7 +1,7 @@
 //! Component-bank schema for the etendue component catalogue.
 //!
 //! Defines the serializable specification types for the three component
-//! families the M3 bank holds: image sensors, lenses, and line lasers. The
+//! families the bank holds: image sensors, lenses, and line lasers. The
 //! serde conventions mirror `vision-calibration-core`:
 //!
 //! - tagged enums with `#[serde(tag = "type", rename_all = "snake_case")]`
@@ -12,11 +12,6 @@
 //! `wavelength_nm` stores nanometres (laser-industry convention).
 //! Focal length in [`LensSpec`] is metres; pixel pitch in [`SensorSpec`] is
 //! metres (physical pixel size on the die).
-//!
-//! # Component-picker UI
-//!
-//! Component-picker UI is post-MVP. This module is schema + catalogue + seed
-//! files only; the UI comes later (see development plan, post-MVP section).
 
 use serde::{Deserialize, Serialize};
 
@@ -27,7 +22,7 @@ use serde::{Deserialize, Serialize};
 /// Specification for an image sensor (camera chip).
 ///
 /// Pixel pitch and resolution are the primary sizing parameters; the optional
-/// electro-optical fields are present for future noise / SNR analysis (M6+).
+/// electro-optical fields are present for future noise / SNR analysis.
 ///
 /// # Note on values
 ///
@@ -81,7 +76,7 @@ pub enum LensMount {
 }
 
 /// Placeholder MTF data record — enough structure for a future MTF-aware picker
-/// without forcing it now. Left as a single-field struct so M4+ can extend it
+/// without forcing it now. Left as a single-field struct so it can be extended
 /// without a breaking schema change.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct MtfPlaceholder {
@@ -93,8 +88,8 @@ pub struct MtfPlaceholder {
 /// Specification for a machine-vision lens.
 ///
 /// Focal length and f-number are the primary optical parameters. MTF is
-/// captured as a placeholder for now; a full curve (contrast vs. lp/mm) is
-/// M6+.
+/// captured as a placeholder for now; a full curve (contrast vs. lp/mm) may
+/// follow.
 ///
 /// # Note on values
 ///
@@ -125,7 +120,7 @@ pub struct LensSpec {
 
 /// Parametric line-width model kind.
 ///
-/// The MVP uses `Gaussian` with a beam-waist parameter; the `Measured` variant
+/// The line model uses `Gaussian` with a beam-waist parameter; the `Measured` variant
 /// is a placeholder for a future lookup-table approach. The `#[non_exhaustive]`
 /// guard future-proofs deserialization.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -147,7 +142,7 @@ pub enum LineWidthModel {
 
 /// Parameters for a Gaussian beam-waist line-width model.
 ///
-/// Only `w0` is needed for M5's beam-waist model; additional fields (Rayleigh
+/// Only `w0` is needed for the beam-waist model; additional fields (Rayleigh
 /// range, divergence half-angle) are derivable from `w0` and the wavelength
 /// but can be stored for convenience.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -159,9 +154,9 @@ pub struct GaussianBeamParams {
 
 /// Specification for a line-projecting laser.
 ///
-/// Wavelength and fan half-angle are the primary parameters for the MVP scene.
-/// Beam-waist (M5) and optical-power fields are present for future physical
-/// models.
+/// Wavelength and fan half-angle are the primary parameters. The beam waist
+/// feeds the Gaussian-beam line-width model; the optical-power field is
+/// present for future physical models.
 ///
 /// # Note on values
 ///
@@ -179,7 +174,7 @@ pub struct LaserSpec {
     /// Optical output power in milliwatts (optional).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub power_mw: Option<f64>,
-    /// Parametric line-width model (optional; required for M5 beam width).
+    /// Parametric line-width model (optional; required for the beam-width model).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub line_width: Option<LineWidthModel>,
 }

@@ -1,18 +1,25 @@
-# Scheimpflug Solver (M9)
+# Scheimpflug Solver
 
-The M9 Scheimpflug solver finds the sensor tilt angles `(τ_x, τ_y)` and
-focus distance `s_o` that minimise the **worst-case circle-of-confusion**
-over a user-defined depth window `[d_min, d_max]` at an optimal working
-distance `d_opt`.
+The Scheimpflug solver finds the sensor tilt angles `(τ_x, τ_y)` and focus
+distance `s_o` that minimise the **worst-case circle of confusion** over a
+camera-frame depth window `[d_min, d_max]` around a working distance
+`d_opt`.
+
+The solver is behind the `solver` feature of `etendue-core`, which is off by
+default (it pulls in `argmin`):
+
+```toml
+etendue-core = { version = "0.1", features = ["solver"] }
+```
 
 ## The design problem
 
 A triangulation camera viewing a target at an angle to its optical axis
 suffers depth-dependent focus variation: points near the camera are in focus
 while far points blur, or vice versa. The Scheimpflug principle says this is
-correctable — there exists a sensor tilt that rotates the plane of best
-focus until it contains the target plane. The solver finds that tilt and the
-matching focus distance automatically.
+correctable: there exists a sensor tilt that rotates the plane of best focus
+until it contains the target plane. The solver finds that tilt and the
+matching focus distance.
 
 ## Cost function
 
@@ -25,29 +32,58 @@ $$
 
 The fan is sampled in its natural `(phi, r)` parameterisation (see
 [`SampleGrid`](#samplegrid)). Each sample is transformed into the camera
-frame and kept only if it is **valid** — in front of the camera, projecting
-inside the sensor rectangle, and at a camera-frame depth inside the user's
+frame and kept only if it is **valid**: in front of the camera, projecting
+inside the sensor rectangle, and at a camera-frame depth inside the
 `[d_min, d_max]` window. The cost is the largest CoC over the surviving
-samples, or `+∞` when a trial loses the whole stripe — a strong penalty the
-optimiser steers away from. (`d_opt` is carried as design intent for the UI
-readout; the depth window is what actually drives the cost.)
+samples, or `+∞` when a trial loses the whole stripe, a strong penalty the
+optimiser steers away from. Samples outside the depth window are dropped,
+not penalised, so the optimiser cannot shrink the working volume to game the
+objective. (`d_opt` is carried as design intent; the depth window is what
+actually drives the cost.)
 
 The max-CoC objective is the right cost for a "worst-case image quality"
-criterion. It is **non-smooth** — the validity predicates flip discretely as a
-trial moves — which is exactly why the solver below is derivative-free.
+criterion. It is **non-smooth** (the validity predicates flip discretely as a
+trial moves), which is why the solver is derivative-free.
 
-The CoC is computed by the M4 Scheimpflug formula (`coc_diameter_at_sensor`,
-the same physics behind `ThickLens::coc_diameter_px`), which accounts for the
-sensor tilt, the inter-principal gap, and the object depth in one formula.
+The CoC is computed by the Scheimpflug formula `coc_diameter_at_sensor`, the
+same physics behind `ThickLens::coc_diameter_px` (see
+[Thick Lens and Defocus](thick_lens.md)). It accounts for the sensor tilt,
+the inter-principal gap, and the object depth in one formula.
+
+## API
+
+```rust
+use etendue_core::solver::{SampleGrid, SolverSpec, SolverResult, SolverError, solve_scheimpflug};
+
+pub fn solve_scheimpflug(
+    camera: &CameraEntity,
+    laser:  &LaserEntity,
+    spec:   &SolverSpec,
+) -> Result<SolverResult, SolverError>;
+
+pub struct SolverSpec {
+    pub d_opt: f64,                 // working distance, metres (design intent)
+    pub depth_range: (f64, f64),    // camera-frame (d_min, d_max), metres
+    pub grid: SampleGrid,
+}
+```
+
+The camera is **not** mutated. To apply a result, write `s_o` into
+`camera.optics.focus_distance_m` and set
+`camera.params.sensor = SensorParams::Scheimpflug { … }` with
+`tilt_x = tau_x` and `tilt_y = tau_y`.
+
+`SolverError` is `#[non_exhaustive]`, with variants `InvalidSpec` (non-finite
+numbers, an inverted or negative depth window, a grid smaller than 2 × 2),
+`InvalidCamera`, and `SolverFailure` (the optimiser could not make progress,
+typically because every trial lost the stripe).
 
 ## The solver: `argmin` Nelder-Mead
 
 The optimisation uses [`argmin`](https://argmin-rs.github.io/argmin/)'s
-**Nelder-Mead** simplex method, called from
-`etendue_core::solver::scheimpflug::solve_scheimpflug`. Nelder-Mead is
-derivative-free — the natural choice because the worst-case-CoC cost is
-non-smooth and cheap to evaluate, so a gradient method would have no smooth
-gradient to follow.
+**Nelder-Mead** simplex method. Nelder-Mead is derivative-free, the natural
+choice because the worst-case-CoC cost is non-smooth and cheap to evaluate,
+so a gradient method would have no smooth gradient to follow.
 
 The initial simplex is anchored at the camera's current `(τ_x, τ_y, s_o)`
 with small per-variable perturbations: 1° in each tilt, and 5 % of `d_opt`
@@ -55,10 +91,8 @@ with small per-variable perturbations: 1° in each tilt, and 5 % of `d_opt`
 standard-deviation tolerance of `1e-6` and an iteration cap of 500.
 
 There are no hard solver bounds. Instead the cost returns `+∞` for a
-physically invalid trial — `s_o ≤ f`, or a tilt magnitude at or beyond
-`π/2` — so the simplex retreats from the infeasible region on its own. A
-smoothed-objective gradient pass is a possible future follow-up should the
-simplex method prove brittle on real designs.
+physically invalid trial (`s_o ≤ f`, or a tilt magnitude at or beyond
+`π/2`), so the simplex retreats from the infeasible region on its own.
 
 ## SampleGrid
 
@@ -70,30 +104,12 @@ pub struct SampleGrid {
 ```
 
 The grid is a `rows × cols` sampling of the **laser fan plane** in its
-natural `(phi, r)` parameterisation — `rows` sweeps the fan angle, `cols`
-the radius. Larger grids give more accurate worst-case estimates but cost
-proportionally more cost-function evaluations. 32 × 32 (1 024 points)
-completes in well under one frame on a typical development machine; larger
-grids are straightforward but move the solver toward a background-thread
-model.
-
-## UI section
-
-The parameter panel's **Scheimpflug solver (M9)** collapsible:
-
-1. Three drag-value inputs: **Optimal distance**, **Depth min**, **Depth max**
-   (all in metres; initialised from the camera's current focus on first
-   open).
-2. A **Solve** button — runs the solver synchronously and stores the result.
-3. A result readout: proposed `τ_x`, `τ_y`, `s_o`, worst-case CoC, sample
-   count, and iteration count.
-4. **Apply** — writes the proposed tilt + focus into the camera and triggers
-   a viewport rebuild. **Discard** — clears the pending result.
-
-Applying calls `apply_solver_result`, which writes `camera.optics.focus_distance_m`
-and sets `camera.params.sensor = SensorParams::Scheimpflug { … }` — the
-same path the Scheimpflug-tilt sliders use, so the defocus heatmap updates
-on the same frame.
+natural `(phi, r)` parameterisation: `rows` sweeps the fan angle, `cols`
+the radius. Both must be at least 2. `SampleGrid::DEFAULT` (also
+`SampleGrid::default()`) is 32 × 32. Larger grids give more accurate
+worst-case estimates but cost proportionally more cost-function
+evaluations; 32 × 32 (1 024 points) solves in well under a frame on a
+typical development machine.
 
 ## SolverResult
 
@@ -104,18 +120,22 @@ pub struct SolverResult {
     pub s_o:   f64,          // optimal focus distance, metres
     pub max_coc_px: f64,     // worst-case CoC over the sample grid, pixels
     pub n_valid_samples: usize,
-    pub iterations: u32,
     pub converged: bool,
+    pub iterations: u32,
 }
 ```
+
+`n_valid_samples` is zero when the design lost the whole stripe; `max_coc_px`
+is then `+∞`. `converged = false` means the iteration cap was hit; the result
+is still the best-known simplex point.
 
 ## Validation
 
 Two convergence tests guard the solver:
 
-- `fronto_parallel_fan_drives_tilt_to_zero_and_focus_to_d_opt` — when the
+- `fronto_parallel_fan_drives_tilt_to_zero_and_focus_to_d_opt`: when the
   laser fan is fronto-parallel (perpendicular to the camera axis) the
   optimal Scheimpflug tilt is zero and the optimal focus is `d_opt`; the
   solver must recover this.
-- `solving_lowers_worst_case_coc` — the solver result must strictly reduce
+- `solving_lowers_worst_case_coc`: the solver result must strictly reduce
   the worst-case CoC compared with the baseline (zero tilt, current focus).

@@ -6,7 +6,7 @@
 //! coordinates so the intersection and projection layers ([`super::intersect`],
 //! [`super::project`]) can work directly against the scene's other entities.
 //!
-//! # Laser-local convention (from M2)
+//! # Laser-local convention
 //!
 //! A [`LaserEntity`]'s fan lies in its local `x = 0` plane and opens
 //! symmetrically about the local `+z` axis (the *central ray*), spreading
