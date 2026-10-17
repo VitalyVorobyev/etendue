@@ -12,6 +12,10 @@
 //!   [`TOP`] (the top of the stack, even though it has a library).
 //! - The resolved graph contains exactly one `nalgebra` (the 0.34 hard pin)
 //!   and never the `k` crate (it requires nalgebra ^0.30).
+//! - The calibration-rs version is the same everywhere it is spelled out:
+//!   the `vision-calibration-*` requirements in `Cargo.toml`, every
+//!   workflow's `CALIBRATION_RS_REF` tag, and the closed-loop wheel pin
+//!   ([`check_calibration_rs`]).
 //!
 //! `--manifest-path <Cargo.toml>` checks only the last rule, on a crate
 //! outside the workspace (the studio's Tauri shell), whose graph the
@@ -172,10 +176,11 @@ pub fn run(root: &Path) -> Result<()> {
     }
 
     let nalgebra = check_graph(packages, &mut errors);
+    let calibration_rs = check_calibration_rs(root, &mut errors)?;
 
     if errors.is_empty() {
         println!(
-            "layering ok ({} workspace crates, nalgebra {})",
+            "layering ok ({} workspace crates, nalgebra {}, calibration-rs {calibration_rs})",
             workspace.len(),
             nalgebra[0]
         );
@@ -183,4 +188,58 @@ pub fn run(root: &Path) -> Result<()> {
     } else {
         bail!("layering violations:\n  {}", errors.join("\n  "))
     }
+}
+
+/// The value of the first `key = "…"` / `key: …` / `"key==…"` occurrence on
+/// a line of `text`, for the pins this check compares.
+fn pin(text: &str, prefix: &str, end: char) -> Option<String> {
+    text.lines().find_map(|line| {
+        let rest = line.trim_start().strip_prefix(prefix)?;
+        Some(rest.split(end).next()?.trim().to_owned())
+    })
+}
+
+/// Check that calibration-rs's version is spelled the same everywhere: the
+/// workspace requirements (the reference), each workflow's
+/// `CALIBRATION_RS_REF` (`v<version>`, the tag CI clones for the
+/// `[patch.crates-io]`), and the `vision-calibration` wheel of
+/// `tools/closed-loop`. A tag that does not match makes the patch go unused.
+/// Returns the version.
+fn check_calibration_rs(root: &Path, errors: &mut Vec<String>) -> Result<String> {
+    let read = |rel: &str| {
+        std::fs::read_to_string(root.join(rel)).with_context(|| format!("reading {rel}"))
+    };
+    let cargo = read("Cargo.toml")?;
+    let version = pin(&cargo, "vision-calibration-core = \"", '"')
+        .context("Cargo.toml: no vision-calibration-core requirement")?;
+    if pin(&cargo, "vision-calibration-dataset = \"", '"').as_deref() != Some(&version) {
+        errors.push(format!(
+            "Cargo.toml: vision-calibration-dataset must require {version} like vision-calibration-core"
+        ));
+    }
+    let workflows = root.join(".github/workflows");
+    for entry in std::fs::read_dir(&workflows).context("reading .github/workflows")? {
+        let path = entry?.path();
+        let text = std::fs::read_to_string(&path)?;
+        if let Some(tag) = pin(&text, "CALIBRATION_RS_REF:", '#')
+            && tag != format!("v{version}")
+        {
+            errors.push(format!(
+                "{}: CALIBRATION_RS_REF {tag}, but Cargo.toml requires {version}",
+                path.strip_prefix(root).unwrap_or(&path).display()
+            ));
+        }
+    }
+    let wheel = pin(
+        &read("tools/closed-loop/pyproject.toml")?,
+        "\"vision-calibration==",
+        '"',
+    );
+    if wheel.as_deref() != Some(&version) {
+        errors.push(format!(
+            "tools/closed-loop/pyproject.toml: vision-calibration=={}, but Cargo.toml requires {version}",
+            wheel.unwrap_or_default()
+        ));
+    }
+    Ok(version)
 }

@@ -18,7 +18,7 @@ etendue (cargo workspace, resolver = "3", edition = "2024")
 
 ```text
 etendue-ui   ─dep─┐
-                  ├─►  etendue-core  ─dep─►  vision-calibration-core (crates.io 0.8)
+                  ├─►  etendue-core  ─dep─►  vision-calibration-core (crates.io 0.9)
 etendue-wasm ─dep─┘                            ↳ [patch.crates-io] → ../calibration-rs
 ```
 
@@ -36,7 +36,7 @@ published:
 
 ```toml
 [workspace.dependencies]
-vision-calibration-core = "0.8"
+vision-calibration-core = "0.9.0"
 
 [patch.crates-io]
 vision-calibration-core = { path = "../calibration-rs/crates/vision-calibration-core" }

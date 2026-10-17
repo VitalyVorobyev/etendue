@@ -20,9 +20,13 @@
 | G5.3 laser closed loop | `g5_3_laser_closed_loop.md` | **PASS** on `laser_ur5e` (normal 1.32e-7° / 1.21e-7°); Scheimpflug characterisation unchanged (0.0080° / 0.0102°) |
 | Studio shell | — | clippy clean, 7 tests passed |
 
-Not re-run: the Blender gates (G4.1, G4.2, G4.3, P4-5, P5-1b image loop). They need the pinned
-Blender 5.1.1, which was not installed (5.2.2 was), and 0.9.0 does not touch their code paths
-(projection is covered by G0.1 and G3.1; detection does not use calibration-rs).
+Not re-run, because they need the pinned Blender 5.1.1, which was not installed (5.2.2 was):
+- G4.1, G4.2, G4.3 and P4-5. 0.9.0 does not touch their code paths: projection is covered by
+  G0.1 and G3.1, and detection does not use calibration-rs.
+- **P5-1b, the image-level loop: not verified on 0.9.0.** Its render and detect steps do not use
+  calibration-rs, but its calibrate step (`closed_loop.py --features`) runs the wheel, which 0.9.0
+  changes (the release adds Radon corners and the whole-board chessboard runner). It is re-run
+  with the next Blender session.
 
 ## Procedure
 

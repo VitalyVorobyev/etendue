@@ -19,7 +19,8 @@
     was decided on 2026-09-28 (the measured accuracy is the baseline).
 - Measured: 2026-09-27, on etendue commit `f8e7ac1` (branch `pivot/p5-closed-loop`), with the
   `vision-calibration` 0.8.2 wheel from PyPI.
-- Re-run 2026-10-17 on calibration-rs 0.9.0: unchanged (`calibration_rs_0_9.md`).
+- Re-run 2026-10-17 on calibration-rs 0.9.0 and the 0.9.0 wheel (etendue `e989eed`): **PASS** on
+  `closed_loop_ur5e` (rig and `--camera cam_left`) and `eye_in_hand_ur5e` (`calibration_rs_0_9.md`).
 
 ## Procedure
 

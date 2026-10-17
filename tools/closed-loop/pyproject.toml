@@ -10,3 +10,5 @@ dependencies = [
 
 [tool.uv]
 package = false
+# uv.lock is lock-format revision 5, which older uv cannot read.
+required-version = ">=0.13"

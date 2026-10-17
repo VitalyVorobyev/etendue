@@ -316,7 +316,7 @@ def nominal_seed(cameras: list[dict[str, Any]]) -> dict[str, Any]:
 class SeededLaserlineConfig(vc.RigHandeyeLaserlineCalibrationConfig):
     """The joint config with `handeye.manual_init` set.
 
-    The wheel does not expose `manual_init` yet (calibration-rs 0.8.3: "still Rust-only"), but the
+    The wheel does not expose `manual_init` yet (calibration-rs 0.9.0: "still Rust-only"), but the
     Rust config it is deserialised into accepts it, so it is added to the payload.
     """
 

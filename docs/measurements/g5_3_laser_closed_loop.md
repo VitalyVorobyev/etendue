@@ -26,7 +26,8 @@
   `pivot/p5-3-laser-loop` (merge commit `30468b3`), calibration-rs 0.8.3: identical
   results (plane normal 1.32e-7° / 1.21e-7°, distance 1e-8 mm; Scheimpflug variant 0.0080° /
   0.0102°).
-- Re-run 2026-10-17 on calibration-rs 0.9.0: unchanged (`calibration_rs_0_9.md`).
+- Re-run 2026-10-17 on calibration-rs 0.9.0 and the 0.9.0 wheel (etendue `e989eed`): **PASS**, the
+  same numbers; Scheimpflug characterisation unchanged (`calibration_rs_0_9.md`).
 
 ## Procedure
 
