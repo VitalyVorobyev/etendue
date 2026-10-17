@@ -108,8 +108,8 @@ With laser images it also extracts each stripe's centre line into `laser_feature
    in brackets. A ratio a little above 1 is the pixel's own blur: a pixel integrates over its
    area.
 
-ChArUco and marker-board ids are wrong when the board is turned more than 45° in the image (a
-calib-targets 0.15 bug). Keep such views within ±45° of upright: the sphere pose generator keeps images upright, so keep its rolls within ±45°.
+ChArUco and marker boards are labelled correctly at any in-plane rotation since calib-targets
+0.15.5 (before it, boards turned more than 45° had every id one square off).
 
 ## `scenario from-poses`
 

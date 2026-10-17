@@ -357,8 +357,8 @@ fn a_half_turn_symmetric_chessboard_is_ambiguous() {
 /// Rolls and tilts (degrees) of the views every planar kind is checked in.
 const VIEWS: [(f64, f64); 4] = [(0.0, 0.0), (-35.0, 0.0), (30.0, 25.0), (-20.0, -30.0)];
 /// Rolls past 45°: calib-targets' chessboard labels then run turned against
-/// the print, which calib-targets 0.15.3's ChArUco and marker board
-/// alignments get wrong (see `rotated_charuco_and_marker_boards`).
+/// the print, and the board alignments must turn them back (calib-targets
+/// before 0.15.5 left every id one square off).
 const TURNED: [(f64, f64); 3] = [(100.0, 0.0), (215.0, 0.0), (290.0, 20.0)];
 
 /// A planar kind seen square on, rolled and tilted: all labels right, and
@@ -418,15 +418,12 @@ fn labels_a_marker_board_by_its_circles() {
     planar(&geometry, f, size, &VIEWS);
 }
 
-/// calib-targets 0.15.3 aligns ChArUco markers and marker board circles by
-/// their cells' top-left corner labels, turned as if they were corners, and
-/// applies that alignment to the corners: once the chessboard labels run
-/// turned against the print (rolls past 45°), every id is off by one square
-/// (a quarter turn by one column, a half turn by one column and one row).
-/// `etendue detect` reports those labels as mislabelled; it does not correct
-/// them. Un-ignore when calib-targets is fixed.
+/// ChArUco markers and marker board circles are aligned by cell; once the
+/// chessboard labels run turned against the print (rolls past 45°), the
+/// corners need the cell alignment turned into a corner alignment.
+/// calib-targets before 0.15.5 skipped that, leaving every id one square off
+/// (calib-targets-rs#109).
 #[test]
-#[ignore = "calib-targets 0.15.3 mislabels ChArUco and marker boards turned past 45°"]
 fn rotated_charuco_and_marker_boards() {
     for (geometry, f, size) in [charuco(), marker_board()] {
         planar(&geometry, f, size, &TURNED);

@@ -313,7 +313,7 @@ and ask; do not silently relax it.
   - Re-runs on the new board: G4.2 unchanged, G4.3 still passes. The mesh is exact, so the
     texture path is dropped.
   - Found calib-targets' ChArUco detector labelling corners one square off on rotated
-    boards (calib-targets-rs#106).
+    boards (calib-targets-rs#106; fixed in 0.15.5, #109).
   - Open: the web viewers still draw a checker, so ChArUco markers and even-row boards need a
     `cells` option in `@vitavision/three` (`docs/measurements/p3_3_target_geometry.md`).
 
@@ -478,13 +478,11 @@ collision checking. Order: P7-0 → (P7-1, P7-3, P7-4) → P7-2 → P7-5 → P7-
   (`docs/measurements/g4_4_targets.md`): every view of every kind detected, 0 mislabels, 0.058 px
   RMS on the planar kinds; the PuzzlePole finds every corner seen within 60° of its normal
   (0.063 px RMS). Rendered with Blender 5.2.2 (pin 5.1.1 not installed). Upstream: calib-targets
-  0.15.3 mislabels ChArUco and marker boards turned past 45° in the image.
-  - A draft fix is uncommitted in the worktree `../calib-targets-rs-rotfix` (branch
-    `fix/rotated-board-corner-ids`), for the user's review.
-  - The fix: a cell alignment becomes a corner alignment through
-    `calib_targets_core::cell_to_corner_alignment`.
-  - Its regression test covers 0–270°.
-  - etendue's `rotated_charuco_and_marker_boards` stays ignored until a release carries the fix.
+  0.15.3 mislabelled ChArUco and marker boards turned past 45° in the image.
+  - Fixed in calib-targets 0.15.5 (calib-targets-rs#109, released 2026-10-17): a cell
+    alignment becomes a corner alignment through `calib_targets_core::cell_to_corner_alignment`;
+    its regression test covers 0–270°.
+  - etendue is on 0.15.5, and `rotated_charuco_and_marker_boards` runs again (passes).
 - **P7-6 — Sphere pose generator.** Poses on spheres around the target, the sensor's +Z at the
   centre, θ/φ steps, several radii, kept only if reachable, feasible and seen by every camera,
   ordered by motion time. Gate **G2.3**: 400 candidates × 3 cameras in wasm ≤100 ms.

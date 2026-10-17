@@ -180,9 +180,9 @@ checksum = "c4512299f36f043ab09a583e57bceb5a5aab7a73db1805848e8fef3c9e8c78b3"
 
 [[package]]
 name = "box-image-pyramid"
-version = "1.2.0"
+version = "1.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f60e7b0ed84477c5d16709138f4a8d69c8c94f8ef010f4568f4b2b66909236ad"
+checksum = "981ef85736542101268a33243fe5dd957a470d7b666e0a13114fa20c10fa042c"
 dependencies = [
  "rayon",
 ]
@@ -207,9 +207,9 @@ checksum = "8f1fe948ff07f4bd06c30984e69f5b4899c516a3ef74f34df92a2df2ab535495"
 
 [[package]]
 name = "calib-targets-aruco"
-version = "0.15.3"
+version = "0.15.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "63ceeea88c427d1bc0808c91fcb9e27bc2b1bf53b83acc3fa8bd714ecf73b7f8"
+checksum = "c5bd955ddcb082eae3bb249197fcbc55501660924ccc1a8e7ec6fc73e2436896"
 dependencies = [
  "calib-targets-core",
  "log",
@@ -220,9 +220,9 @@ dependencies = [
 
 [[package]]
 name = "calib-targets-charuco"
-version = "0.15.3"
+version = "0.15.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f4635433c5221acd023638e892ce2b436e17719f41d579c0e977d00841fa5f17"
+checksum = "edaa97eeb38caf17458e89a8079f433adca1d9ce356823cca29335ddfa4cf06a"
 dependencies = [
  "calib-targets-aruco",
  "calib-targets-chessboard",
@@ -237,9 +237,9 @@ dependencies = [
 
 [[package]]
 name = "calib-targets-chessboard"
-version = "0.15.3"
+version = "0.15.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "06c5023f14103ae8f359714ce4eb46d9fa62e4c8937900eac3e283b244c1b1e2"
+checksum = "0e73c3ab20d1eb4618c004a3e8a435b91a5646ca8a0d030efa50a6e8f15e97ce"
 dependencies = [
  "calib-targets-core",
  "chess-corners",
@@ -253,9 +253,9 @@ dependencies = [
 
 [[package]]
 name = "calib-targets-core"
-version = "0.15.3"
+version = "0.15.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e7a4d2fc527d04c195919d5d8c12e2383692d503e9197bd3be6aa84b613f0809"
+checksum = "a3089b952c9b29f2013c83b43a159709e09f56aaf816f5f7b305532617514bf7"
 dependencies = [
  "chess-corners",
  "nalgebra",
@@ -267,9 +267,9 @@ dependencies = [
 
 [[package]]
 name = "calib-targets-marker"
-version = "0.15.3"
+version = "0.15.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2330330b59ee22df5244856cd9a1572b3a69756f617f457531ee61ef0823879a"
+checksum = "e1f07ae0a4eef0110bc07d84963136e1f74b25bb845f70a79159d9bad274e3ee"
 dependencies = [
  "calib-targets-chessboard",
  "calib-targets-core",
@@ -282,9 +282,9 @@ dependencies = [
 
 [[package]]
 name = "calib-targets-print"
-version = "0.15.3"
+version = "0.15.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "36fba1a5974526ae4cd050017f40b81542f2a1aec64a26c49c73eaf86e8cc92f"
+checksum = "4754594cc573a6dd7b9c68af7fe7bb05d1254402c51b26bd33df8349208d6677"
 dependencies = [
  "calib-targets-aruco",
  "calib-targets-charuco",
@@ -299,9 +299,9 @@ dependencies = [
 
 [[package]]
 name = "calib-targets-puzzleboard"
-version = "0.15.3"
+version = "0.15.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "65725845cdb241c556ac8aa5d10af81616ef53a59e10edad03d086f5f86724f6"
+checksum = "df42bf04bdb55762c23ddd2eec7838a291087d54efe4530be16851fcc051d4d8"
 dependencies = [
  "calib-targets-chessboard",
  "calib-targets-core",
@@ -341,9 +341,9 @@ dependencies = [
 
 [[package]]
 name = "chess-corners"
-version = "1.2.0"
+version = "1.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ff45579842c7af9ea2c8ba5f783741d0ecbffd7ecd324013dae736d175015fb4"
+checksum = "1ac642ae7bbe8619617845a9c9dd20165b0368a12cdf30b07521e8ec1841c5cf"
 dependencies = [
  "box-image-pyramid",
  "chess-corners-core",
@@ -355,9 +355,9 @@ dependencies = [
 
 [[package]]
 name = "chess-corners-core"
-version = "1.2.0"
+version = "1.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fed54c772847709e809dbd0a41cdef908d7f724825807f3f2b4f37f16630ef96"
+checksum = "e95c6c0b6fa3189a72742a0ce3942fca472cd54cd2c2f999698ddcfde67f4dd2"
 dependencies = [
  "log",
  "rayon",
@@ -1231,9 +1231,9 @@ dependencies = [
 
 [[package]]
 name = "projective-grid"
-version = "0.14.1"
+version = "0.14.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "60fb06e2d4afcb1ff1c653126aa1ffa823af19be0aae6f8544b372fbd0bf9759"
+checksum = "78bad492c2363b0e9a953d6de41395c81a2b6e890ecf28d4a71777cd472f3bf0"
 dependencies = [
  "delaunator",
  "kiddo",

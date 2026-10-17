@@ -12,7 +12,8 @@
     errors (14 corners above 0.3 px, max 0.85 px) all past 60° as well.
 - Not covered by this run: calib-targets 0.15.3 **mislabels ChArUco and marker boards turned
   more than 45° in the image** (every id one square off). The rendered views stay within ±45°, so
-  it does not show here; the CPU-rendered tests reproduce it (see *Known issue* below).
+  it does not show here; the CPU-rendered tests reproduce it (see *Known issue* below). Fixed in
+  calib-targets 0.15.5.
 - Measured: 2026-10-17, on etendue `f05a157` plus the uncommitted P7 work (branch
   `p7/authoring`), calib-targets 0.15.3, chess-corners 1.2.0, **Blender 5.2.2** (Cycles, Metal,
   Apple M4 Pro) with `--allow-blender-version`: the pin is 5.1.1, which was not installed. The
@@ -178,7 +179,12 @@ at 60–76°.
 `closed_loop.py --features` reads the new `features.json` (the chessboard's and the ChArUco
 board's, which have a `dataset.json`) and calibrates as in `closed_loop_images.md`.
 
-## Known issue: turned ChArUco and marker boards (calib-targets 0.15.3)
+## Known issue: turned ChArUco and marker boards (calib-targets 0.15.3; fixed in 0.15.5)
+
+**Update (2026-10-17):** fixed in calib-targets 0.15.5 (calib-targets-rs#109), which converts
+the cell alignment to the corner alignment (`calib_targets_core::cell_to_corner_alignment`).
+etendue moved to 0.15.5 and `rotated_charuco_and_marker_boards` passes. The text below is the
+original diagnosis.
 
 calib-targets' chessboard stage labels corners up to the view (`u` along the image's +x). Once a
 board is turned more than 45° in the image, its labels run turned against the print, and the

@@ -100,6 +100,8 @@ calibration datasets with exact ground truth. The 0.1.0 desktop app is replaced 
 ### Changed
 
 - calibration-rs 0.9.0.
+- calib-targets 0.15.5: ChArUco and marker boards turned past 45° in the image are labelled
+  correctly (they were one square off).
 - `etendue-core`'s Scheimpflug design solver is behind the `solver` feature.
 
 ### Removed

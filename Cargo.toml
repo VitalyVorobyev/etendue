@@ -76,18 +76,18 @@ png = "0.18"
 # points are what it resolves. calib-targets accepts nalgebra >=0.34, <0.36 since
 # 0.15.3, so it shares the pinned nalgebra. `charuco` is needed only for the marker
 # layout and the dictionary lookup, the same ones calibration-rs's detector uses.
-calib-targets-print = "0.15.3"
-calib-targets-charuco = { version = "0.15.3", default-features = false }
+calib-targets-print = "0.15.5"
+calib-targets-charuco = { version = "0.15.5", default-features = false }
 # `etendue detect` (P5-1b): calib-targets' chessboard labeller over chess-corners'
 # corners, the same crate calibration-rs's detector uses (already in the tree
 # through calib-targets-print).
-calib-targets-chessboard = "0.15.3"
+calib-targets-chessboard = "0.15.5"
 # PuzzleBoard and PuzzlePole (P7-4): the supported pole periods, the pole's object frame,
 # and their detectors. Already in the tree through calib-targets-print.
-calib-targets-puzzleboard = "0.15.3"
+calib-targets-puzzleboard = "0.15.5"
 # `etendue detect` (P7-5): the marker board detector. Already in the tree through
 # calib-targets-print.
-calib-targets-marker = "0.15.3"
+calib-targets-marker = "0.15.5"
 # Sensor model noise (etendue-synth). Seeded only: ChaCha is stable across
 # platforms and versions; default features off keep `getrandom` (OS entropy)
 # out, per the determinism rule.
