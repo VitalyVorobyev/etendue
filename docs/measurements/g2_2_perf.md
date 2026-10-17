@@ -6,7 +6,7 @@
 - Result: **PASS**. p95 frame interval 7.8 ms; p95 main-thread work per frame 0.6 ms.
 - Measured: 2026-09-27, on etendue commit `71e7b8a` (branch `pivot/p2`).
 - Re-run 2026-10-17 on the published `@vitavision/three` 0.2 / `three-react` 0.2 (the incubated
-  copies before), etendue commit `SHA_PENDING` (branch `web/published-packages`), same host and
+  copies before), etendue commit `61a932d` (branch `web/published-packages`), same host and
   Chromium: **PASS**, p95 frame interval 7.7 ms (p50 6.9, p99 7.8, max 13.9); p95 main-thread work
   0.7 ms.
 
