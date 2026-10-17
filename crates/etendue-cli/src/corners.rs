@@ -42,7 +42,15 @@ const MATCH_PX: f64 = 1.5;
 /// Keep corners this far from the image edge (the detector's ring radius and
 /// refiner window must fit).
 const MARGIN_PX: f64 = 12.0;
-const GATE_PX: f64 = 0.02;
+/// G4.2's original criterion. G4.2 is a characterisation now (user decision,
+/// 2026-09-28): the report says which rows meet it, and checks the accepted
+/// baseline below.
+const TARGET_PX: f64 = 0.02;
+/// The accepted baseline: Radon at s = 4 on sharp linear renders, 0.032 px
+/// RMS against the analytic ground truth (`g4_2_corner_bias.md`). A re-run
+/// above this plus Monte Carlo slack is a regression.
+const BASELINE_PX: f64 = 0.032;
+const BASELINE_SLACK_PX: f64 = 0.005;
 /// Gaussian PSF applied to the resampled image before detection (pixels): 0 is
 /// the perfectly sharp render; real lenses are ≳ 0.5 px.
 const PSF_SIGMA_PX: [f64; 4] = [0.0, 0.5, 0.7, 1.0];
@@ -179,41 +187,62 @@ fn score(truth: &[[f64; 2]], found: &[CornerDescriptor], stats: &mut Stats) {
 
 /// The detector setups: ChESS with each of its refiners, and the Radon
 /// detector (Duda & Frese) with each of its peak fits.
-const DETECTORS: [&str; 5] = [
-    "center_of_mass",
-    "forstner",
-    "saddle_point",
-    "radon",
-    "radon_parabolic",
-];
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Setup {
+    CenterOfMass,
+    Forstner,
+    SaddlePoint,
+    Radon,
+    RadonParabolic,
+}
 
-fn detector(setup: &str) -> Result<Detector> {
-    let config = match setup {
-        // Radon's threshold is relative to the frame's peak response: keep the
-        // preset's.
-        "radon" => DetectorConfig::radon(),
-        "radon_parabolic" => {
-            DetectorConfig::radon().with_radon(|r| r.peak_fit = PeakFitMode::Parabolic)
+impl Setup {
+    const ALL: [Self; 5] = [
+        Self::CenterOfMass,
+        Self::Forstner,
+        Self::SaddlePoint,
+        Self::Radon,
+        Self::RadonParabolic,
+    ];
+
+    /// The name in the report and in `detections.json` (G4.3 reads it).
+    fn name(self) -> &'static str {
+        match self {
+            Self::CenterOfMass => "center_of_mass",
+            Self::Forstner => "forstner",
+            Self::SaddlePoint => "saddle_point",
+            Self::Radon => "radon",
+            Self::RadonParabolic => "radon_parabolic",
         }
-        _ => {
-            let refiner = match setup {
-                "forstner" => ChessRefiner::forstner(),
-                "saddle_point" => ChessRefiner::saddle_point(),
-                _ => ChessRefiner::center_of_mass(),
-            };
+    }
+
+    fn detector(self) -> Result<Detector> {
+        let chess = |refiner: ChessRefiner| {
             DetectorConfig::chess()
                 .with_threshold(CHESS_THRESHOLD)
                 .with_chess(|c| c.refiner = refiner)
-        }
-    };
-    Ok(Detector::new(config)?)
+        };
+        let config = match self {
+            Self::CenterOfMass => chess(ChessRefiner::center_of_mass()),
+            Self::Forstner => chess(ChessRefiner::forstner()),
+            Self::SaddlePoint => chess(ChessRefiner::saddle_point()),
+            // Radon's threshold is relative to the frame's peak response: keep
+            // the preset's.
+            Self::Radon => DetectorConfig::radon(),
+            Self::RadonParabolic => {
+                DetectorConfig::radon().with_radon(|r| r.peak_fit = PeakFitMode::Parabolic)
+            }
+        };
+        Ok(Detector::new(config)?)
+    }
 }
 
-/// Per-corner errors of one detector setup: `(sRGB, detector)` → errors.
-type Errors = Vec<((bool, &'static str), Vec<Option<[f64; 2]>>)>;
+/// Per-corner errors of one detector setup: `(sRGB, setup)` → errors.
+type Errors = Vec<((bool, Setup), Vec<Option<[f64; 2]>>)>;
 
-/// Detect on `images` with every encoding and detector and report one table
-/// row each (with the per-pose RMS), tracking the best passing row in `best`.
+/// Detect on `images` with every encoding and detector setup and report one
+/// table row each (with the per-pose RMS), tracking the lowest-RMS complete
+/// row in `best`.
 fn evaluate(
     label: &str,
     images: &[LinearImage],
@@ -223,12 +252,13 @@ fn evaluate(
 ) -> Result<Errors> {
     let mut out = Errors::new();
     for srgb in [false, true] {
-        for setup in DETECTORS {
-            let mut det = detector(setup)?;
+        let gray: Vec<Vec<u8>> = images.iter().map(|i| gray8(i, srgb)).collect();
+        for setup in Setup::ALL {
+            let mut det = setup.detector()?;
             let mut stats = Stats::default();
             let mut per_pose = Vec::new();
-            for (image, truth) in images.iter().zip(truth) {
-                let found = det.detect_u8(&gray8(image, srgb), image.width, image.height)?;
+            for ((image, gray), truth) in images.iter().zip(&gray).zip(truth) {
+                let found = det.detect_u8(gray, image.width, image.height)?;
                 let mut pose = Stats::default();
                 score(truth, &found, &mut pose);
                 per_pose.push(format!("{:.3}", pose.rms()));
@@ -239,20 +269,21 @@ fn evaluate(
             let rms = stats.rms();
             let mean = stats.mean();
             let complete = stats.errors.len() == stats.visible;
-            let pass = complete && rms <= GATE_PX;
+            let within = complete && rms <= TARGET_PX;
             let encoding = if srgb { "sRGB" } else { "linear" };
+            let name = setup.name();
             line(format!(
-                "| {label} | {encoding} | {setup} | {}/{} | ({:+.4}, {:+.4}) | {rms:.4} | {:.4} | {} | {} |",
+                "| {label} | {encoding} | {name} | {}/{} | ({:+.4}, {:+.4}) | {rms:.4} | {:.4} | {} | {} |",
                 stats.errors.len(),
                 stats.visible,
                 mean[0],
                 mean[1],
                 stats.max(),
                 per_pose.join(" "),
-                if pass { "PASS" } else { "FAIL" }
+                if within { "yes" } else { "no" }
             ));
-            if pass && best.as_ref().is_none_or(|(b, _)| rms < *b) {
-                *best = Some((rms, format!("s | σ = {label}, {encoding}, {setup}")));
+            if complete && best.as_ref().is_none_or(|(b, _)| rms < *b) {
+                *best = Some((rms, format!("s | σ = {label}, {encoding}, {name}")));
             }
             out.push(((srgb, setup), stats.per_corner));
         }
@@ -460,7 +491,7 @@ pub fn g4_2(args: &ProbeArgs) -> Result<()> {
         poses.len()
     ));
     line(
-        "| s | PSF σ px | encoding | detector | matched | mean (x, y) px | RMS px | max px | RMS per pose px | G4.2 |"
+        "| s | PSF σ px | encoding | detector | matched | mean (x, y) px | RMS px | max px | RMS per pose px | ≤ 0.02 px |"
             .into(),
     );
     line("|---|---|---|---|---|---|---|---|---|---|".into());
@@ -581,30 +612,54 @@ pub fn g4_2(args: &ProbeArgs) -> Result<()> {
             .find(|(x, _)| x == sigma)
             .expect("every σ has a reference")
             .1;
-        for ((srgb, refiner), e) in errors {
+        for ((srgb, setup), e) in errors {
             if *srgb {
                 continue;
             }
             let r = &reference
                 .iter()
-                .find(|(k, _)| *k == (false, *refiner))
+                .find(|(k, _)| *k == (false, *setup))
                 .expect("same setups")
                 .1;
             let (rms, max, n) = difference(e, r);
             line(format!(
-                "| {s} | {sigma} | {refiner} | {n} | {rms:.4} | {max:.4} |"
+                "| {s} | {sigma} | {} | {n} | {rms:.4} | {max:.4} |",
+                setup.name()
             ));
         }
     }
 
+    // G4.2 is a characterisation (user decision, 2026-09-28): report the best
+    // row, and check the accepted baseline (Radon, s = 4, sharp, linear).
     match &best {
-        Some((rms, what)) => line(format!(
-            "result: PASS at {what} (RMS {rms:.4} px, gate {GATE_PX} px)"
-        )),
-        None => line(format!(
-            "result: FAIL (no configuration within {GATE_PX} px)"
-        )),
+        Some((rms, what)) => line(format!("best complete row: {what} (RMS {rms:.4} px)")),
+        None => line("best complete row: none (every setup missed a corner)".into()),
     }
+    let baseline = rendered
+        .iter()
+        .find(|(s, sigma, _)| *s == 4.0 && *sigma == 0.0)
+        .and_then(|(_, _, errors)| errors.iter().find(|(k, _)| *k == (false, Setup::Radon)))
+        .map(|(_, e)| e.as_slice())
+        .expect("s = 4, σ = 0 and Radon are measured");
+    let matched: Vec<[f64; 2]> = baseline.iter().flatten().copied().collect();
+    let baseline_rms = (matched
+        .iter()
+        .map(|e| e[0] * e[0] + e[1] * e[1])
+        .sum::<f64>()
+        / matched.len().max(1) as f64)
+        .sqrt();
+    let regressed =
+        matched.len() < baseline.len() || baseline_rms > BASELINE_PX + BASELINE_SLACK_PX;
+    line(format!(
+        "baseline (radon, s = 4, σ = 0, linear): RMS {baseline_rms:.4} px over {}/{} corners; \
+         accepted {BASELINE_PX} px (+{BASELINE_SLACK_PX} px slack): {}",
+        matched.len(),
+        baseline.len(),
+        if regressed { "REGRESSION" } else { "ok" }
+    ));
+    line(format!(
+        "rows within G4.2's original {TARGET_PX} px are marked in the last column"
+    ));
     std::fs::create_dir_all(&args.output)?;
     std::fs::write(args.output.join("g4_2.md"), report)?;
 
@@ -614,12 +669,12 @@ pub fn g4_2(args: &ProbeArgs) -> Result<()> {
         .iter()
         .filter(|(_, sigma, _)| *sigma == 0.0)
         .map(|(s, _, errors)| {
-            let per_refiner: serde_json::Map<String, serde_json::Value> = errors
+            let per_setup: serde_json::Map<String, serde_json::Value> = errors
                 .iter()
                 .filter(|((srgb, _), _)| !srgb)
-                .map(|((_, refiner), e)| ((*refiner).to_owned(), serde_json::json!(e)))
+                .map(|((_, setup), e)| (setup.name().to_owned(), serde_json::json!(e)))
                 .collect();
-            (format!("{s}"), serde_json::Value::Object(per_refiner))
+            (format!("{s}"), serde_json::Value::Object(per_setup))
         })
         .collect();
     let detections = serde_json::json!({
@@ -642,5 +697,13 @@ pub fn g4_2(args: &ProbeArgs) -> Result<()> {
         args.output.join("detections.json"),
         serde_json::to_string_pretty(&detections)? + "\n",
     )?;
+    if regressed {
+        return Err(anyhow!(
+            "G4.2 baseline regressed: radon at s = 4 is {baseline_rms:.4} px RMS \
+             ({}/{} corners), accepted {BASELINE_PX} px",
+            matched.len(),
+            baseline.len()
+        ));
+    }
     Ok(())
 }
