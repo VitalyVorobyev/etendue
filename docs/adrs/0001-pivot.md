@@ -66,6 +66,11 @@ first phase that has two library crates to check.
   because it requires nalgebra ^0.30, which conflicts with the 0.34 hard pin.
 - `etendue-synth` may depend on `etendue-scene`, `etendue-kinematics`,
   `vision-calibration-core`, `vision-calibration-dataset`, and `exr`.
+  *Amended 2026-09-28 (P5-3, user decision):* it may also depend on
+  `etendue-core`, so the laser-stripe ground truth reuses `etendue-core::laser`
+  instead of a second copy of the fan geometry. `etendue-core`'s argmin solver
+  is behind its `solver` feature, which `etendue-synth` does not enable, so the
+  wasm graph stays free of `getrandom`.
 - `etendue-core` may depend on `etendue-scene` (to build a `Scene` from a
   spec). The reverse is forbidden.
 - `etendue-wasm` may depend on any library crate and on no binary crate.

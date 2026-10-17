@@ -390,6 +390,7 @@ fn gt_command(scene: &Path, scenario: &Path, output: &Path) -> Result<()> {
         &EmitOptions {
             visibility: VisibilitySpec::default(),
             pixel_centre: render::PIXEL_CENTRE,
+            laser_spacing_m: 1e-3,
         },
     )?;
     std::fs::create_dir_all(output)?;

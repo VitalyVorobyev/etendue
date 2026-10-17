@@ -13,6 +13,9 @@
 //! - [`board`] — board targets as calib-targets prints them: the drawn
 //!   patches and the feature points, in the target frame (P3-3).
 //!
+//! - [`laser`] — the laser stripe on the board and the true laser plane
+//!   (P5-3).
+//!
 //! - [`dataset`] — the synthetic dataset bundle: a calibration-rs
 //!   `DatasetSpec`, robot poses, and `gt.json`.
 //!
@@ -29,6 +32,7 @@ pub mod gt;
 #[cfg(feature = "images")]
 pub mod images;
 pub mod job;
+pub mod laser;
 pub mod remap;
 pub mod sensor;
 

@@ -51,6 +51,7 @@ fn example(name: &str) -> (SceneSpec, etendue_scene::BakedScenario, Vec<RobotMan
 const OPTIONS: EmitOptions = EmitOptions {
     visibility: VisibilitySpec { margin_px: 2.0 },
     pixel_centre: PixelCentre::Integer,
+    laser_spacing_m: 1e-3,
 };
 
 #[test]
@@ -169,4 +170,95 @@ fn rejects_scenes_that_are_not_one_calibration_problem() {
     );
     scene.cameras.clear();
     assert!(emit(&scene, &baked, &manifests, &chessboard_points(), &OPTIONS).is_err());
+}
+
+/// The laser example's board points, from its layout (P3-3).
+fn laser_board_points(scene: &SceneSpec) -> Vec<BoardPoint> {
+    etendue_synth::board::layout(&scene.targets[0].geometry)
+        .unwrap()
+        .unwrap()
+        .points
+}
+
+#[test]
+fn laser_example_emits_a_valid_rig_handeye_laserline_dataset() {
+    for name in ["laser_ur5e", "laser_scheimpflug_ur5e"] {
+        let (scene, baked, manifests) = example(name);
+        let points = laser_board_points(&scene);
+        let bundle = emit(&scene, &baked, &manifests, &points, &OPTIONS).unwrap();
+        validate(&bundle.dataset).expect("calibration-rs accepts the manifest");
+        assert_eq!(bundle.dataset.topology, Topology::RigHandeyeLaserline);
+        for c in &bundle.dataset.cameras {
+            assert!(c.laser_images.is_some(), "{name} {}: laser images", c.id);
+        }
+
+        let gt = &bundle.gt;
+        let [laser] = gt.lasers.as_slice() else {
+            panic!("{name}: one laser expected");
+        };
+        assert_eq!(laser.rig_plane.frame, "rig");
+        for c in &gt.captures {
+            let [stripe] = c.laser_stripes.as_slice() else {
+                panic!("{name} {}: one stripe expected", c.id);
+            };
+            assert!(stripe.points.len() > 100, "{name} {}: stripe", c.id);
+            for view in &c.views {
+                assert_eq!(
+                    view.laser_image.as_deref(),
+                    Some(format!("images/{}/{}_laser.png", view.camera, c.id).as_str())
+                );
+                let camera = scene.cameras.iter().find(|x| x.id == view.camera).unwrap();
+                let model = camera.params.build().unwrap();
+                let plane = laser
+                    .camera_planes
+                    .iter()
+                    .find(|p| p.frame == view.camera)
+                    .unwrap();
+                let n = nalgebra::Vector3::from(plane.normal);
+                let [seen] = view.laser_points.as_slice() else {
+                    panic!("one stripe view expected");
+                };
+                let visible: Vec<_> = seen.points.iter().filter(|p| p.visible()).collect();
+                assert!(visible.len() > 100, "{name} {} {}", c.id, view.camera);
+                for p in visible {
+                    // On the true plane in the camera frame, and re-projecting to its pixel.
+                    let bp = &stripe.points[p.point];
+                    let world =
+                        c.world_se3_target * Point3::new(bp.position_m[0], bp.position_m[1], 0.0);
+                    let cam = view.world_se3_camera.inverse() * world;
+                    assert!((n.dot(&cam.coords) + plane.distance).abs() < 1e-12);
+                    let px = model.project_point_c(&cam.coords).unwrap();
+                    let [u, v] = p.pixel.unwrap();
+                    assert!((px.x - u).abs() < 1e-9 && (px.y - v).abs() < 1e-9);
+                }
+            }
+        }
+
+        // gt.json round-trips, laser fields included.
+        let text = serde_json::to_string(gt).unwrap();
+        let back: etendue_synth::dataset::GroundTruth = serde_json::from_str(&text).unwrap();
+        assert_eq!(back.lasers.len(), 1);
+        assert_eq!(back.captures[0].laser_stripes.len(), 1);
+    }
+}
+
+#[test]
+fn rejects_laser_topologies_not_emitted_yet() {
+    let (scene, baked, manifests) = example("laser_ur5e");
+    let points = laser_board_points(&scene);
+    assert!(emit(&scene, &baked, &manifests, &points, &OPTIONS).is_ok());
+    // A laser fixed in the world is not on the rig.
+    let mut fixed = scene.clone();
+    fixed.lasers[0].parent = etendue_scene::FrameRef::world();
+    assert!(emit(&fixed, &baked, &manifests, &points, &OPTIONS).is_err());
+    // One camera: rig hand-eye laserline needs two or more.
+    let mut single = scene.clone();
+    single.cameras.truncate(1);
+    assert!(emit(&single, &baked, &manifests, &points, &OPTIONS).is_err());
+    // Two lasers.
+    let mut two = scene.clone();
+    let mut extra = two.lasers[0].clone();
+    extra.id = "laser2".into();
+    two.lasers.push(extra);
+    assert!(emit(&two, &baked, &manifests, &points, &OPTIONS).is_err());
 }

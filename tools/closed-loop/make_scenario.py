@@ -1,6 +1,9 @@
-"""Write the P5-1 closed-loop scenario: `examples/closed_loop_ur5e/scenario.json`.
+"""Write a closed-loop scenario: `examples/<example>/scenario.json`.
 
-    uv run --locked --project tools/closed-loop tools/closed-loop/make_scenario.py
+    uv run --locked --project tools/closed-loop tools/closed-loop/make_scenario.py [--example NAME]
+
+`closed_loop_ur5e` (P5-1, the default), `laser_ur5e` and `laser_scheimpflug_ur5e` (P5-3) share
+the viewpoints; each scenario is generated from its own scene's rig mount and board position.
 
 Twenty viewpoints of the board: the rig looks at the board centre from a cone of directions
 (tilt 8–25° from vertical, spread in azimuth), at 0.45–0.55 m, with the rig rolled about
@@ -10,6 +13,7 @@ its optical axis by up to ±25°. Deterministic (no RNG). The tool pose of each 
 
 from __future__ import annotations
 
+import argparse
 import json
 import math
 from pathlib import Path
@@ -19,8 +23,12 @@ import numpy as np
 from closed_loop import Iso, quat
 
 ROOT = Path(__file__).resolve().parents[2]
-EXAMPLE = ROOT / "examples" / "closed_loop_ur5e"
 N = 20
+DESCRIPTIONS = {
+    "closed_loop_ur5e": "P5-1 closed loop",
+    "laser_ur5e": "P5-3 laser closed loop",
+    "laser_scheimpflug_ur5e": "P5-3 laser closed loop, Scheimpflug variant",
+}
 
 
 def look_at(eye: np.ndarray, target: np.ndarray, roll: float) -> Iso:
@@ -38,7 +46,11 @@ def look_at(eye: np.ndarray, target: np.ndarray, roll: float) -> Iso:
 
 
 def main() -> None:
-    scene = json.loads((EXAMPLE / "scene.json").read_text())
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--example", choices=sorted(DESCRIPTIONS), default="closed_loop_ur5e")
+    args = parser.parse_args()
+    example = ROOT / "examples" / args.example
+    scene = json.loads((example / "scene.json").read_text())
     rig = next(r for r in scene["rigs"] if r["id"] == "rig")
     tool_se3_rig = Iso.wire(rig["parent_se3_self"])
     board = next(t for t in scene["targets"] if t["id"] == "board")
@@ -72,12 +84,12 @@ def main() -> None:
     scenario = {
         "version": 1,
         "dt": 0.01,
-        "description": "P5-1 closed loop: 20 viewpoints of the board at 0.45–0.55 m "
+        "description": f"{DESCRIPTIONS[args.example]}: 20 viewpoints of the board at 0.45–0.55 m "
         "(tools/closed-loop/make_scenario.py).",
         "steps": steps,
     }
-    (EXAMPLE / "scenario.json").write_text(json.dumps(scenario, indent=2) + "\n")
-    print(f"wrote {N} viewpoints to {EXAMPLE / 'scenario.json'}")
+    (example / "scenario.json").write_text(json.dumps(scenario, indent=2) + "\n")
+    print(f"wrote {N} viewpoints to {example / 'scenario.json'}")
 
 
 if __name__ == "__main__":

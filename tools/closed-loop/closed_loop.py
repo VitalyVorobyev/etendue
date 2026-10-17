@@ -1,4 +1,4 @@
-"""P5-1 closed loop: calibrate from etendue's analytic ground truth and compare with the truth.
+"""P5-1 / P5-3 closed loop: calibrate from etendue's analytic ground truth, compare with the truth.
 
     cargo run -p etendue-cli -- gt <scene.json> <scenario.json> -o <dir>
     uv run --locked --project tools/closed-loop tools/closed-loop/closed_loop.py <dir> [--camera ID]
@@ -13,6 +13,11 @@ Robot poses are read from `robot_poses.json` through the dataset's own column ma
 convention, as calibration-rs's dataset runner would read them. `--camera` calibrates a single
 camera of a rig dataset (single-camera hand-eye); by default a rig dataset is calibrated as a
 rig.
+
+A dataset with a laser (topology `rig_handeye_laserline`) adds each view's visible laser-stripe
+pixels and runs calibration-rs's joint rig hand-eye laserline problem. Gate G5.3 (P5-3) compares
+the estimated laser plane with the truth in each camera's frame; the G5.1 limits apply to the
+rest. Scheimpflug cameras are seeded as calibration-rs ADR 0022 prescribes ([`nominal_seed`]).
 """
 
 from __future__ import annotations
@@ -34,6 +39,12 @@ GATE = {
     "principal_px": 0.05,
     "handeye_rot_deg": 0.01,
     "handeye_trans_mm": 0.05,
+}
+
+# Gate G5.3 on noise-free input.
+LASER_GATE = {
+    "plane_normal_deg": 0.01,
+    "plane_distance_mm": 0.05,
 }
 
 
@@ -157,16 +168,137 @@ def intrinsics_rows(estimated: vc.PinholeBrownConradyCamera, truth: dict[str, An
     return rows
 
 
-def report(title: str, rows: list[tuple[str, float, float | None]]) -> bool:
+def plane_rows(estimated: vc.LaserlinePlane, truth: dict[str, Any], name: str) -> list[tuple[str, float, float | None]]:
+    """Normal angle and offset difference of two planes n·p + d = 0 in one frame (sign-free)."""
+    n_e, d_e = np.asarray(estimated.normal_xyz, dtype=float), float(estimated.distance)
+    n_t, d_t = np.asarray(truth["normal"], dtype=float), float(truth["distance"])
+    n_e, n_t = n_e / np.linalg.norm(n_e), n_t / np.linalg.norm(n_t)
+    if float(n_e @ n_t) < 0:
+        n_e, d_e = -n_e, -d_e
+    angle = math.degrees(math.atan2(float(np.linalg.norm(np.cross(n_e, n_t))), float(n_e @ n_t)))
+    return [
+        (f"{name} laser normal deg", angle, LASER_GATE["plane_normal_deg"]),
+        (f"{name} laser distance mm", abs(d_e - d_t) * 1e3, LASER_GATE["plane_distance_mm"]),
+    ]
+
+
+def report(title: str, rows: list[tuple[str, float, float | None]], gate: str = "G5.1") -> bool:
     print(title)
     ok = True
-    for label, value, gate in rows:
-        verdict = "" if gate is None else ("PASS" if value <= gate else "FAIL")
-        ok &= gate is None or value <= gate
-        gate_text = "" if gate is None else f"≤ {gate:g}"
-        print(f"  {label:<28} {value:12.3e}  {gate_text:<10} {verdict}")
-    print(f"  G5.1: {'PASS' if ok else 'FAIL'}")
+    for label, value, limit in rows:
+        verdict = "" if limit is None else ("PASS" if value <= limit else "FAIL")
+        ok &= limit is None or value <= limit
+        limit_text = "" if limit is None else f"≤ {limit:g}"
+        print(f"  {label:<28} {value:12.3e}  {limit_text:<10} {verdict}")
+    print(f"  {gate}: {'PASS' if ok else 'FAIL'}")
     return ok
+
+
+def laser_pixels(view: dict[str, Any]) -> list[tuple[float, float]] | None:
+    """The view's visible laser-stripe pixels (the scene's single laser), or None if too few."""
+    [stripe] = view["laser_points"]
+    pixels = [tuple(p["pixel"]) for p in stripe["points"] if p.get("occluded") is None]
+    return pixels if len(pixels) >= 2 else None
+
+
+def scheimpflug(cameras: list[dict[str, Any]]) -> bool:
+    return any(c["params"]["sensor"]["type"] == "scheimpflug" for c in cameras)
+
+
+def tilt_rows(estimated: vc.ScheimpflugSensor, truth: dict[str, Any], name: str) -> list[tuple[str, float, float | None]]:
+    sensor = truth["params"]["sensor"]
+    true_x, true_y = (sensor["tilt_x"], sensor["tilt_y"]) if sensor["type"] == "scheimpflug" else (0.0, 0.0)
+    return [
+        (f"{name} tilt_x deg", abs(math.degrees(estimated.tilt_x - true_x)), None),
+        (f"{name} tilt_y deg", abs(math.degrees(estimated.tilt_y - true_y)), None),
+    ]
+
+
+def nominal_seed(cameras: list[dict[str, Any]]) -> dict[str, Any]:
+    """Seeds for a Scheimpflug rig, as a user would enter them from datasheets.
+
+    calibration-rs's supported Scheimpflug route is seeded (its ADR 0022; unseeded init is
+    experimental). The seed is the focal length rounded to 100 px, the principal point at the
+    image centre, and the mount tilt about x rounded to a whole degree, with no tilt about y.
+    """
+    intrinsics, sensors = [], []
+    for c in cameras:
+        k = c["params"]["intrinsics"]
+        w, h = c["resolution"]
+        f = round((k["fx"] + k["fy"]) / 2, -2)
+        intrinsics.append({"fx": f, "fy": f, "cx": w / 2, "cy": h / 2, "skew": 0.0})
+        sensor = c["params"]["sensor"]
+        tilt = sensor["tilt_x"] if sensor["type"] == "scheimpflug" else 0.0
+        sensors.append({"tilt_x": math.radians(round(math.degrees(tilt))), "tilt_y": 0.0})
+    return {"per_cam_intrinsics": intrinsics, "per_cam_distortion": None, "per_cam_sensors": sensors}
+
+
+class SeededLaserlineConfig(vc.RigHandeyeLaserlineCalibrationConfig):
+    """The joint config with `handeye.manual_init` set.
+
+    The wheel does not expose `manual_init` yet (calibration-rs 0.8.3: "still Rust-only"), but the
+    Rust config it is deserialised into accepts it, so it is added to the payload.
+    """
+
+    seed: dict[str, Any] | None = None
+
+    def to_payload(self) -> dict[str, Any]:
+        payload = super().to_payload()
+        if self.seed is not None:
+            payload["handeye"]["manual_init"] = self.seed
+        return payload
+
+
+def laser_loop(
+    gt: dict[str, Any],
+    poses: list[Iso],
+    gripper_se3_rig: Iso,
+    base_se3_target: Iso,
+    cam_se3_rig: list[Iso],
+) -> int:
+    """P5-3: the joint rig hand-eye laserline problem, gated on G5.3 (and G5.1's limits)."""
+    cameras = gt["cameras"]
+    [laser] = gt["lasers"]
+    views = []
+    for capture, base_se3_gripper in zip(gt["captures"], poses):
+        obs = [observation(gt, v) for v in capture["views"]]
+        if any(o is not None for o in obs):
+            views.append(
+                vc.RigHandeyeLaserlineView(
+                    cameras=obs,
+                    laser_pixels=[laser_pixels(v) for v in capture["views"]],
+                    base_se3_gripper=base_se3_gripper.to_pose(),
+                )
+            )
+    config = SeededLaserlineConfig()
+    config.handeye.handeye_init.handeye_mode = "EyeInHand"
+    if scheimpflug(cameras):
+        config.seed = nominal_seed(cameras)
+        config.handeye.sensor = vc.ScheimpflugSensorMode(refine_scheimpflug_in_rig_ba=True)
+        config.handeye.rig.refine_intrinsics_in_rig_ba = True
+    result = vc.run_rig_handeye_laserline(vc.RigHandeyeLaserlineDataset(num_cameras=len(cameras), views=views), config)
+    rig_se3_ref = cam_se3_rig[0].inv()
+    rot_err, trans_err = difference(Iso.pose(result.gripper_se3_rig), gripper_se3_rig * rig_se3_ref)
+    tr_err, tt_err = difference(Iso.pose(result.base_se3_target), base_se3_target)
+    rows = [("mean reprojection px", result.mean_reproj_error, GATE["mean_reproj_px"])]
+    for i, camera in enumerate(cameras):
+        rows += intrinsics_rows(result.cameras[i], camera, camera["id"])
+        if scheimpflug(cameras):
+            rows += tilt_rows(result.sensors[i], camera, camera["id"])
+        if i > 0:
+            r, t = difference(Iso.pose(result.cam_se3_rig[i]), cam_se3_rig[i] * rig_se3_ref)
+            rows += [(f"{camera['id']} cam_se3_rig deg", r, None), (f"{camera['id']} cam_se3_rig mm", t, None)]
+        plane = next(p for p in laser["camera_planes"] if p["frame"] == camera["id"])
+        rows += plane_rows(result.laser_planes_cam[i], plane, camera["id"])
+    rows += [
+        ("hand-eye rotation deg", rot_err, GATE["handeye_rot_deg"]),
+        ("hand-eye translation mm", trans_err, GATE["handeye_trans_mm"]),
+        ("base_se3_target rot deg", tr_err, None),
+        ("base_se3_target trans mm", tt_err, None),
+    ]
+    n_laser = sum(len(px) for v in views for px in v.laser_pixels if px is not None)
+    title = f"rig hand-eye laserline ({len(cameras)} cameras, {len(views)} views, {n_laser} laser pixels)"
+    return 0 if report(title, rows, gate="G5.3") else 1
 
 
 def main() -> int:
@@ -191,6 +323,11 @@ def main() -> int:
     cam_se3_rig = [Iso.wire(c["cam_se3_rig"]) if c.get("cam_se3_rig") else Iso(np.eye(3), np.zeros(3)) for c in cameras]
     n_points = sum(1 for c in gt["captures"] for v in c["views"] for p in v["points"] if p.get("occluded") is None)
     print(f"{directory}: {len(gt['captures'])} captures, cameras {ids}, {n_points} visible points")
+
+    if gt.get("lasers"):
+        if args.camera is not None:
+            sys.exit("--camera does not apply to a laser dataset (rig hand-eye laserline)")
+        return laser_loop(gt, poses, gripper_se3_rig, base_se3_target, cam_se3_rig)
 
     if args.camera is not None or len(cameras) == 1:
         name = args.camera or ids[0]
