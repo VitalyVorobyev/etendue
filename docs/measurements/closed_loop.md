@@ -14,8 +14,9 @@
   the PLAN asks for, and it validates every frame and pose convention between the two
   projects.
   - The image-level loop (render → detect → calibrate through calibration-rs's
-    `dataset_runner`) inherits the detector's 0.07–0.19 px per-corner error
-    (`g4_2_corner_bias.md`). It waits on the G4.2 decision.
+    `dataset_runner`) inherits the detector's per-corner error (`g4_2_corner_bias.md`):
+    0.07–0.19 px with the ChESS refiners, 0.032 px with Radon. It is no longer blocked: G4.2
+    was decided on 2026-09-28 (the measured accuracy is the baseline).
 - Measured: 2026-09-27, on etendue commit `f8e7ac1` (branch `pivot/p5-closed-loop`), with the
   `vision-calibration` 0.8.2 wheel from PyPI.
 
