@@ -511,7 +511,8 @@ collision checking. Order: P7-0 → (P7-1, P7-3, P7-4) → P7-2 → P7-5 → P7-
     - the principal points are 0.25–0.40 px off, noise-limited as in P5-1b.
   - It is a characterisation: `g5_3_laser_closed_loop.md`.
   - **G5.2 (redefined) passes:** on the same renders every image's stripe is 1.021–1.035 times
-    the beam's width; the excess is the pixel's own area (0.999–1.002 without it). The
+    the beam's width; the excess is the pixel's own area (0.999–1.002 without it). A re-render
+    with a 0.1 mm waist (the beam 45 % wider across the depths) gives 1.005–1.011, and the
     compositor test covers the width law from inside to 5× its Rayleigh range
     (`docs/measurements/g5_2_laser_width.md`).
 

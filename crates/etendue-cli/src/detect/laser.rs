@@ -12,8 +12,8 @@
 //!    no measurement and are left out;
 //! 4. the stripe's direction is the principal axis of what is left;
 //! 5. across it, every column (or row) fits a Gaussian to its peak: a
-//!    parabola to the logarithm of the samples above 10 % of the peak,
-//!    weighted by their squares. A fit, unlike a centroid, finds the centre
+//!    parabola to the logarithm of the peak's run of samples above 10 % of
+//!    it, weighted by their squares. A fit, unlike a centroid, finds the centre
 //!    of a profile an ink edge cuts in half. A centre is kept only with the
 //!    pixels either side of it measured and two samples on each side.
 //!
@@ -283,11 +283,23 @@ pub fn extract(laser: &Gray8, board: Option<&Gray8>) -> Vec<Centre> {
         else {
             continue;
         };
+        // The peak's run: outward from it while samples stay above the
+        // floor (ink, which measures nothing, does not end it), so a noise
+        // pixel beyond the tail is not fitted.
         let lo = peak_at.saturating_sub(HALF_WINDOW);
         let hi = (peak_at + HALF_WINDOW + 1).min(span);
-        let samples: Vec<(f64, f64)> = (lo..hi)
+        let above = |t: &usize| at(line, *t).is_none_or(|(_, v)| v > FLOOR * peak);
+        let first = (lo..peak_at)
+            .rev()
+            .take_while(above)
+            .last()
+            .unwrap_or(peak_at);
+        let last = (peak_at + 1..hi)
+            .take_while(above)
+            .last()
+            .unwrap_or(peak_at);
+        let samples: Vec<(f64, f64)> = (first..=last)
             .filter_map(|t| at(line, t).map(|(_, v)| (t as f64, v)))
-            .filter(|&(_, v)| v > FLOOR * peak)
             .collect();
         if samples.len() < 3 {
             continue;
@@ -583,8 +595,8 @@ pub fn extract_dataset(dir: &Path, gt: &GroundTruth) -> Result<Option<LaserFeatu
         method: format!(
             "board image subtracted at its median dimming and divided out (pixels below \
              {MIN_BOARD_DN} DN in it, or saturated, left out); per column (or row) across the \
-             stripe, a Gaussian fitted (weighted log-parabola) to the samples above {FLOOR} of \
-             the peak (peak ≥ {MIN_PEAK_DN} DN); its σ across the stripe compared with the \
+             stripe, a Gaussian fitted (weighted log-parabola) to the peak's run of samples \
+             above {FLOOR} of it (peak ≥ {MIN_PEAK_DN} DN); its σ across the stripe compared with the \
              beam's"
         ),
         captures,
@@ -709,6 +721,26 @@ mod tests {
             assert_eq!(c.outliers, 0);
             assert!(c.mean_px.abs() < 0.05, "bias {}", c.mean_px);
         }
+    }
+
+    #[test]
+    fn a_noise_pixel_beyond_the_tail_is_not_fitted() {
+        let (mut laser, board) = images(100.3, 0.0);
+        // A bright pixel 12 rows below the stripe in every column on paper.
+        for x in 0..laser.width as usize {
+            let k = 112 * laser.width as usize + x;
+            if board.data[k] > 100 {
+                laser.data[k] += 15;
+            }
+        }
+        let centres = extract(&laser, Some(&board));
+        assert!(centres.len() > 100);
+        assert!(centres.iter().all(|c| (c.pixel[1] - 100.3).abs() < 0.15));
+        assert!(
+            centres
+                .iter()
+                .all(|c| (c.sigma_px / 2.0 - 1.0).abs() < 0.05)
+        );
     }
 
     #[test]
