@@ -10,7 +10,8 @@ The examples are in `examples/` in the repository, and built into the desktop ap
 | `laser_ur5e` | The `closed_loop_ur5e` rig with a line laser (660 nm, 20° half-angle): a laser-line calibration dataset. |
 | `laser_scheimpflug_ur5e` | The laser rig with Scheimpflug sensors, tilted about 3° and 2°. |
 
-Try one end to end:
+Try one end to end (from a source checkout with the robot meshes built — see
+[Installation](installation.md); the command-line archive has no robot library):
 
 ```bash
 etendue validate examples/closed_loop_ur5e/scene.json examples/closed_loop_ur5e/scenario.json

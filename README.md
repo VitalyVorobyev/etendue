@@ -38,7 +38,8 @@ ground truth that a calibration of it should recover.
 ## Install
 
 Download the desktop app and the command-line tool from the
-[latest release](https://github.com/VitalyVorobyev/etendue/releases/latest):
+[releases page](https://github.com/VitalyVorobyev/etendue/releases) (once a version is released;
+until then, build from source):
 
 | Platform | Desktop app | Command line |
 |---|---|---|
@@ -72,7 +73,7 @@ documentation.
 
 ```bash
 etendue validate scene.json scenario.json          # check the cell and that every move is reachable
-etendue gt       scene.json scenario.json -o out   # ground truth: dataset.json, gt.json, robot_poses.json
+etendue gt       scene.json scenario.json -o out   # ground truth: dataset.json, gt.json (+ robot_poses.json)
 etendue render   scene.json scenario.json -o out --supersample 4 --samples 16   # images/<camera>/<capture>.png
 etendue detect   out                               # features.json, checked against the ground truth
 etendue scenario from-poses poses.json --robot ur5e -o scenario.json --scene scene.json

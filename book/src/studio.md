@@ -12,7 +12,8 @@ board detection, in one run.
   [Examples](examples.md)).
 - **Open scene…** (desktop): pick a scene file, and optionally its scenario in the same dialog.
   The robots the scene names are loaded from their manifest paths; a robot that is not there is
-  looked up in the built-in robot library.
+  looked up in the built-in robot library for display. Generating a dataset needs the manifest
+  at the scene's path.
 - **Open files…** or drag and drop (browser): drop a scene, an optional scenario, and the robot
   files it needs.
 - **Import poses…** (desktop): replace the scenario with a stop-and-shoot one built from a file

@@ -58,6 +58,7 @@ noise-free linear 8-bit sensor.
 ## The Blender version
 
 Renders are validated with the Blender version pinned in `etendue.toml` (5.1.1). etendue reads the
-nearest `etendue.toml` above the scene and refuses another version unless
-`--allow-blender-version` is given. Lasers are not rendered yet: a laser scene's images show the
+nearest `etendue.toml` with a pin above the scene, then above the working directory, and refuses
+another version unless `--allow-blender-version` is given; with no pin found it renders and
+warns. Lasers are not rendered yet: a laser scene's images show the
 board without the stripe.

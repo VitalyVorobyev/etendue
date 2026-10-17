@@ -28,7 +28,6 @@ execFileSync("wasm-pack", ["build", crate, "--target", "web", dev ? "--dev" : "-
 rmSync(join(pkg, ".gitignore"), { force: true });
 
 cpSync(join(crate, "js"), pkg, { recursive: true });
-cpSync(join(crate, "README.md"), join(pkg, "README.md"));
 
 const cargo = readFileSync(join(crate, "../../Cargo.toml"), "utf8");
 const version = /^\[workspace\.package\][^[]*?^version\s*=\s*"([^"]+)"/ms.exec(cargo)?.[1];

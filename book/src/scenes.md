@@ -24,6 +24,7 @@ is `"world"`, another entity's id (a rig, say), or a robot link, `"<robot>/<link
 
 | Entity | Fields |
 |---|---|
+| `frames` | Named auxiliary frames: fixtures, stands, mounting plates, tool offsets. |
 | `robots` | `manifest` (path to the robot's `robot.json`, relative to the scene), `initial_q` (joint positions the scenario starts from). |
 | `rigs` | A frame that groups cameras and lasers, e.g. a stereo rig on a robot flange. |
 | `cameras` | `params`: a calibration-rs camera model (projection, distortion — Brown–Conrady, rational, thin prism, division — sensor — identity, Scheimpflug tilt, homography — and intrinsics `fx, fy, cx, cy, skew`); `resolution` `[width, height]`. |
@@ -59,7 +60,8 @@ restarts, or analytic for robots with an OPW geometry.
 
 ## The scenario
 
-A scenario is a list of `steps` for the scene's robots:
+A scenario has a `version`, a baking sample period `dt` (seconds) and a list of `steps`. Every move
+names the `robot` it moves:
 
 | Step | Meaning |
 |---|---|
@@ -69,6 +71,7 @@ A scenario is a list of `steps` for the scene's robots:
 | `wait` | Hold for `duration_s` seconds. |
 | `capture` | Every camera takes an image (optionally with an `id`). |
 
+For example, `{"type": "ptp_joints", "robot": "ur5e", "q": [3.14, -1.57, 1.57, -1.57, -1.57, 0], "speed_scale": 0.5}`.
 Moves take a `speed_scale`, the fraction of the joint velocity and acceleration limits to use.
 Point-to-point moves are synchronised trapezoidal profiles; straight-line moves are spline-timed.
 The robot stops for each capture.

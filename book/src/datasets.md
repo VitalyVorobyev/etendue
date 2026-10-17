@@ -25,7 +25,7 @@ A calibration-rs dataset manifest. Its `topology` follows from the scene:
 | Several cameras, no robot | `rig_extrinsics` |
 | One camera and a robot | `single_cam_handeye` |
 | Several cameras and a robot | `rig_handeye` |
-| A rig with a line laser | `rig_handeye_laserline` |
+| One line laser on a hand-eye rig of two or more cameras | `rig_handeye_laserline` (other laser setups are not emitted yet) |
 
 It names the target (the board, as calibration-rs describes it), each camera's images, and the
 robot poses file with its convention. calibration-rs can load it directly.
