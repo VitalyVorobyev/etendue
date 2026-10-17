@@ -1163,6 +1163,7 @@ name = "etendue-studio"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "dunce",
  "etendue-cli",
  "etendue-kinematics",
  "etendue-scene",

@@ -148,6 +148,16 @@ export class Studio {
   /** Record the dataset generated for the current scene. */
   readonly setDataset = (dataset: Dataset | null): void => this.#set({ dataset });
 
+  /** Which load is current: it changes whenever a scene or scenario opens. */
+  readonly generation = (): number => this.#generation;
+
+  /** Record `dataset` if load `generation` is still the current one; whether it was. */
+  readonly setDatasetFor = (generation: number, dataset: Dataset): boolean => {
+    if (generation !== this.#generation) return false;
+    this.#set({ dataset });
+    return true;
+  };
+
   /** Open dropped or picked files. */
   readonly openFiles = (files: File[]): void => {
     this.#set({ example: "" });

@@ -8,7 +8,8 @@
 
 import type { ScenarioSpec } from "@etendue/wasm";
 import { Channel, invoke } from "@tauri-apps/api/core";
-import { open } from "@tauri-apps/plugin-dialog";
+
+import { normalize } from "../io/tauri";
 
 /** A pipeline step (`etendue_cli::progress::Stage`). */
 export type Stage = "ground_truth" | "render" | "resample" | "detect";
@@ -62,16 +63,21 @@ export interface CameraSummary {
   max_px: number;
 }
 
-/** A generated dataset (`Dataset`). */
-export interface Dataset {
+/** What a run produced (`Dataset`). */
+export interface DatasetSummary {
   output: string;
   gt: GtSummary;
   render: RenderSummary | null;
   detection: CameraSummary[];
 }
 
+/** A generated dataset, with the run that made it (its images' URLs change per run). */
+export interface Dataset extends DatasetSummary {
+  run: string;
+}
+
 /** The end of a run (`Outcome`). */
-export type Outcome = ({ kind: "ok" } & Dataset) | { kind: "cancelled" } | { kind: "failed"; message: string };
+export type Outcome = ({ kind: "ok" } & DatasetSummary) | { kind: "cancelled" } | { kind: "failed"; message: string };
 
 /** Blender as the shell finds it (`BlenderStatus`). */
 export interface BlenderStatus {
@@ -83,8 +89,9 @@ export interface BlenderStatus {
 }
 
 /** The checkout the shell was built from (examples, robot library), if it still exists. */
-export function repoRoot(): Promise<string | null> {
-  return invoke<string | null>("repo_root");
+export async function repoRoot(): Promise<string | null> {
+  const root = await invoke<string | null>("repo_root");
+  return root === null ? null : normalize(root);
 }
 
 /** Whether `path` is an existing file. */
@@ -118,17 +125,18 @@ export function scenarioFromPoses(path: string, robot: string, speedScale = 0.5)
   return invoke<ScenarioSpec>("scenario_from_poses", { path, robot, speedScale });
 }
 
-const JSON_FILTER = [{ name: "JSON", extensions: ["json"] }];
-
-/** Pick JSON files (a scene, optionally its scenario). */
+/**
+ * Pick JSON files (a scene, optionally its scenario). The dialog runs in the shell, which then
+ * lets the studio read the picked files' folders (and a scene's robot folders), and nothing
+ * else outside the checkout.
+ */
 export async function pickJsonFiles(title: string, multiple: boolean): Promise<string[]> {
-  const picked = await open({ title, multiple, filters: JSON_FILTER });
-  if (picked === null) return [];
-  return Array.isArray(picked) ? picked : [picked];
+  const picked = await invoke<string[]>("pick", { title, multiple, directory: false });
+  return picked.map(normalize);
 }
 
-/** Pick a directory. */
+/** Pick a directory (it becomes readable and writable for the studio). */
 export async function pickDirectory(title: string): Promise<string | null> {
-  const picked = await open({ title, directory: true });
-  return typeof picked === "string" ? picked : null;
+  const [picked] = await invoke<string[]>("pick", { title, multiple: false, directory: true });
+  return picked === undefined ? null : normalize(picked);
 }

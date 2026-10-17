@@ -1,6 +1,6 @@
 # ADR 0007: A Tauri Shell for the Studio, With the Kernel Kept in wasm
 
-- Status: Proposed
+- Status: Accepted (2026-10-17)
 - Date: 2026-09-29
 
 ## Context
@@ -71,11 +71,17 @@ second nalgebra: calib-targets allows 0.35, and a fresh lockfile took it.
 
 ### Files and assets
 
-- The shell reads files for the webview (`read_text`, `path_exists`). Reading a
-  file adds its directory to the asset-protocol scope, because a robot
-  manifest's meshes sit below it.
-- A dataset's output directory is added when it is generated.
-- The scope starts with the checkout's `examples/` and `assets/robots/`.
+- The shell reads files for the webview (`read_text`, `path_exists`), but only
+  under allowed folders. The same folders make up the asset-protocol scope.
+  - It starts with the checkout: examples, the robot library, and `target/`
+    for the default dataset folders.
+  - File dialogs run in the shell (`pick`). The webview has no dialog
+    permission of its own.
+  - A picked file adds its folder, and a picked scene also adds the folders
+    of the robot manifests it names. A picked folder adds itself.
+  - A dataset's output folder must be under an allowed folder already.
+- Paths are canonicalised without Windows' `\\?\` prefix, so the webview can
+  join them with `/`.
 - In the shell, the studio reads examples from the checkout on disk rather than
   over HTTP, so every scene has a filesystem path.
 - Dropped files have no path. They still load, but they cannot generate a

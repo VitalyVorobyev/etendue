@@ -94,18 +94,34 @@ fn run(request: &DatasetRequest, ctl: &Control) -> Result<Dataset> {
     let baked = etendue_kinematics::bake(&loaded.scene, &request.scenario, &loaded.models)
         .map_err(|e| anyhow!("scenario: {e}"))?;
     let blender = if request.render {
-        let blender = Blender::find(request.blender.as_deref(), &[&loaded.dir])?;
-        if let Some(warning) = blender.check(request.allow_blender_version)? {
-            ctl.log(warning);
-        }
-        Some(blender)
+        Some(Blender::checked(
+            request.blender.as_deref(),
+            request.allow_blender_version,
+            &[&loaded.dir],
+            |w| ctl.log(w),
+        )?)
     } else {
         None
     };
     ctl.check()?;
 
-    ctl.step(Stage::GroundTruth, 0, 1);
     let out = &request.output;
+    // A previous run's images and features belong to its ground truth: a
+    // camera this run does not render must not keep them, or detection
+    // would check old images against the new truth.
+    for stale in ["images", "exr"] {
+        let dir = out.join(stale);
+        if dir.is_dir() {
+            std::fs::remove_dir_all(&dir).with_context(|| format!("removing {}", dir.display()))?;
+        }
+    }
+    let features = out.join("features.json");
+    if features.is_file() {
+        std::fs::remove_file(&features)
+            .with_context(|| format!("removing {}", features.display()))?;
+    }
+
+    ctl.step(Stage::GroundTruth, 0, 1);
     let gt = gt::write(&loaded, &baked, out)?;
     // The scenario the dataset came from, which the studio may hold only in
     // memory (imported poses).
@@ -132,11 +148,11 @@ fn run(request: &DatasetRequest, ctl: &Control) -> Result<Dataset> {
         &RenderOptions {
             output: out.clone(),
             samples: request.samples,
-            seed: 0,
+            seed: render::DEFAULT_SEED,
             cpu: request.cpu,
             supersample: request.supersample,
-            exposure: 1.0,
-            ambient: 1.0,
+            exposure: render::DEFAULT_EXPOSURE,
+            ambient: render::DEFAULT_AMBIENT,
             cameras: request.cameras.clone(),
             sensor,
         },
@@ -228,6 +244,11 @@ mod tests {
     #[test]
     fn ground_truth_only() {
         let dir = tempfile::tempdir().unwrap();
+        // A previous run's output, which the new ground truth invalidates.
+        let old = dir.path().join("images/cam_right/cap_000.png");
+        std::fs::create_dir_all(old.parent().unwrap()).unwrap();
+        std::fs::write(&old, b"old").unwrap();
+        std::fs::write(dir.path().join("features.json"), b"{}").unwrap();
         let events = Mutex::new(Vec::new());
         let report = |p| events.lock().unwrap().push(p);
         let outcome = generate(
@@ -247,6 +268,8 @@ mod tests {
         ] {
             assert!(dir.path().join(f).is_file(), "{f}");
         }
+        assert!(!dir.path().join("images").exists());
+        assert!(!dir.path().join("features.json").exists());
         let events = events.into_inner().unwrap();
         assert!(events.contains(&etendue_cli::progress::Progress::Step {
             stage: Stage::GroundTruth,

@@ -16,7 +16,12 @@ use serde::Deserialize;
 #[derive(Deserialize)]
 #[serde(untagged)]
 enum Entry {
-    Wire(Isometry3<f64>),
+    /// The SE3 wire format, read as plain arrays so its quaternion is checked
+    /// and normalised like a row's.
+    Wire {
+        rotation: [f64; 4],
+        translation: [f64; 3],
+    },
     Row {
         #[serde(default)]
         capture: Option<String>,
@@ -46,8 +51,11 @@ pub fn parse(text: &str) -> Result<Vec<(Option<String>, Isometry3<f64>)>> {
         .into_iter()
         .enumerate()
         .map(|(i, e)| {
-            let (id, pose) = match e {
-                Entry::Wire(pose) => (None, pose),
+            let (id, [qx, qy, qz, qw], [tx, ty, tz]) = match e {
+                Entry::Wire {
+                    rotation,
+                    translation,
+                } => (None, rotation, translation),
                 Entry::Row {
                     capture,
                     tx,
@@ -57,25 +65,19 @@ pub fn parse(text: &str) -> Result<Vec<(Option<String>, Isometry3<f64>)>> {
                     qy,
                     qz,
                     qw,
-                } => {
-                    let q = Quaternion::new(qw, qx, qy, qz);
-                    if q.norm() < 1e-9 {
-                        bail!("pose {i}: zero quaternion");
-                    }
-                    (
-                        capture,
-                        Isometry3::from_parts(
-                            Translation3::new(tx, ty, tz),
-                            UnitQuaternion::from_quaternion(q),
-                        ),
-                    )
-                }
+                } => (capture, [qx, qy, qz, qw], [tx, ty, tz]),
             };
-            let finite = pose.translation.vector.iter().all(|v| v.is_finite())
-                && pose.rotation.coords.iter().all(|v| v.is_finite());
-            if !finite {
+            if ![qx, qy, qz, qw, tx, ty, tz].iter().all(|v| v.is_finite()) {
                 bail!("pose {i}: non-finite value");
             }
+            let q = Quaternion::new(qw, qx, qy, qz);
+            if q.norm() < 1e-9 {
+                bail!("pose {i}: zero quaternion");
+            }
+            let pose = Isometry3::from_parts(
+                Translation3::new(tx, ty, tz),
+                UnitQuaternion::from_quaternion(q),
+            );
             Ok((id, pose))
         })
         .collect()
@@ -85,8 +87,16 @@ pub fn parse(text: &str) -> Result<Vec<(Option<String>, Isometry3<f64>)>> {
 ///
 /// # Errors
 ///
-/// As [`parse`].
+/// As [`parse`], and if `speed_scale` is not in `(0, 1]` or `dt` is not
+/// positive (what `ScenarioSpec::validate` requires, checked here so a file
+/// written without a scene is valid too).
 pub fn scenario(text: &str, robot: &str, speed_scale: f64, dt: f64) -> Result<ScenarioSpec> {
+    if !(speed_scale.is_finite() && speed_scale > 0.0 && speed_scale <= 1.0) {
+        bail!("speed scale must be in (0, 1], got {speed_scale}");
+    }
+    if !(dt.is_finite() && dt > 0.0) {
+        bail!("sample period must be positive, got {dt}");
+    }
     Ok(ScenarioSpec::from_poses(
         robot,
         &parse(text)?,
@@ -123,5 +133,18 @@ mod tests {
         assert!(parse(r#"{"not": "an array"}"#).is_err());
         let zero = r#"[{"tx": 1, "ty": 2, "tz": 3, "qx": 0, "qy": 0, "qz": 0, "qw": 0}]"#;
         assert!(parse(zero).is_err());
+        let zero_wire = r#"[{"rotation": [0, 0, 0, 0], "translation": [0, 0, 0]}]"#;
+        assert!(parse(zero_wire).is_err());
+        let one = r#"[{"rotation": [0, 0, 0, 1], "translation": [0, 0, 0]}]"#;
+        assert!(scenario(one, "ur5e", 0.0, 0.01).is_err());
+        assert!(scenario(one, "ur5e", 3.0, 0.01).is_err());
+        assert!(scenario(one, "ur5e", 0.5, 0.0).is_err());
+    }
+
+    #[test]
+    fn normalises_wire_quaternions() {
+        let wire = r#"[{"rotation": [0, 0, 0, 2], "translation": [0, 0, 0]}]"#;
+        let q = parse(wire).unwrap()[0].1.rotation;
+        assert!((q.coords.norm() - 1.0).abs() < 1e-15);
     }
 }

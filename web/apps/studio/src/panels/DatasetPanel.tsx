@@ -1,8 +1,7 @@
 import { Button, Callout, Checkbox, Field, Input, ProgressBar, StatusDot, Switch, Table } from "@vitavision/ui";
 import { NumberInput } from "@vitavision/ui-next";
-import { toast } from "@vitavision/workbench";
 import { FolderOpen, Play, Square } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { parentDir } from "../io/tauri";
 import type { Baked } from "../kernel/etendue";
@@ -10,16 +9,14 @@ import {
   type BlenderStatus,
   type CameraSummary,
   type Dataset,
-  type Progress,
   type Stage,
   blenderStatus,
-  cancelRun,
-  generateDataset,
   pathExists,
   pickDirectory,
   pickJsonFiles,
   repoRoot,
 } from "../kernel/native";
+import { type DatasetRunner, useDatasetRun } from "../state/datasetRun";
 
 const STAGES: Record<Stage, string> = {
   ground_truth: "Ground truth",
@@ -85,12 +82,6 @@ interface Form {
   cpu: boolean;
 }
 
-interface Run {
-  id: string;
-  step: { stage: Stage; done: number; total: number } | null;
-  log: string[];
-}
-
 const COLUMNS = [
   { key: "camera", header: "Camera", cell: (r: CameraSummary) => r.camera },
   { key: "ok", header: "Views ok", numeric: true, cell: (r: CameraSummary) => `${r.ok}/${r.views}` },
@@ -113,11 +104,11 @@ const COLUMNS = [
 export function DatasetPanel({
   current,
   dataset,
-  onDataset,
+  runner,
 }: {
   current: Baked;
   dataset: Dataset | null;
-  onDataset: (d: Dataset | null) => void;
+  runner: DatasetRunner;
 }) {
   const { origin, scenario, scene } = current.loaded;
   const defaults = useDefaults(origin);
@@ -129,9 +120,7 @@ export function DatasetPanel({
     cameras: null,
     cpu: false,
   });
-  const [run, setRun] = useState<Run | null>(null);
-  const [failure, setFailure] = useState<string | null>(null);
-  const runRef = useRef<Run | null>(null);
+  const { run, failure } = useDatasetRun(runner);
 
   if (origin === null) {
     return (
@@ -154,63 +143,20 @@ export function DatasetPanel({
   const blender = defaults?.blender ?? null;
   const running = run !== null;
 
-  const onProgress = (p: Progress) => {
-    const r = runRef.current;
-    if (!r) return;
-    const next: Run =
-      p.kind === "step"
-        ? { ...r, step: { stage: p.stage, done: p.done, total: p.total } }
-        : { ...r, log: [...r.log, p.line].slice(-200) };
-    runRef.current = next;
-    setRun(next);
-  };
-
-  const start = () => {
-    const id = `run-${Date.now()}`;
-    const r: Run = { id, step: null, log: [] };
-    runRef.current = r;
-    setRun(r);
-    setFailure(null);
-    onDataset(null);
-    void generateDataset(
-      id,
-      {
-        scene: origin,
-        scenario,
-        output,
-        render: form.render,
-        samples: form.samples,
-        supersample: form.supersample,
-        sensor,
-        cameras: cameras.length === allCameras.length ? [] : cameras,
-        cpu: form.cpu,
-        blender: null,
-        allowBlenderVersion: false,
-      },
-      onProgress,
-    )
-      .then((outcome) => {
-        if (outcome.kind === "ok") {
-          const d: Dataset = {
-            output: outcome.output,
-            gt: outcome.gt,
-            render: outcome.render,
-            detection: outcome.detection,
-          };
-          onDataset(d);
-          toast({ title: "Dataset generated", description: d.output, tone: "success", duration: 4000 });
-        } else if (outcome.kind === "cancelled") {
-          toast({ title: "Dataset generation cancelled", tone: "info", duration: 2500 });
-        } else {
-          setFailure(outcome.message);
-        }
-      })
-      .catch((e: unknown) => setFailure(e instanceof Error ? e.message : String(e)))
-      .finally(() => {
-        runRef.current = null;
-        setRun(null);
-      });
-  };
+  const start = () =>
+    runner.start({
+      scene: origin,
+      scenario,
+      output,
+      render: form.render,
+      samples: form.samples,
+      supersample: form.supersample,
+      sensor,
+      cameras: cameras.length === allCameras.length ? [] : cameras,
+      cpu: form.cpu,
+      blender: null,
+      allowBlenderVersion: false,
+    });
 
   const step = run?.step ?? null;
   const set = (patch: Partial<Form>) => setForm((f) => ({ ...f, ...patch }));
@@ -321,7 +267,7 @@ export function DatasetPanel({
             Generate
           </Button>
           {running && (
-            <Button variant="danger" icon={<Square className="size-4" />} onClick={() => void cancelRun(run.id)}>
+            <Button variant="danger" icon={<Square className="size-4" />} onClick={runner.cancel}>
               Cancel
             </Button>
           )}

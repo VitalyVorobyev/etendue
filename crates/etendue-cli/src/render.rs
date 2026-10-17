@@ -30,7 +30,10 @@ pub const PIXEL_CENTRE: PixelCentre = PixelCentre::Integer;
 /// Options of a render.
 #[derive(Clone, Debug)]
 pub struct RenderOptions {
-    /// Output directory (`job.json`, `exr/`, `images/`).
+    /// Output directory (`job.json`, `exr/`, `images/`). The defaults of the
+    /// other fields are [`DEFAULT_SAMPLES`], [`DEFAULT_SEED`],
+    /// [`DEFAULT_SUPERSAMPLE`], [`DEFAULT_EXPOSURE`] and [`DEFAULT_AMBIENT`]
+    /// (the CLI's and the studio's).
     pub output: PathBuf,
     /// Cycles samples per canonical pixel.
     pub samples: u32,
@@ -50,6 +53,17 @@ pub struct RenderOptions {
     /// one, `exposure` and sRGB PNGs.
     pub sensor: Option<SensorModel>,
 }
+
+/// Default Cycles samples per canonical pixel.
+pub const DEFAULT_SAMPLES: u32 = 64;
+/// Default Cycles seed.
+pub const DEFAULT_SEED: u32 = 0;
+/// Default canonical supersampling.
+pub const DEFAULT_SUPERSAMPLE: f64 = 1.0;
+/// Default linear scale before sRGB encoding.
+pub const DEFAULT_EXPOSURE: f32 = 1.0;
+/// Default radiance of the uniform white environment.
+pub const DEFAULT_AMBIENT: f64 = 1.0;
 
 /// A Blender to render with.
 #[derive(Clone, Debug, Serialize)]
@@ -79,6 +93,25 @@ impl Blender {
             version,
             pin: pinned_version(search)?,
         })
+    }
+
+    /// [`Self::find`], then [`Self::check`]: Blender ready to render, with
+    /// any warning passed to `warn`.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::find`] and [`Self::check`].
+    pub fn checked(
+        arg: Option<&Path>,
+        allow_other: bool,
+        search: &[&Path],
+        mut warn: impl FnMut(String),
+    ) -> Result<Self> {
+        let blender = Self::find(arg, search)?;
+        if let Some(warning) = blender.check(allow_other)? {
+            warn(warning);
+        }
+        Ok(blender)
     }
 
     /// Whether this Blender may render: `Ok(None)` if it matches its pin,
@@ -247,23 +280,51 @@ pub fn run_blender(exe: &Path, job: &RenderJob, out: &Path, ctl: &Control) -> Re
         .arg(&job_path)
         .arg(out)
         .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
         .spawn()
         .with_context(|| format!("running {}", exe.display()))?;
-    let stdout = child.stdout.take().expect("stdout is piped");
-    let (tx, rx) = mpsc::channel();
-    let reader = std::thread::spawn(move || {
-        for line in BufReader::new(stdout).lines() {
-            let Ok(line) = line else { break };
-            if tx.send(line).is_err() {
-                break;
+    // Both streams, line by line. Lines need not be UTF-8 (paths, locales):
+    // a reader that stopped at one would close the pipe and make Blender's
+    // next print fail.
+    let (tx, rx) = mpsc::channel::<(bool, String)>();
+    let forward = |stream: Box<dyn std::io::Read + Send>, is_err: bool| {
+        let tx = tx.clone();
+        std::thread::spawn(move || {
+            let mut stream = BufReader::new(stream);
+            let mut buf = Vec::new();
+            while matches!(stream.read_until(b'\n', &mut buf), Ok(n) if n > 0) {
+                let line = String::from_utf8_lossy(&buf).trim_end().to_owned();
+                buf.clear();
+                if tx.send((is_err, line)).is_err() {
+                    break;
+                }
             }
-        }
-    });
+        })
+    };
+    let readers = [
+        forward(
+            Box::new(child.stdout.take().expect("stdout is piped")),
+            false,
+        ),
+        forward(
+            Box::new(child.stderr.take().expect("stderr is piped")),
+            true,
+        ),
+    ];
+    drop(tx);
+    // The end of stderr, for the error if Blender fails.
+    let mut stderr_tail = std::collections::VecDeque::with_capacity(STDERR_TAIL);
     let total: usize = job.shots.iter().map(|s| s.outputs.len()).sum();
     let mut done = 0;
     loop {
         match rx.recv_timeout(Duration::from_millis(200)) {
-            Ok(line) => {
+            Ok((is_err, line)) => {
+                if is_err {
+                    if stderr_tail.len() == STDERR_TAIL {
+                        stderr_tail.pop_front();
+                    }
+                    stderr_tail.push_back(line.clone());
+                }
                 // The script's marker, one per image (render.py).
                 if line.starts_with("etendue: rendered ") {
                     done += 1;
@@ -277,17 +338,28 @@ pub fn run_blender(exe: &Path, job: &RenderJob, out: &Path, ctl: &Control) -> Re
         if ctl.cancelled() {
             let _ = child.kill();
             let _ = child.wait();
-            let _ = reader.join();
+            for r in readers {
+                let _ = r.join();
+            }
             return Err(Cancelled.into());
         }
     }
-    let _ = reader.join();
+    for r in readers {
+        let _ = r.join();
+    }
     let status = child.wait()?;
     if !status.success() {
-        bail!("Blender failed ({status})");
+        let tail: Vec<String> = stderr_tail.into_iter().collect();
+        if tail.is_empty() {
+            bail!("Blender failed ({status})");
+        }
+        bail!("Blender failed ({status}):\n{}", tail.join("\n"));
     }
     Ok(())
 }
+
+/// Lines of Blender's stderr kept for the error of a failed run.
+const STDERR_TAIL: usize = 20;
 
 /// What [`run`] rendered.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]

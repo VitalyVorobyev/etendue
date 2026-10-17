@@ -23,6 +23,7 @@ import { JointChart } from "./panels/JointChart";
 import { Navigator } from "./panels/Navigator";
 import { Viewport } from "./panels/Viewport";
 import { sceneTree } from "./scene/model";
+import { DatasetRunner } from "./state/datasetRun";
 import { Studio, initialExample, useStudio } from "./state/studio";
 
 /** A value that belongs to one loaded scene: it resets when another scene loads. */
@@ -33,6 +34,7 @@ interface Scoped<T> {
 
 export function App() {
   const [studio] = useState(() => new Studio(createPlayhead(1, 0.01)));
+  const [runner] = useState(() => new DatasetRunner(studio));
   const { current, failure, loading, playing, example, dataset } = useStudio(studio);
   const { playhead } = studio;
   const [selection, setSelection] = useState<Scoped<string | null>>({ scene: null, value: null });
@@ -87,7 +89,8 @@ export function App() {
     (camera: string, k: number): string | null => {
       const capture = current?.baked.samples[k]?.capture?.id;
       if (!dataset?.render?.cameras.includes(camera) || capture === undefined) return null;
-      return fileUrl(`${dataset.output}/images/${camera}/${capture}.png`);
+      // Per run: a regenerated image has the same path, and the webview would show the cached one.
+      return `${fileUrl(`${dataset.output}/images/${camera}/${capture}.png`)}?run=${dataset.run}`;
     },
     [current, dataset],
   );
@@ -131,7 +134,7 @@ export function App() {
                 renderedAt={renderedAt}
               />
             ) : activeTab === "dataset" ? (
-              <DatasetPanel current={current} dataset={dataset} onDataset={studio.setDataset} />
+              <DatasetPanel current={current} dataset={dataset} runner={runner} />
             ) : activeTab === "joints" && selectedRobot ? (
               <JointChart baked={current.baked} robot={selectedRobot} playhead={playhead} />
             ) : null}

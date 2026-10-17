@@ -101,22 +101,22 @@ enum Command {
         #[arg(long, value_enum, default_value_t = Backend::Blender)]
         backend: Backend,
         /// Cycles samples per pixel.
-        #[arg(long, default_value_t = 64)]
+        #[arg(long, default_value_t = render::DEFAULT_SAMPLES)]
         samples: u32,
         /// Cycles seed.
-        #[arg(long, default_value_t = 0)]
+        #[arg(long, default_value_t = render::DEFAULT_SEED)]
         seed: u32,
         /// Render on the CPU instead of the GPU.
         #[arg(long)]
         cpu: bool,
         /// Canonical pixels per camera pixel at the image centre.
-        #[arg(long, default_value_t = 1.0)]
+        #[arg(long, default_value_t = render::DEFAULT_SUPERSAMPLE)]
         supersample: f64,
         /// Linear scale before sRGB encoding (placeholder for the P4-6 sensor model).
-        #[arg(long, default_value_t = 1.0)]
+        #[arg(long, default_value_t = render::DEFAULT_EXPOSURE)]
         exposure: f32,
         /// Radiance of a uniform white environment (0 = scene lights only).
-        #[arg(long, default_value_t = 1.0)]
+        #[arg(long, default_value_t = render::DEFAULT_AMBIENT)]
         ambient: f64,
         /// Blender executable (default: $ETENDUE_BLENDER, then the platform default).
         #[arg(long)]
@@ -231,11 +231,7 @@ pub(crate) fn checked_blender(
     from: &Path,
 ) -> Result<Blender> {
     let cwd = std::env::current_dir()?;
-    let blender = Blender::find(arg, &[from, &cwd])?;
-    if let Some(warning) = blender.check(allow_other)? {
-        eprintln!("{warning}");
-    }
-    Ok(blender)
+    Blender::checked(arg, allow_other, &[from, &cwd], |w| eprintln!("{w}"))
 }
 
 fn run(cli: Cli) -> Result<()> {

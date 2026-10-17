@@ -4,9 +4,10 @@
 //! remap: per-frame math, in process). This shell adds what a browser cannot
 //! do, on the `etendue_cli` library:
 //!
-//! - files: [`read_text`], [`path_exists`], [`repo_root`] — reading a file
-//!   also lets the webview load assets from its directory (meshes, images)
-//!   through the asset protocol;
+//! - files: [`pick`], [`read_text`], [`path_exists`], [`repo_root`]. The
+//!   webview reads only under the data root (the checkout) and what the user
+//!   picked ([`Allowed`]), and loads assets (meshes, images) from the same
+//!   folders through the asset protocol;
 //! - dataset generation: [`generate_dataset`] (ground truth → Blender →
 //!   detection, with progress over a channel) and [`cancel_run`];
 //! - [`blender_status`] and [`scenario_from_poses`].
@@ -50,36 +51,155 @@ impl Runs {
     }
 }
 
-/// Let the webview load files under `dir` through the asset protocol.
-fn allow(app: &AppHandle, dir: &Path) {
-    if let Err(e) = app.asset_protocol_scope().allow_directory(dir, true) {
-        eprintln!("asset scope: {}: {e}", dir.display());
+/// `path` made absolute and free of `.`/`..` and links: its longest existing
+/// ancestor canonicalised (without Windows' `\\?\` prefix, which `/`-joined
+/// paths from the webview would break), the rest appended.
+fn resolve(path: &Path) -> Option<PathBuf> {
+    let mut existing = path;
+    let mut rest = Vec::new();
+    loop {
+        if let Ok(p) = dunce::canonicalize(existing) {
+            let mut out = p;
+            for part in rest.iter().rev() {
+                out.push(part);
+            }
+            return Some(out);
+        }
+        let name = existing.file_name()?;
+        if name == ".." || name == "." {
+            return None;
+        }
+        rest.push(name.to_owned());
+        existing = existing.parent()?;
     }
 }
 
-/// Read a text file. Its directory (recursively) becomes loadable through
-/// the asset protocol: a robot manifest's meshes sit below it.
-#[tauri::command]
-fn read_text(app: AppHandle, path: PathBuf) -> Result<String, String> {
-    let text = std::fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))?;
-    if let Some(dir) = path.parent() {
-        allow(&app, dir);
+/// The folders the webview may read under and load through the asset
+/// protocol: the data root, the folders of the files and folders the user
+/// picked, and the robot manifests a picked scene names.
+#[derive(Default)]
+struct Allowed(Mutex<Vec<PathBuf>>);
+
+impl Allowed {
+    fn add(&self, app: &AppHandle, dir: &Path) {
+        let Some(dir) = resolve(dir) else { return };
+        if let Err(e) = app.asset_protocol_scope().allow_directory(&dir, true) {
+            eprintln!("asset scope: {}: {e}", dir.display());
+        }
+        self.0.lock().expect("allowed lock").push(dir);
     }
-    Ok(text)
+
+    /// `path` resolved, if it is under an allowed folder.
+    fn check(&self, path: &Path) -> Result<PathBuf, String> {
+        let resolved = resolve(path).ok_or_else(|| format!("{}: no such path", path.display()))?;
+        if self
+            .0
+            .lock()
+            .expect("allowed lock")
+            .iter()
+            .any(|dir| resolved.starts_with(dir))
+        {
+            Ok(resolved)
+        } else {
+            Err(format!(
+                "{}: outside the folders opened in the studio",
+                path.display()
+            ))
+        }
+    }
 }
 
-/// Whether `path` is an existing file.
+/// The robot manifest folders a scene file names (relative to it), so a
+/// picked scene can load robots kept elsewhere.
+fn manifest_dirs(scene: &Path) -> Vec<PathBuf> {
+    #[derive(serde::Deserialize)]
+    struct Robot {
+        manifest: PathBuf,
+    }
+    #[derive(serde::Deserialize)]
+    struct Scene {
+        #[serde(default)]
+        robots: Vec<Robot>,
+    }
+    let Some(dir) = scene.parent() else {
+        return vec![];
+    };
+    std::fs::read_to_string(scene)
+        .ok()
+        .and_then(|t| serde_json::from_str::<Scene>(&t).ok())
+        .map(|s| {
+            s.robots
+                .iter()
+                .filter_map(|r| dir.join(&r.manifest).parent().map(Path::to_owned))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// Show a file dialog: JSON files (`multiple` or one), or a folder
+/// (`directory`). What the user picks becomes readable.
 #[tauri::command]
-fn path_exists(path: PathBuf) -> bool {
-    path.is_file()
+async fn pick(
+    app: AppHandle,
+    title: String,
+    multiple: bool,
+    directory: bool,
+    allowed: State<'_, Allowed>,
+) -> Result<Vec<PathBuf>, String> {
+    use tauri_plugin_dialog::DialogExt;
+    let dialog = app.dialog().file().set_title(title);
+    let picked = if directory {
+        dialog.blocking_pick_folder().into_iter().collect()
+    } else if multiple {
+        dialog
+            .add_filter("JSON", &["json"])
+            .blocking_pick_files()
+            .unwrap_or_default()
+    } else {
+        dialog
+            .add_filter("JSON", &["json"])
+            .blocking_pick_file()
+            .into_iter()
+            .collect()
+    };
+    let paths: Vec<PathBuf> = picked
+        .into_iter()
+        .filter_map(|p| p.into_path().ok())
+        .collect();
+    for path in &paths {
+        if directory {
+            allowed.add(&app, path);
+        } else {
+            if let Some(dir) = path.parent() {
+                allowed.add(&app, dir);
+            }
+            for dir in manifest_dirs(path) {
+                allowed.add(&app, &dir);
+            }
+        }
+    }
+    Ok(paths)
+}
+
+/// Read a text file under an allowed folder.
+#[tauri::command]
+fn read_text(path: PathBuf, allowed: State<'_, Allowed>) -> Result<String, String> {
+    let path = allowed.check(&path)?;
+    std::fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))
+}
+
+/// Whether `path` is an existing file under an allowed folder.
+#[tauri::command]
+fn path_exists(path: PathBuf, allowed: State<'_, Allowed>) -> bool {
+    allowed.check(&path).is_ok_and(|p| p.is_file())
 }
 
 /// The etendue checkout this shell was built from, if it is still there (the
 /// examples and the robot library live in it).
 #[tauri::command]
 fn repo_root() -> Option<PathBuf> {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../..");
-    let root = root.canonicalize().ok()?;
+    let root =
+        dunce::canonicalize(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../..")).ok()?;
     root.join("examples").is_dir().then_some(root)
 }
 
@@ -96,7 +216,9 @@ fn scenario_from_poses(
     path: PathBuf,
     robot: String,
     speed_scale: f64,
+    allowed: State<'_, Allowed>,
 ) -> Result<etendue_scene::ScenarioSpec, String> {
+    let path = allowed.check(&path)?;
     let text = std::fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))?;
     etendue_cli::poses::scenario(&text, &robot, speed_scale, 0.01)
         .map_err(|e| format!("{}: {e:#}", path.display()))
@@ -109,14 +231,21 @@ fn scenario_from_poses(
 async fn generate_dataset(
     app: AppHandle,
     run_id: String,
-    request: DatasetRequest,
+    mut request: DatasetRequest,
     on_progress: Channel<Progress>,
     runs: State<'_, Runs>,
+    allowed: State<'_, Allowed>,
 ) -> Result<Outcome, String> {
-    let cancel = runs.start(&run_id);
+    // Every path the run reads or writes is one the studio opened.
+    request.scene = allowed.check(&request.scene)?;
+    request.output = allowed.check(&request.output)?;
+    if let Some(sensor) = &request.sensor {
+        request.sensor = Some(allowed.check(sensor)?);
+    }
     std::fs::create_dir_all(&request.output)
         .map_err(|e| format!("{}: {e}", request.output.display()))?;
-    allow(&app, &request.output);
+    allowed.add(&app, &request.output);
+    let cancel = runs.start(&run_id);
     let result = tauri::async_runtime::spawn_blocking(move || {
         let report = move |p: Progress| {
             let _ = on_progress.send(p);
@@ -139,16 +268,17 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(Runs::default())
+        .manage(Allowed::default())
         .setup(|app| {
-            // The examples and the robot library (meshes) of the checkout.
+            // The checkout: examples, the robot library (meshes), and the
+            // default dataset folders under target/.
             if let Some(root) = repo_root() {
-                for dir in ["examples", "assets/robots"] {
-                    allow(app.handle(), &root.join(dir));
-                }
+                app.state::<Allowed>().add(app.handle(), &root);
             }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            pick,
             read_text,
             path_exists,
             repo_root,
@@ -174,6 +304,34 @@ mod tests {
         assert!(flag.load(Ordering::Relaxed));
         runs.finish("a");
         assert!(!runs.cancel("a"));
+    }
+
+    #[test]
+    fn resolve_handles_missing_tails_and_rejects_dot_dot() {
+        let root = repo_root().expect("tests run inside the checkout");
+        let missing = root.join("target/studio/not-yet/created");
+        assert_eq!(resolve(&missing), Some(missing.clone()));
+        // `..` through an existing folder is folded by canonicalisation …
+        assert_eq!(
+            resolve(&root.join("examples/../examples")),
+            Some(root.join("examples"))
+        );
+        // … but cannot climb out of a missing one.
+        assert_eq!(resolve(&root.join("target/nope/../../..")), None);
+    }
+
+    #[test]
+    fn manifest_dirs_follow_the_scene() {
+        let root = repo_root().expect("tests run inside the checkout");
+        let dirs = manifest_dirs(&root.join("examples/closed_loop_ur5e/scene.json"));
+        assert!(!dirs.is_empty());
+        for d in dirs {
+            assert!(
+                resolve(&d).is_some_and(|d| d.join("robot.json").is_file()),
+                "{}",
+                d.display()
+            );
+        }
     }
 
     #[test]

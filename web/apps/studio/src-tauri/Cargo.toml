@@ -31,6 +31,7 @@ tauri-plugin-dialog = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["float_roundtrip"] }
 anyhow = "1"
+dunce = "1"
 etendue-cli = { path = "../../../../crates/etendue-cli" }
 etendue-kinematics = { path = "../../../../crates/etendue-kinematics" }
 etendue-scene = { path = "../../../../crates/etendue-scene" }

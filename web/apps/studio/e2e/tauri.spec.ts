@@ -100,6 +100,11 @@ test("generates a dataset through the native pipeline", async ({ page }) => {
   await expect(panel.getByText("Rendering: 1 of 2")).toBeVisible();
   await expect(panel.getByTestId("dataset-log")).toContainText("etendue: rendered exr/cam_left/cap_000.exr");
   await expect(panel.getByRole("button", { name: "Cancel" })).toBeVisible();
+  // The run outlives the panel: away and back, it still shows, and cannot start twice.
+  await page.getByRole("tab", { name: "cam_left" }).click();
+  await page.getByRole("tab", { name: "Dataset" }).click();
+  await expect(page.getByTestId("dataset-panel").getByRole("button", { name: "Cancel" })).toBeVisible();
+  await expect(page.getByTestId("dataset-panel").getByRole("button", { name: "Generate" })).toBeDisabled();
 
   const result = panel.getByTestId("dataset-result");
   await expect(result).toContainText("20 captures, 40 views, 2160 visible points");
