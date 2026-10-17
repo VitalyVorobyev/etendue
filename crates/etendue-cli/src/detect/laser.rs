@@ -19,14 +19,19 @@
 //!
 //! Every extracted pixel is then compared with the analytic stripe of
 //! `gt.json` (`laser_points`): its distance from that polyline is reported,
-//! never used to correct it.
+//! never used to correct it. So is the fitted width against the beam's
+//! (gate G5.2): `gt.json`'s beam diameter at the nearest stripe point, a
+//! Gaussian `exp(−2d²/w²)` in the distance `d` from the laser plane, carried
+//! into the image through the camera model and the surface's tangent plane.
 
 use std::path::Path;
 
 use anyhow::Result;
-use etendue_synth::dataset::{GroundTruth, GtView};
+use etendue_synth::dataset::{GroundTruth, GtCapture, GtView};
 use etendue_synth::images::{Gray8, read_png_luma8};
+use nalgebra::{Point2, Vector3};
 use serde::{Deserialize, Serialize};
+use vision_calibration_core::CameraModel;
 
 /// The `laser_features.json` format version.
 pub const LASER_FEATURES_VERSION: u32 = 1;
@@ -41,6 +46,8 @@ const HALF_WINDOW: usize = 20;
 /// Board pixels darker than this (ink) carry no measurement: neither the
 /// dimming nor the stripe is taken from them.
 const MIN_BOARD_DN: u8 = 16;
+/// The stripe's local slope is fitted over this many lines either side.
+const SLOPE_LINES: f64 = 8.0;
 /// An extracted pixel farther than this from the analytic stripe is an
 /// outlier.
 pub const OUTLIER_PX: f64 = 3.0;
@@ -63,6 +70,25 @@ pub struct StripeCheck {
     pub mean_px: f64,
 }
 
+/// How the stripe's width compares with the beam's (gate G5.2), over the
+/// matched pixels with a beam width at their analytic point.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct WidthCheck {
+    /// Pixels compared.
+    pub points: usize,
+    /// Median fitted σ across the stripe, pixels.
+    pub sigma_px: f64,
+    /// Median σ of the beam alone across the stripe in the image, pixels
+    /// (a quarter of its `1/e²` diameter).
+    pub beam_sigma_px: f64,
+    /// Median of fitted / beam σ per pixel.
+    pub ratio: f64,
+    /// Its 5th percentile.
+    pub ratio_p05: f64,
+    /// Its 95th percentile.
+    pub ratio_p95: f64,
+}
+
 /// The stripe in one laser image.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct LaserView {
@@ -73,8 +99,23 @@ pub struct LaserView {
     /// The stripe's centre line, `[u, v]` in the dataset's pixel convention;
     /// empty if the image is missing or shows no stripe.
     pub pixels: Vec<[f64; 2]>,
+    /// The fitted Gaussian's σ across the stripe at each pixel, in pixels.
+    pub sigma_px: Vec<f64>,
     /// Against the analytic stripe.
     pub check: StripeCheck,
+    /// Width against the beam's; `None` when no pixel has a beam width.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub width: Option<WidthCheck>,
+}
+
+/// A point of a stripe's centre line.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Centre {
+    /// `[x, y]`, pixel `i` at `i`.
+    pub pixel: [f64; 2],
+    /// The fitted Gaussian's σ across the stripe (perpendicular to its
+    /// local direction), pixels.
+    pub sigma_px: f64,
 }
 
 /// One capture's laser images.
@@ -116,10 +157,10 @@ pub fn dimming(laser: &Gray8, board: &Gray8) -> f64 {
     *ratios.select_nth_unstable_by(mid, f64::total_cmp).1
 }
 
-/// Centre of a Gaussian through `(t, value)` samples: the vertex of the
-/// parabola fitted to `ln value`, each sample weighted by `value²`. `None`
-/// if the samples do not curve down.
-fn gaussian_centre(samples: &[(f64, f64)]) -> Option<f64> {
+/// Centre and σ of a Gaussian through `(t, value)` samples: the vertex and
+/// curvature of the parabola fitted to `ln value`, each sample weighted by
+/// `value²`. `None` if the samples do not curve down.
+fn gaussian_centre(samples: &[(f64, f64)]) -> Option<(f64, f64)> {
     // Normal equations of a + b·t + c·t² ≈ ln v, about the first sample
     // (conditioning).
     let t0 = samples.first()?.0;
@@ -153,18 +194,17 @@ fn gaussian_centre(samples: &[(f64, f64)]) -> Option<f64> {
         det(&mk) / d
     };
     let (b, c) = (with(1), with(2));
-    (c < 0.0).then(|| t0 - b / (2.0 * c))
+    (c < 0.0).then(|| (t0 - b / (2.0 * c), (-0.5 / c).sqrt()))
 }
 
 /// The stripe's centre line in `laser`, with `board` (the same view without
-/// the laser) subtracted at its estimated dimming and divided out: `[x, y]`
-/// with pixel `i` at `i`.
+/// the laser) subtracted at its estimated dimming and divided out.
 ///
 /// # Panics
 ///
 /// If the two images differ in size.
 #[must_use]
-pub fn extract(laser: &Gray8, board: Option<&Gray8>) -> Vec<[f64; 2]> {
+pub fn extract(laser: &Gray8, board: Option<&Gray8>) -> Vec<Centre> {
     let (w, h) = (laser.width as usize, laser.height as usize);
     // Per pixel: the stripe above the dimmed board (DN), and the same divided
     // by the board's brightness, or `None` where the pixel measures nothing.
@@ -215,7 +255,7 @@ pub fn extract(laser: &Gray8, board: Option<&Gray8>) -> Vec<[f64; 2]> {
     let (cxx, cyy, cxy) = (sxx / n - mx * mx, syy / n - my * my, sxy / n - mx * my);
     // Along x when the principal axis is within 45° of x.
     let along_x = (2.0 * cxy).atan2(cxx - cyy).abs() / 2.0 <= std::f64::consts::FRAC_PI_4;
-    let (lines, across) = if along_x { (w, h) } else { (h, w) };
+    let (lines, span) = if along_x { (w, h) } else { (h, w) };
     let at = |line: usize, t: usize| {
         if along_x {
             stripe[t * w + line]
@@ -223,10 +263,11 @@ pub fn extract(laser: &Gray8, board: Option<&Gray8>) -> Vec<[f64; 2]> {
             stripe[line * w + t]
         }
     };
-    let mut out = Vec::new();
+    // (line, centre, σ along the scan line).
+    let mut fits = Vec::new();
     for line in 0..lines {
         // The peak: the brightest normalised sample bright enough in DN.
-        let Some((peak_at, peak)) = (0..across)
+        let Some((peak_at, peak)) = (0..span)
             .filter_map(|t| {
                 at(line, t)
                     .filter(|(r, _)| *r >= MIN_PEAK_DN)
@@ -243,7 +284,7 @@ pub fn extract(laser: &Gray8, board: Option<&Gray8>) -> Vec<[f64; 2]> {
             continue;
         };
         let lo = peak_at.saturating_sub(HALF_WINDOW);
-        let hi = (peak_at + HALF_WINDOW + 1).min(across);
+        let hi = (peak_at + HALF_WINDOW + 1).min(span);
         let samples: Vec<(f64, f64)> = (lo..hi)
             .filter_map(|t| at(line, t).map(|(_, v)| (t as f64, v)))
             .filter(|&(_, v)| v > FLOOR * peak)
@@ -251,7 +292,7 @@ pub fn extract(laser: &Gray8, board: Option<&Gray8>) -> Vec<[f64; 2]> {
         if samples.len() < 3 {
             continue;
         }
-        let Some(centre) = gaussian_centre(&samples) else {
+        let Some((centre, sigma)) = gaussian_centre(&samples) else {
             continue;
         };
         // An interpolation, not an extrapolation: the pixels either side of
@@ -263,13 +304,45 @@ pub fn extract(laser: &Gray8, board: Option<&Gray8>) -> Vec<[f64; 2]> {
         if !(has(centre.floor()) && has(centre.ceil()) && below >= 2 && above >= 2) {
             continue;
         }
-        out.push(if along_x {
-            [line as f64, centre]
-        } else {
-            [centre, line as f64]
-        });
+        fits.push((line as f64, centre, sigma));
     }
-    out
+    fits.iter()
+        .map(|&(line, centre, sigma)| Centre {
+            pixel: if along_x {
+                [line, centre]
+            } else {
+                [centre, line]
+            },
+            // Across the stripe: the scan line's σ times the cosine of the
+            // stripe's local slope, the line through the centres within
+            // SLOPE_LINES lines.
+            sigma_px: sigma / slope(&fits, line).hypot(1.0),
+        })
+        .collect()
+}
+
+/// The stripe's slope (centre per line) at `line`: a line fitted to the
+/// centres of `fits` (`(line, centre, _)`, ascending) within
+/// [`SLOPE_LINES`]; 0 with fewer than three.
+fn slope(fits: &[(f64, f64, f64)], line: f64) -> f64 {
+    let near = fits
+        .iter()
+        .skip_while(|f| f.0 < line - SLOPE_LINES)
+        .take_while(|f| f.0 <= line + SLOPE_LINES);
+    let (mut n, mut sx, mut sy, mut sxx, mut sxy) = (0.0, 0.0, 0.0, 0.0, 0.0);
+    for &(x, y, _) in near {
+        let x = x - line;
+        n += 1.0;
+        sx += x;
+        sy += y;
+        sxx += x * x;
+        sxy += x * y;
+    }
+    let det = n * sxx - sx * sx;
+    if n < 3.0 || det <= 0.0 {
+        return 0.0;
+    }
+    (n * sxy - sx * sy) / det
 }
 
 /// Distance of `p` from the segment `a`–`b`, and its signed distance from
@@ -355,6 +428,92 @@ pub fn check(pixels: &[[f64; 2]], runs: &[Vec<[f64; 2]>]) -> StripeCheck {
     out
 }
 
+/// The beam's σ across the stripe at `pixel` of `view` (camera `model`), in
+/// pixels: the analytic stripe point nearest `pixel`, if within
+/// [`OUTLIER_PX`], gives the beam's diameter and the surface's tangent plane,
+/// on which the distance from the laser plane is differenced across the image.
+fn beam_sigma(
+    gt: &GroundTruth,
+    capture: &GtCapture,
+    view: &GtView,
+    model: &CameraModel,
+    pixel: [f64; 2],
+) -> Option<f64> {
+    let mut nearest: Option<(f64, &str, usize)> = None;
+    for stripe in &view.laser_points {
+        for p in &stripe.points {
+            if let (true, Some(px)) = (p.visible(), p.pixel) {
+                let d = (px[0] - pixel[0]).hypot(px[1] - pixel[1]);
+                if d <= OUTLIER_PX && nearest.is_none_or(|(b, ..)| d < b) {
+                    nearest = Some((d, &stripe.laser, p.point));
+                }
+            }
+        }
+    }
+    let (_, laser, j) = nearest?;
+    let stripe = capture.laser_stripes.iter().find(|s| s.laser == laser)?;
+    let width = *stripe.width_m.get(j)?;
+    let plane = gt
+        .lasers
+        .iter()
+        .find(|l| l.id == stripe.laser)?
+        .camera_planes
+        .iter()
+        .find(|p| p.frame == view.camera)?;
+    let cam_se3_target = view.world_se3_camera.inverse() * capture.world_se3_target;
+    let point = stripe.points.get(j)?;
+    let x = (cam_se3_target * point.xyz()).coords;
+    let n = cam_se3_target.rotation * point.normal.map_or_else(Vector3::z, Vector3::from);
+    let fan = Vector3::from(plane.normal);
+    // The distance from the laser plane of what pixel (u, v) sees.
+    let d = |u: f64, v: f64| {
+        let ray = model.backproject_pixel(&Point2::new(u, v)).point;
+        fan.dot(&(ray * (n.dot(&x) / n.dot(&ray)))) + plane.distance
+    };
+    const H: f64 = 0.5;
+    let [u, v] = pixel;
+    let gradient = (d(u + H, v) - d(u - H, v)).hypot(d(u, v + H) - d(u, v - H)) / (2.0 * H);
+    (gradient > 0.0).then(|| width / 4.0 / gradient)
+}
+
+/// The `q` quantile of `sorted` (nearest rank).
+fn quantile(sorted: &[f64], q: f64) -> f64 {
+    sorted[((sorted.len() - 1) as f64 * q).round() as usize]
+}
+
+/// Compare the fitted widths `sigma_px` at `pixels` with the beam's.
+fn width_check(
+    gt: &GroundTruth,
+    capture: &GtCapture,
+    view: &GtView,
+    model: &CameraModel,
+    pixels: &[[f64; 2]],
+    sigma_px: &[f64],
+) -> Option<WidthCheck> {
+    let (mut fitted, mut beam, mut ratios) = (Vec::new(), Vec::new(), Vec::new());
+    for (&p, &sigma) in pixels.iter().zip(sigma_px) {
+        if let Some(b) = beam_sigma(gt, capture, view, model, p) {
+            fitted.push(sigma);
+            beam.push(b);
+            ratios.push(sigma / b);
+        }
+    }
+    if ratios.is_empty() {
+        return None;
+    }
+    for v in [&mut fitted, &mut beam, &mut ratios] {
+        v.sort_by(f64::total_cmp);
+    }
+    Some(WidthCheck {
+        points: ratios.len(),
+        sigma_px: quantile(&fitted, 0.5),
+        beam_sigma_px: quantile(&beam, 0.5),
+        ratio: quantile(&ratios, 0.5),
+        ratio_p05: quantile(&ratios, 0.05),
+        ratio_p95: quantile(&ratios, 0.95),
+    })
+}
+
 /// Extract the stripe from every laser image of the dataset in `dir` (`gt`
 /// its ground truth) and check it; `None` if the dataset has no laser images.
 ///
@@ -371,6 +530,11 @@ pub fn extract_dataset(dir: &Path, gt: &GroundTruth) -> Result<Option<LaserFeatu
         return Ok(None);
     }
     let offset = gt.pixel_centre.offset();
+    let models = gt
+        .cameras
+        .iter()
+        .map(|c| Ok((c.id.as_str(), c.params.build()?)))
+        .collect::<Result<std::collections::HashMap<_, _>>>()?;
     let mut captures = Vec::with_capacity(gt.captures.len());
     for capture in &gt.captures {
         let mut views = Vec::new();
@@ -379,7 +543,7 @@ pub fn extract_dataset(dir: &Path, gt: &GroundTruth) -> Result<Option<LaserFeatu
                 continue;
             };
             let path = dir.join(image);
-            let pixels = if path.is_file() {
+            let centres = if path.is_file() {
                 let laser = read_png_luma8(&path)?;
                 let board_path = dir.join(&view.image);
                 let board = if board_path.is_file() {
@@ -388,18 +552,25 @@ pub fn extract_dataset(dir: &Path, gt: &GroundTruth) -> Result<Option<LaserFeatu
                     None
                 };
                 extract(&laser, board.as_ref())
-                    .into_iter()
-                    .map(|[x, y]| [x + offset, y + offset])
-                    .collect()
             } else {
                 Vec::new()
             };
+            let pixels: Vec<[f64; 2]> = centres
+                .iter()
+                .map(|c| [c.pixel[0] + offset, c.pixel[1] + offset])
+                .collect();
+            let sigma_px: Vec<f64> = centres.iter().map(|c| c.sigma_px).collect();
             let check = check(&pixels, &truth(view));
+            let width = models
+                .get(view.camera.as_str())
+                .and_then(|model| width_check(gt, capture, view, model, &pixels, &sigma_px));
             views.push(LaserView {
                 camera: view.camera.clone(),
                 image: image.clone(),
                 pixels,
+                sigma_px,
                 check,
+                width,
             });
         }
         captures.push(LaserCapture {
@@ -413,14 +584,16 @@ pub fn extract_dataset(dir: &Path, gt: &GroundTruth) -> Result<Option<LaserFeatu
             "board image subtracted at its median dimming and divided out (pixels below \
              {MIN_BOARD_DN} DN in it, or saturated, left out); per column (or row) across the \
              stripe, a Gaussian fitted (weighted log-parabola) to the samples above {FLOOR} of \
-             the peak (peak ≥ {MIN_PEAK_DN} DN)"
+             the peak (peak ≥ {MIN_PEAK_DN} DN); its σ across the stripe compared with the \
+             beam's"
         ),
         captures,
     }))
 }
 
 /// Per camera: laser images, extracted pixels, outliers, RMS and mean
-/// distance from the analytic stripe, as table lines.
+/// distance from the analytic stripe, and the fitted width over the beam's
+/// (the median over images, and the images' extremes), as table lines.
 #[must_use]
 pub fn summary_table(features: &LaserFeatures) -> Vec<String> {
     let mut cameras: Vec<&str> = Vec::new();
@@ -430,8 +603,8 @@ pub fn summary_table(features: &LaserFeatures) -> Vec<String> {
         }
     }
     let mut lines = vec![format!(
-        "{:<12} {:>6} {:>8} {:>8} {:>9} {:>9} {:>9}",
-        "camera", "images", "pixels", "outliers", "rms px", "mean px", "max px"
+        "{:<12} {:>6} {:>8} {:>8} {:>9} {:>9} {:>9}  {}",
+        "camera", "images", "pixels", "outliers", "rms px", "mean px", "max px", "width/beam"
     )];
     for camera in cameras {
         let views: Vec<&LaserView> = features
@@ -451,8 +624,23 @@ pub fn summary_table(features: &LaserFeatures) -> Vec<String> {
             max = max.max(v.check.max_px);
         }
         let m = matched.max(1) as f64;
+        let mut ratios: Vec<f64> = views
+            .iter()
+            .filter_map(|v| v.width.as_ref().map(|w| w.ratio))
+            .collect();
+        ratios.sort_by(f64::total_cmp);
+        let width = if ratios.is_empty() {
+            "-".to_owned()
+        } else {
+            format!(
+                "{:.3} ({:.3}–{:.3})",
+                quantile(&ratios, 0.5),
+                ratios[0],
+                ratios[ratios.len() - 1]
+            )
+        };
         lines.push(format!(
-            "{camera:<12} {:>6} {points:>8} {outliers:>8} {:>9.4} {:>+9.4} {max:>9.3}",
+            "{camera:<12} {:>6} {points:>8} {outliers:>8} {:>9.4} {:>+9.4} {max:>9.3}  {width}",
             views.len(),
             (sq / m).sqrt(),
             signed / m
@@ -499,13 +687,23 @@ mod tests {
     fn the_centre_line_is_found_across_the_checkerboard() {
         for (y0, slope) in [(100.3, 0.05), (80.7, -0.12)] {
             let (laser, board) = images(y0, slope);
-            let pixels = extract(&laser, Some(&board));
+            let centres = extract(&laser, Some(&board));
+            let pixels: Vec<[f64; 2]> = centres.iter().map(|c| c.pixel).collect();
             assert!(pixels.len() > 100, "{} columns", pixels.len());
             let worst = pixels
                 .iter()
                 .map(|[x, y]| (y - (y0 + slope * x)).abs())
                 .fold(0.0, f64::max);
             assert!(worst < 0.15, "worst {worst} px");
+            // σ 2 px down the columns is 2·cos(atan slope) across the stripe.
+            let mut sigma: Vec<f64> = centres.iter().map(|c| c.sigma_px).collect();
+            sigma.sort_by(f64::total_cmp);
+            let across = 2.0 / slope.hypot(1.0);
+            let median = quantile(&sigma, 0.5);
+            assert!(
+                (median / across - 1.0).abs() < 0.01,
+                "σ {median} px, {across} px"
+            );
             let truth = vec![vec![[0.0, y0], [319.0, y0 + slope * 319.0]]];
             let c = check(&pixels, &truth);
             assert_eq!(c.outliers, 0);
@@ -525,9 +723,9 @@ mod tests {
                 .map(|(x, y)| g.data[(y * g.width + x) as usize])
                 .collect(),
         };
-        let pixels = extract(&t(&laser), Some(&t(&board)));
-        assert!(pixels.len() > 100);
-        assert!(pixels.iter().all(|[x, _]| (x - 100.0).abs() < 0.15));
+        let centres = extract(&t(&laser), Some(&t(&board)));
+        assert!(centres.len() > 100);
+        assert!(centres.iter().all(|c| (c.pixel[0] - 100.0).abs() < 0.15));
     }
 
     #[test]

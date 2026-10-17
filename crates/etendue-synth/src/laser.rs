@@ -14,7 +14,9 @@
 
 use etendue_core::LaserEntity;
 use etendue_core::TargetEntity;
-use etendue_core::laser::{GaussianBeamWidth, LaserPlane, stripe_on_cylinder, stripe_on_target};
+use etendue_core::laser::{
+    GaussianBeamWidth, LaserPlane, WidthModel, stripe_on_cylinder, stripe_on_target,
+};
 use etendue_scene::LaserSpec;
 use nalgebra::{Isometry3, Point3, Vector3};
 use serde::{Deserialize, Serialize};
@@ -115,14 +117,7 @@ pub fn stripe(
         )));
     }
     let core = |e: etendue_core::Error| Error::InvalidInput(format!("laser `{}`: {e}", laser.id));
-    let entity = LaserEntity::new(
-        *world_se3_laser,
-        laser.fan_half_angle,
-        laser.fan_length,
-        laser.wavelength_nm,
-        laser.beam_waist_m,
-    )
-    .map_err(core)?;
+    let entity = entity(laser, world_se3_laser)?;
     let fan = LaserPlane::from_entity(&entity);
     let target_se3_world = world_se3_target.inverse();
     let extent = match surface {
@@ -185,6 +180,41 @@ pub fn stripe(
         })
         .collect();
     Ok(samples)
+}
+
+/// The beam's `1/e²` diameter at each stripe point ([`GaussianBeamWidth`],
+/// the waist at the laser's origin), metres. `points` are in the target
+/// frame, as [`stripe`] gives them.
+///
+/// # Errors
+///
+/// [`Error::InvalidInput`] if the laser is out of range.
+pub fn beam_widths(
+    laser: &LaserSpec,
+    world_se3_laser: &Isometry3<f64>,
+    world_se3_target: &Isometry3<f64>,
+    points: &[BoardPoint],
+) -> Result<Vec<f64>> {
+    let core = |e: etendue_core::Error| Error::InvalidInput(format!("laser `{}`: {e}", laser.id));
+    let entity = entity(laser, world_se3_laser)?;
+    let width = GaussianBeamWidth::from_laser(&entity).map_err(core)?;
+    let laser_se3_target = world_se3_laser.inverse() * world_se3_target;
+    Ok(points
+        .iter()
+        .map(|p| width.width_at((laser_se3_target * p.xyz()).coords.norm()))
+        .collect())
+}
+
+/// The core laser entity of `laser` at `world_se3_laser`.
+fn entity(laser: &LaserSpec, world_se3_laser: &Isometry3<f64>) -> Result<LaserEntity> {
+    LaserEntity::new(
+        *world_se3_laser,
+        laser.fan_half_angle,
+        laser.fan_length,
+        laser.wavelength_nm,
+        laser.beam_waist_m,
+    )
+    .map_err(|e| Error::InvalidInput(format!("laser `{}`: {e}", laser.id)))
 }
 
 /// The most points a stripe may have (a bound on `spacing_m`).

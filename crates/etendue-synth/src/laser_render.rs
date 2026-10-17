@@ -463,4 +463,69 @@ mod tests {
         }
         assert!(worst < 0.02, "stripe centre off by {worst} px");
     }
+
+    /// The stripe is as wide as the Gaussian beam where it lands: a laser at
+    /// heights from inside to well past its Rayleigh range (0.19 m), straight
+    /// down onto a plane a camera views from 0.5 m.
+    #[test]
+    fn the_stripe_is_as_wide_as_the_beam() {
+        let (f, w, h) = (8000.0, 800usize, 64usize);
+        let canonical = CanonicalCamera::pinhole(f, [800, 64], PixelCentre::Integer);
+        let world_se3_camera = Isometry3::from_parts(
+            Translation3::new(0.0, 0.0, 0.5),
+            UnitQuaternion::from_axis_angle(&Vector3::x_axis(), PI),
+        );
+        let passes = RenderPasses {
+            width: 800,
+            height: 64,
+            depth: vec![0.5; w * h],
+            normal: Some([0.0, 0.0, 1.0].repeat(w * h)),
+            albedo: Some([0.8, 0.8, 0.8].repeat(w * h)),
+        };
+        let mut narrow = laser(0.6);
+        narrow.beam_waist_m = 2e-4;
+        let entity = LaserEntity::new(
+            Isometry3::identity(),
+            narrow.fan_half_angle,
+            narrow.fan_length,
+            narrow.wavelength_nm,
+            narrow.beam_waist_m,
+        )
+        .unwrap();
+        let width = GaussianBeamWidth::from_laser(&entity).unwrap();
+        for height in [0.05, 0.2, 0.4, 1.0] {
+            // Fan along y, in the plane x = 0.01.
+            let world_se3_laser = Isometry3::from_parts(
+                Translation3::new(0.01, 0.0, height),
+                UnitQuaternion::from_axis_angle(&Vector3::y_axis(), PI),
+            );
+            let beam = Beam::new(&narrow, &world_se3_laser, vec![]).unwrap();
+            let image = laser_radiance(&canonical, &world_se3_camera, &passes, &[&beam]).unwrap();
+            let mut worst = 0.0_f64;
+            for j in 0..h {
+                let row: Vec<f64> = (0..w)
+                    .map(|i| f64::from(image.rgb[3 * (j * w + i)]))
+                    .collect();
+                let s: f64 = row.iter().sum();
+                let mean = row
+                    .iter()
+                    .enumerate()
+                    .map(|(i, v)| i as f64 * v)
+                    .sum::<f64>()
+                    / s;
+                let var = row
+                    .iter()
+                    .enumerate()
+                    .map(|(i, v)| (i as f64 - mean).powi(2) * v)
+                    .sum::<f64>()
+                    / s;
+                // The row's point on the plane, and the beam's σ there in pixels.
+                let y = (j as f64 - 31.5) * 0.5 / f;
+                let distance = height.hypot(y);
+                let beam_sigma = width.width_at(distance) / 4.0 * f / 0.5;
+                worst = worst.max((var.sqrt() / beam_sigma - 1.0).abs());
+            }
+            assert!(worst < 1e-3, "height {height} m: σ off by {worst}");
+        }
+    }
 }

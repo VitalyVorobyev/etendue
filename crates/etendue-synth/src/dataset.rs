@@ -35,11 +35,12 @@ use vision_calibration_core::{CameraParams, SensorParams};
 use vision_calibration_dataset::{DatasetSpec, Topology};
 
 use crate::gt::{BoardPoint, GtPoint, VisibilitySpec, project_points};
-use crate::laser::{GtPlane, StripeSurface, plane_in, stripe};
+use crate::laser::{GtPlane, StripeSurface, beam_widths, plane_in, stripe};
 use crate::{Error, PixelCentre, Result};
 
-/// The `gt.json` format version. Version 2 adds the laser fields.
-pub const GT_VERSION: u32 = 2;
+/// The `gt.json` format version. Version 2 adds the laser fields; version 3
+/// the target's geometry and 3-D points, laser images and stripe widths.
+pub const GT_VERSION: u32 = 3;
 
 /// Everything a synthetic dataset needs besides the renders.
 #[derive(Clone, Debug)]
@@ -110,6 +111,10 @@ pub struct GtStripe {
     /// Stripe points in the target frame; [`GtPoint::point`] of a
     /// [`GtStripeView`] indexes this. Empty if the laser misses the target.
     pub points: Vec<BoardPoint>,
+    /// The beam's `1/e²` diameter at each point, metres (the laser's Gaussian
+    /// beam, waist at its origin).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub width_m: Vec<f64>,
 }
 
 /// What one camera sees of one laser's stripe.
@@ -219,7 +224,8 @@ pub struct GtView {
     /// analytic loop reads the stripe pixels from `laser_points` instead.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub laser_image: Option<String>,
-    /// Each laser's stripe, projected, in [`GtCapture::laser_stripes`] order.
+    /// The stripe of each laser this camera images, projected, in
+    /// [`GtCapture::laser_stripes`] order (a subsequence: match by laser id).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub laser_points: Vec<GtStripeView>,
 }
@@ -592,15 +598,18 @@ pub fn emit(
             Some(extent) => lasers_on_rig
                 .iter()
                 .map(|l| {
+                    let world_se3_laser = poses.at(&l.id, k)?;
+                    let points = stripe(
+                        l,
+                        &world_se3_laser,
+                        &world_se3_target,
+                        extent,
+                        options.laser_spacing_m,
+                    )?;
                     Ok(GtStripe {
                         laser: l.id.clone(),
-                        points: stripe(
-                            l,
-                            &poses.at(&l.id, k)?,
-                            &world_se3_target,
-                            extent,
-                            options.laser_spacing_m,
-                        )?,
+                        width_m: beam_widths(l, &world_se3_laser, &world_se3_target, &points)?,
+                        points,
                     })
                 })
                 .collect::<Result<Vec<_>>>()?,

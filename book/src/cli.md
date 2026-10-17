@@ -100,8 +100,13 @@ printed. A plain rectangle has nothing to detect.
 With laser images it also extracts each stripe's centre line into `laser_features.json`:
 1. The board image is subtracted at its estimated dimming and divided out, so ink and paper do
    not matter.
-2. A Gaussian is fitted across the stripe in every column (or row).
-3. Each pixel's distance from the analytic stripe is reported.
+2. A Gaussian is fitted across the stripe in every column (or row), giving its centre and its
+   width (σ across the stripe, `sigma_px`).
+3. Each pixel's distance from the analytic stripe is reported, and its width against the beam's
+   (`width`). The beam's width is `gt.json`'s `width_m`, carried into the image through the
+   camera model. The table's `width/beam` column is the median over images, then the extremes
+   in brackets. A ratio a little above 1 is the pixel's own blur: a pixel integrates over its
+   area.
 
 ChArUco and marker-board ids are wrong when the board is turned more than 45° in the image (a
 calib-targets 0.15 bug). Keep such views within ±45° of upright: the sphere pose generator keeps images upright, so keep its rolls within ±45°.

@@ -78,8 +78,9 @@ calibration datasets with exact ground truth. The 0.1.0 desktop app is replaced 
   a Gaussian beam, Lambertian reflection and shadows from depth views at the laser. New
   `LaserSpec.power_w` and `--laser-ambient`. The render job is version 4. The studio's camera
   views draw each camera's laser stripes. `etendue detect` extracts the stripes into
-  `laser_features.json`, and `closed_loop.py --features` calibrates a laser rig from detected
-  corners and stripes.
+  `laser_features.json`, with the stripe's width against the beam's, and `closed_loop.py
+  --features` calibrates a laser rig from detected corners and stripes. `gt.json` (version 3)
+  gives the beam's diameter at every stripe point (`width_m`).
 - **Sphere pose generator**: eye-in-hand calibration poses on spheres around a target (radii,
   polar and azimuth steps, rolls), kept when the robot reaches them with joint and singularity
   margins and every camera sees the target, ordered into a short tour and pinned to their joint

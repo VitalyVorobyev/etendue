@@ -51,7 +51,7 @@ cargo test -p etendue-synth --release --test ptc -- --nocapture                 
 uv run --locked --project tools/closed-loop tools/closed-loop/closed_loop.py target/gt [--camera ID]     # G5.1 closed loop (after `etendue gt`); G5.3 on a laser dataset (examples/laser_ur5e); G5.3b on examples/rig3_laser_ur5e
 # P5-1b image-level loop (Blender, local only): gt, then render linear at s = 4, detect, calibrate
 cargo run --release -p etendue-cli -- render examples/closed_loop_ur5e/{scene,scenario}.json -o target/gt --supersample 4 --samples 16 --sensor examples/closed_loop_ur5e/sensor_linear.json
-cargo run --release -p etendue-cli -- detect target/gt                                                    # features.json (Radon + calib-targets labels, checked vs GT)
+cargo run --release -p etendue-cli -- detect target/gt                                                    # features.json (Radon + calib-targets labels, checked vs GT); with laser images laser_features.json and G5.2 (width/beam column)
 uv run --locked --project tools/closed-loop tools/closed-loop/closed_loop.py target/gt --features target/gt/features.json
 uv run --locked --project tools/closed-loop python -m unittest discover -s tools/closed-loop              # closed-loop input tests
 

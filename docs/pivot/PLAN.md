@@ -399,6 +399,9 @@ and ask; do not silently relax it.
   Measure the across-stripe profile on a matte plane. Done when gate **G5.2** passes:
   the fitted stripe width vs depth is within ≤10% of `etendue-core` `GaussianBeamWidth`
   plus the CoC prediction over the design depth range.
+  *Superseded by P7-7 (2026-10-17):* the laser is composited in Rust, not lit in Cycles, and the
+  renders have no defocus. G5.2 is redefined (the user's decision): in rendered laser images the
+  fitted stripe width is within ≤10% of `GaussianBeamWidth` over the scene's depth range.
 - **P5-3 — Laser closed loop.** Run the calibration-rs rig laserline problem on
   synthetic data. Done when gate **G5.3** passes: plane normal error ≤0.01° and distance
   error ≤0.05 mm.
@@ -494,7 +497,7 @@ collision checking. Order: P7-0 → (P7-1, P7-3, P7-4) → P7-2 → P7-5 → P7-
   - Not done from the plan: eye-to-hand generation (refused with a clear error), and previewing
     the robot at a clicked candidate.
 - **P7-7 — Laser images.** A Rust compositor from Blender's depth, normal and albedo passes, and
-  stripe extraction. G5.2's redefinition is put to the user before it changes.
+  stripe extraction. G5.2 is redefined for it, by the user's decision (P5-2).
   *Status (2026-10-17):* compositor, job v4 (laser views, laser passes), `<capture>_laser.png`,
   and the studio's stripe overlay done. Cycles' Depth is planar (measured with Blender 5.2.2;
   ADR 0005 amended). On two rendered captures the stripe lies on the analytic stripe to within
@@ -507,7 +510,10 @@ collision checking. Order: P7-0 → (P7-1, P7-3, P7-4) → P7-2 → P7-5 → P7-
       hand-eye;
     - the principal points are 0.25–0.40 px off, noise-limited as in P5-1b.
   - It is a characterisation: `g5_3_laser_closed_loop.md`.
-  - G5.2 is unchanged pending the user's decision.
+  - **G5.2 (redefined) passes:** on the same renders every image's stripe is 1.021–1.035 times
+    the beam's width; the excess is the pixel's own area (0.999–1.002 without it). The
+    compositor test covers the width law from inside to 5× its Rayleigh range
+    (`docs/measurements/g5_2_laser_width.md`).
 
 ### Deferred (not planned; do not scaffold)
 
