@@ -7,6 +7,7 @@
 - Result: **PASS**. 1462 output values, 0 differing bits.
 - Measured: 2026-09-26, on etendue commit `56a374f` (clean tree). The result is
   identical to the pre-commit run on the `7511993-dirty` working tree.
+- Re-run 2026-10-17 on calibration-rs 0.9.0: unchanged (`calibration_rs_0_9.md`).
 
 ## Environment
 
