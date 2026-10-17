@@ -4,8 +4,7 @@
 
 ```bash
 cargo build --workspace                                    # build all crates
-cargo run -p etendue-ui                                    # launch the (frozen) GUI (blocks until window closed)
-cargo test --workspace --locked                            # run all 298 tests
+cargo test --workspace --locked                            # run all 240 tests
 cargo clippy --workspace --all-targets -- -D warnings      # lint (must be clean)
 cargo fmt --all                                            # format
 cargo fmt --all --check                                    # CI format check
@@ -24,7 +23,8 @@ bun run generate:types        # crates/etendue-wasm/js/types from schemas/ (CI: 
 bun run check:deps            # web layering rules
 bun run typecheck && bun run lint && bun run test && bun run build
 bun run dev                   # studio at http://localhost:5178 (blocks; do not run non-interactively)
-cd apps/studio && bun run tauri dev    # the studio in its Tauri shell (blocks; interactive only)
+cd apps/studio && bun run desktop:dev   # the desktop app (Tauri, reads the checkout; blocks; interactive only)
+cd apps/studio && bun run desktop:build [--bundles app]   # wasm + frontend + release bundle (needs the robot meshes)
 cd apps/studio && bun run tauri build --debug --no-bundle   # compile the shell against the built frontend
 cd apps/studio && bun run test:e2e     # Playwright, SwiftShader, bakes the reference with etendue-cli
 cd apps/studio && bun run test:perf    # gate G2.2, headed Chromium on the GPU (local only)
@@ -67,8 +67,8 @@ uv run --locked --project tools/robot-assets tools/robot-assets/build.py --repor
 uv run tools/fixtures/fk_fixture.py
 ```
 
-Do NOT use `cargo run -p etendue-ui` in a non-interactive context; the window blocks the
-shell. The UI binary is `etendue-ui`; the `etendue` binary is the CLI.
+Do NOT run `bun run dev` or `desktop:dev` non-interactively; they block. The `etendue`
+binary is the CLI; the desktop app's binary is `etendue-studio`.
 
 ### Feature matrix
 
@@ -77,13 +77,12 @@ across the whole workspace.
 
 | Crate | Features | Notes |
 |---|---|---|
-| `etendue-core` | `solver` | `solver` = the Scheimpflug design solver on argmin (off by default: argmin pulls `getrandom`; `etendue-ui` enables it) |
+| `etendue-core` | `solver` | `solver` = the Scheimpflug design solver on argmin (off by default: argmin pulls `getrandom`; no in-tree user since `etendue-ui` was deleted, CI tests it per crate) |
 | `etendue-scene` | `schemars` | JSON Schema derives (xtask enables it to emit `schemas/`) |
 | `etendue-kinematics` | `opw` | analytic OPW IK via `rs-opw-kinematics` (`default-features = false`) |
 | `etendue-synth` | `images` | canonical camera, remap LUT, GT, dataset, render jobs; `images` = EXR ingest + PNG (native render path, off in wasm) |
 | `etendue-cli` | none | lib `etendue_cli` (the pipeline) + binary `etendue` |
 | `etendue-wasm` | none | wasm32 build + G0.1 parity in CI job `wasm` |
-| `etendue-ui` | none | frozen, binary `etendue-ui` |
 | `xtask` | none | not published |
 | `etendue-studio` (`web/apps/studio/src-tauri`) | `custom-protocol` (default) | Tauri shell, its own workspace, not published |
 
@@ -102,7 +101,6 @@ by phase, never up front. P0 and P1 are done.
 ```
 etendue-cli (lib `etendue_cli` + bin `etendue`) ──► etendue-kinematics, etendue-synth ──► etendue-scene ──► vision-calibration-{core,dataset}
 web/apps/studio/src-tauri (Tauri shell, own workspace) ──► etendue-cli (lib)
-etendue-ui  (bin `etendue-ui`, FROZEN) ──► etendue-core[solver] ──► vision-calibration-core
 etendue-wasm (npm @etendue/wasm) ──► etendue-kinematics ──► etendue-scene, etendue-synth ──► etendue-core, vision-calibration-core
 web/apps/studio ──► @etendue/wasm, @vitavision/{ui,stage2d,charts} (npm), web/packages/* (incubating)
 xtask (emit-schemas, check-layering)
@@ -169,11 +167,6 @@ through the LUT to `images/<camera>/<capture>.png`. Conventions live only in
 glTF importer's Y-up). The Blender version is pinned in `etendue.toml` (5.1.1). Blender runs
 locally, never in CI.
 
-**`etendue-ui`** — binary `etendue-ui`. Hand-written winit + wgpu + egui-wgpu render loop
-(no eframe). Modules: viewport (wgpu pipelines), parameter panel (egui side panel),
-simulated-image panel (egui_plot). **Frozen** (ADR 0001): it keeps building and passing
-its tests but gets no new features. It is deleted at parity gate G6.3.
-
 **`etendue-wasm`** — wasm-bindgen facade (P2-1). `Session` (JS `EtendueScene`) loads a
 scene plus robot sources `{id, manifest, urdf}` (the host reads files; the crate does no
 I/O), then `bake`, `project_points`, `backproject_pixels`, `target_extent`, `remap`. Documents cross
@@ -182,12 +175,17 @@ wasm-pack output with the typed layer in `js/` (types generated from `schemas/` 
 `web/scripts/generate-wasm-types.ts`). The wasm graph has no `getrandom` at all (since
 calibration-rs 0.8.2); keep it that way. Never call entropy from kernel code.
 
-**Studio Tauri shell** (ADR 0007, P2-7) — `web/apps/studio/src-tauri`, Tauri 2, its own cargo
+**Studio desktop app** (ADR 0007; the main app since the egui app was deleted, 2026-10-17, tag
+`egui-ui-final`) — `web/apps/studio/src-tauri`, Tauri 2, its own cargo
 workspace (restates the calibration-rs patch and dev profile; `check-layering --manifest-path`
 guards its nalgebra). Native commands on the `etendue_cli` library: `generate_dataset` (gt →
 Blender → detect, progress over a channel, `cancel_run`), `blender_status`, `scenario_from_poses`,
-`read_text`/`path_exists` (reading a file adds its directory to the asset-protocol scope),
-`repo_root`. `@etendue/wasm` stays the per-frame kernel. The frontend checks `isTauri()`
+`pick` (file dialogs run in the shell), `read_text`/`path_exists` (only under allowed folders:
+the data root, the datasets folder, and what was picked; the same folders form the asset-protocol
+scope), `data_root`. The data root is the checkout in a debug build and the bundle's resources
+(examples, robot library, `etendue.toml`) in a release build, which writes datasets under
+`Documents/etendue`. `release.yml` builds the bundles (dmg, msi/nsis, AppImage/deb, unsigned) and
+the CLI archives; its `workflow_dispatch` is a dry run. The shell has its own `deny.toml`. `@etendue/wasm` stays the per-frame kernel. The frontend checks `isTauri()`
 (`src/io/tauri.ts`, `src/kernel/native.ts`); in a browser the Dataset tab and the native buttons are
 absent. `etendue-cli`'s lib is the top of the stack: no workspace crate may depend on it.
 
@@ -224,16 +222,6 @@ crate boundary into `vision-calibration-core`. A semver-incompatible second nalg
 in the tree makes those distinct types and breaks every cross-crate call. The pin must
 match calibration-rs exactly.
 
-### Version set (resolved empirically in M0, do not bump without testing)
-
-| Crate | Version |
-|---|---|
-| egui / egui-wgpu / egui-winit | 0.34 |
-| egui_plot | 0.35 |
-| wgpu | 29 |
-| winit | 0.30 |
-| nalgebra | 0.34 |
-
 ## Conventions
 
 ### Coordinate frames
@@ -268,30 +256,24 @@ pixel focal lengths as authoritative.
    added to `vision-calibration-core` (e.g. `ThickLens` → `ApertureModel<S>`) is a
    separate upstream PR with explicit user review before merge.
 
-2. **No eframe.** The render loop is a hand-written winit + wgpu event loop integrated
-   with egui-wgpu. Do not replace or wrap it with eframe.
+2. **Commit only when explicitly asked.** Never commit speculatively.
 
-3. **Commit only when explicitly asked.** Never commit speculatively.
-
-4. **No speculative scaffolding.** Each milestone creates only what it needs. Do not
+3. **No speculative scaffolding.** Each milestone creates only what it needs. Do not
    pre-create modules, types, or files for future milestones.
 
-5. **Cargo.lock is committed** (etendue is a binary, not a library). Do not add it to
+4. **Cargo.lock is committed** (etendue ships binaries). Do not add it to
    `.gitignore`.
 
-6. **`--all-features` per crate only**, following the feature matrix above. Never pass
+5. **`--all-features` per crate only**, following the feature matrix above. Never pass
    it workspace-wide.
 
-7. **Single homes for math.** No FK/IK outside `etendue-kinematics`. No camera-model
+6. **Single homes for math.** No FK/IK outside `etendue-kinematics`. No camera-model
    math outside calibration-rs. No rendering code in `etendue-core`.
 
-8. **Every gate result is written to `docs/measurements/` with the commit SHA.** If a
+7. **Every gate result is written to `docs/measurements/` with the commit SHA.** If a
    gate is mis-set, report the measured value and ask. Never relax a gate silently.
 
-9. **`etendue-ui` is frozen** (ADR 0001). Keep it building and green, and add no
-   features. It is deleted at parity gate G6.3.
-
-10. **Upstream changes are drafts until the user reviews them.** That covers
+8. **Upstream changes are drafts until the user reviews them.** That covers
     calibration-rs, calib-targets-rs, and lab-ui. Prepare them in a separate worktree or
     branch, and never merge or push them unasked.
 
@@ -335,8 +317,8 @@ When `etendue-wasm` or anything on the projection path changes, also re-run the 
 parity recipe from Commands.
 
 The CI matrix runs these on ubuntu / macos / windows. A clean local run does not
-guarantee the Windows build is clean (wgpu backend differs), but it is a necessary
-condition.
+guarantee the Windows build is clean, but it is a necessary condition. When the shell changes,
+also run its gates (`cargo clippy/test --manifest-path web/apps/studio/src-tauri/Cargo.toml`).
 
 ## Pointers
 

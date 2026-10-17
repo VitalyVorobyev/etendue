@@ -41,6 +41,10 @@ pub struct DatasetRequest {
     pub blender: Option<PathBuf>,
     /// Render even if Blender's version differs from the `etendue.toml` pin.
     pub allow_blender_version: bool,
+    /// Where else to look for the pin, after the scene's folder: the data
+    /// root (set by the shell, not the webview).
+    #[serde(skip)]
+    pub pin_dir: Option<PathBuf>,
 }
 
 /// What a run produced.
@@ -97,7 +101,10 @@ fn run(request: &DatasetRequest, ctl: &Control) -> Result<Dataset> {
         Some(Blender::checked(
             request.blender.as_deref(),
             request.allow_blender_version,
-            &[&loaded.dir],
+            &[Some(loaded.dir.as_path()), request.pin_dir.as_deref()]
+                .into_iter()
+                .flatten()
+                .collect::<Vec<_>>(),
             |w| ctl.log(w),
         )?)
     } else {
@@ -187,9 +194,14 @@ pub struct BlenderStatus {
     pub message: Option<String>,
 }
 
-/// Blender's status for a scene in `scene_dir`.
-pub fn blender_status(exe: Option<&Path>, scene_dir: Option<&Path>) -> BlenderStatus {
-    let search: Vec<&Path> = scene_dir.into_iter().collect();
+/// Blender's status for a scene in `scene_dir`, with the pin looked up there
+/// and then in `pin_dir`.
+pub fn blender_status(
+    exe: Option<&Path>,
+    scene_dir: Option<&Path>,
+    pin_dir: Option<&Path>,
+) -> BlenderStatus {
+    let search: Vec<&Path> = scene_dir.into_iter().chain(pin_dir).collect();
     match Blender::find(exe, &search) {
         Ok(b) => {
             let check = b.check(false);
@@ -238,6 +250,7 @@ mod tests {
             cpu: false,
             blender: None,
             allow_blender_version: false,
+            pin_dir: None,
         }
     }
 

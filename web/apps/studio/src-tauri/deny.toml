@@ -1,0 +1,57 @@
+# deny.toml — cargo-deny configuration for the studio shell's workspace
+# (web/apps/studio/src-tauri). It is the root deny.toml plus what Tauri's
+# graph needs; keep the shared parts in step with it.
+# See https://embarkstudios.github.io/cargo-deny/
+
+[advisories]
+# RUSTSEC-2024-0436: `paste` crate is no longer maintained.
+# Root cause: paste 1.0.15 ← simba 0.9.1 ← nalgebra 0.34.2.
+# This advisory cannot be resolved locally: the project does not depend on
+# `paste` directly, and the nalgebra hard-pin (required to unify types across
+# the vision-calibration-core path boundary) precludes upgrading nalgebra.
+# Re-evaluate when nalgebra ships a release that updates simba past paste, or
+# when calibration-rs's nalgebra hard-pin is bumped.
+ignore = [
+    { id = "RUSTSEC-2024-0436", reason = "upstream-blocked: paste is a transitive dep of nalgebra 0.34 via simba; nalgebra is hard-pinned for cross-crate type unification with vision-calibration-core" },
+    # RUSTSEC-2026-0194 / -0195: quick-xml < 0.41 reader DoS (duplicate-attribute
+    # check, NsReader namespace allocation). quick-xml 0.39 enters only through
+    # urdf-rs 0.10 (etendue-kinematics), which parses URDF with RustyXML +
+    # serde-xml-rs and uses quick-xml solely for `urdf_rs::write_to_string`
+    # (the serializer). etendue never calls it, so the vulnerable reader is
+    # unreachable. Drop these once urdf-rs moves to quick-xml >= 0.41.
+    { id = "RUSTSEC-2026-0194", reason = "quick-xml reader unreachable: urdf-rs uses quick-xml only for serialization (write_to_string), never called by etendue" },
+    { id = "RUSTSEC-2026-0195", reason = "quick-xml NsReader unreachable: urdf-rs uses quick-xml only for serialization (write_to_string), never called by etendue" },
+    # RUSTSEC-2024-0370: proc-macro-error is unmaintained. It is a build-time proc
+    # macro of glib-macros 0.18 (gtk3-rs), which Tauri 2 uses for its Linux
+    # webview (webkit2gtk). Upstream-blocked until Tauri moves off gtk3-rs.
+    { id = "RUSTSEC-2024-0370", reason = "upstream-blocked: build-time proc macro of gtk3-rs (glib-macros), Tauri 2's Linux webview stack" },
+]
+
+[licenses]
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-3.0",
+    "Zlib",
+    # Tauri's graph: cssparser, selectors, dtoa-short, option-ext (MPL-2.0),
+    # target-lexicon (Apache-2.0 WITH LLVM-exception).
+    "MPL-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+]
+# Any license not listed in `allow` above is denied by default (cargo-deny ≥ 0.15).
+# This already covers copyleft licenses without needing the removed `copyleft` key.
+
+[bans]
+# Only one version of nalgebra is allowed — see Cargo.toml hard-pin comment.
+multiple-versions = "warn"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-git = [
+    # vision-calibration-core is a local path dependency, not a git source,
+    # so no entry is needed here; listed for documentation completeness.
+]

@@ -4,10 +4,11 @@
 //! remap: per-frame math, in process). This shell adds what a browser cannot
 //! do, on the `etendue_cli` library:
 //!
-//! - files: [`pick`], [`read_text`], [`path_exists`], [`repo_root`]. The
-//!   webview reads only under the data root (the checkout) and what the user
-//!   picked ([`Allowed`]), and loads assets (meshes, images) from the same
-//!   folders through the asset protocol;
+//! - files: [`pick`], [`read_text`], [`path_exists`], [`data_root`]. The
+//!   webview reads only under the data root (the checkout in development, the
+//!   bundled resources in an installed app), the datasets folder, and what
+//!   the user picked ([`Allowed`]), and loads assets (meshes, images) from
+//!   the same folders through the asset protocol;
 //! - dataset generation: [`generate_dataset`] (ground truth → Blender →
 //!   detection, with progress over a channel) and [`cancel_run`];
 //! - [`blender_status`] and [`scenario_from_poses`].
@@ -194,19 +195,65 @@ fn path_exists(path: PathBuf, allowed: State<'_, Allowed>) -> bool {
     allowed.check(&path).is_ok_and(|p| p.is_file())
 }
 
-/// The etendue checkout this shell was built from, if it is still there (the
-/// examples and the robot library live in it).
-#[tauri::command]
-fn repo_root() -> Option<PathBuf> {
+/// The etendue checkout this shell was built from, if it is still there and
+/// this is a development build: a release bundle uses its own resources, even
+/// on the machine that built it.
+fn checkout() -> Option<PathBuf> {
+    if !cfg!(debug_assertions) {
+        return None;
+    }
     let root =
         dunce::canonicalize(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../..")).ok()?;
     root.join("examples").is_dir().then_some(root)
 }
 
+/// Where the examples, the robot library and the `etendue.toml` Blender pin
+/// are (`root`), and where datasets go by default (`datasets`).
+#[derive(Clone, Debug, serde::Serialize)]
+struct DataRoot {
+    root: PathBuf,
+    datasets: PathBuf,
+}
+
+impl DataRoot {
+    /// The checkout, writing under its `target/studio/`; else the app's
+    /// bundled resources (read-only), writing under `Documents/etendue`.
+    fn find(app: &AppHandle) -> Option<Self> {
+        if let Some(root) = checkout() {
+            let datasets = root.join("target/studio");
+            return Some(Self { root, datasets });
+        }
+        let root = dunce::canonicalize(app.path().resource_dir().ok()?).ok()?;
+        if !root.join("examples").is_dir() {
+            return None;
+        }
+        let documents = app
+            .path()
+            .document_dir()
+            .or_else(|_| app.path().app_data_dir())
+            .ok()?;
+        Some(Self {
+            root,
+            datasets: documents.join("etendue"),
+        })
+    }
+}
+
+/// The data root, if there is one.
+#[tauri::command]
+fn data_root(root: State<'_, Option<DataRoot>>) -> Option<DataRoot> {
+    root.inner().clone()
+}
+
 /// Blender as it would render a scene in `scene_dir`.
 #[tauri::command]
-fn blender_status(exe: Option<PathBuf>, scene_dir: Option<PathBuf>) -> BlenderStatus {
-    pipeline::blender_status(exe.as_deref(), scene_dir.as_deref())
+fn blender_status(
+    exe: Option<PathBuf>,
+    scene_dir: Option<PathBuf>,
+    root: State<'_, Option<DataRoot>>,
+) -> BlenderStatus {
+    let pin_dir = root.inner().as_ref().map(|r| r.root.as_path());
+    pipeline::blender_status(exe.as_deref(), scene_dir.as_deref(), pin_dir)
 }
 
 /// A stop-and-shoot scenario for `robot` from a poses file (see
@@ -235,7 +282,9 @@ async fn generate_dataset(
     on_progress: Channel<Progress>,
     runs: State<'_, Runs>,
     allowed: State<'_, Allowed>,
+    root: State<'_, Option<DataRoot>>,
 ) -> Result<Outcome, String> {
+    request.pin_dir = root.inner().as_ref().map(|r| r.root.clone());
     // Every path the run reads or writes is one the studio opened.
     request.scene = allowed.check(&request.scene)?;
     request.output = allowed.check(&request.output)?;
@@ -270,18 +319,29 @@ pub fn run() {
         .manage(Runs::default())
         .manage(Allowed::default())
         .setup(|app| {
-            // The checkout: examples, the robot library (meshes), and the
-            // default dataset folders under target/.
-            if let Some(root) = repo_root() {
-                app.state::<Allowed>().add(app.handle(), &root);
+            // The examples, the robot library (meshes) and the datasets folder.
+            let root = DataRoot::find(app.handle());
+            match &root {
+                Some(r) => eprintln!(
+                    "etendue studio: data root {}, datasets in {}",
+                    r.root.display(),
+                    r.datasets.display()
+                ),
+                None => eprintln!("etendue studio: no data root (no examples bundled)"),
             }
+            if let Some(root) = &root {
+                let allowed = app.state::<Allowed>();
+                allowed.add(app.handle(), &root.root);
+                allowed.add(app.handle(), &root.datasets);
+            }
+            app.manage(root);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             pick,
             read_text,
             path_exists,
-            repo_root,
+            data_root,
             blender_status,
             scenario_from_poses,
             generate_dataset,
@@ -294,6 +354,11 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The checkout the tests run in (in any profile).
+    fn repo() -> PathBuf {
+        dunce::canonicalize(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../..")).unwrap()
+    }
 
     #[test]
     fn runs_cancel_only_while_running() {
@@ -308,7 +373,7 @@ mod tests {
 
     #[test]
     fn resolve_handles_missing_tails_and_rejects_dot_dot() {
-        let root = repo_root().expect("tests run inside the checkout");
+        let root = repo();
         let missing = root.join("target/studio/not-yet/created");
         assert_eq!(resolve(&missing), Some(missing.clone()));
         // `..` through an existing folder is folded by canonicalisation …
@@ -322,7 +387,7 @@ mod tests {
 
     #[test]
     fn manifest_dirs_follow_the_scene() {
-        let root = repo_root().expect("tests run inside the checkout");
+        let root = repo();
         let dirs = manifest_dirs(&root.join("examples/closed_loop_ur5e/scene.json"));
         assert!(!dirs.is_empty());
         for d in dirs {
@@ -335,8 +400,9 @@ mod tests {
     }
 
     #[test]
+    #[cfg(debug_assertions)]
     fn the_checkout_is_found() {
-        let root = repo_root().expect("tests run inside the checkout");
+        let root = checkout().expect("tests run inside the checkout");
         assert!(root.join("examples/closed_loop_ur5e/scene.json").is_file());
     }
 }

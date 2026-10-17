@@ -1,9 +1,14 @@
 name: Release
 
+# A `v*.*.*` tag builds every artefact and publishes a GitHub Release: the
+# etendue studio desktop app (Tauri bundles) and the `etendue` CLI, for Linux
+# x64, macOS arm64 and Windows x64. `workflow_dispatch` is a dry run: the same
+# builds, uploaded as workflow artefacts, with no release.
 on:
   push:
     tags:
       - 'v*.*.*'
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -42,13 +47,13 @@ jobs:
         run: cargo fmt --all --check
 
       - name: Clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
 
       - name: Tests (release mode)
         run: cargo test --workspace --release --locked
 
-  build:
-    name: Build ${{ matrix.target }}
+  cli:
+    name: CLI ${{ matrix.target }}
     needs: gates
     strategy:
       fail-fast: false
@@ -56,15 +61,11 @@ jobs:
         include:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-            archive_ext: tar.gz
           - os: macos-latest
             target: aarch64-apple-darwin
-            archive_ext: tar.gz
           - os: windows-latest
             target: x86_64-pc-windows-msvc
-            archive_ext: zip
     runs-on: ${{ matrix.os }}
-
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -79,47 +80,120 @@ jobs:
       - name: Cache cargo artifacts
         uses: Swatinem/rust-cache@v2
 
-      - name: Build release binary
-        run: cargo build --release -p etendue-ui
+      - name: Build the CLI
+        run: cargo build --release --locked -p etendue-cli
 
-      - name: Package archive (Unix)
-        if: runner.os != 'Windows'
+      - name: Package archive
         shell: bash
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          TARGET="${{ matrix.target }}"
-          ARCHIVE="etendue-${VERSION}-${TARGET}.tar.gz"
-          mkdir -p dist
-          cp target/release/etendue-ui dist/
-          tar -czf "dist/${ARCHIVE}" -C dist etendue-ui
-          rm dist/etendue-ui
-          echo "ARCHIVE=${ARCHIVE}" >> "$GITHUB_ENV"
-
-      - name: Package archive (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $VERSION = $env:GITHUB_REF_NAME -replace '^v', ''
-          $TARGET  = "${{ matrix.target }}"
-          $ARCHIVE = "etendue-${VERSION}-${TARGET}.zip"
-          New-Item -ItemType Directory -Force -Path dist | Out-Null
-          Copy-Item target\release\etendue-ui.exe dist\
-          Compress-Archive -Path dist\etendue-ui.exe -DestinationPath "dist\${ARCHIVE}"
-          Remove-Item dist\etendue-ui.exe
-          "ARCHIVE=${ARCHIVE}" | Out-File -FilePath $env:GITHUB_ENV -Append
+          NAME="etendue-cli-${VERSION}-${{ matrix.target }}"
+          mkdir -p "dist/$NAME"
+          cp LICENSE etendue.toml "dist/$NAME/"
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            cp target/release/etendue.exe "dist/$NAME/"
+            (cd dist && 7z a -tzip "$NAME.zip" "$NAME" > /dev/null)
+            echo "ARCHIVE=dist/$NAME.zip" >> "$GITHUB_ENV"
+          else
+            cp target/release/etendue "dist/$NAME/"
+            tar -czf "dist/$NAME.tar.gz" -C dist "$NAME"
+            echo "ARCHIVE=dist/$NAME.tar.gz" >> "$GITHUB_ENV"
+          fi
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
-          name: ${{ matrix.target }}
-          path: dist/${{ env.ARCHIVE }}
+          name: cli-${{ matrix.target }}
+          path: ${{ env.ARCHIVE }}
+          if-no-files-found: error
+
+  desktop:
+    name: Studio ${{ matrix.target }}
+    needs: gates
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # 22.04: the oldest supported glibc the AppImage and .deb run on.
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            bundles: appimage,deb
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            bundles: app,dmg
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            bundles: msi,nsis
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Clone calibration-rs sibling ([patch.crates-io] target)
+        shell: bash
+        run: git clone --depth 1 --branch "$CALIBRATION_RS_REF" https://github.com/VitalyVorobyev/calibration-rs.git ../calibration-rs
+
+      - name: System libraries (WebKitGTK)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Cache cargo artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            . -> target
+            web/apps/studio/src-tauri -> target
+
+      - name: Install wasm-pack
+        shell: bash
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      - name: Set up bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: web/package.json
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v10.2.0
+
+      # The robot meshes are git-ignored and rebuilt from pinned upstream SHAs;
+      # the app bundles them with the examples.
+      - name: Robot meshes
+        run: uv run --locked --project tools/robot-assets tools/robot-assets/build.py
+
+      - name: Build the desktop app
+        working-directory: web/apps/studio
+        shell: bash
+        run: |
+          bun run desktop:build --bundles ${{ matrix.bundles }} -- --locked
+
+      - name: Collect bundles
+        shell: bash
+        run: |
+          mkdir -p dist
+          B=web/apps/studio/src-tauri/target/release/bundle
+          find "$B" -maxdepth 2 -type f \( -name '*.dmg' -o -name '*.msi' -o -name '*-setup.exe' -o -name '*.AppImage' -o -name '*.deb' \) -exec cp {} dist/ \;
+          ls -l dist
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: studio-${{ matrix.target }}
+          path: dist/*
           if-no-files-found: error
 
   release:
     name: Create GitHub Release
-    needs: [gates, build]
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [gates, cli, desktop]
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout (for CHANGELOG.md)
         uses: actions/checkout@v6

@@ -4,7 +4,7 @@
 # wasm-pack output for etendue-wasm (npm package staging dir)
 crates/etendue-wasm/pkg/
 
-# This workspace ships a binary (etendue-ui), so Cargo.lock IS committed.
+# This workspace ships binaries (the `etendue` CLI, the studio), so Cargo.lock IS committed.
 # Do not add Cargo.lock here.
 
 # mdBook build output (book/ sources are committed; book/book/ is generated)

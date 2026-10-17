@@ -53,7 +53,14 @@ jobs:
           RUSTDOCFLAGS: "-D warnings"
         run: |
           cargo doc --workspace --no-deps
-          echo '<meta http-equiv="refresh" content="0; url=etendue_core/index.html">' > target/doc/index.html
+          # The API landing page: every published crate.
+          {
+            echo '<!doctype html><meta charset="utf-8"><title>etendue API</title><h1>etendue crates</h1><ul>'
+            for c in etendue_scene etendue_kinematics etendue_synth etendue_core etendue_cli; do
+              echo "<li><a href=\"$c/index.html\">${c//_/-}</a></li>"
+            done
+            echo '</ul>'
+          } > target/doc/index.html
           mdbook build book
 
       - name: Assemble Pages artifact

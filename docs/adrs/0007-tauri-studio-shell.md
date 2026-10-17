@@ -96,6 +96,15 @@ dataset image in a camera's view.
 unchanged. Bundling, signing and releasing the shell are not part of this
 change.
 
+**Amended 2026-10-17:** `etendue-ui` is deleted (ADR 0001 §4) and the shell is
+the main app. Releases ship it as unsigned bundles (`.dmg`, `.msi` and NSIS,
+`.AppImage` and `.deb`) next to the `etendue` CLI. A bundle carries the
+examples, the robot library (meshes built in CI by `tools/robot-assets`) and
+the `etendue.toml` Blender pin as resources. A release build reads those, never
+the checkout it was built from, and writes datasets under `Documents/etendue`.
+A development build (`tauri dev`) keeps reading the checkout. Signing and
+notarisation are not done yet.
+
 ## Consequences
 
 - There are two build paths for the studio: `bun run dev` (a browser) and

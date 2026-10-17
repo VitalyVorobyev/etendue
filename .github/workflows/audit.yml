@@ -25,3 +25,9 @@ jobs:
           # deny.toml lists RUSTSEC-2024-0436 (paste, upstream-blocked via
           # nalgebra 0.34 → simba → paste) in advisories.ignore.
           command: check advisories licenses bans sources
+      # The studio shell is its own cargo workspace, with its own lockfile and
+      # deny.toml (Tauri's graph adds licences and one upstream advisory).
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          manifest-path: web/apps/studio/src-tauri/Cargo.toml
+          command: check advisories licenses bans sources

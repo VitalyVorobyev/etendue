@@ -88,10 +88,18 @@ export interface BlenderStatus {
   message: string | null;
 }
 
-/** The checkout the shell was built from (examples, robot library), if it still exists. */
-export async function repoRoot(): Promise<string | null> {
-  const root = await invoke<string | null>("repo_root");
-  return root === null ? null : normalize(root);
+/** Where the shell finds the examples and the robot library, and where datasets go by default. */
+export interface DataRoot {
+  /** The checkout (a development build) or the app's bundled resources. */
+  root: string;
+  /** The default parent of dataset folders: the checkout's `target/studio`, else `Documents/etendue`. */
+  datasets: string;
+}
+
+/** The data root, if the shell has one. */
+export async function dataRoot(): Promise<DataRoot | null> {
+  const found = await invoke<DataRoot | null>("data_root");
+  return found === null ? null : { root: normalize(found.root), datasets: normalize(found.datasets) };
 }
 
 /** Whether `path` is an existing file. */
