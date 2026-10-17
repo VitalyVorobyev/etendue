@@ -34,7 +34,9 @@ export default defineConfig({
           browser: {
             enabled: true,
             headless: true,
-            provider: playwright({ launchOptions: { args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] } }),
+            provider: playwright({
+              launchOptions: { args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] },
+            }),
             instances: [{ browser: "chromium" }],
           },
         },

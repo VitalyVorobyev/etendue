@@ -45,8 +45,12 @@ const pose = { q: worldSe3Camera.slice(0, 4), t: worldSe3Camera.slice(4) };
 const rotate = ([x, y, z]) => {
   const [qx, qy, qz, qw] = pose.q;
   // v' = v + 2w(q×v) + 2 q×(q×v)
-  const cx = qy * z - qz * y, cy = qz * x - qx * z, cz = qx * y - qy * x;
-  const dx = qy * cz - qz * cy, dy = qz * cx - qx * cz, dz = qx * cy - qy * cx;
+  const cx = qy * z - qz * y,
+    cy = qz * x - qx * z,
+    cz = qx * y - qy * x;
+  const dx = qy * cz - qz * cy,
+    dy = qz * cx - qx * cz,
+    dz = qx * cy - qy * cx;
   return [x + 2 * (qw * cx + dx), y + 2 * (qw * cy + dy), z + 2 * (qw * cz + dz)];
 };
 const xyz = [];

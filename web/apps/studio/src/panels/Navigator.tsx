@@ -34,8 +34,7 @@ function toTreeNode(node: SceneNode): TreeNode {
   const Icon = ICONS[node.kind];
   return {
     id: node.id,
-    label:
-      node.kind === "links" ? "links" : node.kind === "link" ? node.id.slice(node.id.indexOf("/") + 1) : node.id,
+    label: node.kind === "links" ? "links" : node.kind === "link" ? node.id.slice(node.id.indexOf("/") + 1) : node.id,
     icon: <Icon className="size-3.5" aria-hidden />,
     meta: node.kind === "links" ? node.children.length : node.kind,
     ...(node.kind === "links" ? { disabled: true } : {}),

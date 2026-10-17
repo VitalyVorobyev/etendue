@@ -34,9 +34,7 @@ export type {
  * Load the wasm module (browser). Resolves the `.wasm` next to this file unless given
  * `module_or_path`. Call once before constructing an {@link EtendueScene}.
  */
-export default function init(
-  input?: { module_or_path?: InitInput | Promise<InitInput> },
-): Promise<InitOutput>;
+export default function init(input?: { module_or_path?: InitInput | Promise<InitInput> }): Promise<InitOutput>;
 
 /** Load the wasm module synchronously from its bytes or a compiled module (Node, workers). */
 export function initSync(input: { module: SyncInitInput }): InitOutput;
@@ -140,11 +138,7 @@ export class EtendueScene {
    *
    * @throws {@link EtendueError} `kind: "input"` for an unknown camera or a ragged array.
    */
-  projectPoints(
-    cameraId: string,
-    worldSe3Camera: Iso3,
-    xyzWorld: Float64Array | readonly number[],
-  ): Float64Array;
+  projectPoints(cameraId: string, worldSe3Camera: Iso3, xyzWorld: Float64Array | readonly number[]): Float64Array;
 
   /**
    * Back-project pixels (flat `[u0, v0, …]`) of camera `cameraId` to viewing rays, returned

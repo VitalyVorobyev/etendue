@@ -150,7 +150,11 @@ export function CameraView({
               <Grid3x3 className="size-4" aria-hidden />
             </StageButton>
             {hasDataset && (
-              <StageButton label="Dataset image (Blender)" pressed={showRendered} onClick={() => setShowRendered(!showRendered)}>
+              <StageButton
+                label="Dataset image (Blender)"
+                pressed={showRendered}
+                onClick={() => setShowRendered(!showRendered)}
+              >
                 <ImageIcon className="size-4" aria-hidden />
               </StageButton>
             )}

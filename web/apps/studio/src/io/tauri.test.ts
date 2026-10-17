@@ -33,7 +33,10 @@ describe("the Tauri shell", () => {
 
   it("loads a scene from the filesystem, with its absolute path", async () => {
     const files: Record<string, string> = {
-      "/work/cell/scene.json": JSON.stringify({ version: 1, robots: [{ id: "ur", manifest: "../robots/ur/robot.json" }] }),
+      "/work/cell/scene.json": JSON.stringify({
+        version: 1,
+        robots: [{ id: "ur", manifest: "../robots/ur/robot.json" }],
+      }),
       "/work/robots/ur/robot.json": JSON.stringify({ urdf: "robot.urdf", joints: [] }),
       "/work/robots/ur/robot.urdf": "<robot/>",
     };
@@ -60,7 +63,13 @@ describe("the Tauri shell", () => {
       const internals = (window as unknown as { __TAURI_INTERNALS__: Internals }).__TAURI_INTERNALS__;
       internals.runCallback(onProgress.id, { index: 0, message: { kind: "step", stage: "render", done: 1, total: 2 } });
       internals.runCallback(onProgress.id, { index: 1, message: { kind: "log", line: "etendue: rendered x" } });
-      return { kind: "ok", output: request.output, gt: { captures: 1, views: 1, visible: 4, points: 4 }, render: null, detection: [] };
+      return {
+        kind: "ok",
+        output: request.output,
+        gt: { captures: 1, views: 1, visible: 4, points: 4 },
+        render: null,
+        detection: [],
+      };
     });
     const outcome = await generateDataset(
       "run-1",

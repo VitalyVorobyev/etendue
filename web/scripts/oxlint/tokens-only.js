@@ -16,7 +16,9 @@ const PALETTE =
 const UTILITY =
   "bg|text|border|border-[trblxyse]|ring|ring-offset|outline|fill|stroke|from|via|to|decoration|divide|placeholder|shadow|accent|caret";
 
-export const RAW_PALETTE = new RegExp(`(?:^|[\\s:"'\`])(?:${UTILITY})-(?:${PALETTE})-\\d{2,3}(?:/\\d{1,3})?(?=$|[\\s"'\`])`);
+export const RAW_PALETTE = new RegExp(
+  `(?:^|[\\s:"'\`])(?:${UTILITY})-(?:${PALETTE})-\\d{2,3}(?:/\\d{1,3})?(?=$|[\\s"'\`])`,
+);
 export const HEX = /(?:^|[^\w&])#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})\b/;
 
 const tokensOnly = {

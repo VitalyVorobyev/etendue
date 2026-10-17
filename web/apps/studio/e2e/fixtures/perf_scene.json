@@ -6,53 +6,21 @@
       "id": "ur5e",
       "parent": "world",
       "parent_se3_self": {
-        "rotation": [
-          0.0,
-          0.0,
-          0.0,
-          1.0
-        ],
-        "translation": [
-          0.0,
-          0.0,
-          0.0
-        ]
+        "rotation": [0.0, 0.0, 0.0, 1.0],
+        "translation": [0.0, 0.0, 0.0]
       },
       "manifest": "../../assets/robots/ur5e/robot.json",
-      "initial_q": [
-        0.0,
-        -1.5707963267948966,
-        1.5707963267948966,
-        -1.5707963267948966,
-        -1.5707963267948966,
-        0.0
-      ]
+      "initial_q": [0.0, -1.5707963267948966, 1.5707963267948966, -1.5707963267948966, -1.5707963267948966, 0.0]
     },
     {
       "id": "irb",
       "parent": "world",
       "parent_se3_self": {
-        "rotation": [
-          0.0,
-          0.0,
-          1.0,
-          6.123233995736766e-17
-        ],
-        "translation": [
-          1.0,
-          0.0,
-          0.0
-        ]
+        "rotation": [0.0, 0.0, 1.0, 6.123233995736766e-17],
+        "translation": [1.0, 0.0, 0.0]
       },
       "manifest": "../../assets/robots/abb_irb1200_5_90/robot.json",
-      "initial_q": [
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.5,
-        0.0
-      ]
+      "initial_q": [0.0, 0.0, 0.0, 0.0, 0.5, 0.0]
     }
   ],
   "rigs": [
@@ -60,34 +28,16 @@
       "id": "rig_a",
       "parent": "ur5e/tool0",
       "parent_se3_self": {
-        "rotation": [
-          0.0,
-          0.0,
-          0.0,
-          1.0
-        ],
-        "translation": [
-          0.0,
-          0.0,
-          0.03
-        ]
+        "rotation": [0.0, 0.0, 0.0, 1.0],
+        "translation": [0.0, 0.0, 0.03]
       }
     },
     {
       "id": "rig_b",
       "parent": "irb/tool0",
       "parent_se3_self": {
-        "rotation": [
-          0.0,
-          0.0,
-          0.0,
-          1.0
-        ],
-        "translation": [
-          0.0,
-          0.0,
-          0.03
-        ]
+        "rotation": [0.0, 0.0, 0.0, 1.0],
+        "translation": [0.0, 0.0, 0.03]
       }
     }
   ],
@@ -96,17 +46,8 @@
       "id": "cam_al",
       "parent": "rig_a",
       "parent_se3_self": {
-        "rotation": [
-          0.0,
-          0.0,
-          0.0,
-          1.0
-        ],
-        "translation": [
-          -0.04,
-          0.0,
-          0.0
-        ]
+        "rotation": [0.0, 0.0, 0.0, 1.0],
+        "translation": [-0.04, 0.0, 0.0]
       },
       "params": {
         "projection": {
@@ -133,26 +74,14 @@
           "skew": 0.0
         }
       },
-      "resolution": [
-        1280,
-        1024
-      ]
+      "resolution": [1280, 1024]
     },
     {
       "id": "cam_ar",
       "parent": "rig_a",
       "parent_se3_self": {
-        "rotation": [
-          0.0,
-          0.0,
-          0.0,
-          1.0
-        ],
-        "translation": [
-          0.04,
-          0.0,
-          0.0
-        ]
+        "rotation": [0.0, 0.0, 0.0, 1.0],
+        "translation": [0.04, 0.0, 0.0]
       },
       "params": {
         "projection": {
@@ -179,26 +108,14 @@
           "skew": 0.0
         }
       },
-      "resolution": [
-        1280,
-        1024
-      ]
+      "resolution": [1280, 1024]
     },
     {
       "id": "cam_bl",
       "parent": "rig_b",
       "parent_se3_self": {
-        "rotation": [
-          0.0,
-          0.0,
-          0.0,
-          1.0
-        ],
-        "translation": [
-          -0.04,
-          0.0,
-          0.0
-        ]
+        "rotation": [0.0, 0.0, 0.0, 1.0],
+        "translation": [-0.04, 0.0, 0.0]
       },
       "params": {
         "projection": {
@@ -225,26 +142,14 @@
           "skew": 0.0
         }
       },
-      "resolution": [
-        1280,
-        1024
-      ]
+      "resolution": [1280, 1024]
     },
     {
       "id": "cam_br",
       "parent": "rig_b",
       "parent_se3_self": {
-        "rotation": [
-          0.0,
-          0.0,
-          0.0,
-          1.0
-        ],
-        "translation": [
-          0.04,
-          0.0,
-          0.0
-        ]
+        "rotation": [0.0, 0.0, 0.0, 1.0],
+        "translation": [0.04, 0.0, 0.0]
       },
       "params": {
         "projection": {
@@ -271,10 +176,7 @@
           "skew": 0.0
         }
       },
-      "resolution": [
-        1280,
-        1024
-      ]
+      "resolution": [1280, 1024]
     }
   ],
   "targets": [
@@ -282,17 +184,8 @@
       "id": "board",
       "parent": "world",
       "parent_se3_self": {
-        "rotation": [
-          0.0,
-          0.0,
-          0.0,
-          1.0
-        ],
-        "translation": [
-          0.5,
-          0.0,
-          0.001
-        ]
+        "rotation": [0.0, 0.0, 0.0, 1.0],
+        "translation": [0.5, 0.0, 0.001]
       },
       "geometry": {
         "type": "board",

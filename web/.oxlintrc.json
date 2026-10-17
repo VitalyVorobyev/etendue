@@ -1,14 +1,6 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": [
-    "typescript",
-    "react",
-    "unicorn",
-    "oxc",
-    "import",
-    "vitest",
-    "promise"
-  ],
+  "plugins": ["typescript", "react", "unicorn", "oxc", "import", "vitest", "promise"],
   "categories": {
     "correctness": "error"
   },
@@ -90,9 +82,7 @@
   },
   "overrides": [
     {
-      "files": [
-        "**/*.{js,mjs,cjs}"
-      ],
+      "files": ["**/*.{js,mjs,cjs}"],
       "rules": {
         "typescript/await-thenable": "off",
         "typescript/no-floating-promises": "off",
@@ -120,27 +110,20 @@
       }
     },
     {
-      "files": [
-        "apps/studio/src/probe/**"
-      ],
+      "files": ["apps/studio/src/probe/**"],
       "rules": {
         "vitest/no-disabled-tests": "off",
         "vitest/no-conditional-tests": "off"
       }
     },
     {
-      "files": [
-        "apps/*/src/**/*.{ts,tsx}"
-      ],
+      "files": ["apps/*/src/**/*.{ts,tsx}"],
       "rules": {
         "vitavision/tokens-only": "error"
       }
     },
     {
-      "files": [
-        "**/*.test.{ts,tsx}",
-        "**/*.stories.{ts,tsx}"
-      ],
+      "files": ["**/*.test.{ts,tsx}", "**/*.stories.{ts,tsx}"],
       "rules": {
         "vitavision/tokens-only": "off"
       }

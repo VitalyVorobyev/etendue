@@ -130,7 +130,12 @@ function Details({ current, id, k }: { current: Baked; id: string; k: number }):
     const rows = loaded.manifest.joints.map((j, i) => ({ ...j, q: q[i] ?? 0 }));
     return (
       <Section title={loaded.manifest.name}>
-        <ReadoutStrip items={[{ label: "base", value: loaded.manifest.base_link }, { label: "tcp", value: loaded.manifest.tcp_link }]} />
+        <ReadoutStrip
+          items={[
+            { label: "base", value: loaded.manifest.base_link },
+            { label: "tcp", value: loaded.manifest.tcp_link },
+          ]}
+        />
         <Table
           rows={rows}
           rowKey={(row) => row.name}
@@ -172,7 +177,12 @@ export function Inspector({
   const { scene } = current.loaded;
   const { baked } = current;
   const found = selected !== null ? entityOf(current, selected) : null;
-  const frame = selected === null ? null : found?.kind === "robot" ? `${selected}/${current.loaded.robots.find((r) => r.id === selected)?.manifest.base_link}` : selected;
+  const frame =
+    selected === null
+      ? null
+      : found?.kind === "robot"
+        ? `${selected}/${current.loaded.robots.find((r) => r.id === selected)?.manifest.base_link}`
+        : selected;
   const world = frame !== null && runtime ? runtime.pose(frame, k) : undefined;
   const sample = baked.samples[k];
 

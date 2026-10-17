@@ -27,11 +27,14 @@ test("a camera's world pose matches the CLI bake at a capture", async ({ page })
   await loaded(page);
   const baked = JSON.parse(readFileSync(BAKED, "utf8")) as Baked;
   const k = baked.samples.flatMap((s, i) => (s.capture ? [i] : []))[3]!;
-  const [x, y, z] = baked.samples[k]!.world_se3_frame[baked.frames.indexOf("cam_left")]!.translation.map(
-    (m) => (m * 1000).toFixed(1),
+  const [x, y, z] = baked.samples[k]!.world_se3_frame[baked.frames.indexOf("cam_left")]!.translation.map((m) =>
+    (m * 1000).toFixed(1),
   );
 
-  await page.getByRole("button", { name: /capture/i }).nth(3).click();
+  await page
+    .getByRole("button", { name: /capture/i })
+    .nth(3)
+    .click();
   await page.getByRole("treeitem", { name: /cam_left/ }).click();
   const world = page.getByTestId("world-pose");
   await expect(world).toContainText(`t = ${baked.samples[k]!.t.toFixed(2)} s`);
@@ -49,11 +52,14 @@ test("an invalid scene reports its issues and keeps the loaded one", async ({ pa
   await loaded(page);
   const scene = JSON.parse(readFileSync(`${ROOT}examples/eye_in_hand_ur5e/scene.json`, "utf8")) as { version: number };
   scene.version = 2;
-  await page.locator('input[type="file"]').first().setInputFiles({
-    name: "scene.json",
-    mimeType: "application/json",
-    buffer: Buffer.from(JSON.stringify(scene)),
-  });
+  await page
+    .locator('input[type="file"]')
+    .first()
+    .setInputFiles({
+      name: "scene.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(JSON.stringify(scene)),
+    });
   const inspector = page.getByTestId("inspector");
   await expect(inspector.getByText("The scene is invalid")).toBeVisible();
   await expect(inspector.getByText(/version: unsupported scene version 2/)).toBeVisible();
@@ -70,10 +76,13 @@ test("the eye-to-hand example loads from the picker", async ({ page }) => {
 
 test("dropped files find their robots in the library", async ({ page }) => {
   await loaded(page);
-  await page.locator('input[type="file"]').first().setInputFiles([
-    `${ROOT}web/apps/studio/e2e/fixtures/perf_scene.json`,
-    `${ROOT}web/apps/studio/e2e/fixtures/perf_scenario.json`,
-  ]);
+  await page
+    .locator('input[type="file"]')
+    .first()
+    .setInputFiles([
+      `${ROOT}web/apps/studio/e2e/fixtures/perf_scene.json`,
+      `${ROOT}web/apps/studio/e2e/fixtures/perf_scenario.json`,
+    ]);
   await expect(page.getByRole("treeitem", { name: /cam_bl/ })).toBeVisible({ timeout: 30_000 });
   await expect(page.getByRole("treeitem", { name: /^irb/ })).toBeVisible();
 });

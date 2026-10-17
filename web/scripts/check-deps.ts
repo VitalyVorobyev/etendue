@@ -31,7 +31,9 @@ function* sources(dir: string): Generator<string> {
 function imports(file: string): string[] {
   const text = readFileSync(file, "utf8");
   const out: string[] = [];
-  for (const m of text.matchAll(/(?:^|\n)\s*(?:import|export)\s[^"'`]*?from\s+["']([^"']+)["']|import\(\s*["']([^"']+)["']\s*\)/g)) {
+  for (const m of text.matchAll(
+    /(?:^|\n)\s*(?:import|export)\s[^"'`]*?from\s+["']([^"']+)["']|import\(\s*["']([^"']+)["']\s*\)/g,
+  )) {
     const spec = m[1] ?? m[2]!;
     if (spec.startsWith(".") || spec.startsWith("node:") || spec.startsWith("virtual:")) continue;
     out.push(spec);
@@ -39,7 +41,8 @@ function imports(file: string): string[] {
   return out;
 }
 
-const packageOf = (spec: string) => (spec.startsWith("@") ? spec.split("/").slice(0, 2).join("/") : spec.split("/")[0]!);
+const packageOf = (spec: string) =>
+  spec.startsWith("@") ? spec.split("/").slice(0, 2).join("/") : spec.split("/")[0]!;
 
 const errors: string[] = [];
 const dirs = readdirSync(join(ROOT, "apps"))
@@ -52,7 +55,9 @@ for (const dir of dirs) {
     for (const spec of imports(file)) {
       const pkg = packageOf(spec);
       if (!declared.has(pkg)) {
-        errors.push(`${m.name}: ${file.slice(ROOT.length + 1)} imports ${spec}, but ${pkg} is not a dependency or peer`);
+        errors.push(
+          `${m.name}: ${file.slice(ROOT.length + 1)} imports ${spec}, but ${pkg} is not a dependency or peer`,
+        );
       }
     }
   }

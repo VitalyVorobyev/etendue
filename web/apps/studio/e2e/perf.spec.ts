@@ -42,10 +42,13 @@ test("G2.2: playback frame times", async ({ page, browserName }) => {
   });
   await page.goto("/");
   await expect(page.getByRole("treeitem", { name: /cam_left/ })).toBeVisible({ timeout: 30_000 });
-  await page.locator('input[type="file"]').first().setInputFiles([
-    `${ROOT}web/apps/studio/e2e/fixtures/perf_scene.json`,
-    `${ROOT}web/apps/studio/e2e/fixtures/perf_scenario.json`,
-  ]);
+  await page
+    .locator('input[type="file"]')
+    .first()
+    .setInputFiles([
+      `${ROOT}web/apps/studio/e2e/fixtures/perf_scene.json`,
+      `${ROOT}web/apps/studio/e2e/fixtures/perf_scenario.json`,
+    ]);
   await expect(page.getByRole("treeitem", { name: /cam_bl/ })).toBeVisible({ timeout: 30_000 });
   await page.waitForTimeout(1500); // meshes
 

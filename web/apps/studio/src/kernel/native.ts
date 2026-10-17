@@ -15,9 +15,7 @@ import { normalize } from "../io/tauri";
 export type Stage = "ground_truth" | "render" | "resample" | "detect";
 
 /** A progress event (`etendue_cli::progress::Progress`). */
-export type Progress =
-  | { kind: "step"; stage: Stage; done: number; total: number }
-  | { kind: "log"; line: string };
+export type Progress = { kind: "step"; stage: Stage; done: number; total: number } | { kind: "log"; line: string };
 
 /** What to generate (`DatasetRequest`). */
 export interface DatasetRequest {

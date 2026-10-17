@@ -41,9 +41,7 @@ function examples() {
       const scene = JSON.parse(readFileSync(join(ROOT, "examples", id, "scene.json"), "utf8")) as {
         description?: string;
       };
-      const scenario = existsSync(join(ROOT, "examples", id, "scenario.json"))
-        ? `examples/${id}/scenario.json`
-        : null;
+      const scenario = existsSync(join(ROOT, "examples", id, "scenario.json")) ? `examples/${id}/scenario.json` : null;
       return { id, description: scene.description ?? "", scene: `examples/${id}/scene.json`, scenario };
     });
 }
