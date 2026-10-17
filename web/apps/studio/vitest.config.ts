@@ -2,7 +2,6 @@ import { createRequire } from "node:module";
 
 import react from "@vitejs/plugin-react";
 import { playwright } from "@vitest/browser-playwright";
-import { defaultClientConditions } from "vite";
 import { defineConfig } from "vitest/config";
 
 const setup = createRequire(import.meta.url).resolve("@vitavision/config-vitest/setup");
@@ -12,7 +11,6 @@ const setup = createRequire(import.meta.url).resolve("@vitavision/config-vitest/
 // is covered by the Playwright suite in e2e/.
 export default defineConfig({
   plugins: [react()],
-  resolve: { conditions: ["@vitavision/source", ...defaultClientConditions] },
   optimizeDeps: { exclude: ["@etendue/wasm"] },
   server: { fs: { allow: [new URL("../../..", import.meta.url).pathname] } },
   test: {

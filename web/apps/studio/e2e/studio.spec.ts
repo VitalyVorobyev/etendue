@@ -20,7 +20,7 @@ test("loads, bakes and shows the default example", async ({ page }) => {
   await expect(page.getByText(`0/${baked.samples.length - 1}`)).toBeVisible();
   const captures = baked.samples.filter((s) => s.capture).length;
   await expect(page.getByRole("button", { name: /capture/i })).toHaveCount(captures);
-  await expect(page.getByRole("img", { name: "Scene viewport" }).locator("canvas")).toBeVisible();
+  await expect(page.getByRole("group", { name: "Scene viewport" }).locator("canvas")).toBeVisible();
 });
 
 test("a camera's world pose matches the CLI bake at a capture", async ({ page }) => {

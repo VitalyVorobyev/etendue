@@ -20,7 +20,7 @@ gzip -9c crates/etendue-wasm/pkg/etendue_wasm_bg.wasm | wc -c       # gate G2.1:
 # web/ (bun workspace; build @etendue/wasm first — it is a workspace member)
 cd web && bun install
 bun run generate:types        # crates/etendue-wasm/js/types from schemas/ (CI: generate:types:check)
-bun run check:deps            # web layering rules
+bun run check:deps            # the studio imports only what it declares
 bun run typecheck && bun run lint && bun run test && bun run build
 bun run dev                   # studio at http://localhost:5178 (blocks; do not run non-interactively)
 cd apps/studio && bun run desktop:dev   # the desktop app (Tauri, reads the checkout; blocks; interactive only)
@@ -102,7 +102,7 @@ by phase, never up front. P0 and P1 are done.
 etendue-cli (lib `etendue_cli` + bin `etendue`) ──► etendue-kinematics, etendue-synth ──► etendue-scene ──► vision-calibration-{core,dataset}
 web/apps/studio/src-tauri (Tauri shell, own workspace) ──► etendue-cli (lib)
 etendue-wasm (npm @etendue/wasm) ──► etendue-kinematics ──► etendue-scene, etendue-synth ──► etendue-core, vision-calibration-core
-web/apps/studio ──► @etendue/wasm, @vitavision/{ui,stage2d,charts} (npm), web/packages/* (incubating)
+web/apps/studio ──► @etendue/wasm, @vitavision/{ui,workbench,three,three-react,charts,stage2d} (npm, from lab-ui)
 xtask (emit-schemas, check-layering)
 ```
 
@@ -190,12 +190,13 @@ the CLI archives; its `workflow_dispatch` is a dry run. The shell has its own `d
 absent. `etendue-cli`'s lib is the top of the stack: no workspace crate may depend on it.
 
 **`web/`** — bun workspace (lab-ui toolchain: `@vitavision/config-{ts,eslint,vitest}`, TS
-6.0.3, Tailwind v4, tokens only). `apps/studio` is the P2-5 studio (not published).
-`packages/*` are `private` `@vitavision/*` packages **incubating** here and moved to lab-ui
-by PR (user decision): `three` (no React, no kinematics, no camera math), `three-react`
-(R3F; per-frame work in `useFrame`, never React state), `workbench` (studio shell pieces,
-playhead store), `ui-next` (additions to `@vitavision/ui`). They follow lab-ui's Definition
-of Done so the move is a copy. `scripts/check-deps.ts` enforces their layering.
+6.0.3, Tailwind v4, tokens only). `apps/studio` is the studio (not published to npm). The
+`@vitavision/*` packages it uses come from npm, published from lab-ui (the incubated copies were
+dropped on 2026-10-17 once lab-ui released them): `three` (no React, no kinematics, no camera
+math), `three-react` (R3F; per-frame work in `useFrame`, never React state), `workbench`
+(studio shell, playhead store), `ui` (now with `NumberInput`, `VectorInput`, `PoseInput`).
+Changes to them are lab-ui PRs (drafts until reviewed). `scripts/check-deps.ts` checks the
+studio imports only what it declares.
 
 **calibration-rs dependency: crates.io + `[patch.crates-io]`**
 - `vision-calibration-core = "0.9.0"` and `vision-calibration-dataset = "0.9.0"` come from

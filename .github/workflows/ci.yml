@@ -167,9 +167,9 @@ jobs:
           echo "etendue_wasm_bg.wasm: $(wc -c < crates/etendue-wasm/pkg/etendue_wasm_bg.wasm) bytes, $size gzipped"
           test "$size" -le 1572864
 
-  # web/ (bun workspace): the incubated @vitavision packages and the studio.
-  # Layering, types generated from schemas/, typecheck, lint, unit and story
-  # tests (Chromium), build, and the studio's Playwright e2e suite. Gate G2.2
+  # web/ (bun workspace): the studio. Declared imports, types generated from
+  # schemas/, typecheck, lint, unit and browser tests (Chromium), build, and
+  # the studio's Playwright e2e suite. Gate G2.2
   # (perf) needs a GPU and runs locally (docs/measurements/g2_2_perf.md).
   web:
     runs-on: ubuntu-latest
@@ -208,7 +208,7 @@ jobs:
         working-directory: web
         run: bun run generate:types:check
 
-      - name: Layering
+      - name: Declared imports
         working-directory: web
         run: bun run check:deps
 
@@ -224,7 +224,7 @@ jobs:
         working-directory: web
         run: bunx playwright install --with-deps chromium
 
-      - name: Unit and story tests
+      - name: Unit and browser tests
         working-directory: web
         run: bun run test
 

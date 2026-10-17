@@ -61,7 +61,13 @@ export function Viewport({
   const selectedFrame = selected !== null && baked.frames.includes(selected) ? selected : null;
 
   return (
-    <SceneCanvas className="h-full w-full" onPointerMissed={() => onSelect(null)} label="Scene viewport">
+    <SceneCanvas
+      className="h-full w-full"
+      onPointerMissed={() => onSelect(null)}
+      label="Scene viewport"
+      // A tab stop: arrows orbit, +/− zoom, 0 resets (book: The studio).
+      keyboard
+    >
       <FrameTree baked={baked} playhead={playhead} onRuntime={onRuntime}>
         {loaded.robots.map((r) => (
           <RobotVisual key={r.id} robot={r} tcp={r.manifest.tcp_link} />

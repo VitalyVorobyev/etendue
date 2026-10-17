@@ -13,8 +13,7 @@ export default [
     ],
   },
   ...recommended({ tsconfigRootDir: import.meta.dirname }),
-  // Gate G5.1 (lab-ui): component sources use design tokens only — no raw palette
-  // classes or hex. The incubated packages are held to it from day one so they move
-  // to lab-ui unchanged; the studio too, so it looks like every other vitavision app.
-  tokensOnly(["packages/*/src/**/*.{ts,tsx}", "apps/*/src/**/*.{ts,tsx}"]),
+  // lab-ui's tokens-only rule: the studio uses design tokens only — no raw palette
+  // classes or hex — so it looks like every other vitavision app.
+  tokensOnly(["apps/*/src/**/*.{ts,tsx}"]),
 ];
