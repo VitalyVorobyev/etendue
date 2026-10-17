@@ -29,7 +29,7 @@ use calib_targets_chessboard::{
 use etendue_scene::TargetGeometry;
 use etendue_synth::board::BoardLayout;
 use etendue_synth::dataset::GroundTruth;
-use etendue_synth::images::read_png_raw;
+use etendue_synth::images::read_png_luma8;
 use serde::{Deserialize, Serialize};
 
 use crate::progress::{Control, Stage};
@@ -41,6 +41,9 @@ pub const MATCH_PX: f64 = 1.5;
 pub const FEATURES_VERSION: u32 = 1;
 /// Fraction of the squares whose colour must agree with the chosen rotation.
 const PARITY_AGREEMENT: f64 = 0.9;
+/// The two square classes' mean intensities must differ by at least this
+/// fraction of the brighter one for the colours to decide anything.
+const MIN_CONTRAST: f64 = 0.2;
 
 /// The index and distance of the point in `points` nearest to `p`.
 pub fn nearest(points: impl IntoIterator<Item = [f64; 2]>, p: [f64; 2]) -> Option<(usize, f64)> {
@@ -222,18 +225,13 @@ pub fn detect_view(
     let Some(detection) = labeller.detect(&corners) else {
         return (ViewStatus::NoBoard, vec![]);
     };
-    let (u0, v0) = detection
-        .corners
-        .iter()
-        .fold((i32::MAX, i32::MAX), |(u, v), c| {
-            (u.min(c.grid.u), v.min(c.grid.v))
-        });
+    // calib-targets rebases the labels to start at (0, 0).
     let labels: HashMap<[i32; 2], [f64; 2]> = detection
         .corners
         .iter()
         .map(|c| {
             (
-                [c.grid.u - u0, c.grid.v - v0],
+                [c.grid.u, c.grid.v],
                 [f64::from(c.position.x), f64::from(c.position.y)],
             )
         })
@@ -257,10 +255,23 @@ pub fn detect_view(
     if quads.is_empty() {
         return (ViewStatus::Partial, vec![]);
     }
-    let (lo, hi) = quads.iter().fold((f64::MAX, f64::MIN), |(lo, hi), (g, _)| {
-        (lo.min(*g), hi.max(*g))
-    });
-    let threshold = 0.5 * (lo + hi);
+    // The squares alternate, so the squares with even `u + v` are one colour
+    // and the odd ones the other. Comparing the two classes' mean intensities
+    // needs no global threshold, so an illumination gradient or vignetting
+    // across the board does not flip squares.
+    let mean = |parity: i32| {
+        let class: Vec<f64> = quads
+            .iter()
+            .filter(|(_, [u, v])| (u + v).rem_euclid(2) == parity)
+            .map(|(g, _)| *g)
+            .collect();
+        class.iter().sum::<f64>() / class.len().max(1) as f64
+    };
+    let (even, odd) = (mean(0), mean(1));
+    if (even - odd).abs() < MIN_CONTRAST * even.max(odd) {
+        return (ViewStatus::Ambiguous, vec![]);
+    }
+    let dark_parity = if even < odd { 0 } else { 1 };
 
     // Rotations that fit the board, scored by square colour.
     let mut fits = Vec::new();
@@ -270,7 +281,7 @@ pub fn detect_view(
         }
         let agree = quads
             .iter()
-            .filter(|(g, [u, v])| {
+            .filter(|(_, [u, v])| {
                 // The square's centre on the print: the mean of its corners'.
                 let corners = [[*u, *v], [u + 1, *v], [*u, v + 1], [u + 1, v + 1]];
                 let mut centre = [0.0; 2];
@@ -278,7 +289,7 @@ pub fn detect_view(
                     let p = board.layout.points[board.by_grid[&map(a, b, w, h)]].position_m;
                     centre = [centre[0] + p[0] / 4.0, centre[1] + p[1] / 4.0];
                 }
-                board.dark_at(centre[0], centre[1]) == Some(*g < threshold)
+                board.dark_at(centre[0], centre[1]) == Some((u + v).rem_euclid(2) == dark_parity)
             })
             .count();
         fits.push((agree, map));
@@ -297,7 +308,7 @@ pub fn detect_view(
         .corners
         .iter()
         .map(|c| {
-            let g = map(c.grid.u - u0, c.grid.v - v0, w, h);
+            let g = map(c.grid.u, c.grid.v, w, h);
             Feature {
                 point: board.by_grid[&g],
                 pixel: [f64::from(c.position.x), f64::from(c.position.y)],
@@ -336,11 +347,6 @@ pub fn check(points: &[Feature], truth: &[Option<[f64; 2]>]) -> Check {
     out
 }
 
-/// The detector configuration: chess-corners' Radon preset (G4.2).
-pub fn radon() -> DetectorConfig {
-    DetectorConfig::radon()
-}
-
 /// Detect every image of the dataset in `dir` (`dataset.json` and `gt.json`
 /// from `etendue gt`, images from `etendue render`) and write
 /// `<dir>/features.json`. Reports a [`Stage::Detect`] step per image.
@@ -358,21 +364,24 @@ pub fn run(dir: &Path, ctl: &Control) -> Result<Features> {
     let dataset: vision_calibration_dataset::DatasetSpec =
         serde_json::from_str(&read("dataset.json")?).context("parsing dataset.json")?;
     let gt: GroundTruth = serde_json::from_str(&read("gt.json")?).context("parsing gt.json")?;
-    let geometry = TargetGeometry::Board {
-        board: dataset.target.clone(),
-    };
-    let layout = etendue_synth::board::layout(&geometry)?
-        .ok_or_else(|| anyhow!("the dataset's target has no printable layout"))?;
     if !matches!(
         dataset.target,
         vision_calibration_dataset::TargetSpec::Chessboard { .. }
     ) {
         return Err(anyhow!("etendue detect handles chessboards only"));
     }
+    let geometry = TargetGeometry::Board {
+        board: dataset.target.clone(),
+    };
+    let layout = etendue_synth::board::layout(&geometry)?
+        .ok_or_else(|| anyhow!("the dataset's target has no printable layout"))?;
     let board = Board::new(layout)?;
-    if board.layout.points.len() != gt.target.points.len() {
+    // Features index gt.json's points, which closed_loop.py reads: they must
+    // be the layout's, in its order.
+    if board.layout.points != gt.target.points {
         return Err(anyhow!(
-            "dataset.json's board has {} points, gt.json's {}",
+            "dataset.json's board ({} points) is not gt.json's target ({} points): \
+             regenerate the dataset with `etendue gt`",
             board.layout.points.len(),
             gt.target.points.len()
         ));
@@ -380,7 +389,10 @@ pub fn run(dir: &Path, ctl: &Control) -> Result<Features> {
     // Detections are in chess-corners' convention (pixel `i` at `i`); shift
     // them into the dataset's.
     let offset = gt.pixel_centre.offset();
-    let config = radon();
+    // chess-corners' Radon preset (G4.2). `detect_corners` reports a config
+    // chess-corners rejects as "no corners" in every view, so check it here.
+    let config = DetectorConfig::radon();
+    chess_corners::Detector::new(config).map_err(|e| anyhow!("Radon detector config: {e}"))?;
     let labeller = ChessboardDetector::new(ChessboardParams::default())
         .map_err(|e| anyhow!("chessboard params: {e}"))?;
 
@@ -404,14 +416,10 @@ pub fn run(dir: &Path, ctl: &Control) -> Result<Features> {
                 });
                 continue;
             }
-            let image = read_png_raw(&path)?;
-            let gray: Vec<u8> = match image.bits {
-                8 => image.dn.iter().map(|&v| v as u8).collect(),
-                16 => image.dn.iter().map(|&v| (v >> 8) as u8).collect(),
-                b => return Err(anyhow!("{}: {b}-bit image", view.image)),
-            };
+            // Raw grayscale (`render --sensor`) or sRGB (`render`'s default).
+            let image = read_png_luma8(&path)?;
             let (status, mut points) = detect_view(
-                &gray,
+                &image.data,
                 image.width as usize,
                 image.height as usize,
                 &board,
@@ -636,7 +644,14 @@ mod tests {
 
     fn run_view(gray: &[u8], size: [usize; 2], board: &Board) -> (ViewStatus, Vec<Feature>) {
         let labeller = ChessboardDetector::new(ChessboardParams::default()).unwrap();
-        detect_view(gray, size[0], size[1], board, &radon(), &labeller)
+        detect_view(
+            gray,
+            size[0],
+            size[1],
+            board,
+            &DetectorConfig::radon(),
+            &labeller,
+        )
     }
 
     #[test]
@@ -650,6 +665,27 @@ mod tests {
             let c = check(&points, &truth);
             assert_eq!((c.mislabelled, c.unmatched), (0, 0), "{degrees}°: {c:?}");
             assert!(c.max_px < 0.2, "{degrees}°: {c:?}");
+        }
+    }
+
+    #[test]
+    fn square_colours_survive_an_illumination_gradient() {
+        // Light falls off to a quarter across the image: the far paper squares
+        // (204 × 0.25 ≈ 51) end up darker than a global midpoint of the near
+        // ink and paper, but the two square classes still separate.
+        let size = [480, 480];
+        for degrees in [0.0_f64, 180.0] {
+            let (mut gray, board, truth) = synthetic(9, 6, 30.0, degrees.to_radians(), size);
+            for row in gray.chunks_exact_mut(size[0]) {
+                for (i, v) in row.iter_mut().enumerate() {
+                    let gain = 1.0 - 0.75 * i as f64 / (size[0] - 1) as f64;
+                    *v = (f64::from(*v) * gain).round() as u8;
+                }
+            }
+            let (status, points) = run_view(&gray, size, &board);
+            assert_eq!(status, ViewStatus::Ok, "{degrees}°");
+            let c = check(&points, &truth);
+            assert_eq!((c.mislabelled, c.unmatched), (0, 0), "{degrees}°: {c:?}");
         }
     }
 

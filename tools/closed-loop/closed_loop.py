@@ -192,16 +192,23 @@ def intrinsics_rows(estimated: vc.PinholeBrownConradyCamera, truth: dict[str, An
     return rows
 
 
-def report(title: str, rows: list[tuple[str, float, float | None]]) -> bool:
+def report(title: str, rows: list[tuple[str, float, float | None]], gated: bool) -> bool:
+    """Print the rows against the G5.1 limits. G5.1 is defined on noise-free analytic input
+    only: with detected or noisy observations (`gated` false) the limits are shown for
+    reference and the run does not fail on them."""
     print(title)
     ok = True
     for label, value, gate in rows:
-        verdict = "" if gate is None else ("PASS" if value <= gate else "FAIL")
-        ok &= gate is None or value <= gate
+        within = gate is None or value <= gate
+        verdict = "" if gate is None else ("PASS" if within else "FAIL") if gated else ("" if within else "outside")
+        ok &= within
         gate_text = "" if gate is None else f"≤ {gate:g}"
         print(f"  {label:<28} {value:12.3e}  {gate_text:<10} {verdict}")
-    print(f"  G5.1: {'PASS' if ok else 'FAIL'}")
-    return ok
+    if gated:
+        print(f"  G5.1: {'PASS' if ok else 'FAIL'}")
+        return ok
+    print(f"  G5.1 limits (not gated on this input): {'all within' if ok else 'not all within'}")
+    return True
 
 
 def main() -> int:
@@ -215,6 +222,8 @@ def main() -> int:
     if args.features and args.noise_px:
         sys.exit("--noise-px applies to the analytic observations, not to --features")
     noise = np.random.default_rng(args.seed) if args.noise_px else None
+    # G5.1 gates noise-free analytic observations only.
+    gated = args.features is None and not args.noise_px
     directory: Path = args.directory
     dataset = json.loads((directory / "dataset.json").read_text())
     gt = json.loads((directory / "gt.json").read_text())
@@ -262,7 +271,7 @@ def main() -> int:
             ("base_se3_target rot deg", tr_err, None),
             ("base_se3_target trans mm", tt_err, None),
         ]
-        return 0 if report(f"single-camera hand-eye ({name}, {len(views)} views)", rows) else 1
+        return 0 if report(f"single-camera hand-eye ({name}, {len(views)} views)", rows, gated) else 1
 
     # Rig: calibration-rs's rig frame is the reference camera's (index 0).
     views = []
@@ -288,7 +297,7 @@ def main() -> int:
         ("base_se3_target rot deg", tr_err, None),
         ("base_se3_target trans mm", tt_err, None),
     ]
-    return 0 if report(f"rig hand-eye ({len(cameras)} cameras, {len(views)} views)", rows) else 1
+    return 0 if report(f"rig hand-eye ({len(cameras)} cameras, {len(views)} views)", rows, gated) else 1
 
 
 if __name__ == "__main__":
