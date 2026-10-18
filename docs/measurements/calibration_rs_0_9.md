@@ -27,6 +27,10 @@ Not re-run, because they need the pinned Blender 5.1.1, which was not installed 
   calibration-rs, but its calibrate step (`closed_loop.py --features`) runs the wheel, which 0.9.0
   changes (the release adds Radon corners and the whole-board chessboard runner). It is re-run
   with the next Blender session.
+- **Re-run 2026-10-18 on Blender 5.2.2** (the pin moved to the 5.2 series): G4.1, G4.3 pass, G4.2
+  and P4-5 unchanged, and P5-1b runs on 0.9.0 (still noise-limited; its mean reprojection error
+  0.0005 px above the white-noise max). See each file's 2026-10-18 entry and
+  `closed_loop_images.md`.
 
 ## Procedure
 
