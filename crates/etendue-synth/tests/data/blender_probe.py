@@ -1,4 +1,4 @@
-"""Generates tests/data/blender_probe.exr (Blender 5.1.1, Cycles, Metal):
+"""Generates tests/data/blender_probe.exr (Blender 5.2.2, Cycles, Metal):
 
     Blender -b --factory-startup --python-exit-code 1 --python blender_probe.py -- <out_dir>
 

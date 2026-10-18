@@ -629,7 +629,12 @@ mod tests {
     fn a_full_pin_is_exact() {
         assert_eq!(blender("5.2.2", Some("5.2.2")).check(false).unwrap(), None);
         assert!(blender("5.2.1", Some("5.2.2")).check(false).is_err());
-        assert!(blender("5.2.1", Some("5.2.2")).check(true).unwrap().is_some());
+        assert!(
+            blender("5.2.1", Some("5.2.2"))
+                .check(true)
+                .unwrap()
+                .is_some()
+        );
         assert!(blender("5.2.1", None).check(false).unwrap().is_some());
     }
 }

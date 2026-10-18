@@ -37,7 +37,7 @@ async function installShell(page: Page): Promise<void> {
             return res.text();
           }
           case "blender_status":
-            return { found: true, exe: "/Applications/Blender.app", version: "5.1.1", pin: "5.1.1", message: null };
+            return { found: true, exe: "/Applications/Blender.app", version: "5.2.2", pin: "5.2", message: null };
           case "cancel_run":
             w.__cancelled = true;
             return true;
@@ -92,7 +92,8 @@ test("generates a dataset through the native pipeline", async ({ page }) => {
 
   await page.getByRole("radio", { name: "Dataset" }).click();
   const panel = page.getByTestId("dataset-panel");
-  await expect(panel.getByTestId("blender-status")).toContainText("Blender 5.1.1");
+  await expect(panel.getByTestId("blender-status")).toContainText("Blender 5.2.2");
+  await expect(panel.getByTestId("blender-status")).not.toContainText("pinned");
   // Examples of the checkout write into target/, never into examples/.
   await expect(panel.getByRole("textbox", { name: "Output folder" })).toHaveValue(
     "/repo/target/studio/closed_loop_ur5e",

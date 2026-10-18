@@ -44,6 +44,11 @@ All 315 corners matched on both backends for every refiner.
 Re-run 2026-09-28 on the calib-targets board (P3-3): 0.0192 / 0.0378 / 0.0424 px, still a
 pass (`p3_3_target_geometry.md`).
 
+Re-run 2026-10-18 with the Blender side on **Blender 5.2.2** (the pin moved to the 5.2 series),
+etendue commit `51343da` (branch `blender-5.2`): **PASS**, 0.0193 / 0.0381 / 0.0423 px (center of
+mass / Förstner / saddle point), and 0.0187 / 0.0191 px for Radon / Radon parabolic, which this
+probe now also runs. Every corner matched on both backends.
+
 ## Findings
 
 1. **The backends agree to well within G4.3.** Each backend's error against GT matches the

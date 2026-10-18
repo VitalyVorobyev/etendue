@@ -12,4 +12,4 @@ etendue detect   <dir>                               board detection, checked ag
 etendue scenario from-poses <poses> --robot <id> -o <scenario.json>
 ```
 
-Rendering needs Blender 5.1.1. Documentation: <https://vitalyvorobyev.github.io/etendue>.
+Rendering needs Blender 5.2 (any 5.2.x). Documentation: <https://vitalyvorobyev.github.io/etendue>.

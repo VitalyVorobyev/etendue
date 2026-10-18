@@ -51,7 +51,7 @@ The builds are not signed yet. On macOS, open the app the first time with right-
 (or run `xattr -dr com.apple.quarantine "/Applications/etendue studio.app"`); on Windows,
 choose "More info → Run anyway" in SmartScreen.
 
-Rendering needs [Blender 5.1.1](https://www.blender.org/download/releases/5-1/). etendue looks
+Rendering needs [Blender 5.2](https://www.blender.org/download/releases/5-2/) (any 5.2.x). etendue looks
 for it in `$ETENDUE_BLENDER`, then in the default install location (`/Applications/Blender.app`
 on macOS, `blender` on the `PATH` elsewhere). Everything else works without it.
 

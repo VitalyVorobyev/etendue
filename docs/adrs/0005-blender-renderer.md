@@ -101,7 +101,7 @@ Rust, per canonical pixel, before the LUT remap and the sensor model:
   render dimmed to `--laser-ambient` (default 0.1) plus its lasers' stripes. The
   board image stays laser-free.
 
-**Measured conventions (Blender 5.2.2, the 5.1.1 pin was not installed):**
+**Measured conventions (Blender 5.2.2):**
 - Cycles' **Depth pass is planar depth**, the distance along the camera's +Z, not
   along the ray. A 90° camera 2 m above a plane reads 2.0 m at its corner pixel,
   where the ray length is 3.43 m.
@@ -118,7 +118,12 @@ stripe's per-column centroid lies on the analytic ground-truth stripe
 ### Version pin
 
 - The Blender version is pinned in `etendue.toml` (decision D3: the version
-  installed when P4-1 lands).
+  installed when P4-1 lands, 5.1.1). Since 2026-10-18 the pin is the **5.2 series**: a
+  two-part pin `X.Y` accepts every `X.Y.Z`, a three-part pin only that version. The move
+  re-ran G4.1–G4.3, P4-5 and the image-level loop on 5.2.2 (`docs/measurements/`), and
+  re-measured the glTF importer's axis change, (x, y, z) → (x, −z, y), unchanged. Blender
+  5.2 deprecates `World.use_nodes` and `Material.use_nodes` (removal planned for 6.0); the
+  render script still sets them, harmlessly.
 - It is checked at startup. A mismatch is a hard error unless explicitly
   overridden.
 

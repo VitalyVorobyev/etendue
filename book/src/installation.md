@@ -25,8 +25,8 @@ The desktop app carries its examples and robot library. It writes datasets under
 
 ## Blender
 
-Rendering needs [Blender](https://www.blender.org/download/) **5.1.1**, the version etendue's
-renders are validated with. etendue looks for it, in order, in:
+Rendering needs [Blender](https://www.blender.org/download/) **5.2** (any 5.2.x; validated with
+5.2.2), the series etendue's renders are validated with. etendue looks for it, in order, in:
 
 1. `--blender <path>` (command line);
 2. the `ETENDUE_BLENDER` environment variable;
