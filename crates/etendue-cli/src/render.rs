@@ -129,7 +129,8 @@ impl Blender {
 
     /// Whether this Blender may render: `Ok(None)` if it matches its pin,
     /// `Ok(Some(warning))` if there is no pin or `allow_other` lets a
-    /// mismatch through.
+    /// mismatch through. A pin `X.Y` matches every `X.Y.Z` (a release
+    /// series); a pin `X.Y.Z` matches that version only.
     ///
     /// # Errors
     ///
@@ -137,19 +138,28 @@ impl Blender {
     pub fn check(&self, allow_other: bool) -> Result<Option<String>> {
         let version = &self.version;
         match &self.pin {
-            Some((pin, file)) if pin != version && !allow_other => bail!(
+            Some((pin, file)) if !matches_pin(version, pin) && !allow_other => bail!(
                 "Blender {version} at {} but {} pins {pin}; install it, point --blender at it, \
                  or pass --allow-blender-version",
                 self.exe.display(),
                 file.display()
             ),
-            Some((pin, _)) if pin != version => Ok(Some(format!(
+            Some((pin, _)) if !matches_pin(version, pin) => Ok(Some(format!(
                 "warning: rendering with Blender {version}, pinned {pin}"
             ))),
             None => Ok(Some("warning: no etendue.toml Blender pin found".into())),
             _ => Ok(None),
         }
     }
+}
+
+/// Whether `version` is `pin`, or a release of the series `pin` (`5.2.1`
+/// matches `5.2`, not `5.20`).
+fn matches_pin(version: &str, pin: &str) -> bool {
+    version == pin
+        || version
+            .strip_prefix(pin)
+            .is_some_and(|rest| rest.starts_with('.'))
 }
 
 /// The Blender executable: `arg`, then `$ETENDUE_BLENDER`, then the
@@ -592,4 +602,34 @@ pub fn run(
         laser_images,
         cameras: canonical.into_iter().map(|(id, _, _)| id).collect(),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn blender(version: &str, pin: Option<&str>) -> Blender {
+        Blender {
+            exe: PathBuf::from("blender"),
+            version: version.into(),
+            pin: pin.map(|p| (p.into(), PathBuf::from("etendue.toml"))),
+        }
+    }
+
+    #[test]
+    fn a_series_pin_takes_its_patch_releases() {
+        assert_eq!(blender("5.2.2", Some("5.2")).check(false).unwrap(), None);
+        assert_eq!(blender("5.2.0", Some("5.2")).check(false).unwrap(), None);
+        assert_eq!(blender("5.2", Some("5.2")).check(false).unwrap(), None);
+        assert!(blender("5.20.1", Some("5.2")).check(false).is_err());
+        assert!(blender("5.1.1", Some("5.2")).check(false).is_err());
+    }
+
+    #[test]
+    fn a_full_pin_is_exact() {
+        assert_eq!(blender("5.2.2", Some("5.2.2")).check(false).unwrap(), None);
+        assert!(blender("5.2.1", Some("5.2.2")).check(false).is_err());
+        assert!(blender("5.2.1", Some("5.2.2")).check(true).unwrap().is_some());
+        assert!(blender("5.2.1", None).check(false).unwrap().is_some());
+    }
 }

@@ -3,5 +3,5 @@
 [blender]
 # The Blender the photometric backend is validated with. `etendue render` checks
 # `blender --version` against it and refuses another version unless
-# `--allow-blender-version` is given.
-version = "5.1.1"
+# `--allow-blender-version` is given. "X.Y" accepts every X.Y.Z (the series), "X.Y.Z" only that one.
+version = "5.2"
