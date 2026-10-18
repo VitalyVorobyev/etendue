@@ -11,7 +11,7 @@
 //! image feeds the labeller of the kind:
 //!
 //! - chessboard: calib-targets' chessboard labeller, the rotation decided by
-//!   square colour ([`chessboard`]);
+//!   square colour (`chessboard`);
 //! - ChArUco: the ChArUco detector, corners matched by ChArUco id;
 //! - marker board: the marker board detector, its grid placed by the three
 //!   circles, corners matched by grid label;
@@ -260,7 +260,7 @@ const LOCATE_THRESHOLD_REL: f32 = 0.05;
 /// threshold, relative to the frame's strongest corner, lets a turned board's
 /// edges through by the thousand. So ChESS finds those corners and Radon
 /// locates them: each ChESS corner moves to the Radon corner within
-/// [`LOCATE_PX`] (Radon run with the floor [`LOCATE_THRESHOLD_REL`]), keeping
+/// `LOCATE_PX` (Radon run with the floor `LOCATE_THRESHOLD_REL`), keeping
 /// ChESS's axes and strength, and one Radon does not confirm is dropped.
 pub struct Detector {
     kind: &'static str,

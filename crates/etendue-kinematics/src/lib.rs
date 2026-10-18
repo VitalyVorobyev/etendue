@@ -12,7 +12,7 @@
 //! - Scenarios: [`compile`] (jerk-limited PTP and Cartesian LIN motions,
 //!   Ruckig profiles, stop-and-shoot captures), [`bake`]
 //!   (→ [`etendue_scene::BakedScenario`]), [`resolve`] (pin every
-//!   `ptp_pose`'s IK solution) and [`report`] (limit use, joint margins,
+//!   `ptp_pose`'s IK solution) and [`report()`] (limit use, joint margins,
 //!   singularities: [`etendue_scene::MotionReport`]).
 //!
 //! All poses are relative to the robot's base link and use the
