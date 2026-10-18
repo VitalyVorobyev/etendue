@@ -180,27 +180,34 @@ impl CanonicalCamera {
             let half = (extent * widen * f).ceil() as u32;
             2 * half.max(1)
         };
-        let (cw, ch) = (size(x_max), size(y_max));
-        let centre = |n: u32| edge + f64::from(n) / 2.0;
+        Ok(Self::pinhole(f, [size(x_max), size(y_max)], pixel_centre))
+    }
+
+    /// A pinhole of focal length `focal_px` and size `resolution`, its
+    /// principal point at the image centre under `pixel_centre` (even sizes
+    /// keep it on a pixel boundary).
+    #[must_use]
+    pub fn pinhole(focal_px: f64, resolution: [u32; 2], pixel_centre: PixelCentre) -> Self {
+        let centre = |n: u32| pixel_centre.edge() + f64::from(n) / 2.0;
         let params = CameraParams {
             projection: ProjectionParams::Pinhole,
             distortion: DistortionParams::None,
             sensor: SensorParams::Identity,
             intrinsics: IntrinsicsParams::FxFyCxCySkew {
                 params: FxFyCxCySkew {
-                    fx: f,
-                    fy: f,
-                    cx: centre(cw),
-                    cy: centre(ch),
+                    fx: focal_px,
+                    fy: focal_px,
+                    cx: centre(resolution[0]),
+                    cy: centre(resolution[1]),
                     skew: 0.0,
                 },
             },
         };
-        Ok(Self {
+        Self {
             params,
-            resolution: [cw, ch],
+            resolution,
             pixel_centre,
-        })
+        }
     }
 
     /// Focal length in canonical pixels (`fx = fy`).

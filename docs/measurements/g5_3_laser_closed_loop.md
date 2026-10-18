@@ -51,7 +51,8 @@ CI job `checks` runs the first pair.
   - `examples/laser_scheimpflug_ur5e` is the same scene with Scheimpflug sensors: tilt
     (x, y) = (0.05, −0.01) rad and (0.035, 0.012) rad, i.e. about 2.9° and 2.0° about x.
 - **Scenario:** the 20 P5-1 viewpoints (`tools/closed-loop/make_scenario.py --example …`), at
-  0.45–0.55 m.
+  0.45–0.55 m. Since P7-6 both examples use the generated 24 viewpoints of `closed_loop_ur5e`;
+  see [Re-run on generated poses](#re-run-on-generated-poses-p7-6).
 - **Ground truth:** `etendue gt` writes a `rig_handeye_laserline` dataset
   (`etendue-synth::dataset::emit`, `gt.json` version 2). The laser part comes from
   `etendue-synth::laser`:
@@ -101,6 +102,108 @@ rig hand-eye laserline (2 cameras, 20 views, 8229 laser pixels)
 ```
 
 (Distortion rows omitted; every coefficient is within 1.4e-9 of the truth.)
+
+## Re-run on generated poses (P7-6)
+
+Measured 2026-10-17 on etendue `f05a157` plus the uncommitted P7 work. `make_scenario.py` is
+retired. `laser_ur5e` and `laser_scheimpflug_ur5e` now use the sphere generator's 24 viewpoints,
+with the same spec as `closed_loop_ur5e` (`closed_loop.md`).
+
+| | `laser_ur5e` | `laser_scheimpflug_ur5e` | Gate |
+|---|---:|---:|---|
+| mean reprojection (px) | 7.111e-07 | 8.774e-06 | ≤ 0.05 |
+| cam_left laser normal (°) | 2.105e-07 | 9.544e-03 | ≤ 0.01 |
+| cam_right laser normal (°) | 1.733e-05 | **2.374e-02** | ≤ 0.01 |
+| laser distance, worst (mm) | 6.640e-08 | 7.207e-06 | ≤ 0.05 |
+| hand-eye rotation (°) | 2.186e-07 | **3.431e-02** | ≤ 0.01 |
+| hand-eye translation (mm) | 2.317e-06 | 7.088e-05 | ≤ 0.05 |
+| | **PASS** | fails, as before | |
+
+- **`laser_ur5e`:** G5.3 still passes. It now takes 24 views and 7 228 laser pixels; it had 20
+  views and 8 229 pixels.
+- **`laser_scheimpflug_ur5e`:** still a characterisation that does not pass, with the same
+  signature: the tilt / principal-point valley.
+  - The hand-eye rotation error is 0.034° (it was 0.051°).
+  - `cam_right`'s plane normal is 0.024° (it was 0.010°).
+  - The detailed runs above (tilt fixed or free, warm starts) were measured on the former 20
+    viewpoints.
+
+## G5.3b: one laser per camera, `examples/rig3_laser_ur5e` (P7-3)
+
+Measured 2026-10-17 on etendue `f05a157` plus the uncommitted P7 work (branch `p7/authoring`).
+
+- **Scene:** a ring of three cameras on the UR5e flange (rig layout: radius 60 mm, axes converging
+  500 mm ahead, image +X along the ring), each with its own line laser 25 mm from the axis at
+  60° from its camera, aimed at the working point with its fan across its camera's image. Made by
+  the rig builder (`RigLayout::expand`).
+- **Scenario:** the sphere pose generator around the 9 × 6 board: radii 450, 500 and 550 mm,
+  θ 8–28° in 3 steps, φ a full turn in 8, every camera seeing the whole board: 70 of 72
+  candidates kept, each `ptp_pose` pinned to its configuration. 52.3 s of motion.
+- **Dataset:** `rig_handeye_laserline` with one plane per camera (`LaserSpec.camera`): each
+  camera's laser images and laser points hold its own laser only.
+
+`etendue gt examples/rig3_laser_ur5e/scene.json examples/rig3_laser_ur5e/scenario.json -o target/rig3_loop`
+then `closed_loop.py target/rig3_loop` (70 views, 42 494 laser pixels): **PASS**.
+
+| | rig_cam0 | rig_cam1 | rig_cam2 | Gate |
+|---|---:|---:|---:|---|
+| laser normal (°) | 1.207e-05 | 3.123e-06 | 3.126e-06 | ≤ 0.01 |
+| laser distance (mm) | 2.764e-07 | 2.816e-07 | 2.822e-07 | ≤ 0.05 |
+
+Mean reprojection 6.8e-7 px; hand-eye 1.2e-5° / 6.3e-6 mm; every intrinsic within the G5.1
+limits by ≥ 2 orders of magnitude. CI runs it beside `laser_ur5e`.
+
+## Image level: rendered laser images, `rig3_laser_ur5e` (P7-7, characterisation)
+
+Measured 2026-10-17 on etendue `f05a157` plus the uncommitted P7 work. Blender **5.2.2**
+(`--allow-blender-version`; the 5.1.1 pin is not installed). This is not a G5.3 run: detection
+adds noise, so the G5.3 limits are reported against, not applied.
+
+**Pipeline:** the rig3 scene, and a generated scenario: radii 450 and 550 mm, θ 8° and 25°, six
+azimuths, rolls ±0.3 rad (±17°). 44 of the 48 candidates are kept.
+
+```bash
+etendue scenario sphere examples/rig3_laser_ur5e/scene.json --spec spec.json -o scenario.json
+etendue gt     examples/rig3_laser_ur5e/scene.json scenario.json -o target/rig3_img
+etendue render examples/rig3_laser_ur5e/scene.json scenario.json -o target/rig3_img \
+  --supersample 4 --samples 16 --sensor examples/closed_loop_ur5e/sensor_linear.json
+etendue detect target/rig3_img
+closed_loop.py target/rig3_img --features target/rig3_img/features.json
+```
+
+132 board images and 132 laser images (default `--laser-ambient` 0.1, `power_w` 0.5 mW), about
+11 minutes on the M4 Pro GPU.
+
+**Detection, against the analytic ground truth:**
+
+| | rig_cam0 | rig_cam1 | rig_cam2 |
+|---|---:|---:|---:|
+| views with the board | 44/44 | 44/44 | 44/44 |
+| corners, RMS (px) | 0.0445 | 0.0274 | 0.0274 |
+| corners mislabelled | 0 | 0 | 0 |
+| stripe pixels extracted | 14 289 | 19 554 | 19 564 |
+| stripe RMS from the analytic stripe (px) | 0.070 | 0.059 | 0.063 |
+| stripe mean signed offset (px) | +0.004 | −0.003 | −0.003 |
+| stripe outliers (> 3 px) | 0 | 0 | 0 |
+
+The stripe has no bias. Its worst pixels (up to 2.2 px) are single columns where a square's
+edge crosses the stripe at an angle.
+
+**Calibration:** 44 views, 53 407 laser pixels.
+
+| | rig_cam0 | rig_cam1 | rig_cam2 | G5.3 / G5.1 limit |
+|---|---:|---:|---:|---|
+| laser normal (°) | 9.68e-03 | 6.50e-04 | 1.37e-03 | ≤ 0.01 |
+| laser distance (mm) | 4.69e-03 | 3.28e-04 | 5.01e-04 | ≤ 0.05 |
+| fx / fy (relative, worst) | 3.6e-05 | 2.8e-05 | 1.5e-05 | ≤ 1e-4 |
+| cx / cy (px, worst) | **0.40** | **0.25** | **0.28** | ≤ 0.05 |
+
+Mean reprojection 0.029 px; hand-eye 9.6e-03° / 0.019 mm.
+
+- **Within the G5.3 limits:** every laser plane, the hand-eye and the focal lengths.
+- **Outside the limits:** the principal points, by 0.25–0.40 px. `closed_loop_images.md` found
+  the same on `closed_loop_ur5e`: the principal point is the weakest quantity at this level of
+  corner noise, because the views tilt only 8–25° off the board normal.
 
 ## Characterisation: Scheimpflug sensors
 

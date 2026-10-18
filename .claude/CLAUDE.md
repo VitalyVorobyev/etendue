@@ -24,7 +24,8 @@ bun run check:deps            # the studio imports only what it declares
 bun run typecheck && bun run lint && bun run format:check && bun run test && bun run build
 bun run format                # oxfmt over web/ and crates/etendue-wasm/{js,scripts,tests} (.oxfmtrc.json)
 bun run dev                   # studio at http://localhost:5178 (blocks; do not run non-interactively)
-cd apps/studio && bun run desktop:dev   # the desktop app (Tauri, reads the checkout; blocks; interactive only)
+cargo app                     # the desktop app, debug (meshes if missing, wasm, bun install, tauri dev; blocks; interactive only)
+cargo app-release [--bundles app]   # release bundles (same preparation, tauri build)
 cd apps/studio && bun run desktop:build [--bundles app]   # wasm + frontend + release bundle (needs the robot meshes)
 cd apps/studio && bun run tauri build --debug --no-bundle   # compile the shell against the built frontend
 cd apps/studio && bun run test:e2e     # Playwright, SwiftShader, bakes the reference with etendue-cli
@@ -35,7 +36,12 @@ cargo run -p etendue-cli -- validate examples/eye_in_hand_ur5e/scene.json exampl
 cargo run -p etendue-cli -- bake <scene.json> <scenario.json> -o target/baked.json
 cargo run -p etendue-cli -- gt <scene.json> <scenario.json> -o target/gt                                   # dataset.json, robot_poses.json, gt.json
 cargo run -p etendue-cli -- scenario from-poses <poses.json> --robot ur5e --scene <scene.json> -o <scenario.json>  # stop-and-shoot from TCP poses
-cargo run --release -p etendue-cli -- render <scene.json> <scenario.json> -o target/render --samples 16   # Blender, local only
+cargo run -p etendue-cli -- scenario sphere <scene.json> --spec <gen.json|scenario.json> -o <scenario.json> [--candidates c.json]  # P7-6 sphere poses; a scenario regenerates from its own `generator`
+cargo run -p etendue-cli -- export <scene.json> <scenario.json> --captures c.csv --trajectory t.csv --report r.json --resolved s.json  # P7-2 motion exports
+cargo test -p etendue-kinematics --test motion -- --nocapture                                              # G1.4 motion limits
+node crates/etendue-wasm/tests/node/g2_3_generator.mjs                                                  # G2.3 generator ≤ 100 ms (after build-npm.mjs)
+cargo test -p etendue-synth --test g3_2 -- --nocapture                                                  # G3.2 target meshes
+cargo run --release -p etendue-cli -- render <scene.json> <scenario.json> -o target/render --samples 16   # Blender, local only; <capture>_laser.png per laser camera (P7-7)
 python3 -m unittest discover -s crates/etendue-cli/blender/tests                                          # Blender conventions
 cargo run --release -p etendue-cli -- measure g4-1 -o target/g4_1                                          # gate G4.1, Blender side
 cd web/apps/studio && bun x vitest run --project browser                                                  # gate G4.1, web side
@@ -43,10 +49,10 @@ cargo run --release -p etendue-cli -- measure p4-5 -o target/p4_5               
 cargo run --release -p etendue-cli -- measure g4-2 -o target/g4_2                                          # G4.2 corner bias (chess-corners)
 cd web/apps/studio && bun x vitest run --project browser src/probe/g4_3.browser.test.ts                   # G4.3 web vs Blender (after g4-2)
 cargo test -p etendue-synth --release --test ptc -- --nocapture                                           # P4-6 photon transfer
-uv run --locked --project tools/closed-loop tools/closed-loop/closed_loop.py target/gt [--camera ID]     # G5.1 closed loop (after `etendue gt`); G5.3 on a laser dataset (examples/laser_ur5e)
+uv run --locked --project tools/closed-loop tools/closed-loop/closed_loop.py target/gt [--camera ID]     # G5.1 closed loop (after `etendue gt`); G5.3 on a laser dataset (examples/laser_ur5e); G5.3b on examples/rig3_laser_ur5e
 # P5-1b image-level loop (Blender, local only): gt, then render linear at s = 4, detect, calibrate
 cargo run --release -p etendue-cli -- render examples/closed_loop_ur5e/{scene,scenario}.json -o target/gt --supersample 4 --samples 16 --sensor examples/closed_loop_ur5e/sensor_linear.json
-cargo run --release -p etendue-cli -- detect target/gt                                                    # features.json (Radon + calib-targets labels, checked vs GT)
+cargo run --release -p etendue-cli -- detect target/gt                                                    # features.json (Radon + calib-targets labels, checked vs GT); with laser images laser_features.json and G5.2 (width/beam column)
 uv run --locked --project tools/closed-loop tools/closed-loop/closed_loop.py target/gt --features target/gt/features.json
 uv run --locked --project tools/closed-loop python -m unittest discover -s tools/closed-loop              # closed-loop input tests
 
@@ -64,11 +70,11 @@ cargo test -p etendue-kinematics --all-features --test gates -- --nocapture   # 
 cargo run --release -p etendue-kinematics --example g1_2_ik                   # full G1.2 DLS report
 
 # Robot assets and FK fixtures (Python via uv; see tools/robot-assets/robots.toml)
-uv run --locked --project tools/robot-assets tools/robot-assets/build.py --report docs/measurements/g1_3_robot_assets.md
+uv run --locked --project tools/robot-assets tools/robot-assets/build.py --report docs/measurements/g1_3_robot_assets.md  # --include-local also builds local-only robots (FR5) into assets/robots-local/
 uv run tools/fixtures/fk_fixture.py
 ```
 
-Do NOT run `bun run dev` or `desktop:dev` non-interactively; they block. The `etendue`
+Do NOT run `bun run dev`, `desktop:dev` or `cargo app` non-interactively; they block. The `etendue`
 binary is the CLI; the desktop app's binary is `etendue-studio`.
 
 ### Feature matrix
@@ -81,10 +87,10 @@ across the whole workspace.
 | `etendue-core` | `solver` | `solver` = the Scheimpflug design solver on argmin (off by default: argmin pulls `getrandom`; no in-tree user since `etendue-ui` was deleted, CI tests it per crate) |
 | `etendue-scene` | `schemars` | JSON Schema derives (xtask enables it to emit `schemas/`) |
 | `etendue-kinematics` | `opw` | analytic OPW IK via `rs-opw-kinematics` (`default-features = false`) |
-| `etendue-synth` | `images` | canonical camera, remap LUT, GT, dataset, render jobs; `images` = EXR ingest + PNG (native render path, off in wasm) |
+| `etendue-synth` | `images` | canonical camera, remap LUT, GT, dataset, render jobs, pose generator; `images` = EXR ingest + PNG + the laser-image compositor (native render path, off in wasm) |
 | `etendue-cli` | none | lib `etendue_cli` (the pipeline) + binary `etendue` |
 | `etendue-wasm` | none | wasm32 build + G0.1 parity in CI job `wasm` |
-| `xtask` | none | not published |
+| `xtask` | none | not published; `emit-schemas`, `check-layering`, `app` (aliases `cargo app`, `cargo app-release`) |
 | `etendue-studio` (`web/apps/studio/src-tauri`) | `custom-protocol` (default) | Tauri shell, its own workspace, not published |
 
 CI job `checks` runs clippy and tests with `--all-features` for `etendue-core`,
@@ -104,7 +110,7 @@ etendue-cli (lib `etendue_cli` + bin `etendue`) ──► etendue-kinematics, et
 web/apps/studio/src-tauri (Tauri shell, own workspace) ──► etendue-cli (lib)
 etendue-wasm (npm @etendue/wasm) ──► etendue-kinematics ──► etendue-scene, etendue-synth ──► etendue-core, vision-calibration-core
 web/apps/studio ──► @etendue/wasm, @vitavision/{ui,workbench,three,three-react,charts,stage2d} (npm, from lab-ui)
-xtask (emit-schemas, check-layering)
+xtask (emit-schemas, check-layering, app)
 ```
 
 `cargo xtask check-layering` enforces these rules (ADR 0001 §2).
@@ -131,10 +137,19 @@ squares IK with deterministic restarts, and analytic OPW IK behind `opw`. `compi
 turn a scenario into a trajectory or baked scenario: synchronised trapezoidal PTP,
 spline-timed LIN, and stop-and-shoot captures.
 
+**P7 additions** (`docs/pivot/PLAN.md` P7) — `etendue-scene`: `RigLayout` (`rig.rs`, N-camera rings,
+one laser per camera via `LaserSpec.camera`), `PrintedTarget` (`printed.rs`, every calib-targets
+target incl. the PuzzlePole), `MotionReport` and exports, `ScenarioSpec.generator`.
+`etendue-kinematics`: Ruckig (`rsruckig`) jerk-limited PTP/LIN, stored IK `q` on `ptp_pose`,
+`report`. `etendue-synth`: `target_mesh` (one surface for Blender and the web), `poses` (sphere
+generator), `laser_render` (laser images from Depth/Normal/Diffuse Color; Cycles Depth is planar).
+Render job v4.
+
 **Closed loop** (P5-1) — `etendue gt` writes a scene's analytic ground truth as a
 calibration-rs dataset; `tools/closed-loop` (uv, the `vision-calibration` wheel) solves it with
 calibration-rs and checks the truth is recovered (G5.1). `examples/closed_loop_ur5e` is its
-scene; `make_scenario.py` generates the scenario. CI runs it. The image-level loop (P5-1b) renders
+scene; its scenario is the sphere pose generator's (`etendue scenario sphere`, P7-6), which keeps its
+spec in `generator`, so `--spec <scenario.json>` regenerates it. CI runs it. The image-level loop (P5-1b) renders
 the same dataset, `etendue detect` finds the board (chess-corners Radon, calib-targets labels, the
 180° ambiguity settled by square colour, every label checked against the GT but never corrected)
 and writes `features.json`, and `closed_loop.py --features` calibrates from it. It needs Blender,

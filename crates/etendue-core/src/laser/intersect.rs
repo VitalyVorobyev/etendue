@@ -1011,3 +1011,139 @@ mod tests {
         assert!(stripe.length_m() <= 2.0 * 0.5 + 1e-6);
     }
 }
+
+/// The stripe a laser fan paints on a cylinder: the fan plane intersected
+/// with the cylinder `radius` about the local +Z axis of `world_se3_cylinder`,
+/// for local `z ∈ [z_range[0], z_range[1]]`, clipped to the fan's angular and
+/// radial extent and to the side the laser lights (where the outward normal
+/// faces the laser origin).
+///
+/// Points are about `spacing` apart along the curve (an ellipse, or two
+/// lines along the axis when the fan contains the axis direction), in world
+/// coordinates, split into the unbroken runs that survive the clipping. An
+/// empty result means the fan misses the cylinder's lit side.
+#[must_use]
+pub fn stripe_on_cylinder(
+    laser: &LaserPlane,
+    world_se3_cylinder: &Isometry3<f64>,
+    radius: f64,
+    z_range: [f64; 2],
+    spacing: f64,
+) -> Vec<Vec<Point3<f64>>> {
+    if !(radius > 0.0 && spacing > 0.0 && z_range[1] > z_range[0]) {
+        return Vec::new();
+    }
+    let local = world_se3_cylinder.inverse();
+    let n = local * laser.normal();
+    let o = local * laser.origin();
+    // The plane: n · p = c, in the cylinder frame.
+    let c = n.dot(&o.coords);
+    let keep = |p: Point3<f64>| -> Option<Point3<f64>> {
+        let lit = Vector3::new(p.x, p.y, 0.0).dot(&(o - p)) > 0.0;
+        let world = world_se3_cylinder * p;
+        (lit && p.z >= z_range[0] && p.z <= z_range[1] && laser.contains_in_extent(&world))
+            .then_some(world)
+    };
+    let mut runs: Vec<Vec<Point3<f64>>> = Vec::new();
+    let push = |point: Option<Point3<f64>>, runs: &mut Vec<Vec<Point3<f64>>>, broken: &mut bool| {
+        match point {
+            Some(p) if *broken => {
+                runs.push(vec![p]);
+                *broken = false;
+            }
+            Some(p) => runs.last_mut().expect("a run is open").push(p),
+            None => *broken = true,
+        }
+    };
+    let n_xy = n.x.hypot(n.y);
+    if n.z.abs() > MIN_NORM && n.z.abs() >= 1e-9 * n_xy {
+        // z(θ) = (c − r (n_x cos θ + n_y sin θ)) / n_z: an ellipse. Step θ so
+        // that no step is longer than `spacing` (|dp/dθ| ≤ r √(1 + (n_xy/n_z)²)).
+        let speed = radius * (1.0 + (n_xy / n.z).powi(2)).sqrt();
+        let steps = ((std::f64::consts::TAU * speed / spacing).ceil() as usize).clamp(8, 1_000_000);
+        let mut broken = true;
+        let (mut first_kept, mut last_kept) = (false, false);
+        for k in 0..=steps {
+            let theta = std::f64::consts::TAU * k as f64 / steps as f64;
+            let (s, co) = theta.sin_cos();
+            let z = (c - radius * (n.x * co + n.y * s)) / n.z;
+            let point = keep(Point3::new(radius * co, radius * s, z));
+            if k == 0 {
+                first_kept = point.is_some();
+            }
+            last_kept = point.is_some();
+            push(point, &mut runs, &mut broken);
+        }
+        // θ = 2π is θ = 0 again: a run through the seam continues the first.
+        if runs.len() > 1 && first_kept && last_kept {
+            let first = runs.remove(0);
+            runs.last_mut()
+                .expect("two runs")
+                .extend(first.into_iter().skip(1));
+        }
+    } else if n_xy > MIN_NORM {
+        // The plane contains the axis direction: n_x cos θ + n_y sin θ = c / r,
+        // two lines along the axis (one if tangent, none if it misses).
+        let ratio = c / (radius * n_xy);
+        if ratio.abs() <= 1.0 {
+            let base = n.y.atan2(n.x);
+            let half = ratio.acos();
+            let steps = (((z_range[1] - z_range[0]) / spacing).ceil() as usize).max(1);
+            for theta in [base - half, base + half] {
+                let (s, co) = theta.sin_cos();
+                let mut broken = true;
+                for k in 0..=steps {
+                    let z = z_range[0] + (z_range[1] - z_range[0]) * k as f64 / steps as f64;
+                    push(
+                        keep(Point3::new(radius * co, radius * s, z)),
+                        &mut runs,
+                        &mut broken,
+                    );
+                }
+                if half == 0.0 {
+                    break;
+                }
+            }
+        }
+    }
+    runs
+}
+
+#[cfg(test)]
+mod cylinder_tests {
+    use super::*;
+    use crate::scene::LaserEntity;
+    use nalgebra::UnitQuaternion;
+
+    /// A fan pointing down −X at a cylinder on the Z axis, its plane tilted.
+    fn laser(tilt: f64) -> LaserPlane {
+        // Laser local +Z (central ray) → world −X; local +X (normal) → tilted from world Z.
+        let look = UnitQuaternion::face_towards(&-Vector3::x(), &Vector3::z());
+        let pose = Isometry3::from_parts(
+            Point3::new(0.5, 0.0, 0.1).coords.into(),
+            look * UnitQuaternion::from_axis_angle(&Vector3::z_axis(), tilt),
+        );
+        LaserPlane::from_entity(&LaserEntity::new(pose, 0.6, 2.0, 660.0, 5e-4).unwrap())
+    }
+
+    #[test]
+    fn the_stripe_lies_on_the_cylinder_in_the_fan_on_the_lit_side() {
+        let r = 0.05;
+        for tilt in [0.0, 0.3, std::f64::consts::FRAC_PI_2] {
+            let fan = laser(tilt);
+            let runs = stripe_on_cylinder(&fan, &Isometry3::identity(), r, [0.0, 0.2], 1e-3);
+            assert!(!runs.is_empty(), "tilt {tilt}: the fan hits the cylinder");
+            for p in runs.iter().flatten() {
+                assert!((p.x.hypot(p.y) - r).abs() < 1e-12, "on the cylinder");
+                assert!(fan.signed_distance(p).abs() < 1e-12, "in the fan plane");
+                assert!(p.x > 0.0, "on the side facing the laser at +X");
+                assert!((0.0..=0.2).contains(&p.z));
+            }
+            for run in &runs {
+                for w in run.windows(2) {
+                    assert!((w[1] - w[0]).norm() <= 1.1e-3, "spacing");
+                }
+            }
+        }
+    }
+}

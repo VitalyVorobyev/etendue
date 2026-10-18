@@ -87,6 +87,25 @@ second nalgebra: calib-targets allows 0.35, and a fresh lockfile took it.
 - Dropped files have no path. They still load, but they cannot generate a
   dataset.
 
+**Amended 2026-10-17 (P7-0):** the studio edits documents, so the shell writes.
+
+- Writing is limited to its own list of folders: the folders the user chose
+  in a dialog (a save dialog, a picked file's folder, a picked folder) and the
+  datasets folder. The data root is never writable, so an example is saved
+  with Save As. The commands are `save_dialog`, `write_text` and
+  `save_scene`.
+- `save_scene` rewrites the scene's robot manifest paths relative to the
+  scene's new folder. A manifest is found relative to the folder the scene was
+  read from, else in the robot library.
+- A dataset request carries the scene as the studio holds it, edits included,
+  and the path it came from, if any. The run writes it into the output folder
+  as `scene.json`, with its manifests rebased, and reads it from there, so
+  dropped and edited scenes generate datasets too. The output folder must be
+  writable.
+- Edits do not rebuild the wasm session: `EtendueScene.updateScene` replaces
+  the scene and keeps the robot models, as long as the scene names the same
+  robots.
+
 ### Scope of this change
 
 The shell adds the Dataset panel, "Open scene…", "Import poses…", and the

@@ -19,10 +19,17 @@
 
 use std::fmt;
 
-use etendue_kinematics::{RobotModel, bake};
-use etendue_scene::{
-    BakedScenario, FrameGraph, Issue, RobotManifest, ScenarioSpec, SceneSpec, ValidationError,
+use etendue_kinematics::{
+    BakeOptions, ReportOptions, RobotModel, bake_trajectory, compile, report_trajectory,
 };
+use etendue_scene::{
+    BakedScenario, CameraSpec, FrameGraph, GeneratorSpec, Issue, LaserSpec, MotionReport,
+    RigLayout, RobotManifest, ScenarioSpec, SceneSpec, ValidationError, export,
+};
+use etendue_synth::gt::{BoardPoint, VisibilitySpec, project_points};
+use etendue_synth::laser::{StripeSurface, stripe};
+use etendue_synth::poses::{Generated, generate};
+use etendue_synth::target_mesh::{TargetMesh, geometry_mesh};
 use etendue_synth::{CanonicalCamera, CanonicalSpec, PixelCentre, RemapLut, remap_lut};
 use nalgebra::{Isometry3, Point2, Point3, Quaternion, Translation3, UnitQuaternion};
 use serde::Deserialize;
@@ -190,6 +197,66 @@ impl Session {
         })
     }
 
+    /// Replace the scene, keeping the robot models: the edit path of an
+    /// interactive editor, which must not re-parse URDFs on every change.
+    ///
+    /// The new scene must name the same robots (by id) as the loaded one;
+    /// their manifests and URDFs are not re-read, so a changed `manifest`
+    /// path is not followed (load a new session for that). On error the
+    /// session is unchanged.
+    ///
+    /// # Errors
+    ///
+    /// As [`Session::load`] for the scene; [`Error::Input`] if the robot ids
+    /// differ from the loaded scene's.
+    pub fn update_scene(&mut self, scene_json: &str) -> Result<()> {
+        let scene: SceneSpec = parse("scene", scene_json)?;
+        scene.validate().map_err(|e| Error::invalid("scene", e))?;
+        let mut robots = Vec::with_capacity(scene.robots.len());
+        for spec in &scene.robots {
+            let at = self
+                .scene
+                .robots
+                .iter()
+                .position(|r| r.id == spec.id)
+                .ok_or_else(|| {
+                    Error::Input(format!(
+                        "robot `{}` is not loaded; open the scene again to add a robot",
+                        spec.id
+                    ))
+                })?;
+            let model = &self.robots[at];
+            if let Some(q) = &spec.initial_q {
+                model.check_q(q, 0.0).map_err(|e| {
+                    Error::Kinematics(format!("robot `{}` initial_q: {e}", spec.id))
+                })?;
+            }
+            robots.push(at);
+        }
+        let links: Vec<Vec<String>> = robots
+            .iter()
+            .map(|&at| self.robots[at].links().to_vec())
+            .collect();
+        FrameGraph::build(&scene, &links).map_err(|e| Error::invalid("scene", e))?;
+        let cameras = scene
+            .cameras
+            .iter()
+            .map(|c| c.params.build())
+            .collect::<std::result::Result<_, _>>()
+            .map_err(|e| Error::Input(format!("camera model does not build: {e}")))?;
+        let mut old: Vec<Option<RobotModel>> = std::mem::take(&mut self.robots)
+            .into_iter()
+            .map(Some)
+            .collect();
+        self.robots = robots
+            .iter()
+            .map(|&at| old[at].take().expect("robot ids are unique"))
+            .collect();
+        self.scene = scene;
+        self.cameras = cameras;
+        Ok(())
+    }
+
     /// The loaded scene.
     #[must_use]
     pub fn scene(&self) -> &SceneSpec {
@@ -205,8 +272,126 @@ impl Session {
     /// fails validation against the scene; [`Error::Kinematics`] if a step
     /// cannot be executed.
     pub fn bake(&self, scenario_json: &str) -> Result<BakedScenario> {
+        self.bake_with(scenario_json, BakeOptions::default())
+    }
+
+    /// [`Session::bake`] with options (joint velocities and accelerations).
+    ///
+    /// # Errors
+    ///
+    /// As [`Session::bake`].
+    pub fn bake_with(&self, scenario_json: &str, options: BakeOptions) -> Result<BakedScenario> {
         let scenario: ScenarioSpec = parse("scenario", scenario_json)?;
-        Ok(bake(&self.scene, &scenario, &self.robots)?)
+        let trajectory = compile(&self.scene, &scenario, &self.robots)?;
+        Ok(bake_trajectory(
+            &self.scene,
+            &trajectory,
+            &self.robots,
+            options,
+        )?)
+    }
+
+    /// The motion report of a scenario: per step, limit use, joint margins,
+    /// singularity margin and warnings (`etendue export --report`).
+    ///
+    /// # Errors
+    ///
+    /// As [`Session::bake`].
+    pub fn motion_report(&self, scenario_json: &str) -> Result<MotionReport> {
+        let scenario: ScenarioSpec = parse("scenario", scenario_json)?;
+        let trajectory = compile(&self.scene, &scenario, &self.robots)?;
+        Ok(report_trajectory(
+            &self.scene,
+            &scenario,
+            &trajectory,
+            &self.robots,
+            &ReportOptions::default(),
+        ))
+    }
+
+    /// The scenario with every `ptp_pose`'s joint configuration stored, so
+    /// that it can never bake onto another IK branch.
+    ///
+    /// # Errors
+    ///
+    /// As [`Session::bake`].
+    pub fn resolve(&self, scenario_json: &str) -> Result<ScenarioSpec> {
+        let scenario: ScenarioSpec = parse("scenario", scenario_json)?;
+        Ok(etendue_kinematics::resolve(
+            &self.scene,
+            &scenario,
+            &self.robots,
+        )?)
+    }
+
+    /// Robot `robot_id`'s tool pose and joints at every capture, as CSV or
+    /// JSON (`etendue export --captures`).
+    ///
+    /// # Errors
+    ///
+    /// As [`Session::bake`]; [`Error::Input`] for an unknown robot or
+    /// format.
+    pub fn export_captures(
+        &self,
+        scenario_json: &str,
+        robot_id: &str,
+        format: &str,
+    ) -> Result<String> {
+        let at = self.robot_index(robot_id)?;
+        let baked = self.bake(scenario_json)?;
+        let model = &self.robots[at];
+        let links = model.links();
+        let rows = export::captures(
+            &baked,
+            robot_id,
+            &links[model.base_link()],
+            &links[model.tcp_link()],
+        )
+        .map_err(|e| Error::Input(e.to_string()))?;
+        match format {
+            "csv" => Ok(rows.to_csv()),
+            "json" => serde_json::to_string_pretty(&rows)
+                .map(|t| t + "\n")
+                .map_err(|e| Error::Input(e.to_string())),
+            other => Err(Error::Input(format!(
+                "captures export format must be \"csv\" or \"json\", got {other:?}"
+            ))),
+        }
+    }
+
+    /// Robot `robot_id`'s timed joint trajectory as CSV (`etendue export
+    /// --trajectory`).
+    ///
+    /// # Errors
+    ///
+    /// As [`Session::bake`]; [`Error::Input`] for an unknown robot.
+    pub fn export_trajectory(&self, scenario_json: &str, robot_id: &str) -> Result<String> {
+        self.robot_index(robot_id)?;
+        let baked = self.bake_with(scenario_json, BakeOptions { derivatives: true })?;
+        export::trajectory_csv(&baked, robot_id).map_err(|e| Error::Input(e.to_string()))
+    }
+
+    /// Run a pose generator (a scenario's `generator`) on this scene: every
+    /// candidate pose and the scenario of the kept ones (etendue-synth
+    /// `poses::generate`).
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Parse`] for a malformed spec; [`Error::Input`] if it does not
+    /// fit the scene (unknown robot, frame or target; a sensor not on the
+    /// tool; bad parameters).
+    pub fn generate_poses(&self, spec_json: &str, dt: f64) -> Result<Generated> {
+        let spec: GeneratorSpec = parse("generator", spec_json)?;
+        let GeneratorSpec::Sphere(sphere) = spec;
+        generate(&self.scene, &self.robots, &sphere, dt).map_err(|e| Error::Input(e.to_string()))
+    }
+
+    fn robot_index(&self, robot_id: &str) -> Result<usize> {
+        self.scene
+            .robots
+            .iter()
+            .position(|r| r.id == robot_id)
+            .ok_or_else(|| Error::Input(format!("no robot `{robot_id}`")))
     }
 
     /// Project world-frame points through camera `camera_id` placed at
@@ -316,6 +501,133 @@ impl Session {
         Ok((canonical, lut))
     }
 
+    fn target(&self, target_id: &str) -> Result<&etendue_scene::TargetSpec> {
+        self.scene
+            .targets
+            .iter()
+            .find(|t| t.id == target_id)
+            .ok_or_else(|| Error::Input(format!("no target `{target_id}`")))
+    }
+
+    /// The surface of target `target_id` as triangles in its frame: the
+    /// pattern calib-targets prints, on a plane or the PuzzlePole's cylinder
+    /// (etendue-synth `geometry_mesh`).
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Input`] for an unknown target or one whose surface is
+    /// undetermined.
+    pub fn target_mesh(&self, target_id: &str) -> Result<TargetMesh> {
+        geometry_mesh(&self.target(target_id)?.geometry)
+            .map_err(|e| Error::Input(format!("target `{target_id}`: {e}")))
+    }
+
+    /// The feature points of target `target_id` (its inner corners, with
+    /// calib-targets' labels), in its frame; none for a target calib-targets
+    /// does not print.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Input`] for an unknown or invalid target.
+    pub fn target_points(&self, target_id: &str) -> Result<Vec<BoardPoint>> {
+        Ok(
+            etendue_synth::board::layout(&self.target(target_id)?.geometry)
+                .map_err(|e| Error::Input(format!("target `{target_id}`: {e}")))?
+                .map(|l| l.points)
+                .unwrap_or_default(),
+        )
+    }
+
+    /// Target `target_id`'s feature points as camera `camera_id` sees them,
+    /// with both placed in the world: flat `[u0, v0, …]`, `NaN, NaN` for a
+    /// point the camera does not see (behind it, outside the image or on a
+    /// side of the target facing away) — the ground truth's visibility tests
+    /// (etendue-synth `project_points`, no margin).
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Input`] for an unknown camera or target.
+    pub fn project_target(
+        &self,
+        camera_id: &str,
+        world_se3_camera: &Isometry3<f64>,
+        target_id: &str,
+        world_se3_target: &Isometry3<f64>,
+    ) -> Result<Vec<f64>> {
+        let index = self.camera_index(camera_id)?;
+        let points = self.target_points(target_id)?;
+        let projected = project_points(
+            &self.cameras[index],
+            self.scene.cameras[index].resolution,
+            world_se3_camera,
+            world_se3_target,
+            &points,
+            &VisibilitySpec { margin_px: 0.0 },
+            -0.5,
+        );
+        Ok(projected
+            .iter()
+            .flat_map(|p| match (p.visible(), p.pixel) {
+                (true, Some([u, v])) => [u, v],
+                _ => [f64::NAN, f64::NAN],
+            })
+            .collect())
+    }
+
+    /// Laser `laser_id`'s stripe on target `target_id` as camera `camera_id`
+    /// sees it, all three placed in the world: flat `[u0, v0, …]` along the
+    /// stripe (1 mm apart on the target), `NaN, NaN` where the camera does not
+    /// see it or the stripe breaks (a PuzzlePole's two arcs). Empty if the
+    /// laser misses the target or the target has no printed surface.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Input`] for an unknown camera, laser or target, or a laser
+    /// out of range.
+    pub fn laser_stripe(
+        &self,
+        camera_id: &str,
+        world_se3_camera: &Isometry3<f64>,
+        laser_id: &str,
+        world_se3_laser: &Isometry3<f64>,
+        target_id: &str,
+        world_se3_target: &Isometry3<f64>,
+    ) -> Result<Vec<f64>> {
+        const SPACING_M: f64 = 1e-3;
+        let index = self.camera_index(camera_id)?;
+        let laser = self
+            .scene
+            .lasers
+            .iter()
+            .find(|l| l.id == laser_id)
+            .ok_or_else(|| Error::Input(format!("no laser `{laser_id}`")))?;
+        let Some(surface) = StripeSurface::of(&self.target(target_id)?.geometry) else {
+            return Ok(Vec::new());
+        };
+        let points = stripe(laser, world_se3_laser, world_se3_target, surface, SPACING_M)
+            .map_err(|e| Error::Input(e.to_string()))?;
+        let projected = project_points(
+            &self.cameras[index],
+            self.scene.cameras[index].resolution,
+            world_se3_camera,
+            world_se3_target,
+            &points,
+            &VisibilitySpec { margin_px: 0.0 },
+            -0.5,
+        );
+        let mut out = Vec::with_capacity(2 * projected.len());
+        for (i, p) in projected.iter().enumerate() {
+            if i > 0 && (points[i].xyz() - points[i - 1].xyz()).norm() > 2.5 * SPACING_M {
+                out.extend([f64::NAN, f64::NAN]);
+            }
+            match (p.visible(), p.pixel) {
+                (true, Some([u, v])) => out.extend([u, v]),
+                _ => out.extend([f64::NAN, f64::NAN]),
+            }
+        }
+        Ok(out)
+    }
+
     fn camera_index(&self, camera_id: &str) -> Result<usize> {
         self.scene
             .cameras
@@ -323,6 +635,31 @@ impl Session {
             .position(|c| c.id == camera_id)
             .ok_or_else(|| Error::Input(format!("no camera `{camera_id}`")))
     }
+}
+
+/// A rig layout's cameras and lasers.
+#[derive(Clone, Debug, serde::Serialize)]
+pub struct ExpandedRig {
+    /// `<rig>_cam<i>`.
+    pub cameras: Vec<CameraSpec>,
+    /// `<rig>_laser<i>`, each linked to its camera.
+    pub lasers: Vec<LaserSpec>,
+}
+
+/// The cameras and lasers of a rig layout for rig `rig`
+/// (`etendue-scene` `RigLayout::expand`).
+///
+/// # Errors
+///
+/// [`Error::Parse`] for a malformed layout; [`Error::Invalid`] if it fails
+/// validation.
+pub fn expand_rig(layout_json: &str, rig: &str) -> Result<ExpandedRig> {
+    let layout: RigLayout = parse("layout", layout_json)?;
+    layout
+        .validate()
+        .map_err(|e| Error::invalid("rig layout", e))?;
+    let (cameras, lasers) = layout.expand(rig);
+    Ok(ExpandedRig { cameras, lasers })
 }
 
 /// An SE(3) from its flat wire order `[qx, qy, qz, qw, tx, ty, tz]` — the
@@ -371,6 +708,30 @@ fn js_error(e: &Error) -> JsValue {
     err.into()
 }
 
+/// The cameras and lasers of a rig layout, as JSON text `{cameras,
+/// lasers}`. See [`expand_rig`].
+///
+/// # Errors
+///
+/// Throws an `Error` with `kind` (and `issues` for validation errors).
+#[wasm_bindgen(js_name = expandRig)]
+pub fn expand_rig_js(layout_json: &str, rig: &str) -> std::result::Result<String, JsValue> {
+    let expanded = expand_rig(layout_json, rig).map_err(|e| js_error(&e))?;
+    serde_json::to_string(&expanded).map_err(|e| js_error(&Error::Input(e.to_string())))
+}
+
+/// The PuzzlePole circumferences calib-targets supports, with their seam
+/// rows: `[{squares, start_row}]` as JSON text.
+#[wasm_bindgen(js_name = poleCircumferences)]
+#[must_use]
+pub fn pole_circumferences() -> String {
+    let periods: Vec<serde_json::Value> = etendue_synth::board::pole_periods()
+        .into_iter()
+        .map(|(squares, start_row)| serde_json::json!({"squares": squares, "start_row": start_row}))
+        .collect();
+    serde_json::Value::Array(periods).to_string()
+}
+
 /// A loaded scene (JS side of [`Session`]). Documents go in and come out as
 /// JSON text; the npm package's typed wrapper converts them to objects.
 #[wasm_bindgen]
@@ -392,15 +753,115 @@ impl EtendueScene {
             .map_err(|e| js_error(&e))
     }
 
+    /// Replace the scene, keeping the robot models. See
+    /// [`Session::update_scene`].
+    ///
+    /// # Errors
+    ///
+    /// Throws an `Error` with `kind` (and `issues` for validation errors);
+    /// the session is unchanged.
+    #[wasm_bindgen(js_name = updateScene)]
+    pub fn update_scene(&mut self, scene_json: &str) -> std::result::Result<(), JsValue> {
+        self.inner
+            .update_scene(scene_json)
+            .map_err(|e| js_error(&e))
+    }
+
     /// Bake a scenario; returns the `BakedScenario` as JSON text. See
     /// [`Session::bake`].
     ///
     /// # Errors
     ///
     /// Throws an `Error` with `kind` (and `issues` for validation errors).
-    pub fn bake(&self, scenario_json: &str) -> std::result::Result<String, JsValue> {
-        let baked = self.inner.bake(scenario_json).map_err(|e| js_error(&e))?;
+    pub fn bake(
+        &self,
+        scenario_json: &str,
+        derivatives: bool,
+    ) -> std::result::Result<String, JsValue> {
+        let baked = self
+            .inner
+            .bake_with(scenario_json, BakeOptions { derivatives })
+            .map_err(|e| js_error(&e))?;
         serde_json::to_string(&baked).map_err(|e| js_error(&Error::Input(e.to_string())))
+    }
+
+    /// The motion report as JSON text. See [`Session::motion_report`].
+    ///
+    /// # Errors
+    ///
+    /// Throws an `Error` with `kind` (and `issues` for validation errors).
+    #[wasm_bindgen(js_name = motionReport)]
+    pub fn motion_report(&self, scenario_json: &str) -> std::result::Result<String, JsValue> {
+        let report = self
+            .inner
+            .motion_report(scenario_json)
+            .map_err(|e| js_error(&e))?;
+        serde_json::to_string(&report).map_err(|e| js_error(&Error::Input(e.to_string())))
+    }
+
+    /// The scenario with every IK solution stored, as JSON text. See
+    /// [`Session::resolve`].
+    ///
+    /// # Errors
+    ///
+    /// Throws an `Error` with `kind` (and `issues` for validation errors).
+    #[wasm_bindgen(js_name = resolveScenario)]
+    pub fn resolve_scenario(&self, scenario_json: &str) -> std::result::Result<String, JsValue> {
+        let resolved = self
+            .inner
+            .resolve(scenario_json)
+            .map_err(|e| js_error(&e))?;
+        serde_json::to_string(&resolved).map_err(|e| js_error(&Error::Input(e.to_string())))
+    }
+
+    /// A robot's tool pose and joints at every capture (`"csv"` or
+    /// `"json"`). See [`Session::export_captures`].
+    ///
+    /// # Errors
+    ///
+    /// Throws an `Error` with `kind`.
+    #[wasm_bindgen(js_name = exportCaptures)]
+    pub fn export_captures(
+        &self,
+        scenario_json: &str,
+        robot_id: &str,
+        format: &str,
+    ) -> std::result::Result<String, JsValue> {
+        self.inner
+            .export_captures(scenario_json, robot_id, format)
+            .map_err(|e| js_error(&e))
+    }
+
+    /// Generated poses as JSON text `{candidates, scenario}`. See
+    /// [`Session::generate_poses`].
+    ///
+    /// # Errors
+    ///
+    /// Throws an `Error` with `kind`.
+    #[wasm_bindgen(js_name = generatePoses)]
+    pub fn generate_poses(&self, spec_json: &str, dt: f64) -> std::result::Result<String, JsValue> {
+        let generated = self
+            .inner
+            .generate_poses(spec_json, dt)
+            .map_err(|e| js_error(&e))?;
+        serde_json::to_string(&generated).map_err(|e| js_error(&Error::Input(e.to_string())))
+    }
+
+    /// A robot's timed joint trajectory as CSV. See
+    /// [`Session::export_trajectory`].
+    ///
+    /// # Errors
+    ///
+    /// Throws an `Error` with `kind`.
+    #[wasm_bindgen(js_name = exportTrajectory)]
+    pub fn export_trajectory(
+        &self,
+        scenario_json: &str,
+        robot_id: &str,
+    ) -> std::result::Result<String, JsValue> {
+        self.inner
+            .export_trajectory(scenario_json, robot_id)
+            .map_err(|e| js_error(&e))
     }
 
     /// Project world points through a camera. `world_se3_camera` is
@@ -479,6 +940,105 @@ impl EtendueScene {
         Ok(out.into())
     }
 
+    /// A target's surface as triangles: `{positions: Float32Array (xyz),
+    /// normals: Float32Array, indices: Uint32Array, dark: Uint8Array (per
+    /// triangle)}`. See [`Session::target_mesh`].
+    ///
+    /// # Errors
+    ///
+    /// Throws an `Error` with `kind: "input"`.
+    #[wasm_bindgen(js_name = targetMesh)]
+    pub fn target_mesh(&self, target_id: &str) -> std::result::Result<JsValue, JsValue> {
+        let mesh = self
+            .inner
+            .target_mesh(target_id)
+            .map_err(|e| js_error(&e))?;
+        let flat =
+            |v: &[[f64; 3]]| -> Vec<f32> { v.iter().flat_map(|p| p.map(|c| c as f32)).collect() };
+        let out = js_sys::Object::new();
+        let set = |key: &str, value: JsValue| {
+            let _ = js_sys::Reflect::set(&out, &key.into(), &value);
+        };
+        set(
+            "positions",
+            js_sys::Float32Array::from(flat(&mesh.positions).as_slice()).into(),
+        );
+        set(
+            "normals",
+            js_sys::Float32Array::from(flat(&mesh.normals).as_slice()).into(),
+        );
+        let indices: Vec<u32> = mesh.triangles.iter().flatten().copied().collect();
+        set(
+            "indices",
+            js_sys::Uint32Array::from(indices.as_slice()).into(),
+        );
+        let dark: Vec<u8> = mesh.dark.iter().map(|d| u8::from(*d)).collect();
+        set("dark", js_sys::Uint8Array::from(dark.as_slice()).into());
+        Ok(out.into())
+    }
+
+    /// A target's feature points as JSON text (an array of etendue-synth
+    /// `BoardPoint`). See [`Session::target_points`].
+    ///
+    /// # Errors
+    ///
+    /// Throws an `Error` with `kind: "input"`.
+    #[wasm_bindgen(js_name = targetPoints)]
+    pub fn target_points(&self, target_id: &str) -> std::result::Result<String, JsValue> {
+        let points = self
+            .inner
+            .target_points(target_id)
+            .map_err(|e| js_error(&e))?;
+        serde_json::to_string(&points).map_err(|e| js_error(&Error::Input(e.to_string())))
+    }
+
+    /// A target's feature points seen by a camera (`NaN` where not seen).
+    /// Poses are `[qx, qy, qz, qw, tx, ty, tz]`. See
+    /// [`Session::project_target`].
+    ///
+    /// # Errors
+    ///
+    /// Throws an `Error` with `kind: "input"`.
+    #[wasm_bindgen(js_name = projectTarget)]
+    pub fn project_target(
+        &self,
+        camera_id: &str,
+        world_se3_camera: &[f64],
+        target_id: &str,
+        world_se3_target: &[f64],
+    ) -> std::result::Result<Vec<f64>, JsValue> {
+        let camera = iso3_from_wire(world_se3_camera).map_err(|e| js_error(&e))?;
+        let target = iso3_from_wire(world_se3_target).map_err(|e| js_error(&e))?;
+        self.inner
+            .project_target(camera_id, &camera, target_id, &target)
+            .map_err(|e| js_error(&e))
+    }
+
+    /// A laser's stripe on a target seen by a camera (`NaN` where not seen
+    /// or broken). Poses are `[qx, qy, qz, qw, tx, ty, tz]`. See
+    /// [`Session::laser_stripe`].
+    ///
+    /// # Errors
+    ///
+    /// Throws an `Error` with `kind: "input"`.
+    #[wasm_bindgen(js_name = laserStripe)]
+    pub fn laser_stripe(
+        &self,
+        camera_id: &str,
+        world_se3_camera: &[f64],
+        laser_id: &str,
+        world_se3_laser: &[f64],
+        target_id: &str,
+        world_se3_target: &[f64],
+    ) -> std::result::Result<Vec<f64>, JsValue> {
+        let camera = iso3_from_wire(world_se3_camera).map_err(|e| js_error(&e))?;
+        let laser = iso3_from_wire(world_se3_laser).map_err(|e| js_error(&e))?;
+        let target = iso3_from_wire(world_se3_target).map_err(|e| js_error(&e))?;
+        self.inner
+            .laser_stripe(camera_id, &camera, laser_id, &laser, target_id, &target)
+            .map_err(|e| js_error(&e))
+    }
+
     /// Target extent `[x, y]` in metres, or `undefined`. See
     /// [`Session::target_extent`].
     ///
@@ -520,7 +1080,7 @@ mod tests {
         let s = session();
         let baked = s.bake(SCENARIO).unwrap();
         let scenario: ScenarioSpec = serde_json::from_str(SCENARIO).unwrap();
-        let direct = bake(s.scene(), &scenario, &s.robots).unwrap();
+        let direct = etendue_kinematics::bake(s.scene(), &scenario, &s.robots).unwrap();
         assert_eq!(
             serde_json::to_string(&baked).unwrap(),
             serde_json::to_string(&direct).unwrap()
@@ -605,6 +1165,178 @@ mod tests {
         assert!(matches!(
             s.remap("nope", &CanonicalSpec::default(), PixelCentre::Integer),
             Err(Error::Input(_))
+        ));
+    }
+
+    #[test]
+    fn update_scene_keeps_robots_and_rejects_bad_edits() {
+        let mut s = session();
+        let mut scene: serde_json::Value = serde_json::from_str(SCENE).unwrap();
+        scene["cameras"][0]["resolution"] = serde_json::json!([640, 512]);
+        s.update_scene(&scene.to_string()).unwrap();
+        assert_eq!(s.scene().cameras[0].resolution, [640, 512]);
+        assert!(s.bake(SCENARIO).is_ok());
+
+        // An invalid edit leaves the session as it was.
+        let mut bad = scene.clone();
+        bad["cameras"][0]["parent"] = serde_json::json!("nowhere");
+        assert!(matches!(
+            s.update_scene(&bad.to_string()),
+            Err(Error::Invalid { .. })
+        ));
+        assert_eq!(s.scene().cameras[0].resolution, [640, 512]);
+
+        // Robots cannot be added by an edit.
+        let mut more = scene.clone();
+        let mut robot = more["robots"][0].clone();
+        robot["id"] = serde_json::json!("other");
+        more["robots"].as_array_mut().unwrap().push(robot);
+        assert!(matches!(
+            s.update_scene(&more.to_string()),
+            Err(Error::Input(m)) if m.contains("other")
+        ));
+        assert_eq!(s.robots.len(), 1);
+    }
+
+    #[test]
+    fn exports_and_report_come_from_the_same_bake() {
+        let s = session();
+        let report = s.motion_report(SCENARIO).unwrap();
+        assert_eq!(report.captures, 10);
+        let csv = s.export_captures(SCENARIO, "ur5e", "csv").unwrap();
+        assert_eq!(csv.lines().count(), 11);
+        assert!(csv.starts_with("capture,t,x,y,z,qx,qy,qz,qw,rx,ry,rz,shoulder_pan_joint"));
+        let trajectory = s.export_trajectory(SCENARIO, "ur5e").unwrap();
+        let baked = s.bake(SCENARIO).unwrap();
+        assert_eq!(trajectory.lines().count(), baked.samples.len() + 1);
+        assert!(matches!(
+            s.export_captures(SCENARIO, "ur5e", "xml"),
+            Err(Error::Input(_))
+        ));
+        assert!(matches!(
+            s.export_trajectory(SCENARIO, "nope"),
+            Err(Error::Input(_))
+        ));
+        let resolved = s.resolve(SCENARIO).unwrap();
+        assert!(
+            resolved
+                .steps
+                .iter()
+                .all(|st| !matches!(st, etendue_scene::Step::PtpPose { q: None, .. }))
+        );
+    }
+
+    #[test]
+    fn rig_layouts_expand_or_report_their_problems() {
+        let layout = serde_json::json!({
+            "count": 3, "radius_m": 0.08, "working_distance_m": 0.4,
+            "camera": {"params": serde_json::from_str::<serde_json::Value>(SCENE).unwrap()["cameras"][0]["params"],
+                       "resolution": [1280, 1024]},
+            "lasers": {"radius_m": 0.02, "fan_half_angle": 0.3, "fan_length": 1.0,
+                       "wavelength_nm": 660.0, "beam_waist_m": 0.0005}
+        });
+        let rig = expand_rig(&layout.to_string(), "head").unwrap();
+        assert_eq!(rig.cameras.len(), 3);
+        assert_eq!(rig.lasers[2].camera.as_deref(), Some("head_cam2"));
+        let mut bad = layout;
+        bad["radius_m"] = serde_json::json!(0.0);
+        assert!(matches!(
+            expand_rig(&bad.to_string(), "head"),
+            Err(Error::Invalid { .. })
+        ));
+    }
+
+    #[test]
+    fn each_camera_sees_its_lasers_stripe() {
+        let s = Session::load(
+            include_str!("../../../examples/rig3_laser_ur5e/scene.json"),
+            &robots_json("ur5e"),
+        )
+        .unwrap();
+        let baked = s
+            .bake(include_str!(
+                "../../../examples/rig3_laser_ur5e/scenario.json"
+            ))
+            .unwrap();
+        let k = baked.capture_indices().next().unwrap();
+        let at = |f: &str| {
+            baked.samples[k].world_se3_frame[baked.frames.iter().position(|x| x == f).unwrap()]
+        };
+        for i in 0..3 {
+            let (camera, laser) = (format!("rig_cam{i}"), format!("rig_laser{i}"));
+            let uv = s
+                .laser_stripe(
+                    &camera,
+                    &at(&camera),
+                    &laser,
+                    &at(&laser),
+                    "board",
+                    &at("board"),
+                )
+                .unwrap();
+            let seen = uv.chunks(2).filter(|p| p[0].is_finite()).count();
+            // The board is 200 mm wide; the stripe crosses it at 1 mm spacing.
+            assert!(seen > 100, "{camera}: {seen} stripe points");
+        }
+        assert!(matches!(
+            s.laser_stripe(
+                "rig_cam0",
+                &at("rig_cam0"),
+                "nope",
+                &at("rig_cam0"),
+                "board",
+                &at("board")
+            ),
+            Err(Error::Input(_))
+        ));
+    }
+
+    #[test]
+    fn targets_have_meshes_and_projected_points() {
+        let s = session();
+        let id = s.scene().targets[0].id.clone();
+        let mesh = s.target_mesh(&id).unwrap();
+        assert_eq!(mesh.triangles.len(), mesh.dark.len());
+        assert_eq!(s.target_points(&id).unwrap().len(), 54);
+        let baked = s.bake(SCENARIO).unwrap();
+        let k = baked.capture_indices().next().unwrap();
+        let at = |f: &str| {
+            baked.samples[k].world_se3_frame[baked.frames.iter().position(|x| x == f).unwrap()]
+        };
+        let uv = s
+            .project_target("cam_left", &at("cam_left"), &id, &at(&id))
+            .unwrap();
+        assert_eq!(uv.len(), 108);
+        let seen: Vec<&[f64]> = uv.chunks(2).filter(|p| p[0].is_finite()).collect();
+        assert!(!seen.is_empty(), "the board is in view at a capture");
+        assert!(
+            seen.iter()
+                .all(|p| (-0.5..=1279.5).contains(&p[0]) && (-0.5..=1023.5).contains(&p[1])),
+            "what is seen lands in the image"
+        );
+        let periods: serde_json::Value = serde_json::from_str(&pole_circumferences()).unwrap();
+        assert!(
+            periods
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|p| p["squares"] == 12)
+        );
+    }
+
+    #[test]
+    fn poses_are_generated_around_the_board() {
+        let s = session();
+        let spec = r#"{"type": "sphere", "robot": "ur5e", "look": "rig", "target": "board",
+            "radii_m": [0.5], "theta": {"min_rad": 0.2, "max_rad": 0.5, "steps": 2},
+            "phi": {"min_rad": 0.0, "max_rad": 6.283185307179586, "steps": 6}}"#;
+        let generated = s.generate_poses(spec, 0.01).unwrap();
+        assert_eq!(generated.candidates.len(), 12);
+        let text = serde_json::to_string(&generated.scenario).unwrap();
+        assert!(s.bake(&text).is_ok(), "the generated scenario bakes");
+        assert!(matches!(
+            s.generate_poses(r#"{"type": "sphere"}"#, 0.01),
+            Err(Error::Parse { .. })
         ));
     }
 

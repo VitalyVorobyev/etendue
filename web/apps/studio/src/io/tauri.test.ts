@@ -74,7 +74,8 @@ describe("the Tauri shell", () => {
     const outcome = await generateDataset(
       "run-1",
       {
-        scene: "/s/scene.json",
+        scene: { version: 1 },
+        origin: "/s/scene.json",
         scenario: { version: 1, dt: 0.01, steps: [] },
         output: "/s/out",
         render: false,

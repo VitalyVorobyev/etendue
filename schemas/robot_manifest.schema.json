@@ -85,6 +85,14 @@
           "type": "number",
           "format": "double"
         },
+        "max_jerk": {
+          "description": "Maximum jerk (rad/s³ or m/s³), `> 0`; absent means unlimited (motion\nprofiles are then trapezoidal).",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
         "max_velocity": {
           "description": "Maximum speed (rad/s or m/s), `> 0`.",
           "type": "number",

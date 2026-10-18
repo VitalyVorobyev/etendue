@@ -11,8 +11,8 @@ use std::path::PathBuf;
 use anyhow::{Result, anyhow};
 use etendue_synth::images::{LinearImage, read_exr_combined, remap_image_box};
 use etendue_synth::job::{
-    Device, JOB_VERSION, JobCamera, JobOutput, JobShot, JobSphere, RenderJob, RenderSettings,
-    build_job, row_major,
+    Device, JOB_VERSION, JobCamera, JobOutput, JobShot, JobSphere, OutputKind, RenderJob,
+    RenderSettings, build_job, row_major,
 };
 use etendue_synth::{CanonicalCamera, CanonicalSpec, PixelCentre, remap_lut};
 use nalgebra::{Isometry3, Point2};
@@ -176,7 +176,7 @@ pub fn g4_1(args: &ProbeArgs) -> Result<()> {
                     clip: [0.01, 10.0],
                 },
                 meshes: vec![],
-                boards: vec![],
+                targets: vec![],
                 lights: vec![],
                 spheres: centres
                     .iter()
@@ -194,6 +194,7 @@ pub fn g4_1(args: &ProbeArgs) -> Result<()> {
                     width: canonical.resolution[0],
                     height: canonical.resolution[1],
                     focal_px: canonical.focal_px(),
+                    frame_se3_self: None,
                 }],
                 shots: vec![JobShot {
                     capture: "probe".into(),
@@ -202,8 +203,10 @@ pub fn g4_1(args: &ProbeArgs) -> Result<()> {
                     outputs: vec![JobOutput {
                         camera: name.into(),
                         path: format!("exr/{name}.exr"),
+                        kind: OutputKind::Image,
                     }],
                 }],
+                laser_passes: false,
             };
             let dir = out.join(format!("{name}-{centre:?}").to_lowercase());
             run_blender(&exe, &job, &dir, &crate::console())?;

@@ -40,12 +40,15 @@ const STAGES: Record<Stage, string> = {
 const LOG_LINES = 8;
 
 /** Where a scene's dataset goes by default: `<datasets>/<example>` for the built-in examples
- * (never into `examples/`, which may be read-only), else `dataset/` beside the scene. */
-function defaultOutput(origin: string, data: DataRoot | null): string {
+ * (never into `examples/`, which may be read-only) and for scenes that are not files (dropped,
+ * or new), else `dataset/` beside the scene. */
+function defaultOutput(origin: string | null, label: string, data: DataRoot | null): string {
+  const datasets = data === null ? null : data.datasets.replace(/\/+$/, "");
+  if (origin === null) return datasets === null ? "" : `${datasets}/${label.split("/").at(-1) || "scene"}`;
   const dir = parentDir(origin);
   const examples = data === null ? null : `${data.root.replace(/\/+$/, "")}/examples/`;
-  if (data !== null && examples !== null && dir.startsWith(examples)) {
-    return `${data.datasets.replace(/\/+$/, "")}/${dir.slice(examples.length)}`;
+  if (datasets !== null && examples !== null && dir.startsWith(examples)) {
+    return `${datasets}/${dir.slice(examples.length)}`;
   }
   return `${dir}/dataset`;
 }
@@ -56,30 +59,34 @@ interface Defaults {
   blender: BlenderStatus | null;
 }
 
-/** The defaults for a scene, looked up once per scene. */
-function useDefaults(origin: string | null): Defaults | null {
-  const [found, setFound] = useState<{ origin: string; value: Defaults } | null>(null);
+/** The defaults for a scene, looked up once per scene file (or label, for a scene that is not a file). */
+function useDefaults(origin: string | null, label: string): Defaults | null {
+  const key = origin ?? `label:${label}`;
+  const [found, setFound] = useState<{ key: string; value: Defaults } | null>(null);
   useEffect(() => {
-    if (origin === null) return;
     let live = true;
-    const dir = parentDir(origin);
+    const dir = origin === null ? null : parentDir(origin);
     void Promise.all([
       dataRoot().catch(() => null),
-      pathExists(`${dir}/sensor_linear.json`).catch(() => false),
+      dir === null ? false : pathExists(`${dir}/sensor_linear.json`).catch(() => false),
       blenderStatus(dir).catch(() => null),
     ]).then(([data, sensor, blender]) => {
       if (live) {
         setFound({
-          origin,
-          value: { output: defaultOutput(origin, data), sensor: sensor ? `${dir}/sensor_linear.json` : null, blender },
+          key,
+          value: {
+            output: defaultOutput(origin, label, data),
+            sensor: sensor && dir !== null ? `${dir}/sensor_linear.json` : null,
+            blender,
+          },
         });
       }
     });
     return () => {
       live = false;
     };
-  }, [origin]);
-  return found !== null && found.origin === origin ? found.value : null;
+  }, [key, origin, label]);
+  return found !== null && found.key === key ? found.value : null;
 }
 
 /** Everything the form edits, all optional until the user touches it (defaults fill in). */
@@ -121,8 +128,8 @@ export function DatasetPanel({
   dataset: Dataset | null;
   runner: DatasetRunner;
 }) {
-  const { origin, scenario, scene } = current.loaded;
-  const defaults = useDefaults(origin);
+  const { origin, scenario, scene, label } = current.loaded;
+  const defaults = useDefaults(origin, label);
   const allCameras = (scene.cameras ?? []).map((c) => c.id);
   const [form, setForm] = useState<Form>({
     render: true,
@@ -133,13 +140,6 @@ export function DatasetPanel({
   });
   const { run, failure } = useDatasetRun(runner);
 
-  if (origin === null) {
-    return (
-      <Callout tone="info" title="Open the scene from disk">
-        Dataset generation needs the scene's files: open it with “Open scene…” (dropped files have no path).
-      </Callout>
-    );
-  }
   if (scenario === null) {
     return (
       <Callout tone="info" title="No scenario">
@@ -156,7 +156,8 @@ export function DatasetPanel({
 
   const start = () =>
     runner.start({
-      scene: origin,
+      scene,
+      origin,
       scenario,
       output,
       render: form.render,

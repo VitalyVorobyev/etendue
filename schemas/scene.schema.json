@@ -156,6 +156,42 @@
         "resolution"
       ]
     },
+    "CameraTemplate": {
+      "description": "The camera model of every position of a layout.",
+      "type": "object",
+      "properties": {
+        "params": {
+          "description": "Projection, distortion, sensor and intrinsics.",
+          "$ref": "#/$defs/CameraParams"
+        },
+        "resolution": {
+          "description": "Image size in pixels, `[width, height]`.",
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0
+          },
+          "maxItems": 2,
+          "minItems": 2
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "params",
+        "resolution"
+      ]
+    },
+    "CharucoLayout": {
+      "description": "ChArUco marker placement.",
+      "oneOf": [
+        {
+          "description": "OpenCV's modern layout: markers on the white squares, numbered row by\nrow.",
+          "type": "string",
+          "const": "opencv_charuco"
+        }
+      ]
+    },
     "DistortionParams": {
       "description": "Serializable distortion model parameters.",
       "oneOf": [
@@ -413,6 +449,21 @@
         "parent_se3_self"
       ]
     },
+    "ImageX": {
+      "description": "The direction of a ring camera's image +X.",
+      "oneOf": [
+        {
+          "description": "Along the ring (counter-clockwise seen from +Z).",
+          "type": "string",
+          "const": "tangential"
+        },
+        {
+          "description": "Away from the rig axis.",
+          "type": "string",
+          "const": "radial"
+        }
+      ]
+    },
     "IntrinsicsParams": {
       "description": "Serializable intrinsics parameters.",
       "oneOf": [
@@ -491,6 +542,59 @@
         "translation"
       ]
     },
+    "LaserLayout": {
+      "description": "One line laser per camera.",
+      "type": "object",
+      "properties": {
+        "azimuth_rad": {
+          "description": "Azimuth of laser `i` relative to camera `i`, radians.",
+          "type": "number",
+          "format": "double",
+          "default": 0.0
+        },
+        "beam_waist_m": {
+          "description": "Beam-waist `1/e²` radius at the laser, metres.",
+          "type": "number",
+          "format": "double"
+        },
+        "fan_half_angle": {
+          "description": "Fan half-angle, radians, in `(0, π/2)`.",
+          "type": "number",
+          "format": "double"
+        },
+        "fan_length": {
+          "description": "Fan reach along its central ray, metres.",
+          "type": "number",
+          "format": "double"
+        },
+        "power_w": {
+          "description": "Optical power, watts (`LaserSpec::power_w`).",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "radius_m": {
+          "description": "Distance of each laser from the rig axis, metres.",
+          "type": "number",
+          "format": "double"
+        },
+        "wavelength_nm": {
+          "description": "Wavelength, nanometres.",
+          "type": "number",
+          "format": "double"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "radius_m",
+        "fan_half_angle",
+        "fan_length",
+        "wavelength_nm",
+        "beam_waist_m"
+      ]
+    },
     "LaserSpec": {
       "description": "A line laser: a flat fan with a Gaussian-beam cross-section (the\n`etendue-core` `LaserEntity` parameters).",
       "type": "object",
@@ -499,6 +603,13 @@
           "description": "Beam-waist `1/e²` radius at the laser origin, in metres.",
           "type": "number",
           "format": "double"
+        },
+        "camera": {
+          "description": "The camera that images this laser's line, in a rig with one laser\nper camera: its laser images and laser-plane calibration use this\nlaser only. Lasers that name cameras must name different ones.",
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "fan_half_angle": {
           "description": "Fan half-angle in radians, in `(0, π/2)`.",
@@ -521,6 +632,14 @@
         "parent_se3_self": {
           "description": "Pose of the laser in its parent (maps laser → parent).",
           "$ref": "#/$defs/Iso3Schema"
+        },
+        "power_w": {
+          "description": "Optical power in watts, as the camera responds to it (its spectral\nresponse at the wavelength folded in), spread evenly over the fan's\nangle. Only laser images use it; absent, they take etendue-synth's\ndefault (0.5 mW).",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
         },
         "wavelength_nm": {
           "description": "Emission wavelength in nanometres.",
@@ -661,6 +780,34 @@
         "shape"
       ]
     },
+    "MarkerCircle": {
+      "description": "A marker board circle: on square `(i, j)` (column, row), white or black.",
+      "type": "object",
+      "properties": {
+        "i": {
+          "description": "Square column.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "j": {
+          "description": "Square row.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "polarity": {
+          "description": "Disk colour.",
+          "$ref": "#/$defs/Polarity"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "i",
+        "j",
+        "polarity"
+      ]
+    },
     "PartSpec": {
       "description": "A passive rigid part rendered from a mesh (a fixture, a workpiece).",
       "type": "object",
@@ -690,6 +837,299 @@
         "mesh"
       ]
     },
+    "Polarity": {
+      "description": "A disk's colour.",
+      "oneOf": [
+        {
+          "description": "A white disk on a dark square.",
+          "type": "string",
+          "const": "white"
+        },
+        {
+          "description": "A black disk on a light square.",
+          "type": "string",
+          "const": "black"
+        }
+      ]
+    },
+    "PrintedTarget": {
+      "description": "A target as calib-targets prints it, tagged on `kind`. Sizes are in\nmillimetres, as on the print.\n\nPlanar targets lie in the target frame's `z = 0` plane, centred on its\norigin, facing +Z, the print's top edge at +Y. A PuzzlePole is a cylinder:\nits frame is calib-targets' pole object frame (axis +Z, origin on the axis\nin the plane of axial corner 0, the seam at +X).",
+      "oneOf": [
+        {
+          "description": "A chessboard.",
+          "type": "object",
+          "properties": {
+            "inner_cols": {
+              "description": "Inner corner columns.",
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "inner_rows": {
+              "description": "Inner corner rows.",
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "inner_square_rel": {
+              "description": "White inset in the black squares, as a fraction of the side.",
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "double"
+            },
+            "kind": {
+              "type": "string",
+              "const": "chessboard"
+            },
+            "square_size_mm": {
+              "description": "Square side, mm.",
+              "type": "number",
+              "format": "double"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "inner_rows",
+            "inner_cols",
+            "square_size_mm"
+          ]
+        },
+        {
+          "description": "A ChArUco board.",
+          "type": "object",
+          "properties": {
+            "border_bits": {
+              "description": "Marker border width in bits.",
+              "type": "integer",
+              "format": "uint",
+              "default": 1,
+              "minimum": 0
+            },
+            "cols": {
+              "description": "Square columns.",
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "dictionary": {
+              "description": "ArUco dictionary, e.g. `\"DICT_4X4_50\"`.",
+              "type": "string"
+            },
+            "inner_square_rel": {
+              "description": "White inset in the plain black squares, as a fraction of the side.",
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "double"
+            },
+            "kind": {
+              "type": "string",
+              "const": "charuco"
+            },
+            "marker_layout": {
+              "description": "Marker placement; `opencv_charuco` (OpenCV's modern layout).",
+              "$ref": "#/$defs/CharucoLayout",
+              "default": "opencv_charuco"
+            },
+            "marker_size_rel": {
+              "description": "Marker side as a fraction of the square side.",
+              "type": "number",
+              "format": "double"
+            },
+            "rows": {
+              "description": "Square rows.",
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "square_size_mm": {
+              "description": "Square side, mm.",
+              "type": "number",
+              "format": "double"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "rows",
+            "cols",
+            "square_size_mm",
+            "marker_size_rel",
+            "dictionary"
+          ]
+        },
+        {
+          "description": "A chessboard with three circles that fix its origin and orientation.",
+          "type": "object",
+          "properties": {
+            "circle_diameter_rel": {
+              "description": "Circle diameter as a fraction of the square side.",
+              "type": "number",
+              "format": "double",
+              "default": 0.5
+            },
+            "circles": {
+              "description": "The three circles.",
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/MarkerCircle"
+              },
+              "maxItems": 3,
+              "minItems": 3
+            },
+            "inner_cols": {
+              "description": "Inner corner columns.",
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "inner_rows": {
+              "description": "Inner corner rows.",
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "inner_square_rel": {
+              "description": "White inset in the black squares, as a fraction of the side.",
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "double"
+            },
+            "kind": {
+              "type": "string",
+              "const": "marker_board"
+            },
+            "square_size_mm": {
+              "description": "Square side, mm.",
+              "type": "number",
+              "format": "double"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "inner_rows",
+            "inner_cols",
+            "square_size_mm",
+            "circles"
+          ]
+        },
+        {
+          "description": "A PuzzleBoard: a chessboard whose edge dots make every corner\nself-identifying.",
+          "type": "object",
+          "properties": {
+            "cols": {
+              "description": "Square columns.",
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "dot_diameter_rel": {
+              "description": "Edge-dot diameter as a fraction of the square side.",
+              "type": "number",
+              "format": "double",
+              "default": 0.3333333333333333
+            },
+            "kind": {
+              "type": "string",
+              "const": "puzzle_board"
+            },
+            "origin_col": {
+              "description": "Master column of the board's first square.",
+              "type": "integer",
+              "format": "uint32",
+              "default": 0,
+              "minimum": 0
+            },
+            "origin_row": {
+              "description": "Master row of the board's first square.",
+              "type": "integer",
+              "format": "uint32",
+              "default": 0,
+              "minimum": 0
+            },
+            "rows": {
+              "description": "Square rows.",
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "square_size_mm": {
+              "description": "Square side, mm.",
+              "type": "number",
+              "format": "double"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "rows",
+            "cols",
+            "square_size_mm"
+          ]
+        },
+        {
+          "description": "A PuzzlePole: a PuzzleBoard strip wrapped around a cylinder of\ncircumference `circumference_squares × square_size_mm`.",
+          "type": "object",
+          "properties": {
+            "axial_squares": {
+              "description": "Squares along the cylinder axis.",
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "axial_start_col": {
+              "description": "Master column the strip is cut from.",
+              "type": "integer",
+              "format": "uint32",
+              "default": 0,
+              "minimum": 0
+            },
+            "circumference_squares": {
+              "description": "Squares around the circumference: a supported period (12, 18,\n24, 30, 36 or 42).",
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "dot_diameter_rel": {
+              "description": "Edge-dot diameter as a fraction of the square side.",
+              "type": "number",
+              "format": "double",
+              "default": 0.3333333333333333
+            },
+            "kind": {
+              "type": "string",
+              "const": "puzzlepole"
+            },
+            "square_size_mm": {
+              "description": "Square side, mm.",
+              "type": "number",
+              "format": "double"
+            },
+            "start_row": {
+              "description": "Master row the strip is cut from (the seam); must match the\nperiod (see calib-targets `PuzzlePolePeriod`).",
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "circumference_squares",
+            "start_row",
+            "axial_squares",
+            "square_size_mm"
+          ]
+        }
+      ]
+    },
     "ProjectionParams": {
       "description": "Serializable projection model parameters.",
       "oneOf": [
@@ -708,6 +1148,69 @@
         }
       ]
     },
+    "RigLayout": {
+      "description": "How a rig's cameras (and lasers) are laid out.",
+      "type": "object",
+      "properties": {
+        "camera": {
+          "description": "The camera every position gets.",
+          "$ref": "#/$defs/CameraTemplate"
+        },
+        "count": {
+          "description": "Number of cameras: 1 (mono), 2 (stereo), 3, 6, …",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "image_x": {
+          "description": "Which way each camera's image +X points.",
+          "$ref": "#/$defs/ImageX",
+          "default": "tangential"
+        },
+        "lasers": {
+          "description": "One laser per camera, if any.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LaserLayout"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "phase_rad": {
+          "description": "Azimuth of camera 0 about the rig axis, radians.",
+          "type": "number",
+          "format": "double",
+          "default": 0.0
+        },
+        "radius_m": {
+          "description": "Distance of each camera from the rig axis, metres (`0` only for one\ncamera).",
+          "type": "number",
+          "format": "double"
+        },
+        "tilt_rad": {
+          "description": "Angle between each camera's axis and the rig axis, radians; default\n`atan(radius / working_distance)`.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "working_distance_m": {
+          "description": "Where the camera axes meet the rig axis (with the default tilt), and\nwhere the lasers aim: `(0, 0, working_distance_m)` in the rig frame.",
+          "type": "number",
+          "format": "double"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "count",
+        "radius_m",
+        "working_distance_m",
+        "camera"
+      ]
+    },
     "RigSpec": {
       "description": "A rigid mount that groups cameras (and optionally lasers). Cameras attach\nto it with `parent_se3_self = rig_se3_cam`, the direction of calibration-rs\n`DeviceSpec` `rig_se3_cam`.",
       "type": "object",
@@ -715,6 +1218,17 @@
         "id": {
           "description": "Unique id.",
           "type": "string"
+        },
+        "layout": {
+          "description": "The layout its cameras and lasers were made from, kept so it can be\nedited again (`RigLayout::expand`). The cameras and lasers are the\nsource of truth; this is not checked against them.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RigLayout"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "parent": {
           "description": "Parent frame (e.g. `\"world\"` or `\"<robot>/tool0\"` for eye-in-hand).",
@@ -864,6 +1378,25 @@
           "required": [
             "type",
             "board"
+          ]
+        },
+        {
+          "description": "A target as calib-targets prints it — chessboard, ChArUco, marker\nboard, PuzzleBoard, or the PuzzlePole cylinder — with its print\nparameters (millimetres). Unlike `board`, every kind is drawn,\nground-truthed and detected; only those calibration-rs takes go into\na calibration dataset.",
+          "type": "object",
+          "properties": {
+            "target": {
+              "description": "The print.",
+              "$ref": "#/$defs/PrintedTarget"
+            },
+            "type": {
+              "type": "string",
+              "const": "printed"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "target"
           ]
         },
         {

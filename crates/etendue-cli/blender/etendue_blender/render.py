@@ -7,8 +7,11 @@ Reads a render job written by ``etendue render`` (etendue-synth ``job``), builds
 the scene once, and for every shot poses every object and renders each
 requested camera: the **canonical pinhole** of ADR 0004 (square pixels,
 centred principal point, no distortion), with Cycles, as multilayer linear EXR
-(Combined, Depth, IndexOB). Remapping onto the calibrated camera, exposure,
-noise and quantisation all happen in Rust.
+(Combined, Depth, IndexOB; with ``laser_passes`` also Normal and Diffuse Color,
+which laser images are composited from). Outputs of kind ``depth`` are laser
+views, rendered with one sample: only their Depth is read. Remapping onto the
+calibrated camera, exposure, noise, quantisation and the laser stripes all
+happen in Rust.
 
 Only ``bpy`` and the standard library; no camera-model math. Frame conventions
 live in ``convert.py``.
@@ -26,7 +29,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import convert  # noqa: E402
 
 SENSOR_WIDTH_MM = 36.0
-JOB_VERSION = 2
+JOB_VERSION = 4
 
 
 def mat(m):
@@ -85,6 +88,9 @@ def setup_render(job, out_dir):
     layer = sc.view_layers[0]
     layer.use_pass_z = True
     layer.use_pass_object_index = True
+    if job.get("laser_passes"):
+        layer.use_pass_normal = True
+        layer.use_pass_diffuse_color = True
     # World: the job's ambient radiance (uniform white environment), 0 for none.
     world = bpy.data.worlds.new("etendue")
     world.use_nodes = True
@@ -116,20 +122,21 @@ def import_mesh(entry, robot_material):
     return root
 
 
-def board(entry, light_mat, dark_mat):
-    """A board in its frame's z = 0 plane, facing +Z: one quad per cell (etendue-synth
-    `target_cells`, the pattern calib-targets prints), ink or paper. The cells tile the
-    board without overlap, so no two faces are coplanar over the same area."""
+def target(entry, light_mat, dark_mat):
+    """A target surface in its frame: the triangles of etendue-synth's target mesh (the
+    pattern calib-targets prints, on a plane or the PuzzlePole's cylinder), ink or paper.
+    The base cells tile the surface without overlap and disks sit just above it, so no two
+    faces are coplanar over the same area."""
     import bmesh
 
     bm = bmesh.new()
-    for cell in entry["cells"]:
-        x0, y0, x1, y1 = cell["rect"]
-        verts = [bm.verts.new(p) for p in ((x0, y0, 0), (x1, y0, 0), (x1, y1, 0), (x0, y1, 0))]
-        face = bm.faces.new(verts)
-        face.material_index = 1 if cell["dark"] else 0
-    # The cells share whole edges (no T-junctions); welding their corners makes the surface
-    # watertight, so no ray passes between two cells.
+    verts = [bm.verts.new(p) for p in entry["positions"]]
+    for tri, dark in zip(entry["triangles"], entry["dark"]):
+        face = bm.faces.new([verts[i] for i in tri])
+        face.material_index = 1 if dark else 0
+    # Neighbouring cells share whole edges (no T-junctions); welding their corners makes the
+    # surface watertight, so no ray passes between two cells. Disks are lifted 10 µm, far
+    # beyond the weld distance.
     bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-9)
     mesh = bpy.data.meshes.new(entry["id"])
     bm.to_mesh(mesh)
@@ -232,8 +239,8 @@ def main():
     posed = []  # (object, frame, needs_emitter_flip)
     for m in job.get("meshes", []):
         posed.append((import_mesh(m, robot_mat), m["frame"], False))
-    for b in job.get("boards", []):
-        posed.append((board(b, light_mat, dark_mat), b["frame"], False))
+    for t in job.get("targets", []):
+        posed.append((target(t, light_mat, dark_mat), t["frame"], False))
     for l in job.get("lights", []):
         obj, flip = light(l)
         posed.append((obj, l["frame"], flip))
@@ -242,6 +249,7 @@ def main():
     clip = tuple(job["render"].get("clip", (0.01, 50.0)))
     cams = {c["id"]: (camera(c, clip), c) for c in job["cameras"]}
 
+    samples = sc.cycles.samples
     for shot in job["shots"]:
         poses = {name: convert.from_row_major(m) for name, m in shot["poses"].items()}
         for obj, frame, flip in posed:
@@ -249,10 +257,13 @@ def main():
             obj.matrix_world = mat(pose)
         for out in shot["outputs"]:
             obj, spec = cams[out["camera"]]
-            obj.matrix_world = mat(convert.camera_matrix(poses[spec["frame"]]))
+            offset = spec.get("frame_se3_self")
+            offset = convert.from_row_major(offset) if offset is not None else None
+            obj.matrix_world = mat(convert.camera_matrix(poses[spec["frame"]], offset))
             sc.camera = obj
             sc.render.resolution_x, sc.render.resolution_y = spec["width"], spec["height"]
             sc.render.filepath = os.path.join(out_dir, out["path"])
+            sc.cycles.samples = 1 if out.get("kind") == "depth" else samples
             bpy.ops.render.render(write_still=True)
             print(f"etendue: rendered {out['path']}", flush=True)
 

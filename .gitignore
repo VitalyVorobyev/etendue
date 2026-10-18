@@ -20,6 +20,9 @@ book/book/
 # byte-identically from the pinned upstream SHAs. robot.urdf, robot.json and
 # LICENSE are committed.
 assets/robots/*/meshes/
+# Robots without a redistribution licence (tools/robot-assets, distribution = "local").
+assets/robots-local/
+tools/fixtures/fk-local/
 # Local state of the robot asset pipeline (uv venv, pinned upstream checkouts)
 tools/robot-assets/.venv/
 # The closed-loop tool's uv venv

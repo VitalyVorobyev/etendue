@@ -66,6 +66,11 @@ export interface ManifestJoint {
    */
   max_acceleration: number;
   /**
+   * Maximum jerk (rad/s³ or m/s³), `> 0`; absent means unlimited (motion
+   * profiles are then trapezoidal).
+   */
+  max_jerk?: number | null;
+  /**
    * Maximum speed (rad/s or m/s), `> 0`.
    */
   max_velocity: number;

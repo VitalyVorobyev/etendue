@@ -55,9 +55,16 @@ Rendering needs [Blender 5.1.1](https://www.blender.org/download/releases/5-1/).
 for it in `$ETENDUE_BLENDER`, then in the default install location (`/Applications/Blender.app`
 on macOS, `blender` on the `PATH` elsewhere). Everything else works without it.
 
-To build from source instead, see the
-[installation chapter](https://vitalyvorobyev.github.io/etendue/installation.html) of the
-documentation.
+To build and run from source (Rust, Node.js, bun, wasm-pack and uv; calibration-rs checked out
+next to etendue):
+
+```bash
+cargo app            # build and run the desktop app (debug) from the checkout
+cargo app-release    # build the release app and installers, in web/apps/studio/src-tauri/target/release/bundle
+```
+
+The [installation chapter](https://vitalyvorobyev.github.io/etendue/installation.html#from-source)
+of the documentation has the prerequisites and the command line.
 
 ## Quick start: the studio
 
@@ -87,7 +94,7 @@ etendue scenario from-poses poses.json --robot ur5e -o scenario.json --scene sce
 |---|---|
 | `examples/eye_in_hand_ur5e` | A stereo rig on a UR5e's flange views a chessboard on the table. |
 | `examples/eye_to_hand_ur5e` | A static stereo rig views a chessboard held by the UR5e. |
-| `examples/closed_loop_ur5e` | A rig mounted off square, 20 viewpoints for a hand-eye calibration, and a linear sensor model. |
+| `examples/closed_loop_ur5e` | A rig mounted off square, 24 generated viewpoints for a hand-eye calibration, and a linear sensor model. |
 | `examples/laser_ur5e` | The same rig with a line laser: a laser-plane calibration dataset. |
 | `examples/laser_scheimpflug_ur5e` | The laser rig with Scheimpflug-tilted sensors. |
 

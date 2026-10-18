@@ -1,4 +1,4 @@
-import type { EtendueScene, SceneSpec } from "@etendue/wasm";
+import type { Candidate, EtendueScene, SceneSpec } from "@etendue/wasm";
 import { type FrameTreeRuntime, type LightShapeLike, imageBorderPixels } from "@vitavision/three";
 import {
   AtFrame,
@@ -9,14 +9,14 @@ import {
   LightGizmo,
   Robot,
   SceneCanvas,
-  TargetBoard,
 } from "@vitavision/three-react";
 import type { Playhead } from "@vitavision/workbench";
 import { useMemo } from "react";
 
 import type { LoadedRobot } from "../io/load";
 import type { Baked } from "../kernel/etendue";
-import { checkerOf } from "../scene/targets";
+import { CandidateGlyphs } from "../scene/CandidateGlyphs";
+import { TargetSurface } from "../scene/TargetSurface";
 
 /** Border rays of every camera, from the kernel's back-projection (distortion included). */
 function useBorderRays(session: EtendueScene, scene: SceneSpec): Map<string, Float64Array> {
@@ -44,20 +44,19 @@ export function Viewport({
   selected,
   onSelect,
   onRuntime,
+  candidates,
 }: {
   current: Baked;
   playhead: Playhead;
   selected: string | null;
   onSelect: (id: string | null) => void;
   onRuntime: (runtime: FrameTreeRuntime) => void;
+  /** Generated candidate poses to show, if any. */
+  candidates?: readonly Candidate[] | null | undefined;
 }) {
   const { loaded, session, baked } = current;
   const { scene } = loaded;
   const rays = useBorderRays(session, scene);
-  const extents = useMemo(
-    () => new Map((scene.targets ?? []).map((t) => [t.id, session.targetExtent(t.id)])),
-    [session, scene],
-  );
   const selectedFrame = selected !== null && baked.frames.includes(selected) ? selected : null;
 
   return (
@@ -102,24 +101,17 @@ export function Viewport({
             <LightGizmo shape={l.shape as LightShapeLike} onSelect={() => onSelect(l.id)} />
           </AtFrame>
         ))}
-        {(scene.targets ?? []).map((t) => {
-          const extent = extents.get(t.id);
-          return (
-            <AtFrame key={t.id} name={t.id}>
-              {extent ? (
-                <TargetBoard
-                  width={extent[0]}
-                  height={extent[1]}
-                  checker={checkerOf(t) ?? undefined}
-                  active={selected === t.id}
-                  onSelect={() => onSelect(t.id)}
-                />
-              ) : (
-                <FrameAxes size={0.05} />
-              )}
-            </AtFrame>
-          );
-        })}
+        {(scene.targets ?? []).map((t) => (
+          <AtFrame key={t.id} name={t.id}>
+            <TargetSurface session={session} target={t} onSelect={() => onSelect(t.id)} />
+            {selected === t.id && <FrameAxes size={0.06} />}
+          </AtFrame>
+        ))}
+        {candidates && candidates.length > 0 && (
+          <AtFrame name="world">
+            <CandidateGlyphs candidates={candidates} />
+          </AtFrame>
+        )}
         {selectedFrame && (
           <AtFrame name={selectedFrame}>
             <FrameAxes size={0.1} />

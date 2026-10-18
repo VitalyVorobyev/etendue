@@ -55,7 +55,7 @@ pub fn write(loaded: &Loaded, baked: &BakedScenario, output: &Path) -> Result<Gt
         .map_err(|e| anyhow!("target `{}`: {e}", target.id))?
         .ok_or_else(|| {
             anyhow!(
-                "target `{}`: ground truth needs a chessboard or ChArUco board",
+                "target `{}`: ground truth needs a printed target (calib-targets)",
                 target.id
             )
         })?
@@ -77,10 +77,14 @@ pub fn write(loaded: &Loaded, baked: &BakedScenario, output: &Path) -> Result<Gt
         let path = output.join(name);
         std::fs::write(&path, text + "\n").with_context(|| format!("writing {}", path.display()))
     };
-    write(
-        "dataset.json",
-        serde_json::to_string_pretty(&bundle.dataset)?,
-    )?;
+    // A target calibration-rs does not take yet has ground truth but no dataset.
+    let dataset = output.join("dataset.json");
+    match &bundle.dataset {
+        Some(d) => write("dataset.json", serde_json::to_string_pretty(d)?)?,
+        None if dataset.is_file() => std::fs::remove_file(&dataset)
+            .with_context(|| format!("removing {}", dataset.display()))?,
+        None => {}
+    }
     if let Some(poses) = &bundle.robot_poses {
         write("robot_poses.json", serde_json::to_string_pretty(poses)?)?;
     }

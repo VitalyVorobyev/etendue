@@ -18,6 +18,9 @@ calibration datasets with exact ground truth. The 0.1.0 desktop app is replaced 
   render and board detection in one run, with progress and cancel. It carries the examples and
   the robot library. The same studio runs in a browser (without dataset generation) when built
   from source.
+- **`cargo app` and `cargo app-release`**: build and run the desktop app (debug) from a source
+  checkout, or build its release app and installers, in one command each (robot meshes, wasm
+  kernel and web packages first).
 - **Scene and scenario documents**: a versioned JSON scene (a frame tree of robots, rigs, cameras,
   line lasers, lights, calibration boards and parts) and scenario (`ptp_joints`, `ptp_pose`, `lin`,
   `wait` and `capture` steps), with JSON Schemas in `schemas/`. Cameras use calibration-rs camera
@@ -34,8 +37,8 @@ calibration datasets with exact ground truth. The 0.1.0 desktop app is replaced 
   - `render`: Blender (Cycles) renders through an ideal pinhole, resampled exactly onto each
     camera's model, with optional supersampling and a sensor model (exposure, noise,
     quantisation, raw output);
-  - `detect`: chessboard detection (chess-corners' Radon detector, calib-targets' labelling),
-    checked against the ground truth;
+  - `detect`: target detection (chess-corners' Radon corners, calib-targets' detectors for
+    every target kind), checked against the ground truth;
   - `scenario from-poses`: a stop-and-shoot scenario from tool poses.
 - **Examples**: eye-in-hand and eye-to-hand UR5e cells, a hand-eye calibration cell, and
   laser-line cells with plain and Scheimpflug sensors.
@@ -43,17 +46,73 @@ calibration datasets with exact ground truth. The 0.1.0 desktop app is replaced 
   browser.
 - **Rust crates**: `etendue-scene`, `etendue-kinematics`, `etendue-synth`, and the `etendue_cli`
   pipeline library.
+- **Robots**: the igus ReBeL 6DOF joins the library; the FAIRINO FR5 can be built locally (its
+  description has no licence, so it is never committed or shipped). Every joint has a jerk limit
+  (`max_jerk`, with its provenance). `tools/robot-assets/build.py` reads STL meshes, adds missing
+  tool frames (`[[robot.frames]]`), and builds local-only robots with `--include-local`; the book
+  has a recipe for adding a robot. The studio adds and removes library robots.
+- **Feasible, jerk-limited motion**: every PTP and LIN move is time-optimal under the joints'
+  velocity, acceleration and jerk limits (Ruckig, via `rsruckig`); PTP moves are straight in joint
+  space. A `ptp_pose` can store its joint configuration (`q`) so a bake never switches IK branch;
+  `resolve` stores them all. A motion report gives each step's limit use, joint-limit margin,
+  singularity margin and warnings (`motion_report.schema.json`). `etendue export` writes the
+  capture poses (CSV or JSON, `captures.schema.json`), the timed joint trajectory (CSV), the
+  report and the resolved scenario; `etendue bake --derivatives` records joint velocities and
+  accelerations. The studio's Motion workspace shows the report, charts velocity and acceleration
+  against the limits, resolves IK, and exports all of it.
+- **Rig layouts**: mono, stereo and ring rigs (`RigSpec.layout`): N cameras around the rig axis
+  converging on a working point at a tunable tilt, optionally with one line laser per camera
+  (`LaserSpec.camera`). Datasets then give every camera its own laser plane (rig hand-eye
+  laserline with per-camera planes). The studio's rig builder lays a rig out live;
+  `expandRig` in `@etendue/wasm`.
+- **Every calib-targets target**: `printed` targets — chessboard, ChArUco, marker board,
+  PuzzleBoard and the PuzzlePole cylinder — drawn from one triangle mesh in the studio and in
+  Blender (render job version 3), with exact ground truth (3-D points and normals on the pole) and
+  laser stripes on the cylinder. `dataset.json` is written for the targets calibration-rs takes.
+  The studio's target editor sets any kind and its print parameters; `@etendue/wasm` has
+  `targetMesh`, `targetPoints`, `projectTarget` and `poleCircumferences`.
+- **Detection for every target**: `etendue detect` takes the target from `gt.json` (no
+  `dataset.json` needed) and labels chessboards, ChArUco boards (by id), marker boards (by their
+  circles), PuzzleBoards (by master id) and PuzzlePoles (by pole id), every label checked against
+  the ground truth; `features.json` records the target `kind` and why a view failed. Gate G4.4
+  (`docs/measurements/g4_4_targets.md`) characterises it per kind.
+- **Laser images**: `etendue render` writes `<capture>_laser.png` for every camera that images a
+  laser. The stripe is composited in Rust from the render's depth, normal and albedo passes, with
+  a Gaussian beam, Lambertian reflection and shadows from depth views at the laser. New
+  `LaserSpec.power_w` and `--laser-ambient`. The render job is version 4. The studio's camera
+  views draw each camera's laser stripes. `etendue detect` extracts the stripes into
+  `laser_features.json`, with the stripe's width against the beam's, and `closed_loop.py
+  --features` calibrates a laser rig from detected corners and stripes. `gt.json` (version 3)
+  gives the beam's diameter at every stripe point (`width_m`).
+- **Sphere pose generator**: eye-in-hand calibration poses on spheres around a target (radii,
+  polar and azimuth steps, rolls), kept when the robot reaches them with joint and singularity
+  margins and every camera sees the target, ordered into a short tour and pinned to their joint
+  configurations (`etendue scenario sphere`, `generatePoses` in `@etendue/wasm`, the studio's
+  Motion workspace with the candidates drawn in 3D). The scenario keeps its `generator` spec. New
+  example `rig3_laser_ur5e`: a three-camera, three-laser ring made with the rig builder and the
+  generator. `closed_loop_ur5e`, `laser_ur5e` and `laser_scheimpflug_ur5e` now use 24 generated
+  viewpoints (were 20); `tools/closed-loop/make_scenario.py` is removed. G5.1 and G5.3 still
+  pass.
+- **Studio editing**: Setup, Motion, Images and Dataset workspaces; every entity's parent, pose
+  and parameters are editable, entities can be added and removed, and edits bake at once with
+  undo and redo. Save and Save As (robot manifest paths follow the scene), export of the scenario
+  and the baked motion, and datasets generated from the scene as edited (written into the
+  dataset as `scene.json`). `EtendueScene.updateScene` in `@etendue/wasm` replaces a session's
+  scene without re-parsing its robots.
 
 ### Changed
 
 - calibration-rs 0.9.0.
+- calib-targets 0.15.5: ChArUco and marker boards turned past 45° in the image are labelled
+  correctly (they were one square off).
 - `etendue-core`'s Scheimpflug design solver is behind the `solver` feature.
 
 ### Removed
 
 - The 0.1.0 egui desktop app (`etendue-ui`). Its optics — defocus, Scheimpflug plane of best
-  focus, laser line, working volume, the Scheimpflug solver and symmetric rigs — remain in
-  `etendue-core`; bringing its heatmap and design panels to the studio is planned.
+  focus, laser line, working volume and the Scheimpflug solver — remain in `etendue-core`;
+  bringing its heatmap and design panels to the studio is planned.
+- `etendue-core`'s `Scene::triangulation_ring`: rig layouts (`RigSpec.layout`) build rings.
 
 ## [0.1.0] - 2026-05-20
 

@@ -19,9 +19,9 @@ use anyhow::{Context, Result, anyhow};
 use clap::{Parser, Subcommand};
 use etendue_cli::progress::{self, Control};
 use etendue_cli::render::{Blender, RenderOptions};
-use etendue_cli::{bake_file, detect, gt, load, poses, read_json, render};
-use etendue_kinematics::{RobotModel, compile};
-use etendue_scene::{ScenarioSpec, SceneSpec};
+use etendue_cli::{bake_file, detect, export, gt, load, poses, read_json, render};
+use etendue_kinematics::{BakeOptions, RobotModel, compile};
+use etendue_scene::{GeneratorSpec, ScenarioSpec, SceneSpec};
 use etendue_synth::sensor::SensorModel;
 
 mod corners;
@@ -61,6 +61,34 @@ enum Command {
         /// Indent the JSON output.
         #[arg(long)]
         pretty: bool,
+        /// Also record joint velocities and accelerations in every sample.
+        #[arg(long)]
+        derivatives: bool,
+    },
+    /// Export a scenario's motion: the tool pose and joints at every capture
+    /// (CSV or JSON), the timed joint trajectory (CSV), the motion report
+    /// (limit use, joint margins, singularities), and the scenario with every
+    /// IK solution stored.
+    Export {
+        /// Scene file.
+        scene: PathBuf,
+        /// Scenario file.
+        scenario: PathBuf,
+        /// The robot to export (default: the scene's only robot).
+        #[arg(long)]
+        robot: Option<String>,
+        /// Tool pose and joints at every capture (`.csv` or `.json`).
+        #[arg(long)]
+        captures: Option<PathBuf>,
+        /// Timed joint trajectory: positions, velocities, accelerations (`.csv`).
+        #[arg(long)]
+        trajectory: Option<PathBuf>,
+        /// Motion report (`.json`).
+        #[arg(long)]
+        report: Option<PathBuf>,
+        /// The scenario with every `ptp_pose`'s joint configuration stored (`.json`).
+        #[arg(long)]
+        resolved: Option<PathBuf>,
     },
     /// Write the analytic ground truth of a scenario: `dataset.json`
     /// (calibration-rs `DatasetSpec`), `robot_poses.json` and `gt.json`. The
@@ -74,12 +102,12 @@ enum Command {
         #[arg(short, long)]
         output: PathBuf,
     },
-    /// Detect the chessboard in a rendered dataset (`etendue gt` plus
-    /// `etendue render` in one directory) and write `features.json`: the
-    /// detected pixel of each board point per view, checked against the
-    /// analytic ground truth.
+    /// Detect the target (any calib-targets kind) in a rendered dataset
+    /// (`etendue gt` plus `etendue render` in one directory) and write
+    /// `features.json`: the detected pixel of each target point per view,
+    /// checked against the analytic ground truth.
     Detect {
-        /// Dataset directory (dataset.json, gt.json, images/).
+        /// Dataset directory (gt.json, images/).
         dir: PathBuf,
     },
     /// Build scenarios.
@@ -118,6 +146,9 @@ enum Command {
         /// Radiance of a uniform white environment (0 = scene lights only).
         #[arg(long, default_value_t = render::DEFAULT_AMBIENT)]
         ambient: f64,
+        /// Laser images: the fraction of the scene's light left on with the laser.
+        #[arg(long, default_value_t = render::DEFAULT_LASER_AMBIENT)]
+        laser_ambient: f32,
         /// Blender executable (default: $ETENDUE_BLENDER, then the platform default).
         #[arg(long)]
         blender: Option<PathBuf>,
@@ -188,6 +219,27 @@ enum ScenarioCommand {
         /// Check the scenario against this scene (IK reachability, limits).
         #[arg(long)]
         scene: Option<PathBuf>,
+    },
+    /// Calibration poses on spheres around a target: the sensor (a frame the
+    /// robot's tool carries) at every radius, polar angle and azimuth of the
+    /// spec, looking at the centre; kept when the robot reaches it and every
+    /// camera sees the target, then ordered into a short stop-and-shoot tour.
+    Sphere {
+        /// Scene file.
+        scene: PathBuf,
+        /// Generator spec (JSON, `{"type": "sphere", …}`), or a scenario with a `generator`, to
+        /// regenerate it.
+        #[arg(long)]
+        spec: PathBuf,
+        /// Output scenario file.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Also write every candidate and why it was kept or not.
+        #[arg(long)]
+        candidates: Option<PathBuf>,
+        /// Baking sample period, seconds.
+        #[arg(long, default_value_t = 0.01)]
+        dt: f64,
     },
 }
 
@@ -273,8 +325,9 @@ fn run(cli: Cli) -> Result<()> {
             scenario,
             output,
             pretty,
+            derivatives,
         } => {
-            let baked = bake_file(&load(&scene)?, &scenario)?;
+            let baked = bake_file(&load(&scene)?, &scenario, BakeOptions { derivatives })?;
             let text = if pretty {
                 serde_json::to_string_pretty(&baked)?
             } else {
@@ -294,13 +347,36 @@ fn run(cli: Cli) -> Result<()> {
             );
             Ok(())
         }
+        Command::Export {
+            scene,
+            scenario,
+            robot,
+            captures,
+            trajectory,
+            report,
+            resolved,
+        } => {
+            let loaded = load(&scene)?;
+            let spec: ScenarioSpec = read_json(&scenario, "scenario")?;
+            let options = export::ExportOptions {
+                robot,
+                captures,
+                trajectory,
+                report,
+                resolved,
+            };
+            for line in export::run(&loaded, &spec, &options)? {
+                println!("{line}");
+            }
+            Ok(())
+        }
         Command::Gt {
             scene,
             scenario,
             output,
         } => {
             let loaded = load(&scene)?;
-            let baked = bake_file(&loaded, &scenario)?;
+            let baked = bake_file(&loaded, &scenario, BakeOptions::default())?;
             let summary = gt::write(&loaded, &baked, &output)?;
             println!("{summary} → {}", output.display());
             Ok(())
@@ -311,6 +387,14 @@ fn run(cli: Cli) -> Result<()> {
                 println!("{line}");
             }
             println!("features → {}", dir.join("features.json").display());
+            let lasers = dir.join(detect::LASER_FEATURES);
+            if lasers.is_file() {
+                let stripes: detect::laser::LaserFeatures = read_json(&lasers, "laser features")?;
+                for line in detect::laser::summary_table(&stripes) {
+                    println!("{line}");
+                }
+                println!("laser stripes → {}", lasers.display());
+            }
             Ok(())
         }
         Command::Scenario {
@@ -342,6 +426,53 @@ fn run(cli: Cli) -> Result<()> {
             println!("{} capture(s) → {}", spec.steps.len() / 2, output.display());
             Ok(())
         }
+        Command::Scenario {
+            command:
+                ScenarioCommand::Sphere {
+                    scene,
+                    spec,
+                    output,
+                    candidates,
+                    dt,
+                },
+        } => {
+            let (scene_spec, models) = load_scene(&scene)?;
+            // A generator spec, or a scenario that keeps one (to regenerate it).
+            let mut json: serde_json::Value = read_json(&spec, "generator spec")?;
+            if let Some(generator) = json.get_mut("generator") {
+                json = generator.take();
+            }
+            let GeneratorSpec::Sphere(sphere) = serde_json::from_value(json)
+                .with_context(|| format!("generator spec {}", spec.display()))?;
+            let generated = etendue_synth::poses::generate(&scene_spec, &models, &sphere, dt)
+                .with_context(|| format!("generator {}", spec.display()))?;
+            let trajectory = compile(&scene_spec, &generated.scenario, &models)
+                .map_err(|e| anyhow!("the generated scenario: {e}"))?;
+            let kept = generated
+                .candidates
+                .iter()
+                .filter(|c| c.capture.is_some())
+                .count();
+            std::fs::write(
+                &output,
+                serde_json::to_string_pretty(&generated.scenario)? + "\n",
+            )
+            .with_context(|| format!("writing {}", output.display()))?;
+            if let Some(path) = candidates {
+                std::fs::write(
+                    &path,
+                    serde_json::to_string_pretty(&generated.candidates)? + "\n",
+                )
+                .with_context(|| format!("writing {}", path.display()))?;
+            }
+            println!(
+                "{kept} of {} candidate poses kept, {:.2} s of motion → {}",
+                generated.candidates.len(),
+                (trajectory.samples.len() - 1) as f64 * trajectory.dt,
+                output.display()
+            );
+            Ok(())
+        }
         Command::Render {
             scene,
             scenario,
@@ -353,6 +484,7 @@ fn run(cli: Cli) -> Result<()> {
             supersample,
             exposure,
             ambient,
+            laser_ambient,
             blender,
             allow_blender_version,
             cameras,
@@ -364,7 +496,7 @@ fn run(cli: Cli) -> Result<()> {
                 None => None,
             };
             let loaded = load(&scene)?;
-            let baked = bake_file(&loaded, &scenario)?;
+            let baked = bake_file(&loaded, &scenario, BakeOptions::default())?;
             let blender = checked_blender(blender.as_deref(), allow_blender_version, &loaded.dir)?;
             render::run(
                 &loaded,
@@ -380,6 +512,7 @@ fn run(cli: Cli) -> Result<()> {
                     ambient,
                     cameras,
                     sensor,
+                    laser_ambient,
                 },
                 &console(),
             )?;
@@ -407,7 +540,7 @@ fn run(cli: Cli) -> Result<()> {
                 Gate::G42 => corners::g4_2(&args),
                 Gate::P45 => {
                     let loaded = load(&scene)?;
-                    let baked = bake_file(&loaded, &scenario)?;
+                    let baked = bake_file(&loaded, &scenario, BakeOptions::default())?;
                     measure::determinism(&loaded, &baked, &args)
                 }
             }

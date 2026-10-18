@@ -43,9 +43,9 @@ need [uv](https://docs.astral.sh/uv/) ≥ 0.13.
 ```bash
 node crates/etendue-wasm/scripts/build-npm.mjs     # @etendue/wasm → crates/etendue-wasm/pkg
 cd web && bun install && bun run dev               # the studio in a browser, http://localhost:5178
-cd web/apps/studio && bun run desktop:dev          # the desktop app, reading this checkout
 uv run --locked --project tools/robot-assets tools/robot-assets/build.py   # robot meshes (git-ignored)
-cd web/apps/studio && bun run desktop:build        # a release bundle (needs the meshes)
+cargo app                                          # the desktop app (debug), reading this checkout
+cargo app-release                                  # the release bundles (xtask/src/app.rs; meshes, wasm, bun first)
 ```
 
 ## Checks

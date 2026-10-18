@@ -48,8 +48,13 @@ CV_TO_BLENDER = rot_x(math.pi)
 GLTF_IMPORT_UNDO = rot_x(-math.pi / 2)
 
 
-def camera_matrix(world_se3_cv):
-    """``matrix_world`` of a Blender camera that sees what a CV camera at ``world_se3_cv`` sees."""
+def camera_matrix(world_se3_cv, frame_se3_cv=None):
+    """``matrix_world`` of a Blender camera that sees what a CV camera at ``world_se3_cv`` sees.
+
+    With ``frame_se3_cv``, ``world_se3_cv`` is the pose of the frame the camera is offset in (a
+    laser view in its laser's frame, job v4)."""
+    if frame_se3_cv is not None:
+        world_se3_cv = matmul(world_se3_cv, frame_se3_cv)
     return matmul(world_se3_cv, CV_TO_BLENDER)
 
 

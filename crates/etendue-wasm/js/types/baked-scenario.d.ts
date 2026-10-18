@@ -51,10 +51,19 @@ export interface BakedSample {
    */
   capture?: CaptureEvent | null;
   /**
+   * Joint accelerations per robot, as `joint_positions`, when the bake
+   * was asked for derivatives.
+   */
+  joint_accelerations?: number[][] | null;
+  /**
    * Joint positions per robot, aligned with [`BakedScenario::robots`].
-   * For display only.
    */
   joint_positions: number[][];
+  /**
+   * Joint velocities per robot, as `joint_positions`, when the bake was
+   * asked for derivatives.
+   */
+  joint_velocities?: number[][] | null;
   /**
    * Time in seconds.
    */

@@ -2,7 +2,12 @@
 // the wire format underneath (parsed in Rust with `float_roundtrip`), so every f64 crosses
 // the boundary bit-exact.
 
-import init, { EtendueScene as RawScene, initSync } from "./etendue_wasm.js";
+import init, {
+  EtendueScene as RawScene,
+  expandRig as rawExpandRig,
+  initSync,
+  poleCircumferences as rawPoleCircumferences,
+} from "./etendue_wasm.js";
 
 export { init as default, initSync };
 
@@ -15,8 +20,32 @@ export class EtendueScene {
     this.#raw = new RawScene(text(scene), text(robots));
   }
 
-  bake(scenario) {
-    return JSON.parse(this.#raw.bake(text(scenario)));
+  updateScene(scene) {
+    this.#raw.updateScene(text(scene));
+  }
+
+  bake(scenario, options = {}) {
+    return JSON.parse(this.#raw.bake(text(scenario), options.derivatives === true));
+  }
+
+  motionReport(scenario) {
+    return JSON.parse(this.#raw.motionReport(text(scenario)));
+  }
+
+  resolveScenario(scenario) {
+    return JSON.parse(this.#raw.resolveScenario(text(scenario)));
+  }
+
+  exportCaptures(scenario, robotId, format) {
+    return this.#raw.exportCaptures(text(scenario), robotId, format);
+  }
+
+  generatePoses(spec, dt = 0.01) {
+    return JSON.parse(this.#raw.generatePoses(text(spec), dt));
+  }
+
+  exportTrajectory(scenario, robotId) {
+    return this.#raw.exportTrajectory(text(scenario), robotId);
   }
 
   projectPoints(cameraId, worldSe3Camera, xyzWorld) {
@@ -36,6 +65,31 @@ export class EtendueScene {
     return { canonical: JSON.parse(out.canonical), lut: out.lut };
   }
 
+  targetMesh(targetId) {
+    return this.#raw.targetMesh(targetId);
+  }
+
+  targetPoints(targetId) {
+    return JSON.parse(this.#raw.targetPoints(targetId));
+  }
+
+  projectTarget(cameraId, worldSe3Camera, targetId, worldSe3Target) {
+    const wire = ({ rotation: q, translation: t }) => new Float64Array([q[0], q[1], q[2], q[3], t[0], t[1], t[2]]);
+    return this.#raw.projectTarget(cameraId, wire(worldSe3Camera), targetId, wire(worldSe3Target));
+  }
+
+  laserStripe(cameraId, worldSe3Camera, laserId, worldSe3Laser, targetId, worldSe3Target) {
+    const wire = ({ rotation: q, translation: t }) => new Float64Array([q[0], q[1], q[2], q[3], t[0], t[1], t[2]]);
+    return this.#raw.laserStripe(
+      cameraId,
+      wire(worldSe3Camera),
+      laserId,
+      wire(worldSe3Laser),
+      targetId,
+      wire(worldSe3Target),
+    );
+  }
+
   targetExtent(targetId) {
     const extent = this.#raw.targetExtent(targetId);
     return extent === undefined ? undefined : [extent[0], extent[1]];
@@ -48,6 +102,14 @@ export class EtendueScene {
   [Symbol.dispose]() {
     this.free();
   }
+}
+
+export function poleCircumferences() {
+  return JSON.parse(rawPoleCircumferences());
+}
+
+export function expandRig(layout, rigId) {
+  return JSON.parse(rawExpandRig(text(layout), rigId));
 }
 
 export function isEtendueError(error) {

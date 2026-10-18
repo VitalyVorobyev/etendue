@@ -1,2 +1,6 @@
 [alias]
 xtask = "run --package xtask --"
+# The studio desktop app: `cargo app` runs a debug build from the checkout,
+# `cargo app-release` builds the release bundles (xtask/src/app.rs).
+app = "run --package xtask -- app"
+app-release = "run --package xtask -- app --release"

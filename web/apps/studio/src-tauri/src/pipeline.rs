@@ -15,12 +15,19 @@ use etendue_scene::ScenarioSpec;
 use etendue_synth::sensor::SensorModel;
 use serde::{Deserialize, Serialize};
 
+use crate::docs;
+
 /// What to generate.
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct DatasetRequest {
-    /// The scene file (robot manifests resolve relative to it).
-    pub scene: PathBuf,
+    /// The scene, as edited in the studio. It is written to the output
+    /// folder as `scene.json` (its robot manifests rebased), and the run
+    /// reads it from there, so a dataset carries the scene it came from.
+    pub scene: serde_json::Value,
+    /// The scene file it was read from, if any: its manifests resolve
+    /// relative to it, else in the robot library (the data root).
+    pub origin: Option<PathBuf>,
     /// The scenario, as loaded in the studio (it may not exist as a file).
     pub scenario: ScenarioSpec,
     /// Output directory.
@@ -41,8 +48,8 @@ pub struct DatasetRequest {
     pub blender: Option<PathBuf>,
     /// Render even if Blender's version differs from the `etendue.toml` pin.
     pub allow_blender_version: bool,
-    /// Where else to look for the pin, after the scene's folder: the data
-    /// root (set by the shell, not the webview).
+    /// The data root (set by the shell, not the webview): where else to look
+    /// for the Blender pin, after the scene's folder, and the robot library.
     #[serde(skip)]
     pub pin_dir: Option<PathBuf>,
 }
@@ -94,17 +101,32 @@ fn run(request: &DatasetRequest, ctl: &Control) -> Result<Dataset> {
         Some(p) => Some(read_json(p, "sensor model")?),
         None => None,
     };
-    let loaded = load(&request.scene)?;
+    let out = &request.output;
+    std::fs::create_dir_all(out).with_context(|| format!("creating {}", out.display()))?;
+    let mut scene = request.scene.clone();
+    docs::rebase_manifests(
+        &mut scene,
+        request.origin.as_deref().and_then(Path::parent),
+        out,
+        request.pin_dir.as_deref(),
+    )?;
+    let scene_path = out.join("scene.json");
+    docs::write_json(&scene_path, &scene)?;
+    let loaded = load(&scene_path)?;
     let baked = etendue_kinematics::bake(&loaded.scene, &request.scenario, &loaded.models)
         .map_err(|e| anyhow!("scenario: {e}"))?;
     let blender = if request.render {
         Some(Blender::checked(
             request.blender.as_deref(),
             request.allow_blender_version,
-            &[Some(loaded.dir.as_path()), request.pin_dir.as_deref()]
-                .into_iter()
-                .flatten()
-                .collect::<Vec<_>>(),
+            &[
+                request.origin.as_deref().and_then(Path::parent),
+                Some(loaded.dir.as_path()),
+                request.pin_dir.as_deref(),
+            ]
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>(),
             |w| ctl.log(w),
         )?)
     } else {
@@ -112,7 +134,6 @@ fn run(request: &DatasetRequest, ctl: &Control) -> Result<Dataset> {
     };
     ctl.check()?;
 
-    let out = &request.output;
     // A previous run's images and features belong to its ground truth: a
     // camera this run does not render must not keep them, or detection
     // would check old images against the new truth.
@@ -162,6 +183,7 @@ fn run(request: &DatasetRequest, ctl: &Control) -> Result<Dataset> {
             ambient: render::DEFAULT_AMBIENT,
             cameras: request.cameras.clone(),
             sensor,
+            laser_ambient: render::DEFAULT_LASER_AMBIENT,
         },
         ctl,
     )?;
@@ -239,7 +261,8 @@ mod tests {
     fn request(output: PathBuf) -> DatasetRequest {
         let example = repo().join("examples/closed_loop_ur5e");
         DatasetRequest {
-            scene: example.join("scene.json"),
+            scene: read_json(&example.join("scene.json"), "scene").unwrap(),
+            origin: Some(example.join("scene.json")),
             scenario: read_json(&example.join("scenario.json"), "scenario").unwrap(),
             output,
             render: false,
@@ -271,12 +294,13 @@ mod tests {
         let Outcome::Ok(d) = outcome else {
             panic!("{outcome:?}")
         };
-        assert_eq!((d.gt.captures, d.gt.views, d.gt.visible), (20, 40, 2160));
+        assert_eq!((d.gt.captures, d.gt.views, d.gt.visible), (24, 48, 2592));
         assert!(d.render.is_none());
         for f in [
             "dataset.json",
             "gt.json",
             "robot_poses.json",
+            "scene.json",
             "scenario.json",
         ] {
             assert!(dir.path().join(f).is_file(), "{f}");
@@ -384,5 +408,19 @@ mod tests {
         };
         assert!(message.contains("sensor model"), "{message}");
         assert!(!dir.path().join("out").exists());
+    }
+
+    #[test]
+    fn an_edited_scene_without_a_file_finds_its_robots_in_the_library() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut r = request(dir.path().to_owned());
+        r.origin = None;
+        r.pin_dir = Some(repo());
+        r.scene["cameras"][0]["resolution"] = serde_json::json!([640, 512]);
+        let outcome = generate(&r, &Control::new(&|_| {}, None));
+        assert!(matches!(outcome, Outcome::Ok(_)), "{outcome:?}");
+        let written: serde_json::Value =
+            read_json(&dir.path().join("scene.json"), "scene").unwrap();
+        assert_eq!(written["cameras"][0]["resolution"][0], 640);
     }
 }

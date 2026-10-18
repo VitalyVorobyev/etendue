@@ -1,9 +1,10 @@
 //! Laser-stripe ground truth (P5-3, [ADR 0006](https://github.com/VitalyVorobyev/etendue/blob/main/docs/adrs/0006-ground-truth.md)).
 //!
-//! Where a line laser's fan meets the board, it paints a straight stripe. The
-//! stripe is computed geometrically by `etendue-core`
-//! ([`etendue_core::laser::stripe_on_target`]): the fan plane intersected with
-//! the board plane, clipped to the fan's angle and reach and to the board's
+//! Where a line laser's fan meets the board, it paints a straight stripe (on
+//! a PuzzlePole, an ellipse). The stripe is computed geometrically by
+//! `etendue-core` ([`etendue_core::laser::stripe_on_target`],
+//! [`etendue_core::laser::stripe_on_cylinder`]): the fan plane intersected
+//! with the target surface, clipped to the fan's angle and reach and to the
 //! printed extent. Its points are expressed in the target frame, as
 //! [`BoardPoint`]s, so they are projected by the same
 //! [`project_points`](crate::gt::project_points) as the board's corners.
@@ -13,7 +14,9 @@
 
 use etendue_core::LaserEntity;
 use etendue_core::TargetEntity;
-use etendue_core::laser::{GaussianBeamWidth, LaserPlane, stripe_on_target};
+use etendue_core::laser::{
+    GaussianBeamWidth, LaserPlane, WidthModel, stripe_on_cylinder, stripe_on_target,
+};
 use etendue_scene::LaserSpec;
 use nalgebra::{Isometry3, Point3, Vector3};
 use serde::{Deserialize, Serialize};
@@ -60,13 +63,42 @@ pub fn plane_in(frame: &str, frame_se3_laser: &Isometry3<f64>) -> GtPlane {
     }
 }
 
-/// The stripe `laser` paints on a target of printed `extent` (metres,
-/// centred, in its `z = 0` plane), as target-frame points about `spacing_m`
-/// apart, both ends included.
+/// The printed surface a stripe lies on, in the target frame.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum StripeSurface {
+    /// A planar print of this extent (metres, centred, in the `z = 0`
+    /// plane, facing +Z).
+    Plane([f64; 2]),
+    /// A PuzzlePole: a cylinder of `radius` (metres) about +Z, printed over
+    /// `z ∈ [0, length]`.
+    Cylinder {
+        /// Radius, metres.
+        radius: f64,
+        /// Printed length along the axis, metres.
+        length: f64,
+    },
+}
+
+impl StripeSurface {
+    /// The printed surface of a scene target, if it has one.
+    #[must_use]
+    pub fn of(geometry: &etendue_scene::TargetGeometry) -> Option<Self> {
+        if let etendue_scene::TargetGeometry::Printed { target } = geometry
+            && let Some((radius, length)) = target.cylinder()
+        {
+            return Some(Self::Cylinder { radius, length });
+        }
+        geometry.extent_m().map(Self::Plane)
+    }
+}
+
+/// The stripe `laser` paints on a target's printed `surface`, as
+/// target-frame points about `spacing_m` apart (on a plane both ends
+/// included).
 ///
-/// Empty when the laser misses the target, when its plane is parallel to the
-/// target, or when the laser is behind the target (it lights only the +Z
-/// face).
+/// Empty when the laser misses the target, when its plane is parallel to a
+/// planar target, or when the laser lights none of the printed side (the +Z
+/// face of a plane, the outside of a cylinder).
 ///
 /// # Errors
 ///
@@ -76,7 +108,7 @@ pub fn stripe(
     laser: &LaserSpec,
     world_se3_laser: &Isometry3<f64>,
     world_se3_target: &Isometry3<f64>,
-    extent: [f64; 2],
+    surface: StripeSurface,
     spacing_m: f64,
 ) -> Result<Vec<BoardPoint>> {
     if !(spacing_m.is_finite() && spacing_m > 0.0) {
@@ -85,20 +117,42 @@ pub fn stripe(
         )));
     }
     let core = |e: etendue_core::Error| Error::InvalidInput(format!("laser `{}`: {e}", laser.id));
-    let entity = LaserEntity::new(
-        *world_se3_laser,
-        laser.fan_half_angle,
-        laser.fan_length,
-        laser.wavelength_nm,
-        laser.beam_waist_m,
-    )
-    .map_err(core)?;
-    let target = TargetEntity::new(*world_se3_target, extent[0], extent[1]).map_err(core)?;
+    let entity = entity(laser, world_se3_laser)?;
+    let fan = LaserPlane::from_entity(&entity);
     let target_se3_world = world_se3_target.inverse();
+    let extent = match surface {
+        StripeSurface::Plane(extent) => extent,
+        StripeSurface::Cylinder { radius, length } => {
+            let runs = stripe_on_cylinder(&fan, world_se3_target, radius, [0.0, length], spacing_m);
+            if runs.iter().map(Vec::len).sum::<usize>() > MAX_SAMPLES {
+                return Err(Error::InvalidInput(format!(
+                    "laser `{}`: the stripe at {spacing_m} m spacing is more than {MAX_SAMPLES} points",
+                    laser.id
+                )));
+            }
+            return Ok(runs
+                .into_iter()
+                .flatten()
+                .map(|w| {
+                    let p = target_se3_world * w;
+                    let theta = p.y.atan2(p.x).rem_euclid(std::f64::consts::TAU);
+                    let normal = Vector3::new(p.x, p.y, 0.0).normalize();
+                    BoardPoint {
+                        // The unrolled (z, arc) position, arc from the seam.
+                        position_m: [p.z, theta * radius],
+                        xyz_m: Some([p.x, p.y, p.z]),
+                        normal: Some([normal.x, normal.y, normal.z]),
+                        grid: None,
+                        id: None,
+                    }
+                })
+                .collect());
+        }
+    };
+    let target = TargetEntity::new(*world_se3_target, extent[0], extent[1]).map_err(core)?;
     if (target_se3_world * Point3::from(world_se3_laser.translation.vector)).z <= 0.0 {
         return Ok(Vec::new());
     }
-    let fan = LaserPlane::from_entity(&entity);
     let width = GaussianBeamWidth::from_laser(&entity).map_err(core)?;
     // The clipped segment once; its points are evenly spaced along it.
     let Some(ends) = stripe_on_target(&fan, &target, &width, 2) else {
@@ -122,14 +176,45 @@ pub fn stripe(
                 0.0
             };
             let p: Point3<f64> = target_se3_world * (a + (b - a) * t);
-            BoardPoint {
-                position_m: [p.x, p.y],
-                grid: None,
-                id: None,
-            }
+            BoardPoint::planar([p.x, p.y], None, None)
         })
         .collect();
     Ok(samples)
+}
+
+/// The beam's `1/e²` diameter at each stripe point ([`GaussianBeamWidth`],
+/// the waist at the laser's origin), metres. `points` are in the target
+/// frame, as [`stripe`] gives them.
+///
+/// # Errors
+///
+/// [`Error::InvalidInput`] if the laser is out of range.
+pub fn beam_widths(
+    laser: &LaserSpec,
+    world_se3_laser: &Isometry3<f64>,
+    world_se3_target: &Isometry3<f64>,
+    points: &[BoardPoint],
+) -> Result<Vec<f64>> {
+    let core = |e: etendue_core::Error| Error::InvalidInput(format!("laser `{}`: {e}", laser.id));
+    let entity = entity(laser, world_se3_laser)?;
+    let width = GaussianBeamWidth::from_laser(&entity).map_err(core)?;
+    let laser_se3_target = world_se3_laser.inverse() * world_se3_target;
+    Ok(points
+        .iter()
+        .map(|p| width.width_at((laser_se3_target * p.xyz()).coords.norm()))
+        .collect())
+}
+
+/// The core laser entity of `laser` at `world_se3_laser`.
+fn entity(laser: &LaserSpec, world_se3_laser: &Isometry3<f64>) -> Result<LaserEntity> {
+    LaserEntity::new(
+        *world_se3_laser,
+        laser.fan_half_angle,
+        laser.fan_length,
+        laser.wavelength_nm,
+        laser.beam_waist_m,
+    )
+    .map_err(|e| Error::InvalidInput(format!("laser `{}`: {e}", laser.id)))
 }
 
 /// The most points a stripe may have (a bound on `spacing_m`).
@@ -150,6 +235,8 @@ mod tests {
             fan_length: 2.0,
             wavelength_nm: 660.0,
             beam_waist_m: 5e-4,
+            power_w: None,
+            camera: None,
         }
     }
 
@@ -176,7 +263,7 @@ mod tests {
             &laser(0.6),
             &world_se3_laser,
             &world_se3_target,
-            [0.2, 0.14],
+            StripeSurface::Plane([0.2, 0.14]),
             1e-12,
         );
         assert!(matches!(fine, Err(Error::InvalidInput(_))), "{fine:?}");
@@ -190,7 +277,7 @@ mod tests {
             &laser(0.6),
             &world_se3_laser,
             &world_se3_target,
-            extent,
+            StripeSurface::Plane(extent),
             1e-3,
         )
         .unwrap();
@@ -223,7 +310,7 @@ mod tests {
             &laser(0.6),
             &world_se3_laser,
             &world_se3_target,
-            [0.2, 0.14],
+            StripeSurface::Plane([0.2, 0.14]),
             1e-3,
         )
         .unwrap();
@@ -232,7 +319,7 @@ mod tests {
             &laser(0.05),
             &world_se3_laser,
             &world_se3_target,
-            [0.2, 0.14],
+            StripeSurface::Plane([0.2, 0.14]),
             1e-3,
         )
         .unwrap();
@@ -245,9 +332,15 @@ mod tests {
         // A board off to the side of the fan: no stripe.
         let aside = Isometry3::translation(1.0, 0.0, 0.0) * world_se3_target;
         assert!(
-            stripe(&laser(0.6), &world_se3_laser, &aside, [0.2, 0.14], 1e-3)
-                .unwrap()
-                .is_empty()
+            stripe(
+                &laser(0.6),
+                &world_se3_laser,
+                &aside,
+                StripeSurface::Plane([0.2, 0.14]),
+                1e-3
+            )
+            .unwrap()
+            .is_empty()
         );
         // The laser behind the board lights nothing.
         let flipped = world_se3_target
@@ -256,9 +349,15 @@ mod tests {
                 UnitQuaternion::from_axis_angle(&Vector3::x_axis(), std::f64::consts::PI),
             );
         assert!(
-            stripe(&laser(0.6), &world_se3_laser, &flipped, [0.2, 0.14], 1e-3)
-                .unwrap()
-                .is_empty()
+            stripe(
+                &laser(0.6),
+                &world_se3_laser,
+                &flipped,
+                StripeSurface::Plane([0.2, 0.14]),
+                1e-3
+            )
+            .unwrap()
+            .is_empty()
         );
     }
 

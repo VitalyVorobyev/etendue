@@ -313,7 +313,7 @@ and ask; do not silently relax it.
   - Re-runs on the new board: G4.2 unchanged, G4.3 still passes. The mesh is exact, so the
     texture path is dropped.
   - Found calib-targets' ChArUco detector labelling corners one square off on rotated
-    boards (calib-targets-rs#106).
+    boards (calib-targets-rs#106; fixed in 0.15.5, #109).
   - Open: the web viewers still draw a checker, so ChArUco markers and even-row boards need a
     `cells` option in `@vitavision/three` (`docs/measurements/p3_3_target_geometry.md`).
 
@@ -399,6 +399,9 @@ and ask; do not silently relax it.
   Measure the across-stripe profile on a matte plane. Done when gate **G5.2** passes:
   the fitted stripe width vs depth is within ≤10% of `etendue-core` `GaussianBeamWidth`
   plus the CoC prediction over the design depth range.
+  *Superseded by P7-7 (2026-10-17):* the laser is composited in Rust, not lit in Cycles, and the
+  renders have no defocus. G5.2 is redefined (the user's decision): in rendered laser images the
+  fitted stripe width is within ≤10% of `GaussianBeamWidth` over the scene's depth range.
 - **P5-3 — Laser closed loop.** Run the calibration-rs rig laserline problem on
   synthetic data. Done when gate **G5.3** passes: plane normal error ≤0.01° and distance
   error ≤0.05 mm.
@@ -423,6 +426,93 @@ and ask; do not silently relax it.
   simulated-image panel, heatmap; also the Scheimpflug solver UI and the rig builder) gets a
   studio equivalent. *Status (2026-10-17):* the user waived the gate and `crates/etendue-ui`
   is deleted (tag `egui-ui-final`); the features remain to be brought to the studio.
+
+### P7 — Authoring (user request 2026-10-17)
+
+Turn the studio from a viewer into the tool that designs a calibration cell end to end: pick a
+robot and a rig, place any calib-targets target, generate poses that every camera sees, get a
+feasible, jerk-limited motion, export it, and render images (lasers included). User decisions:
+FAIRINO FR5 and igus ReBeL join the robot set (FR5 local-only until its licence is known); the
+PuzzlePole cylinder is rendered, ground-truthed and detected, not calibrated; one laser per
+camera; motion must be feasible (limits, reachability, IK branch, singularity margin), with no
+collision checking. Order: P7-0 → (P7-1, P7-3, P7-4) → P7-2 → P7-5 → P7-6 → P7-7.
+
+- **P7-0 — Studio foundation.** Workspaces (Setup · Motion · Images · Dataset), a File menu,
+  undoable edits baked in place (`EtendueScene.updateScene` keeps the robot models), Save / Save
+  As with robot manifest paths rebased, export, and datasets from the scene as edited.
+  *Status (2026-10-17):* done; ADR 0007 amended.
+- **P7-1 — Robot library.** igus ReBeL, FAIRINO FR5 (local-only), `max_jerk` with provenance,
+  a documented recipe for adding a robot. Gates G1.1–G1.3 re-run.
+  *Status (2026-10-17):* done. G1.3 passes for all four robots (worst 3.0e-8 m), G1.1 to
+  1.3e-15 m, G1.2 with 0 near-seed failures. FR5 builds into the git-ignored
+  `assets/robots-local/` with `--include-local`; its `tool0` (0.1 m beyond the wrist centre) is
+  unverified against FAIRINO's controller. Jerk limits are derived (10/s × acceleration) for
+  every robot: no vendor publishes them.
+- **P7-2 — Feasible motion.** Jerk-limited PTP (Ruckig, phase-synchronised) and LIN, the IK
+  solution stored on `ptp_pose`, derivatives in the bake, a motion report, and exports
+  (captures CSV/JSON, trajectory CSV, resolved scenario). Gate **G1.4**: sampled velocity,
+  acceleration and jerk within limits, captures at rest, PTP straight in joint space.
+  *Status (2026-10-17):* done; **G1.4 passes** on all four robots
+  (`docs/measurements/g1_4_motion.md`). ADR 0003 amended (motion model v2), ADR 0001 amended
+  (`rsruckig`).
+- **P7-3 — Rig builder.** Mono, stereo, and 3- or 6-camera rings around the sensor axis at a
+  tunable tilt, one laser per camera; dataset emission with per-camera planes. Gate **G5.3b**:
+  the analytic laser loop on a 3-camera ring.
+  *Status (2026-10-17):* layout, expansion, per-camera laser datasets, `closed_loop.py` and the
+  studio's rig builder done; G5.3 still passes on `laser_ur5e`. **G5.3b passes** on
+  `examples/rig3_laser_ur5e` (made by the rig builder and the P7-6 generator; every camera's own
+  plane within 1.2e-5° / 2.8e-7 mm), and CI runs it.
+  `etendue-core::Scene::triangulation_ring` is deleted (user's decision, 2026-10-17): the rig
+  layout is the ring's one home.
+- **P7-4 — Every printable target.** Chessboard, ChArUco, marker board, PuzzleBoard and the
+  PuzzlePole cylinder as one target mesh for Blender and the web, 3-D ground truth. Gate
+  **G3.2**: mesh area, coverage, circle chord error ≤1 µm, pole points vs calib-targets ≤1e-3 mm.
+  *Status (2026-10-17):* done; **G3.2 passes** (`docs/measurements/g3_2_target_mesh.md`; pole
+  points within 2.4e-5 mm). ADRs 0005 (job v3) and 0006 amended. `gt.json` stays at version 2
+  (the 3-D point fields are optional). The web preview shows faint speckles where a pole's side is
+  seen nearly edge-on (depth precision against the 10 µm dot lift).
+- **P7-5 — Detection for every target.** Gate **G4.4** (characterisation): detection rate,
+  mislabels, RMS against the ground truth per kind.
+  *Status (2026-10-17):* done. `etendue detect` reads the target from `gt.json` and labels every
+  kind (ChESS corners located by Radon for the self-identifying kinds). **G4.4**
+  (`docs/measurements/g4_4_targets.md`): every view of every kind detected, 0 mislabels, 0.058 px
+  RMS on the planar kinds; the PuzzlePole finds every corner seen within 60° of its normal
+  (0.063 px RMS). Rendered with Blender 5.2.2 (pin 5.1.1 not installed). Upstream: calib-targets
+  0.15.3 mislabelled ChArUco and marker boards turned past 45° in the image.
+  - Fixed in calib-targets 0.15.5 (calib-targets-rs#109, released 2026-10-17): a cell
+    alignment becomes a corner alignment through `calib_targets_core::cell_to_corner_alignment`;
+    its regression test covers 0–270°.
+  - etendue is on 0.15.5, and `rotated_charuco_and_marker_boards` runs again (passes).
+- **P7-6 — Sphere pose generator.** Poses on spheres around the target, the sensor's +Z at the
+  centre, θ/φ steps, several radii, kept only if reachable, feasible and seen by every camera,
+  ordered by motion time. Gate **G2.3**: 400 candidates × 3 cameras in wasm ≤100 ms.
+  *Status (2026-10-17):* done. `etendue-synth::poses`, `etendue scenario sphere`, wasm
+  `generatePoses`, and the studio's Motion › Generate poses (candidates drawn as cones coloured by
+  status, Apply as one undo step). **G2.3 passes**: 79 ms median
+  (`docs/measurements/g2_3_generator.md`). `make_scenario.py` is retired: the three closed-loop
+  examples are generated (24 viewpoints), and G5.1 and G5.3 still pass on them. The image-level
+  loop (P5-1b) waits for Blender 5.1.1.
+  - Not done from the plan: eye-to-hand generation (refused with a clear error), and previewing
+    the robot at a clicked candidate.
+- **P7-7 — Laser images.** A Rust compositor from Blender's depth, normal and albedo passes, and
+  stripe extraction. G5.2 is redefined for it, by the user's decision (P5-2).
+  *Status (2026-10-17):* compositor, job v4 (laser views, laser passes), `<capture>_laser.png`,
+  and the studio's stripe overlay done. Cycles' Depth is planar (measured with Blender 5.2.2;
+  ADR 0005 amended). On two rendered captures the stripe lies on the analytic stripe to within
+  0.04 px mean.
+  - Stripe extraction is in `etendue detect` and writes `laser_features.json`. The board image
+    is subtracted and divided out, and a Gaussian is fitted per column.
+  - **Image-level loop** on `rig3_laser_ur5e` (44 generated captures, Blender 5.2.2):
+    - stripes are 0.06–0.07 px RMS from the analytic stripe, with no bias;
+    - every laser plane is within the G5.3 limits (worst 0.0097°, 0.0047 mm), and so is the
+      hand-eye;
+    - the principal points are 0.25–0.40 px off, noise-limited as in P5-1b.
+  - It is a characterisation: `g5_3_laser_closed_loop.md`.
+  - **G5.2 (redefined) passes:** on the same renders every image's stripe is 1.021–1.035 times
+    the beam's width; the excess is the pixel's own area (0.999–1.002 without it). A re-render
+    with a 0.1 mm waist (the beam 45 % wider across the depths) gives 1.005–1.011, and the
+    compositor test covers the width law from inside to 5× its Rayleigh range
+    (`docs/measurements/g5_2_laser_width.md`).
 
 ### Deferred (not planned; do not scaffold)
 

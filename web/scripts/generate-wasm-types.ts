@@ -17,12 +17,44 @@ import { compileFromFile } from "json-schema-to-typescript";
 
 const ROOT = resolve(dirname(new URL(import.meta.url).pathname), "../..");
 const OUT = join(ROOT, "crates/etendue-wasm/js/types");
-const SCHEMAS = ["scene", "scenario", "baked_scenario", "robot_manifest"];
+const SCHEMAS = ["scene", "scenario", "baked_scenario", "robot_manifest", "motion_report", "captures"];
 
 const banner = `/**
  * DO NOT EDIT: generated from schemas/*.schema.json by \`bun run generate:types\` (in web/).
  * The source of truth is the \`etendue-scene\` Rust types.
  */`;
+
+/** The index just past the `}` that closes the `{` at `open`, skipping comments and strings. */
+function closing(ts: string, open: number): number {
+  let depth = 0;
+  for (let i = open; i < ts.length; i++) {
+    const c = ts[i]!;
+    if (c === "/" && ts[i + 1] === "*") {
+      i = ts.indexOf("*/", i + 2) + 1;
+    } else if (c === "/" && ts[i + 1] === "/") {
+      i = ts.indexOf("\n", i);
+    } else if (c === '"' || c === "'" || c === "`") {
+      for (i++; ts[i] !== c; i++) if (ts[i] === "\\") i++;
+    } else if (c === "{") {
+      depth++;
+    } else if (c === "}" && --depth === 0) {
+      return i + 1;
+    }
+  }
+  throw new Error("unbalanced braces in generated types");
+}
+
+/** Every top-level `export interface`: its name, its extent (with its doc comment), and its body. */
+function interfaces(ts: string): { name: string; start: number; end: number; body: string }[] {
+  const out = [];
+  const head = /(?:\/\*\*(?:(?!\*\/)[\s\S])*\*\/\n)?export interface (\w+) \{/g;
+  for (const m of ts.matchAll(head)) {
+    const open = m.index + m[0].length - 1;
+    const end = closing(ts, open);
+    out.push({ name: m[1]!, start: m.index, end: ts[end] === "\n" ? end + 1 : end, body: ts.slice(open, end) });
+  }
+  return out;
+}
 
 /**
  * json-schema-to-typescript declares a `$ref` target again (`Iso3Schema1`, `Iso3Schema2`, …)
@@ -30,15 +62,17 @@ const banner = `/**
  * whose body equals the original's back into the original, keeping the property docs.
  */
 function dedupe(ts: string): string {
-  const block = /(?:\/\*\*(?:(?!\*\/)[\s\S])*\*\/\n)?export interface (\w+) (\{\n[\s\S]*?\n\})\n/g;
-  const bodies = new Map<string, string>();
-  for (const [, name, body] of ts.matchAll(block)) bodies.set(name!, body!);
+  const found = interfaces(ts);
+  const bodies = new Map(found.map((i) => [i.name, i.body]));
   const renames = new Map<string, string>();
-  for (const [name, body] of bodies) {
+  for (const { name, body } of found) {
     const base = /^(\w*?\D)\d+$/.exec(name)?.[1];
     if (base !== undefined && bodies.get(base) === body) renames.set(name, base);
   }
-  let out = ts.replace(block, (whole, name: string) => (renames.has(name) ? "" : whole));
+  let out = ts;
+  for (const { name, start, end } of [...found].reverse()) {
+    if (renames.has(name)) out = out.slice(0, start) + out.slice(end);
+  }
   for (const [from, to] of renames) out = out.replaceAll(new RegExp(`\\b${from}\\b`, "g"), to);
   return out;
 }

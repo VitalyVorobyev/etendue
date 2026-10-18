@@ -4,7 +4,8 @@
 - Criterion: on 10 000 reachable poses per robot, `FK(IK(T))` matches `T` to
   ≤ 1e-9 m / 1e-9 rad for analytic OPW IK, and to ≤ 1e-6 m / 1e-6 rad for DLS.
   Report the DLS failure rate and the 99th-percentile iteration count.
-- Result: **PASS** for both.
+- Result: **PASS** for every robot (UR5e, ABB IRB 1200, igus ReBeL, and the
+  local-only FAIRINO FR5).
   - OPW: 0 failures, worst 5.5e-10 m / 5.1e-11 rad.
   - DLS: every success has a residual ≤ 1.0e-10.
   - DLS failure rate: 0 % from nearby seeds; 0.11 % (UR5e) and 0.35 % (ABB)
@@ -53,6 +54,16 @@ is offset), so it uses DLS only.
 | abb_irb1200_5_90 | random | 10000 | 35 | 0.35 % | 510 | 6510 | 8051 | 9.98e-11 / 1.00e-10 |
 | ur5e | near | 10000 | 0 | 0.00 % | 4 | 9 | 2018 | 1.00e-10 / 9.99e-11 |
 | ur5e | random | 10000 | 11 | 0.11 % | 130 | 2046 | 6384 | 9.96e-11 / 1.00e-10 |
+| igus_rebel_6dof | near | 10000 | 0 | 0.00 % | 4 | 8 | 1053 | 9.99e-11 / 9.98e-11 |
+| igus_rebel_6dof | random | 10000 | 145 | 1.45 % | 515 | 6513 | 8425 | 9.88e-11 / 9.99e-11 |
+| fairino_fr5 (local only) | near | 10000 | 0 | 0.00 % | 4 | 8 | 2522 | 1.00e-10 / 9.66e-11 |
+| fairino_fr5 (local only) | random | 10000 | 214 | 2.14 % | 524 | 6141 | 8055 | 9.96e-11 / 9.97e-11 |
+
+The igus ReBeL and the FAIRINO FR5 rows were added on 2026-10-17 (P7-1, `f05a157`
+plus the uncommitted P7 work); the ABB and UR5e rows are unchanged. Their
+random-seed failure rates are higher (1.45 % and 2.14 %); the cause was not
+investigated. From nearby seeds — what the scenario compiler and the pose
+generator use — neither fails.
 
 A single DLS attempt from a random seed stalls in a local minimum often. A
 hand-written test arm with ±π limits shows the effect: without restarts, 68 %

@@ -78,6 +78,8 @@ pub struct ActiveJoint {
     pub max_velocity: f64,
     /// Maximum acceleration, `> 0`.
     pub max_acceleration: f64,
+    /// Maximum jerk, `> 0`; infinite when the manifest gives none.
+    pub max_jerk: f64,
 }
 
 /// A robot's kinematic tree bound to its manifest.
@@ -286,6 +288,7 @@ impl RobotModel {
                     upper: mj.upper,
                     max_velocity: mj.max_velocity,
                     max_acceleration: mj.max_acceleration,
+                    max_jerk: mj.max_jerk.unwrap_or(f64::INFINITY),
                 }
             })
             .collect();

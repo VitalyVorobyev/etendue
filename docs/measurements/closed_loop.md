@@ -39,7 +39,9 @@ CI job `checks` runs both.
     offset.
   - Board: a 9 × 6 inner-corner chessboard with 20 mm squares, at (0.42, 0.10, 0) in the base
     frame.
-- **Scenario:** 20 viewpoints from `tools/closed-loop/make_scenario.py` (deterministic).
+- **Scenario:** 20 viewpoints from `tools/closed-loop/make_scenario.py` (deterministic). Since
+  P7-6 the example's scenario comes from the sphere pose generator instead (24 viewpoints); see
+  [Re-run on generated poses](#re-run-on-generated-poses-p7-6).
   - The rig looks at the board centre from 0.45–0.55 m.
   - Tilt is 8–25° from vertical, azimuths are golden-angle spaced, and roll is within ±25°.
   - Each viewpoint is a PTP move, baked by `etendue-kinematics` (IK, trapezoidal profiles).
@@ -128,3 +130,34 @@ k3 is not estimated by the default configuration (it stays 0, as does the truth)
    4.3e-7 px mean reprojection and hand-eye 2.5e-6° / 1.9e-7 mm; `cam_left` alone gives
    3.8e-7 px, fx 1.7e-9, and 2.3e-6° / 5.2e-7 mm. It is smaller than this scene's 20 views and
    has the square mount, so CI now runs it as well.
+
+## Re-run on generated poses (P7-6)
+
+Measured 2026-10-17 on etendue `f05a157` plus the uncommitted P7 work (branch `p7/authoring`).
+
+`make_scenario.py` is retired. `examples/closed_loop_ur5e/scenario.json` is now the sphere pose
+generator's output, and keeps its spec in `generator`:
+- radii 450 and 550 mm;
+- θ 0.14 and 0.44 rad (8° and 25°) from the board normal;
+- φ six azimuths over a full turn;
+- rolls ±0.35 rad (±20°);
+- every camera seeing the whole board.
+
+24 of the 48 candidates are kept; the other 24 have a corner outside one camera's image. The IK
+is seeded from `initial_q` (pan 180°), so every capture stays on the branch that
+`closed_loop_images.md` chose.
+
+Regenerate with
+`etendue scenario sphere examples/closed_loop_ur5e/scene.json --spec examples/closed_loop_ur5e/scenario.json -o …`,
+which is byte-identical.
+
+| | Rig (2 cameras, 24 views) | `--camera cam_left` | Gate |
+|---|---:|---:|---|
+| mean reprojection (px) | 7.676e-07 | 9.579e-09 | ≤ 0.05 |
+| worst fx/fy (relative) | 1.963e-08 | 2.012e-10 | ≤ 1e-4 |
+| worst cx/cy (px) | 7.220e-04 | 5.302e-06 | ≤ 0.05 |
+| hand-eye rotation (°) | 1.528e-07 | 1.271e-07 | ≤ 0.01 |
+| hand-eye translation (mm) | 1.330e-06 | 9.851e-08 | ≤ 0.05 |
+
+**G5.1: PASS**, both ways.
+

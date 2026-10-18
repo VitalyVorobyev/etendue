@@ -106,6 +106,85 @@ pub fn read_exr_combined(path: &Path) -> Result<LinearImage> {
     Err(bad("no Combined.R/G/B channels".into()))
 }
 
+/// The passes of a Blender multilayer EXR that laser images are composited
+/// from (job v4), row-major, top row first. Blender 5 writes each pass as its
+/// own part; channels are found by name in any part.
+#[derive(Clone, Debug, PartialEq)]
+pub struct RenderPasses {
+    /// Width in pixels.
+    pub width: u32,
+    /// Height in pixels.
+    pub height: u32,
+    /// `Depth.Z`: distance along the camera's +Z axis (planar depth, not
+    /// along the ray; measured, ADR 0005), metres. Background is very large.
+    pub depth: Vec<f32>,
+    /// `Normal.{X,Y,Z}`: world-space surface normal, 3 per pixel, if written.
+    pub normal: Option<Vec<f32>>,
+    /// `Diffuse Color.{R,G,B}`: diffuse albedo, 3 per pixel, if written.
+    pub albedo: Option<Vec<f32>>,
+}
+
+/// Read the Depth, Normal and Diffuse Color passes of a Blender multilayer
+/// EXR (Normal and Diffuse Color only if present).
+///
+/// # Errors
+///
+/// [`Error::InvalidInput`] if the file does not read, has no `Depth.Z`
+/// channel, or its passes differ in size.
+pub fn read_exr_passes(path: &Path) -> Result<RenderPasses> {
+    use exr::prelude::{ReadChannels, ReadLayers, read};
+    let bad = |m: String| crate::Error::InvalidInput(format!("{}: {m}", path.display()));
+    let image = read()
+        .no_deep_data()
+        .largest_resolution_level()
+        .all_channels()
+        .all_layers()
+        .all_attributes()
+        .from_file(path)
+        .map_err(|e| bad(e.to_string()))?;
+    let mut size = None;
+    let mut channel = |pass: &str| -> Result<Option<Vec<f32>>> {
+        for layer in &image.layer_data {
+            let Some(ch) = layer.channel_data.list.iter().find(|ch| {
+                let name = ch.name.to_string();
+                name == pass || name.ends_with(&format!(".{pass}"))
+            }) else {
+                continue;
+            };
+            let dims = (layer.size.width() as u32, layer.size.height() as u32);
+            if *size.get_or_insert(dims) != dims {
+                return Err(bad(format!("pass {pass} is {dims:?}, not {size:?}")));
+            }
+            return Ok(Some(ch.sample_data.values_as_f32().collect()));
+        }
+        Ok(None)
+    };
+    let depth = channel("Depth.Z")?.ok_or_else(|| bad("no Depth.Z channel".into()))?;
+    let mut triple = |names: [&str; 3]| -> Result<Option<Vec<f32>>> {
+        let [a, b, c] = names.map(&mut channel);
+        Ok(match (a?, b?, c?) {
+            (Some(a), Some(b), Some(c)) => Some(
+                a.iter()
+                    .zip(&b)
+                    .zip(&c)
+                    .flat_map(|((a, b), c)| [*a, *b, *c])
+                    .collect(),
+            ),
+            _ => None,
+        })
+    };
+    let normal = triple(["Normal.X", "Normal.Y", "Normal.Z"])?;
+    let albedo = triple(["Diffuse Color.R", "Diffuse Color.G", "Diffuse Color.B"])?;
+    let (width, height) = size.expect("the depth pass set the size");
+    Ok(RenderPasses {
+        width,
+        height,
+        depth,
+        normal,
+        albedo,
+    })
+}
+
 /// Resample a canonical render onto the calibrated camera: output pixel
 /// `(i, j)` samples `canonical` bilinearly at the LUT entry. Pixels without
 /// an entry (`NaN`) are black.

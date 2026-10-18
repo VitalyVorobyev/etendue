@@ -11,6 +11,9 @@ rust-version.workspace = true
 [dependencies]
 calib-targets-charuco = { workspace = true }
 calib-targets-print = { workspace = true }
+calib-targets-puzzleboard = { workspace = true }
+# The pose generator (P7-6) solves IK and checks feasibility (ADR 0001 allows it).
+etendue-kinematics = { workspace = true }
 etendue-core = { workspace = true }
 etendue-scene = { workspace = true }
 nalgebra = { workspace = true }
@@ -29,6 +32,3 @@ png = { workspace = true, optional = true }
 # Ingest of Blender EXR renders and PNG output (the native render path).
 # Off for @etendue/wasm, which only needs the LUT.
 images = ["dep:exr", "dep:png"]
-
-[dev-dependencies]
-etendue-kinematics = { workspace = true }

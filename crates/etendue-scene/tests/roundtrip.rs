@@ -164,11 +164,13 @@ prop_compose! {
             version: 1,
             frames: frames.into_iter().map(|(id, parent, parent_se3_self)| FrameSpec { id, parent, parent_se3_self }).collect(),
             robots: robots.into_iter().map(|(id, parent, parent_se3_self, manifest, initial_q)| RobotSpec { id, parent, parent_se3_self, manifest, initial_q }).collect(),
-            rigs: rigs.into_iter().map(|(id, parent, parent_se3_self)| RigSpec { id, parent, parent_se3_self }).collect(),
+            rigs: rigs.into_iter().map(|(id, parent, parent_se3_self)| RigSpec { id, parent, parent_se3_self, layout: None }).collect(),
             cameras: cameras.into_iter().map(|(id, parent, parent_se3_self, params, resolution)| CameraSpec { id, parent, parent_se3_self, params, resolution }).collect(),
             lasers: lasers.into_iter().map(|(id, parent, parent_se3_self, p)| LaserSpec {
+                camera: (p[0] > 0.5).then(|| id.clone()),
                 id, parent, parent_se3_self,
                 fan_half_angle: p[0], fan_length: p[1], wavelength_nm: p[2], beam_waist_m: p[3],
+                power_w: (p[1] > 1.0).then_some(p[1] * 1e-3),
             }).collect(),
             lights: lights.into_iter().map(|(id, parent, parent_se3_self, power_w, color, shape, s)| LightSpec {
                 id, parent, parent_se3_self, power_w, color,
@@ -192,11 +194,18 @@ fn step() -> impl Strategy<Value = Step> {
             q,
             speed_scale
         }),
-        (ident(), pose(), num()).prop_map(|(robot, base_se3_tool, speed_scale)| Step::PtpPose {
-            robot,
-            base_se3_tool,
-            speed_scale
-        }),
+        (
+            ident(),
+            pose(),
+            num(),
+            proptest::option::of(vec(num(), 0..7))
+        )
+            .prop_map(|(robot, base_se3_tool, speed_scale, q)| Step::PtpPose {
+                robot,
+                base_se3_tool,
+                speed_scale,
+                q
+            }),
         (ident(), pose(), num()).prop_map(|(robot, base_se3_tool, speed_scale)| Step::Lin {
             robot,
             base_se3_tool,
@@ -209,7 +218,7 @@ fn step() -> impl Strategy<Value = Step> {
 
 prop_compose! {
     fn scenario()(dt in num(), steps in vec(step(), 0..8), description in proptest::option::of(".{0,20}")) -> ScenarioSpec {
-        ScenarioSpec { version: 1, dt, steps, description }
+        ScenarioSpec { version: 1, dt, steps, description, generator: None }
     }
 }
 
@@ -218,15 +227,25 @@ prop_compose! {
         dt in num(),
         frames in vec(".{1,10}", 1..5),
         robots in vec((ident(), vec(".{1,8}", 0..4)), 0..3),
-        samples in vec((num(), vec(pose(), 0..5), vec(vec(num(), 0..4), 0..3), proptest::option::of(ident())), 0..6),
+        samples in vec((
+            num(),
+            vec(pose(), 0..5),
+            vec(vec(num(), 0..4), 0..3),
+            proptest::option::of((vec(vec(num(), 0..4), 0..3), vec(vec(num(), 0..4), 0..3))),
+            proptest::option::of(ident()),
+        ), 0..6),
     ) -> BakedScenario {
         BakedScenario {
             version: 1,
             dt,
             frames,
             robots: robots.into_iter().map(|(id, joint_names)| BakedRobot { id, joint_names }).collect(),
-            samples: samples.into_iter().map(|(t, world_se3_frame, joint_positions, capture)| BakedSample {
-                t, world_se3_frame, joint_positions, capture: capture.map(|id| CaptureEvent { id }),
+            samples: samples.into_iter().map(|(t, world_se3_frame, joint_positions, derivatives, capture)| {
+                let (joint_velocities, joint_accelerations) = derivatives.unzip();
+                BakedSample {
+                    t, world_se3_frame, joint_positions, joint_velocities, joint_accelerations,
+                    capture: capture.map(|id| CaptureEvent { id }),
+                }
             }).collect(),
         }
     }
@@ -235,7 +254,7 @@ prop_compose! {
 prop_compose! {
     fn manifest()(
         id in ident(),
-        joints in vec((".{1,10}", num(), num(), num(), num(), ".{0,20}"), 0..7),
+        joints in vec((".{1,10}", num(), num(), num(), num(), proptest::option::of(num()), ".{0,20}"), 0..7),
         visuals in vec((".{1,10}", ".{1,20}"), 0..5),
         xacro_args in proptest::collection::btree_map(".{1,8}", ".{0,8}", 0..3),
         redistributable in any::<bool>(),
@@ -247,8 +266,8 @@ prop_compose! {
             urdf: "robot.urdf".into(),
             base_link: "base_link".into(),
             tcp_link: "tool0".into(),
-            joints: joints.into_iter().map(|(name, lower, upper, max_velocity, max_acceleration, limit_source)| ManifestJoint {
-                name, lower, upper, max_velocity, max_acceleration, limit_source,
+            joints: joints.into_iter().map(|(name, lower, upper, max_velocity, max_acceleration, max_jerk, limit_source)| ManifestJoint {
+                name, lower, upper, max_velocity, max_acceleration, max_jerk, limit_source,
             }).collect(),
             visuals: visuals.into_iter().map(|(link, mesh)| ManifestVisual { link, mesh }).collect(),
             source: ManifestSource {

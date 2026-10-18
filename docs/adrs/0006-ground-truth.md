@@ -107,6 +107,23 @@ tags each one with its frame and convention. `device.json` uses the
 A `DeviceSpec` → optimizer laser-plane derivation is proposed as an upstream
 calibration-rs PR in P5, with user review. It is not re-implemented here.
 
+**Amended 2026-10-17 (P7-4): every printable target.** A scene target may be `printed`: any
+target calib-targets prints (chessboard, ChArUco, marker board, PuzzleBoard, the PuzzlePole
+cylinder), named exactly as `calib-targets-print` names it (`etendue_scene::PrintedTarget`
+mirrors its `TargetSpec` field for field, a test keeps the two wire-compatible).
+
+- The drawn surface is one triangle mesh (`etendue_synth::target_mesh`) built from the print's
+  primitives: rectangles tiled into cells, disks lifted 10 µm, and for a PuzzlePole the strip
+  wrapped into calib-targets' pole object frame (axis +Z, seam at +X, ink outward), with end caps.
+  Both renderers draw that mesh; gate G3.2 checks it.
+- A feature point carries its 3-D position and outward normal when the target is not planar
+  (`BoardPoint.xyz_m`, `normal`), and the back-facing test is per point. `gt.json` stays at
+  version 2: the fields are optional and absent for planar targets.
+- `dataset.json` is written only when calibration-rs takes the target (chessboard, ChArUco in
+  OpenCV's layout); otherwise the ground truth is written alone.
+- A laser's stripe on a PuzzlePole is the plane–cylinder intersection
+  (`etendue_core::laser::stripe_on_cylinder`).
+
 ## Consequences
 
 - calibration-rs's `dataset_runner` consumes synthetic datasets directly. The

@@ -9,6 +9,7 @@
 - [Installation](installation.md)
 - [The studio](studio.md)
 - [Scenes and scenarios](scenes.md)
+- [Robots](robots.md)
 - [Command line](cli.md)
 - [Rendering](rendering.md)
 - [Datasets](datasets.md)

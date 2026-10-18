@@ -1,7 +1,9 @@
 //! `etendue render --backend blender` (ADR 0005): bake, choose each camera's
 //! canonical pinhole (ADR 0004), write `job.json`, run Blender with the
 //! embedded script, then resample every EXR through the camera's remap LUT
-//! into `images/<camera>/<capture>.png`.
+//! into `images/<camera>/<capture>.png`. A camera that images a laser also
+//! gets `<capture>_laser.png`: the stripe composited in Rust from the
+//! render's passes (etendue-synth `laser_render`, P7-7).
 
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
@@ -10,9 +12,15 @@ use std::sync::mpsc::{self, RecvTimeoutError};
 use std::time::Duration;
 
 use anyhow::{Context, Result, anyhow, bail};
-use etendue_scene::{BakedScenario, SceneSpec};
-use etendue_synth::images::{read_exr_combined, remap_image_box, write_png_raw, write_png_srgb};
-use etendue_synth::job::{Device, JobMesh, ROBOT_PASS_INDEX, RenderJob, RenderSettings, build_job};
+use etendue_scene::{BakedScenario, LaserSpec, SceneSpec};
+use etendue_synth::images::{
+    LinearImage, read_exr_combined, read_exr_passes, remap_image_box, write_png_raw, write_png_srgb,
+};
+use etendue_synth::job::{
+    Device, JobMesh, LaserView, OutputKind, ROBOT_PASS_INDEX, RenderJob, RenderSettings,
+    add_laser_views, build_job,
+};
+use etendue_synth::laser_render::{Beam, ShadowView, laser_image, laser_radiance, laser_views};
 use etendue_synth::sensor::SensorModel;
 use etendue_synth::{CanonicalCamera, CanonicalSpec, PixelCentre, RemapLut, remap_lut};
 use serde::Serialize;
@@ -52,6 +60,9 @@ pub struct RenderOptions {
     /// Sensor model: images become raw mono PNGs at its bit depth. Without
     /// one, `exposure` and sRGB PNGs.
     pub sensor: Option<SensorModel>,
+    /// Laser images: the fraction of the scene's light left on while the
+    /// laser is ([`DEFAULT_LASER_AMBIENT`]).
+    pub laser_ambient: f32,
 }
 
 /// Default Cycles samples per canonical pixel.
@@ -64,6 +75,8 @@ pub const DEFAULT_SUPERSAMPLE: f64 = 1.0;
 pub const DEFAULT_EXPOSURE: f32 = 1.0;
 /// Default radiance of the uniform white environment.
 pub const DEFAULT_AMBIENT: f64 = 1.0;
+/// Default fraction of the scene's light in laser images.
+pub const DEFAULT_LASER_AMBIENT: f32 = 0.1;
 
 /// A Blender to render with.
 #[derive(Clone, Debug, Serialize)]
@@ -369,14 +382,26 @@ const STDERR_TAIL: usize = 20;
 pub struct RenderSummary {
     /// Images written under `images/<camera>/<capture>.png`.
     pub images: usize,
+    /// Laser images written under `images/<camera>/<capture>_laser.png`.
+    pub laser_images: usize,
     /// Cameras rendered.
     pub cameras: Vec<String>,
+}
+
+/// The lasers camera `camera` images: those linked to it, and those linked
+/// to no camera (every camera images them).
+fn imaged_by<'a>(scene: &'a SceneSpec, camera: &str) -> Vec<&'a LaserSpec> {
+    scene
+        .lasers
+        .iter()
+        .filter(|l| l.camera.as_deref().is_none_or(|c| c == camera))
+        .collect()
 }
 
 /// Render every capture of `baked` with `blender` (ADR 0005): choose each
 /// camera's canonical pinhole, write `job.json`, run Blender, then resample
 /// every EXR through the camera's remap LUT into
-/// `images/<camera>/<capture>.png`.
+/// `images/<camera>/<capture>.png`, and composite the laser images.
 ///
 /// # Errors
 ///
@@ -390,13 +415,6 @@ pub fn run(
     ctl: &Control,
 ) -> Result<RenderSummary> {
     let scene: &SceneSpec = &loaded.scene;
-    if !scene.lasers.is_empty() {
-        ctl.log(
-            "warning: lasers are not rendered yet: the board images have no stripe, and the \
-             dataset's laser images (`*_laser.png`) are not written",
-        );
-    }
-
     let selected: Vec<_> = scene
         .cameras
         .iter()
@@ -417,7 +435,7 @@ pub fn run(
         canonical.push((c.id.clone(), cam, lut));
     }
 
-    let job = build_job(
+    let mut job = build_job(
         scene,
         baked,
         meshes(loaded)?,
@@ -434,48 +452,144 @@ pub fn run(
         },
     )?;
 
+    // Laser images: every laser a rendered camera images, seen from its apex
+    // for its shadows.
+    let lasers: Vec<&LaserSpec> = scene
+        .lasers
+        .iter()
+        .filter(|l| {
+            canonical
+                .iter()
+                .any(|(c, _, _)| imaged_by(scene, c).iter().any(|x| x.id == l.id))
+        })
+        .collect();
+    let views: Vec<LaserView> = lasers
+        .iter()
+        .flat_map(|l| laser_views(l, PIXEL_CENTRE))
+        .collect();
+    if !lasers.is_empty() {
+        add_laser_views(&mut job, baked, &views)?;
+    }
+
     let out = &args.output;
-    let n: usize = job.shots.iter().map(|s| s.outputs.len()).sum();
+    let images = |o: &&etendue_synth::job::JobOutput| o.kind == OutputKind::Image;
+    let n: usize = job
+        .shots
+        .iter()
+        .map(|s| s.outputs.iter().filter(images).count())
+        .sum();
     ctl.log(format!(
-        "rendering {n} image(s) with Blender {}: {} shot(s) × {} camera(s), {} samples",
+        "rendering {n} image(s) with Blender {}: {} shot(s) × {} camera(s), {} samples{}",
         blender.version,
         job.shots.len(),
-        job.cameras.len(),
-        args.samples
+        canonical.len(),
+        args.samples,
+        if views.is_empty() {
+            String::new()
+        } else {
+            format!(", and {} laser view(s) per shot", views.len())
+        }
     ));
     run_blender(&blender.exe, &job, out, ctl)?;
 
+    let frame_of = |name: &str| {
+        baked
+            .frames
+            .iter()
+            .position(|f| f == name)
+            .ok_or_else(|| anyhow!("frame `{name}` is not in the baked scenario"))
+    };
     let sensor = args.sensor.as_ref();
-    let mut frame = 0u64;
+    let taps = args.supersample.ceil() as u32;
+    let write = |image: &LinearImage, png: &Path, frame: u64| -> Result<()> {
+        match sensor {
+            // Temporal noise per image: the frame counter is unique within the job.
+            Some(model) => {
+                let raw = model.expose(&image.rgb, image.width, image.height, frame)?;
+                write_png_raw(&raw, png)?;
+            }
+            None => write_png_srgb(image, args.exposure, png)?,
+        }
+        Ok(())
+    };
+    let (mut frame, mut done, mut laser_images) = (0u64, 0usize, 0usize);
     for shot in &job.shots {
-        for o in &shot.outputs {
+        let sample = &baked.samples[shot.sample];
+        // The lasers at this shot, each stopped by what its views see.
+        let mut beams = Vec::with_capacity(lasers.len());
+        for laser in &lasers {
+            let world_se3_laser = sample.world_se3_frame[frame_of(&laser.id)?];
+            let shadows = views
+                .iter()
+                .filter(|v| v.laser == laser.id)
+                .map(|v| {
+                    let passes = read_exr_passes(&out.join(v.path(&shot.capture)))?;
+                    Ok(ShadowView::new(v, &world_se3_laser, &passes)?)
+                })
+                .collect::<Result<Vec<_>>>()?;
+            beams.push((
+                laser.id.as_str(),
+                Beam::new(laser, &world_se3_laser, shadows)?,
+            ));
+        }
+        for o in shot.outputs.iter().filter(images) {
             ctl.check()?;
-            let (_, _, lut) = canonical
+            let (_, cam, lut) = canonical
                 .iter()
                 .find(|(id, _, _)| *id == o.camera)
                 .expect("outputs name job cameras");
-            let render = read_exr_combined(&out.join(&o.path))?;
+            let exr = out.join(&o.path);
+            let render = read_exr_combined(&exr)?;
             // Box-filter the supersampled render over each pixel (validated by G4.1).
-            let image = remap_image_box(&render, lut, args.supersample.ceil() as u32);
-            let png = out.join(format!("images/{}/{}.png", o.camera, shot.capture));
-            match sensor {
-                // Temporal noise per image: the frame counter is unique within the job.
-                Some(model) => {
-                    let raw = model.expose(&image.rgb, image.width, image.height, frame)?;
-                    write_png_raw(&raw, &png)?;
-                }
-                None => write_png_srgb(&image, args.exposure, &png)?,
-            }
+            let image = remap_image_box(&render, lut, taps);
+            write(
+                &image,
+                &out.join(format!("images/{}/{}.png", o.camera, shot.capture)),
+                frame,
+            )?;
             frame += 1;
-            ctl.step(Stage::Resample, frame as usize, n);
+            let mine: Vec<&str> = imaged_by(scene, &o.camera)
+                .iter()
+                .map(|l| l.id.as_str())
+                .collect();
+            if !mine.is_empty() {
+                let passes = read_exr_passes(&exr)?;
+                let world_se3_camera = sample.world_se3_frame[frame_of(&o.camera)?];
+                let lit: Vec<&Beam> = beams
+                    .iter()
+                    .filter(|(id, _)| mine.contains(id))
+                    .map(|(_, b)| b)
+                    .collect();
+                let radiance = laser_radiance(cam, &world_se3_camera, &passes, &lit)?;
+                let image = remap_image_box(
+                    &laser_image(&render, &radiance, args.laser_ambient),
+                    lut,
+                    taps,
+                );
+                write(
+                    &image,
+                    &out.join(format!("images/{}/{}_laser.png", o.camera, shot.capture)),
+                    frame,
+                )?;
+                frame += 1;
+                laser_images += 1;
+            }
+            done += 1;
+            ctl.step(Stage::Resample, done, n);
         }
     }
     ctl.log(format!(
-        "wrote {n} image(s) under {}",
+        "wrote {n} image(s){} under {}",
+        if laser_images > 0 {
+            format!(" and {laser_images} laser image(s)")
+        } else {
+            String::new()
+        },
         out.join("images").display()
     ));
     Ok(RenderSummary {
         images: n,
+        laser_images,
         cameras: canonical.into_iter().map(|(id, _, _)| id).collect(),
     })
 }

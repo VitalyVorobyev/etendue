@@ -16,6 +16,17 @@
       "type": "number",
       "format": "double"
     },
+    "generator": {
+      "description": "The generator the steps were made by, kept so it can be edited and\nrun again; the steps are the source of truth.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/GeneratorSpec"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "steps": {
       "description": "The program, executed in order.",
       "type": "array",
@@ -37,6 +48,163 @@
     "steps"
   ],
   "$defs": {
+    "AngleSteps": {
+      "description": "`steps` angles from `min_rad` to `max_rad`, both included (a full turn\ncounts its start once).",
+      "type": "object",
+      "properties": {
+        "max_rad": {
+          "description": "Last angle, radians.",
+          "type": "number",
+          "format": "double"
+        },
+        "min_rad": {
+          "description": "First angle, radians.",
+          "type": "number",
+          "format": "double"
+        },
+        "steps": {
+          "description": "Number of angles, ≥ 1.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "min_rad",
+        "max_rad",
+        "steps"
+      ]
+    },
+    "GeneratorSpec": {
+      "description": "How a scenario's poses were generated, tagged on `type`.",
+      "oneOf": [
+        {
+          "description": "Poses on spheres around the target, the sensor looking at the centre.",
+          "type": "object",
+          "properties": {
+            "centre_m": {
+              "description": "Sphere centre in the target frame, metres; default the target's\ncentre (a PuzzlePole's axis midpoint).",
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "number",
+                "format": "double"
+              },
+              "maxItems": 3,
+              "minItems": 3
+            },
+            "joint_margin_rad": {
+              "description": "Smallest distance of any joint from its limits (rad or m).",
+              "type": "number",
+              "format": "double",
+              "default": 0.05
+            },
+            "look": {
+              "description": "The sensor frame: a rig, a camera, or any frame rigidly carried by\nthe robot's tool.",
+              "type": "string"
+            },
+            "look_se3_sensor": {
+              "description": "The sensor axis relative to `look` (identity by default).",
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Iso3Schema"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "min_sigma": {
+              "description": "Smallest singular value of the tool Jacobian.",
+              "type": "number",
+              "format": "double",
+              "default": 0.02
+            },
+            "phi": {
+              "description": "Azimuths about the pole.",
+              "$ref": "#/$defs/AngleSteps"
+            },
+            "pole": {
+              "description": "The sphere's pole (θ = 0) in the target frame; default +Z, the\nboard's normal (for a PuzzlePole, +X, the seam's outward normal).",
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "number",
+                "format": "double"
+              },
+              "maxItems": 3,
+              "minItems": 3
+            },
+            "radii_m": {
+              "description": "Sphere radii, metres.",
+              "type": "array",
+              "items": {
+                "type": "number",
+                "format": "double"
+              }
+            },
+            "require": {
+              "description": "Which cameras must see the target, and how much of it.",
+              "$ref": "#/$defs/Visibility",
+              "default": {
+                "margin_px": 2.0,
+                "min_visible_fraction": 1.0
+              }
+            },
+            "return_home": {
+              "description": "Go back to the start configuration at the end.",
+              "type": "boolean",
+              "default": false
+            },
+            "robot": {
+              "description": "The robot that carries the sensor.",
+              "type": "string"
+            },
+            "roll_rad": {
+              "description": "Rolls of the sensor about its axis, radians (default `[0]`).",
+              "type": "array",
+              "items": {
+                "type": "number",
+                "format": "double"
+              }
+            },
+            "speed_scale": {
+              "description": "Fraction of the joint limits the moves use, in `(0, 1]`.",
+              "type": "number",
+              "format": "double",
+              "default": 0.5
+            },
+            "target": {
+              "description": "The target looked at.",
+              "type": "string"
+            },
+            "theta": {
+              "description": "Polar angles from the pole.",
+              "$ref": "#/$defs/AngleSteps"
+            },
+            "type": {
+              "type": "string",
+              "const": "sphere"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "robot",
+            "look",
+            "target",
+            "radii_m",
+            "theta",
+            "phi"
+          ]
+        }
+      ]
+    },
     "Iso3Schema": {
       "description": "JSON Schema proxy for [`Iso3`] (`nalgebra::Isometry3<f64>`).\n\n`nalgebra` does not implement [`schemars::JsonSchema`], so `*Export` and\nparameter types that embed [`Iso3`] annotate the field with\n`#[cfg_attr(feature = \"schemars\", schemars(with = \"Iso3Schema\"))]`\n(or `Vec<Iso3Schema>` / `Option<Iso3Schema>`). This proxy mirrors the exact\nserde wire format of `Isometry3`:\n`{ \"rotation\": [qx, qy, qz, qw], \"translation\": [tx, ty, tz] }`.\n\nIt exists only to describe that shape to `schemars`; it is never\nconstructed at runtime.",
       "type": "object",
@@ -87,7 +255,7 @@
               "type": "string"
             },
             "speed_scale": {
-              "description": "Fraction of the joint velocity and acceleration limits, in\n`(0, 1]`.",
+              "description": "Fraction of the joint velocity, acceleration and jerk limits, in\n`(0, 1]`.",
               "type": "number",
               "format": "double",
               "default": 1.0
@@ -112,12 +280,23 @@
               "description": "Target pose of the TCP link in the robot base frame.",
               "$ref": "#/$defs/Iso3Schema"
             },
+            "q": {
+              "description": "The joint configuration that reaches `base_se3_tool`, when it has\nbeen chosen (a pose generator, `resolve`): the move then goes\nthere without inverse kinematics, so baking can never switch to\nanother IK branch. It must reach the pose (checked when the\nscenario is compiled).",
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "number",
+                "format": "double"
+              }
+            },
             "robot": {
               "description": "Robot id.",
               "type": "string"
             },
             "speed_scale": {
-              "description": "Fraction of the joint velocity and acceleration limits, in\n`(0, 1]`.",
+              "description": "Fraction of the joint velocity, acceleration and jerk limits, in\n`(0, 1]`.",
               "type": "number",
               "format": "double",
               "default": 1.0
@@ -147,7 +326,7 @@
               "type": "string"
             },
             "speed_scale": {
-              "description": "Fraction of the joint velocity and acceleration limits, in\n`(0, 1]`.",
+              "description": "Fraction of the joint velocity, acceleration and jerk limits, in\n`(0, 1]`.",
               "type": "number",
               "format": "double",
               "default": 1.0
@@ -206,6 +385,35 @@
           ]
         }
       ]
+    },
+    "Visibility": {
+      "description": "Which cameras must see the target.",
+      "type": "object",
+      "properties": {
+        "cameras": {
+          "description": "The cameras; all of the scene's when absent.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "margin_px": {
+          "description": "Image border margin, pixels.",
+          "type": "number",
+          "format": "double",
+          "default": 2.0
+        },
+        "min_visible_fraction": {
+          "description": "Fraction of the target's points each must see, in `(0, 1]`.",
+          "type": "number",
+          "format": "double",
+          "default": 1.0
+        }
+      },
+      "additionalProperties": false
     }
   }
 }

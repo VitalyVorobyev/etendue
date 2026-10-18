@@ -78,6 +78,15 @@ class Laser(unittest.TestCase):
         stripe["points"] = stripe["points"][:1]
         self.assertIsNone(laser_pixels({"laser_points": [stripe]}))
 
+    def test_laser_pixels_from_extracted_stripes(self) -> None:
+        from closed_loop import laser_pixels, laser_views
+
+        self.assertEqual(laser_pixels({"pixels": [[1.0, 2.0], [3.0, 4.0]]}), [(1.0, 2.0), (3.0, 4.0)])
+        gt = {"captures": [{"id": "c0", "views": [{"camera": "a"}, {"camera": "b"}]}]}
+        stripes = {"version": 1, "captures": [{"id": "c0", "views": [{"camera": "b", "pixels": []}]}]}
+        self.assertEqual(laser_views(gt, stripes), [[None, {"camera": "b", "pixels": []}]])
+        self.assertEqual(laser_views(gt, None), [gt["captures"][0]["views"]])
+
     def test_nominal_seed_rounds_like_a_datasheet(self) -> None:
         import math
 

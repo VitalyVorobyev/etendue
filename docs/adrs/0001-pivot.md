@@ -62,7 +62,9 @@ first phase that has two library crates to check.
   `vision-calibration-core`, and `vision-calibration-dataset`. It depends on
   no other etendue crate.
 - `etendue-kinematics` may depend on `etendue-scene` and `urdf-rs`.
-  `rs-opw-kinematics` sits behind the `opw` feature. The `k` crate is excluded
+  `rs-opw-kinematics` sits behind the `opw` feature. *Amended 2026-10-17
+  (P7-2):* also `rsruckig`, for jerk-limited motion profiles (pure Rust;
+  depends only on arrayvec, num-traits and thiserror). The `k` crate is excluded
   because it requires nalgebra ^0.30, which conflicts with the 0.34 hard pin.
 - `etendue-synth` may depend on `etendue-scene`, `etendue-kinematics`,
   `vision-calibration-core`, `vision-calibration-dataset`, and `exr`.

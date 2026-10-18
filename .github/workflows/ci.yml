@@ -94,7 +94,7 @@ jobs:
 
       - name: CLI smoke test (P1-6 examples)
         run: |
-          for ex in eye_in_hand_ur5e eye_to_hand_ur5e closed_loop_ur5e laser_ur5e laser_scheimpflug_ur5e; do
+          for ex in eye_in_hand_ur5e eye_to_hand_ur5e closed_loop_ur5e laser_ur5e laser_scheimpflug_ur5e rig3_laser_ur5e; do
             cargo run -q -p etendue-cli -- validate examples/$ex/scene.json examples/$ex/scenario.json
             cargo run -q -p etendue-cli -- bake examples/$ex/scene.json examples/$ex/scenario.json -o target/$ex.baked.json
           done
@@ -123,6 +123,9 @@ jobs:
         run: |
           cargo run -q -p etendue-cli -- gt examples/laser_ur5e/scene.json examples/laser_ur5e/scenario.json -o target/laser_loop
           uv run --locked --project tools/closed-loop tools/closed-loop/closed_loop.py target/laser_loop
+          # G5.3b (P7-3): a three-camera ring with one laser per camera; each camera's own plane.
+          cargo run -q -p etendue-cli -- gt examples/rig3_laser_ur5e/scene.json examples/rig3_laser_ur5e/scenario.json -o target/rig3_loop
+          uv run --locked --project tools/closed-loop tools/closed-loop/closed_loop.py target/rig3_loop
 
   # etendue-wasm (npm `@etendue/wasm`): wasm32 build, gate G0.1 — the wasm
   # build of the projection chain must match the native build bit-for-bit

@@ -60,5 +60,21 @@ noise-free linear 8-bit sensor.
 Renders are validated with the Blender version pinned in `etendue.toml` (5.1.1). etendue reads the
 nearest `etendue.toml` with a pin above the scene, then above the working directory, and refuses
 another version unless `--allow-blender-version` is given; with no pin found it renders and
-warns. Lasers are not rendered yet: a laser scene's images show the
-board without the stripe.
+warns.
+
+## Laser images
+
+A camera that images a laser also gets `images/<camera>/<capture>_laser.png`. It images its own
+laser in a rig with one laser per camera, or a laser linked to no camera. The board image stays
+laser-free.
+
+The laser image is the same capture with the scene's light dimmed to `--laser-ambient` (default
+0.1), plus the stripe. The stripe is not path-traced. etendue composites it from the render's
+depth, normal and albedo:
+- Lambertian reflection of a line laser whose power (`power_w`, default 0.5 mW) is spread evenly
+  over the fan;
+- a Gaussian beam across the fan;
+- shadows from depth views rendered at the laser.
+
+The power is as the camera responds to it: it counts the same in every colour channel. The
+stripe is as sharp as the pinhole render (no defocus), and has no speckle.

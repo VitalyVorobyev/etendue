@@ -5,7 +5,10 @@
 //! - `check-layering [--manifest-path <Cargo.toml>]`: enforce the crate
 //!   dependency rules of ADR 0001 §2 and the single-nalgebra hard pin (with a
 //!   manifest: the pin alone, for a crate outside the workspace).
+//! - `app [--release] [tauri args…]`: run the studio desktop app (debug) or
+//!   build its release bundles (aliases `cargo app`, `cargo app-release`).
 
+mod app;
 mod check_layering;
 mod emit_schemas;
 
@@ -32,8 +35,9 @@ fn main() -> Result<()> {
             }
             _ => bail!("usage: cargo xtask check-layering [--manifest-path <Cargo.toml>]"),
         },
+        Some("app") => app::run(&root, &args[1..]),
         _ => bail!(
-            "usage: cargo xtask <emit-schemas [--check] | check-layering [--manifest-path <Cargo.toml>]>"
+            "usage: cargo xtask <emit-schemas [--check] | check-layering [--manifest-path <Cargo.toml>] | app [--release] [tauri args…]>"
         ),
     }
 }
