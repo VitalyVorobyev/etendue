@@ -182,7 +182,8 @@ export function DatasetPanel({
           ) : blender.found ? (
             <StatusDot tone={blender.message === null ? "normal" : "warning"}>
               Blender {blender.version}
-              {blender.pin !== null && blender.pin !== blender.version ? ` (pinned ${blender.pin})` : ""}
+              {/* The shell matches the version to its pin (a series such as "5.2" takes 5.2.x) and reports a mismatch in `message`. */}
+              {blender.pin !== null && blender.message !== null ? ` (pinned ${blender.pin})` : ""}
             </StatusDot>
           ) : (
             <StatusDot tone="defect">Blender not found</StatusDot>

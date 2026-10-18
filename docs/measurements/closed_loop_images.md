@@ -1,9 +1,8 @@
 # P5-1b: calibration closed loop on rendered images
 
-> Measured on the former 20-viewpoint scenario of `examples/closed_loop_ur5e` (from the retired
-> `make_scenario.py`; it is in git history). Since P7-6 the example has 24 generated viewpoints
-> (`closed_loop.md`). This loop has not been re-run on them: it needs Blender 5.1.1 (the pin),
-> and only 5.2.2 is installed.
+> Re-run 2026-10-18 on the 24 generated viewpoints of `examples/closed_loop_ur5e` (P7-6) with
+> Blender 5.2.2: see [Re-run on Blender 5.2](#re-run-on-blender-52-2026-10-18). The sections
+> after it record the first run, on the former 20-viewpoint scenario with Blender 5.1.1.
 
 - Measures: what the rendered dataset, detected with the G4.2 default detector, gives
   calibration-rs. The pipeline is render → detect → calibrate (`docs/pivot/PLAN.md` P5-1).
@@ -32,8 +31,41 @@
   survives an illumination gradient. It also reads `render`'s default sRGB PNGs, as linear
   luminance, and rounds 16-bit images to 8 bits instead of truncating. On this run's input
   (8-bit linear, uniform light, a full board in every view) the decision is not expected to
-  change. It has **not been re-run**, because Blender 5.1.1 (the pin) was not installed when
-  the change was made.
+  change. The 2026-10-18 re-run uses it.
+
+## Re-run on Blender 5.2 (2026-10-18)
+
+- Measured: 2026-10-18, on etendue commit `95f1947` (branch `blender-5.2`), Blender 5.2.2
+  (Cycles, Metal, Apple M4 Pro), `vision-calibration` wheel and calibration-rs 0.9.0,
+  calib-targets 0.15.5, chess-corners 1.2. The procedure below, on the example's current
+  scenario: 24 viewpoints from the sphere pose generator, 48 images. Ground truth, render and
+  detection took 2 min 35 s.
+- **Detection:** every view of both cameras found, 2592 corners, **0 mislabelled**, 0 unmatched.
+  0.0578 px (cam_left) and 0.0582 px (cam_right) RMS from the analytic pixels, max 0.137 px.
+- **Calibration**, against white noise of the same RMS (σ = 0.041 px per axis), min / median /
+  max over 12 seeds:
+
+| quantity | limit (G5.1) | rig, detected | white noise min / median / max |
+|---|---|---|---|
+| mean reprojection px | 0.05 | 0.0521 | 0.0502 / 0.0505 / 0.0516 |
+| cam_left fx rel | 1e-4 | 1.9e-4 | 2.6e-5 / 1.3e-4 / 5.2e-4 |
+| cam_left cx px | 0.05 | 0.28 | 0.099 / 0.61 / 0.91 |
+| cam_left cy px | 0.05 | 0.017 | 0.086 / 0.34 / 0.78 |
+| cam_right fx rel | 1e-4 | 1.2e-4 | 1.6e-5 / 1.8e-4 / 3.8e-4 |
+| cam_right cx px | 0.05 | 0.13 | 0.036 / 0.31 / 1.12 |
+| cam_right cy px | 0.05 | 0.027 | 0.0078 / 0.26 / 0.64 |
+| hand-eye rotation deg | 0.01 | 0.012 | 0.0048 / 0.020 / 0.029 |
+| hand-eye translation mm | 0.05 | 0.14 | 0.013 / 0.078 / 0.30 |
+
+  One camera alone (cam_left): mean reprojection 0.051 px, fx 2.2e-4, cx 0.37 px, cy 0.036 px,
+  hand-eye 0.012° / 0.14 mm.
+- **Still noise-limited, as on 5.1.1.** Every intrinsic and hand-eye quantity lies within the
+  white-noise spread, except cam_left cy, which is better than every seed.
+- **The mean reprojection error is 0.0005 px above the white-noise max** (0.0521 against
+  0.0516). The detector's error is not quite white: it depends on each corner's sub-pixel phase
+  and perspective (G4.2), so it is correlated across views in a way independent noise is not.
+  This is the one place the detected corners differ measurably from white noise of the same
+  RMS. Option 2 below would fail on it by that margin; the rest of option 2 holds.
 
 ## Procedure
 
@@ -137,7 +169,9 @@ What the table shows:
 These are the options for the image-level loop:
 1. **Keep it as a characterisation** (like G4.2): record the numbers, no gate.
 2. **Gate it against the white-noise reference**: pass when every quantity is within the
-   white-noise max over N seeds. That tests "no bias" directly, and it holds today.
+   white-noise max over N seeds. That tests "no bias" directly. It held on the 2026-09-29 run;
+   on the 2026-10-18 run every intrinsic and hand-eye quantity passes, and the mean
+   reprojection error misses by 0.0005 px.
 3. **Gate it against G5.1's limits with a stronger view set**: more views and more tilt, until
    0.05 px noise costs less than the limits. That tests the dataset design as well as the
    pipeline.

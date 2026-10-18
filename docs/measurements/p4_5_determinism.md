@@ -9,6 +9,17 @@
   renders. **Never mix devices within one dataset**: GPU and CPU sample differently.
 - Measured: 2026-09-27, on etendue commit `71d340f` (branch `pivot/p4-blender`), Blender 5.1.1,
   Apple M4 Pro.
+- Re-run 2026-10-18 on **Blender 5.2.2** (the pin moved to the 5.2 series), etendue commit
+  `51343da` (branch `blender-5.2`), same procedure: GPU run to run max |Δ| **2.384e-7** (mean
+  4.48e-9, 540 999 values differ), CPU bit-exact, GPU vs CPU max 1.5e-2 (mean 7.5e-7): the same
+  as on 5.1.1.
+- **At the dataset settings** (`--supersample 4 --samples 16`, the closed loop's; canonical
+  5280 × 4224, 66 908 160 values), the GPU's run-to-run maximum is larger: **7.4e-3**, mean
+  9.4e-9, 10 % of values differing. The CPU is still bit-exact. A few pixels with few samples
+  each carry the GPU's accumulation-order difference into a visible fraction of a DN (7.4e-3 of
+  radiance 1 = 1.8 DN at 240 DN full scale) while the mean stays at the 1e-8 level. Not measured
+  on 5.1.1, so not attributed to the version. Use `--cpu` where two renders must match bit for
+  bit.
 
 ## Procedure
 

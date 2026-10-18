@@ -54,7 +54,7 @@ class ConvertTest(unittest.TestCase):
         self.assertTrue(close(direction(light, [0, 0, -1]), [0, 0, 1]))
 
     def test_gltf_undo_inverts_the_importers_y_up_rotation(self):
-        # Measured with Blender 5.1.1: an imported vertex (x, y, z) arrives as (x, −z, y).
+        # Measured with Blender 5.1.1 and 5.2.2: an imported vertex (x, y, z) arrives as (x, −z, y).
         raw = [0.1, 0.2, 0.3]
         imported = apply(c.rot_x(math.pi / 2), raw)
         self.assertTrue(close(imported, [0.1, -0.3, 0.2]))

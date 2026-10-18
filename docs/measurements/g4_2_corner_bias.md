@@ -23,6 +23,11 @@
   `crates/etendue-cli/src/corners.rs`, branch `pivot/g4-2-radon`), calibration-rs `76353753`
   (0.8.3), chess-corners 1.2.0, Blender 5.1.1 (Cycles, Metal, Apple M4 Pro). The ChESS rows of
   that run match the recorded ones to within Monte Carlo noise (≤ 0.003 px RMS).
+- Re-run 2026-10-18 on **Blender 5.2.2** (the pin moved to the 5.2 series), etendue commit
+  `51343da` (branch `blender-5.2`), chess-corners 1.2: the first run of all five detectors in one
+  build. At s = 4, linear and sharp: center of mass 0.1825, Förstner 0.0709, saddle point 0.1247,
+  Radon **0.0313**, Radon parabolic 0.0332 px RMS, each within 0.002 px of the table below. The
+  Radon baseline check passes (0.0313 against 0.032 px + 0.005 px slack).
 
 ## Procedure
 
@@ -78,8 +83,9 @@ RMS / max in px, over 315 corners:
 The ChESS columns are the 2026-09-27 run (calibration-rs `b7e470b2`); the Radon columns are the
 2026-09-28 run (calibration-rs 0.8.3), whose ChESS rows agree with these to ≤ 0.003 px. The two
 column sets therefore come from different builds and Monte Carlo draws; the ratios quoted above are
-good to that 0.003 px. A single consistent run needs the pinned Blender 5.1.1 and is not repeated
-here (`etendue measure g4-2` now checks the Radon baseline itself, below).
+good to that 0.003 px. The 2026-10-18 run on Blender 5.2.2 (above) is a single consistent run of
+all five and agrees with the table to 0.002 px (`etendue measure g4-2` also checks the Radon
+baseline itself, below).
 
 What the table shows:
 - **The mean error is at most 0.013 px on sharp linear images** (every s, the exact image, and

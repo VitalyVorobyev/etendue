@@ -180,7 +180,7 @@ embedded bpy-only script `crates/etendue-cli/blender/etendue_blender/render.py` 
 fixed seed, Standard view, multilayer EXR with Depth and IndexOB), then remaps each EXR
 through the LUT to `images/<camera>/<capture>.png`. Conventions live only in
 `blender/etendue_blender/convert.py` (Rx(π) for cameras and emitters, Rx(−π/2) undoing the
-glTF importer's Y-up). The Blender version is pinned in `etendue.toml` (5.1.1). Blender runs
+glTF importer's Y-up). The Blender version is pinned in `etendue.toml` ("5.2": any 5.2.x). Blender runs
 locally, never in CI.
 
 **`etendue-wasm`** — wasm-bindgen facade (P2-1). `Session` (JS `EtendueScene`) loads a

@@ -325,7 +325,8 @@ and ask; do not silently relax it.
   version.
   *Status (2026-09-27):* done. `etendue render` (job.json, embedded script, EXR → LUT →
   PNG); the eye-in-hand example renders 10 captures × 1 camera in 76 s at 16 samples on an
-  M4 Pro (Metal). Blender 5.1.1 pinned in `etendue.toml`. Findings: Blender 5 selects
+  M4 Pro (Metal). Blender 5.1.1 pinned in `etendue.toml`; since 2026-10-18 the 5.2 series
+  (G4.1–G4.3, P4-5 and P5-1b re-run on 5.2.2). Findings: Blender 5 selects
   multilayer EXR through `media_type`; the glTF importer's Y-up rotation is undone in
   `convert.py`; EXR rows are top-first (`tests/blender_exr.rs`). Boards are calib-targets'
   print since P3-3.
@@ -394,6 +395,10 @@ and ask; do not silently relax it.
   hand-eye 0.014° / 0.12 mm). How to gate the image-level loop awaits a decision
   (`docs/measurements/closed_loop_images.md`). The renders found an IK branch in which the arm
   hid the board (fixed with `initial_q`), and that the GT has no robot self-occlusion yet.
+  *Re-run (2026-10-18, Blender 5.2.2, the 24 generated viewpoints):* 48/48 views, 0 mislabels,
+  0.058 px RMS; still noise-limited (every intrinsic and hand-eye quantity inside the
+  white-noise spread), the mean reprojection error 0.0005 px above its max. The gating decision
+  still awaits the user.
 - **P5-2 — Laser sheet in Cycles (spike).** Compare (a) a spot light with a slit
   texture against (b) an area light with near-zero spread behind a slit occluder.
   Measure the across-stripe profile on a matte plane. Done when gate **G5.2** passes:
@@ -491,7 +496,7 @@ collision checking. Order: P7-0 → (P7-1, P7-3, P7-4) → P7-2 → P7-5 → P7-
   status, Apply as one undo step). **G2.3 passes**: 79 ms median
   (`docs/measurements/g2_3_generator.md`). `make_scenario.py` is retired: the three closed-loop
   examples are generated (24 viewpoints), and G5.1 and G5.3 still pass on them. The image-level
-  loop (P5-1b) waits for Blender 5.1.1.
+  loop (P5-1b) was re-run on them with Blender 5.2.2 (2026-10-18).
   - Not done from the plan: eye-to-hand generation (refused with a clear error), and previewing
     the robot at a clicked candidate.
 - **P7-7 — Laser images.** A Rust compositor from Blender's depth, normal and albedo passes, and

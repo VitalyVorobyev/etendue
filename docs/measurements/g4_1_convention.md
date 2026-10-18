@@ -13,6 +13,9 @@
   `web/published-packages`): **PASS**,
   worst 0.0049 px (brown 0.0037 / 0.0040, offcentre_skew_tilt 0.0041 / 0.0049 px, integer / half),
   mean ≤ 0.0006 px. The Blender side is unchanged and was not re-run.
+- Blender side re-run 2026-10-18 on **Blender 5.2.2** (the pin moved to the 5.2 series), etendue
+  commit `51343da` (branch `blender-5.2`): **PASS**, worst 0.0029 px; every row's mean, RMS and
+  max within 0.0001 px of the 5.1.1 table below.
 
 ## Procedure
 

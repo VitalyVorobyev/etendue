@@ -57,7 +57,8 @@ noise-free linear 8-bit sensor.
 
 ## The Blender version
 
-Renders are validated with the Blender version pinned in `etendue.toml` (5.1.1). etendue reads the
+Renders are validated with the Blender version pinned in `etendue.toml` (5.2: a pin `X.Y` accepts
+every `X.Y.Z`, a pin `X.Y.Z` only that version). etendue reads the
 nearest `etendue.toml` with a pin above the scene, then above the working directory, and refuses
 another version unless `--allow-blender-version` is given; with no pin found it renders and
 warns.

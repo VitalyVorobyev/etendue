@@ -102,6 +102,8 @@ calibration datasets with exact ground truth. The 0.1.0 desktop app is replaced 
 
 ### Changed
 
+- **Blender 5.2**: `etendue.toml` pins the 5.2 series. A two-part pin (`"5.2"`) accepts every
+  5.2.x; a three-part pin stays exact. The render gates were re-run on 5.2.2.
 - calibration-rs 0.9.0.
 - calib-targets 0.15.5: ChArUco and marker boards turned past 45° in the image are labelled
   correctly (they were one square off).
