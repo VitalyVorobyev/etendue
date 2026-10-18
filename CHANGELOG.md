@@ -18,6 +18,9 @@ calibration datasets with exact ground truth. The 0.1.0 desktop app is replaced 
   render and board detection in one run, with progress and cancel. It carries the examples and
   the robot library. The same studio runs in a browser (without dataset generation) when built
   from source.
+- **`cargo app` and `cargo app-release`**: build and run the desktop app (debug) from a source
+  checkout, or build its release app and installers, in one command each (robot meshes, wasm
+  kernel and web packages first).
 - **Scene and scenario documents**: a versioned JSON scene (a frame tree of robots, rigs, cameras,
   line lasers, lights, calibration boards and parts) and scenario (`ptp_joints`, `ptp_pose`, `lin`,
   `wait` and `capture` steps), with JSON Schemas in `schemas/`. Cameras use calibration-rs camera

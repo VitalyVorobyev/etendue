@@ -24,7 +24,8 @@ bun run check:deps            # the studio imports only what it declares
 bun run typecheck && bun run lint && bun run format:check && bun run test && bun run build
 bun run format                # oxfmt over web/ and crates/etendue-wasm/{js,scripts,tests} (.oxfmtrc.json)
 bun run dev                   # studio at http://localhost:5178 (blocks; do not run non-interactively)
-cd apps/studio && bun run desktop:dev   # the desktop app (Tauri, reads the checkout; blocks; interactive only)
+cargo app                     # the desktop app, debug (meshes if missing, wasm, bun install, tauri dev; blocks; interactive only)
+cargo app-release [--bundles app]   # release bundles (same preparation, tauri build)
 cd apps/studio && bun run desktop:build [--bundles app]   # wasm + frontend + release bundle (needs the robot meshes)
 cd apps/studio && bun run tauri build --debug --no-bundle   # compile the shell against the built frontend
 cd apps/studio && bun run test:e2e     # Playwright, SwiftShader, bakes the reference with etendue-cli
@@ -73,7 +74,7 @@ uv run --locked --project tools/robot-assets tools/robot-assets/build.py --repor
 uv run tools/fixtures/fk_fixture.py
 ```
 
-Do NOT run `bun run dev` or `desktop:dev` non-interactively; they block. The `etendue`
+Do NOT run `bun run dev`, `desktop:dev` or `cargo app` non-interactively; they block. The `etendue`
 binary is the CLI; the desktop app's binary is `etendue-studio`.
 
 ### Feature matrix
@@ -89,7 +90,7 @@ across the whole workspace.
 | `etendue-synth` | `images` | canonical camera, remap LUT, GT, dataset, render jobs, pose generator; `images` = EXR ingest + PNG + the laser-image compositor (native render path, off in wasm) |
 | `etendue-cli` | none | lib `etendue_cli` (the pipeline) + binary `etendue` |
 | `etendue-wasm` | none | wasm32 build + G0.1 parity in CI job `wasm` |
-| `xtask` | none | not published |
+| `xtask` | none | not published; `emit-schemas`, `check-layering`, `app` (aliases `cargo app`, `cargo app-release`) |
 | `etendue-studio` (`web/apps/studio/src-tauri`) | `custom-protocol` (default) | Tauri shell, its own workspace, not published |
 
 CI job `checks` runs clippy and tests with `--all-features` for `etendue-core`,
@@ -109,7 +110,7 @@ etendue-cli (lib `etendue_cli` + bin `etendue`) ──► etendue-kinematics, et
 web/apps/studio/src-tauri (Tauri shell, own workspace) ──► etendue-cli (lib)
 etendue-wasm (npm @etendue/wasm) ──► etendue-kinematics ──► etendue-scene, etendue-synth ──► etendue-core, vision-calibration-core
 web/apps/studio ──► @etendue/wasm, @vitavision/{ui,workbench,three,three-react,charts,stage2d} (npm, from lab-ui)
-xtask (emit-schemas, check-layering)
+xtask (emit-schemas, check-layering, app)
 ```
 
 `cargo xtask check-layering` enforces these rules (ADR 0001 §2).

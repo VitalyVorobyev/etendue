@@ -59,11 +59,8 @@ To build and run from source (Rust, Node.js, bun, wasm-pack and uv; calibration-
 next to etendue):
 
 ```bash
-uv run --locked --project tools/robot-assets tools/robot-assets/build.py   # robot meshes
-node crates/etendue-wasm/scripts/build-npm.mjs
-(cd web && bun install)
-(cd web/apps/studio && bun run desktop:dev)        # the desktop app, run from the checkout
-(cd web/apps/studio && bun run desktop:build)      # or an installable app in src-tauri/target/release/bundle
+cargo app            # build and run the desktop app (debug) from the checkout
+cargo app-release    # build the release app and installers, in web/apps/studio/src-tauri/target/release/bundle
 ```
 
 The [installation chapter](https://vitalyvorobyev.github.io/etendue/installation.html#from-source)

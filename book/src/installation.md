@@ -76,39 +76,35 @@ cargo install --locked --path crates/etendue-cli   # the `etendue` command, on y
 
 ### The desktop app
 
-Once per checkout (and again after pulling changes to `crates/etendue-wasm` or the robots):
-
 ```bash
-uv run --locked --project tools/robot-assets tools/robot-assets/build.py   # robot meshes
-node crates/etendue-wasm/scripts/build-npm.mjs                             # the studio's wasm kernel
-(cd web && bun install)
+cargo app                          # build and run the debug app from the checkout
+cargo app-release                  # build the release app and its installers
+cargo app-release --bundles app    # macOS: the .app alone
 ```
 
-Then either run it from the checkout, or build an app:
+Both first prepare what the app needs: the robot meshes if they are missing (with uv), the
+studio's wasm kernel (`crates/etendue-wasm`, with node and wasm-pack) and the web packages
+(`bun install`). Any other argument goes to the Tauri CLI.
 
-```bash
-(cd web/apps/studio && bun run desktop:dev)        # run: opens the app window, reloads on edits
-(cd web/apps/studio && bun run desktop:build --bundles app)   # build: the app only (macOS)
-(cd web/apps/studio && bun run desktop:build)      # build: every installer for this platform
-```
-
-- **`desktop:dev`** compiles the shell (the first time takes a few minutes), starts the frontend
-  on `http://localhost:5178`, and opens the window. It reads the examples and robots from the
-  checkout and writes datasets under `Documents/etendue`. Leave it running; close the window or
-  press Ctrl-C to stop.
-- **`desktop:build`** writes to `web/apps/studio/src-tauri/target/release/bundle/`: on macOS
-  `macos/etendue studio.app` (copy it to `/Applications`) and, without `--bundles app`, a `.dmg`;
-  on Windows an `.msi` and a `-setup.exe`; on Linux an `.AppImage` and a `.deb`. The bundle
-  carries the examples, the robot library and `etendue.toml`.
+- **`cargo app`** compiles the shell (the first time takes a few minutes), starts the frontend on
+  `http://localhost:5178` and opens the window; edits to the frontend reload it. It reads the
+  examples and robots from the checkout and writes datasets under `Documents/etendue`. Close
+  the window or press Ctrl-C to stop.
+- **`cargo app-release`** writes to `web/apps/studio/src-tauri/target/release/bundle/`: on macOS
+  `macos/etendue studio.app` (copy it to `/Applications`) and a `.dmg`; on Windows an `.msi` and
+  a `-setup.exe`; on Linux an `.AppImage` and a `.deb`. The app carries the examples, the robot
+  library and `etendue.toml`.
 
 ### In a browser
 
+After `cargo app` or `cargo app-release` has prepared the checkout once:
+
 ```bash
-(cd web && bun run dev)                            # http://localhost:5178
+(cd web && bun run dev)            # http://localhost:5178
 ```
 
-After the same once-per-checkout steps. In a browser the studio opens, edits and plays scenes,
-but cannot generate datasets: that needs the desktop app or the command line.
+In a browser the studio opens, edits and plays scenes, but cannot generate datasets: that needs
+the desktop app or the command line.
 
 The robot meshes are not in the repository (they are rebuilt from the robots' upstream sources);
 the studio's 3D view and rendering a scene with a robot need them.
