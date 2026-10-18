@@ -55,9 +55,19 @@ Rendering needs [Blender 5.1.1](https://www.blender.org/download/releases/5-1/).
 for it in `$ETENDUE_BLENDER`, then in the default install location (`/Applications/Blender.app`
 on macOS, `blender` on the `PATH` elsewhere). Everything else works without it.
 
-To build from source instead, see the
-[installation chapter](https://vitalyvorobyev.github.io/etendue/installation.html) of the
-documentation.
+To build and run from source (Rust, Node.js, bun, wasm-pack and uv; calibration-rs checked out
+next to etendue):
+
+```bash
+uv run --locked --project tools/robot-assets tools/robot-assets/build.py   # robot meshes
+node crates/etendue-wasm/scripts/build-npm.mjs
+(cd web && bun install)
+(cd web/apps/studio && bun run desktop:dev)        # the desktop app, run from the checkout
+(cd web/apps/studio && bun run desktop:build)      # or an installable app in src-tauri/target/release/bundle
+```
+
+The [installation chapter](https://vitalyvorobyev.github.io/etendue/installation.html#from-source)
+of the documentation has the prerequisites and the command line.
 
 ## Quick start: the studio
 

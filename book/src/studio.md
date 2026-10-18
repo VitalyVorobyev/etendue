@@ -4,6 +4,8 @@ etendue studio opens a scene and its scenario, plays the robot's motion in 3D, a
 camera sees. In the desktop app it also generates datasets: ground truth, Blender renders and
 board detection, in one run.
 
+To install it, or to build and run it from source, see [Installation](installation.md#the-desktop-app).
+
 ![The studio with the hand-eye calibration example (closed_loop_ur5e) at a capture](images/studio.png)
 
 ## Opening and saving

@@ -45,31 +45,70 @@ Blender.
 
 ## From source
 
-You need [Rust](https://rustup.rs) (the toolchain is pinned in `rust-toolchain.toml`) and, for the
-studio, [bun](https://bun.sh) and [wasm-pack](https://rustwasm.github.io/wasm-pack/). etendue
-builds against [calibration-rs](https://github.com/VitalyVorobyev/calibration-rs) checked out
-next to it:
+### Prerequisites
+
+- [Rust](https://rustup.rs): `rustup` installs the pinned toolchain (`rust-toolchain.toml`,
+  with the wasm32 target) on the first build.
+- For the studio: [Node.js](https://nodejs.org), [bun](https://bun.sh) and
+  [wasm-pack](https://rustwasm.github.io/wasm-pack/).
+- For the robot meshes: [uv](https://docs.astral.sh/uv/) ≥ 0.13.
+- On Linux, the desktop app's system libraries:
+  `sudo apt-get install libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf`.
+  macOS needs the Xcode command-line tools; Windows needs WebView2 (preinstalled on Windows 11).
+
+etendue builds against [calibration-rs](https://github.com/VitalyVorobyev/calibration-rs) checked
+out **next to it** (same parent folder):
 
 ```bash
 git clone https://github.com/VitalyVorobyev/calibration-rs
 git -C calibration-rs checkout v0.9.0
 git clone https://github.com/VitalyVorobyev/etendue
 cd etendue
-cargo install --locked --path crates/etendue-cli   # the `etendue` command
 ```
 
-The studio, as a desktop app or in a browser:
+All commands below run from the `etendue` folder.
+
+### The command line
 
 ```bash
-uv run --locked --project tools/robot-assets tools/robot-assets/build.py   # robot meshes (needs uv)
-node crates/etendue-wasm/scripts/build-npm.mjs
-(cd web && bun install)
-(cd web/apps/studio && bun run desktop:build)      # a desktop bundle in src-tauri/target/release/bundle
-(cd web && bun run dev)                            # or: the studio in a browser, http://localhost:5178
+cargo install --locked --path crates/etendue-cli   # the `etendue` command, on your PATH
 ```
 
-The robot meshes are not in the repository (they are rebuilt from the robots' upstream sources);
-rendering a scene with a robot needs them, and so does the studio's 3D view.
+### The desktop app
 
-In a browser the studio can open and play scenes but not generate datasets: that needs the
-desktop app (or the command line).
+Once per checkout (and again after pulling changes to `crates/etendue-wasm` or the robots):
+
+```bash
+uv run --locked --project tools/robot-assets tools/robot-assets/build.py   # robot meshes
+node crates/etendue-wasm/scripts/build-npm.mjs                             # the studio's wasm kernel
+(cd web && bun install)
+```
+
+Then either run it from the checkout, or build an app:
+
+```bash
+(cd web/apps/studio && bun run desktop:dev)        # run: opens the app window, reloads on edits
+(cd web/apps/studio && bun run desktop:build --bundles app)   # build: the app only (macOS)
+(cd web/apps/studio && bun run desktop:build)      # build: every installer for this platform
+```
+
+- **`desktop:dev`** compiles the shell (the first time takes a few minutes), starts the frontend
+  on `http://localhost:5178`, and opens the window. It reads the examples and robots from the
+  checkout and writes datasets under `Documents/etendue`. Leave it running; close the window or
+  press Ctrl-C to stop.
+- **`desktop:build`** writes to `web/apps/studio/src-tauri/target/release/bundle/`: on macOS
+  `macos/etendue studio.app` (copy it to `/Applications`) and, without `--bundles app`, a `.dmg`;
+  on Windows an `.msi` and a `-setup.exe`; on Linux an `.AppImage` and a `.deb`. The bundle
+  carries the examples, the robot library and `etendue.toml`.
+
+### In a browser
+
+```bash
+(cd web && bun run dev)                            # http://localhost:5178
+```
+
+After the same once-per-checkout steps. In a browser the studio opens, edits and plays scenes,
+but cannot generate datasets: that needs the desktop app or the command line.
+
+The robot meshes are not in the repository (they are rebuilt from the robots' upstream sources);
+the studio's 3D view and rendering a scene with a robot need them.
