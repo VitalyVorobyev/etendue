@@ -1,13 +1,14 @@
 import { defineConfig } from "@playwright/test";
 
 /**
- * Gate G2.2 (docs/pivot/PLAN.md P2-3): frame times of live playback. Runs on the machine's
+ * Gates G2.2 (docs/pivot/PLAN.md P2-3, frame times of live playback) and G8.1 (P8, a slider
+ * drag). Runs on the machine's
  * GPU (no SwiftShader), against a production build. Local only; see
  * docs/measurements/g2_2_perf.md.
  */
 export default defineConfig({
   testDir: "e2e",
-  testMatch: "perf.spec.ts",
+  testMatch: ["perf.spec.ts", "perf_drag.spec.ts"],
   timeout: 120_000,
   workers: 1,
   reporter: "list",
