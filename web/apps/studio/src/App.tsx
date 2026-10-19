@@ -20,6 +20,11 @@ import { describeFailure } from "./kernel/etendue";
 import { type Bodies, type PoseOverride, bodyPoses, posed } from "./kernel/posed";
 import type { GeneratedPoses } from "@etendue/wasm";
 import { scenarioFromPoses } from "./kernel/native";
+import { analyse } from "./optics/analysis";
+import { type HeadParams, initialHead, placement, toItem } from "./optics/design";
+import { OpticsForm, OpticsReadouts } from "./optics/OpticsPanels";
+import { PlaneMap } from "./optics/PlaneMap";
+import { SectionView } from "./optics/SectionView";
 import { CameraGrid } from "./panels/CameraGrid";
 import { CellDialog } from "./panels/CellDialog";
 import { DatasetPanel } from "./panels/DatasetPanel";
@@ -90,8 +95,16 @@ export function App() {
     reopenable,
   } = useStudio(studio);
   const [cellDialog, setCellDialog] = useState(false);
+  // The Optics workspace's head, kept across workspaces; it starts from the project's parts.
+  const [head, setHead] = useState<HeadParams | null>(null);
+  const startHead = useMemo(() => (project ? initialHead(project) : null), [project]);
+  const headParams = head ?? startHead;
+  const headAnalysis = useMemo(() => (headParams ? analyse(headParams) : null), [headParams]);
   const { playhead } = studio;
-  const modes = useMemo<Mode[]>(() => ["setup", "motion", "images", ...(isTauri() ? ["dataset" as const] : [])], []);
+  const modes = useMemo<Mode[]>(
+    () => ["optics", "setup", "motion", "images", ...(isTauri() ? ["dataset" as const] : [])],
+    [],
+  );
   const [mode, setModeState] = useState<Mode>(() => storedMode(modes));
   const [selection, setSelection] = useState<Scoped<string | null>>({ opened: 0, value: null });
   const [runtime, setRuntime] = useState<FrameTreeRuntime | null>(null);
@@ -508,6 +521,72 @@ export function App() {
     </div>
   );
 
+  // A head from the Optics workspace into the open cell: under the selected frame, or above the
+  // world origin looking down; then the Setup workspace, with its camera selected.
+  const placeHead = (p: HeadParams) => {
+    if (!current) return;
+    const scene = current.loaded.scene;
+    const parent = selected !== null && current.baked.frames.includes(selected) ? selected : "world";
+    const pose =
+      parent === "world"
+        ? {
+            rotation: [1, 0, 0, 0] as [number, number, number, number],
+            translation: [0, 0, 0.8] as [number, number, number],
+          }
+        : IDENTITY;
+    const cameraId = uniqueId(scene, "head_cam");
+    const laserId = uniqueId(
+      { ...scene, cameras: [...(scene.cameras ?? []), { id: cameraId } as never] },
+      "head_laser",
+    );
+    const { camera, laser } = placement(p, parent, pose, cameraId, laserId);
+    const ok = studio.edit(`place ${p.name}`, (d) => ({
+      ...d,
+      scene: addEntity(addEntity(d.scene, "cameras", camera), "lasers", laser),
+    }));
+    if (ok) {
+      setMode("setup");
+      setSelected(cameraId);
+    }
+  };
+
+  // The Optics workspace: a head designed against its window (P10).
+  const opticsLeft =
+    headParams && headAnalysis ? (
+      <OpticsForm
+        params={headParams}
+        onChange={setHead}
+        analysis={headAnalysis}
+        project={project}
+        onSave={project?.write ? (p) => studio.saveLibraryItem(toItem(p)) : null}
+        onPlace={current ? placeHead : null}
+      />
+    ) : null;
+  const opticsMain =
+    headParams && headAnalysis ? (
+      typeof headAnalysis === "string" ? (
+        <div className="p-4">
+          <Callout tone="warning" title="The kernel refused this head">
+            <p>{headAnalysis}</p>
+          </Callout>
+        </div>
+      ) : (
+        <div className="grid h-full min-h-0 grid-rows-[3fr_2fr] divide-y divide-line">
+          <SectionView section={headAnalysis.section} params={headParams} onChange={setHead} />
+          <PlaneMap
+            map={headAnalysis.map}
+            range={headAnalysis.range}
+            width={headParams.width_m}
+            blurLimitPx={headParams.max_blur_px}
+          />
+        </div>
+      )
+    ) : (
+      <Empty>{loading ? "Loading…" : "The Optics workspace needs a project's parts."}</Empty>
+    );
+  const opticsRight =
+    headParams && headAnalysis ? <OpticsReadouts params={headParams} analysis={headAnalysis} /> : null;
+
   const left =
     current && tree && mode === "setup" ? (
       <Navigator
@@ -626,15 +705,16 @@ export function App() {
             exports={exports}
           />
         }
-        left={left}
-        leftLabel="Scene frames"
-        main={main}
-        right={right}
-        rightLabel={mode === "motion" ? "Program" : "Inspector"}
+        left={mode === "optics" ? opticsLeft : left}
+        leftLabel={mode === "optics" ? "Design" : "Scene frames"}
+        main={mode === "optics" ? opticsMain : main}
+        right={mode === "optics" ? opticsRight : right}
+        rightLabel={mode === "optics" ? "Figures" : mode === "motion" ? "Program" : "Inspector"}
         rightSize={{ defaultSize: 380, minSize: 260, maxSize: "50%" }}
         bottom={
           current &&
-          mode !== "dataset" && (
+          mode !== "dataset" &&
+          mode !== "optics" && (
             <PlaybackBar
               playhead={playhead}
               playing={playing}

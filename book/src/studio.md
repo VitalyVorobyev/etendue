@@ -41,6 +41,28 @@ marks unsaved changes.
 The header switches between workspaces. Each keeps the 3D view or the camera images as its main
 surface; the panels around it hold only what that workspace needs.
 
+- **Optics**: design a laser-triangulation head (a camera and a line laser on its body) against
+  the window it must measure in. It works on the project's library, not on the cell.
+  - **Design** (left): the parts (sensor, lens, laser, or a saved head), the camera's f-number,
+    focus and sensor tilt, where the laser sits (baseline off the camera axis, height, the point
+    on the axis it aims at), the window (depth along the laser, width along its line, the blur it
+    must stay under), and the optimiser. **Scheimpflug** tilts the sensor and focuses so the plane
+    of best focus is the laser plane; **Optimise** searches tilt (or keeps the sensor square),
+    focus and f-number for the smallest worst blur over the window, from that start, and offers
+    Apply or Discard. **Save to library** writes `library/heads/<id>.json`; **Place in cell**
+    adds the camera and its laser to the open cell.
+  - **Section** (centre, top): the plane through the camera axis across the laser plane, to
+    scale — the sensor, the principal planes H and H′, the pupils, the field, chief and marginal
+    rays from the window's near, middle and far points, the laser and its window, the plane of
+    best focus with the depth of field for the blur limit, and the Scheimpflug hinge points.
+    Drag the handles to move the focus, the aim, the laser and the window's depth. **Lens**
+    zooms onto the camera; the wheel zooms, a drag pans.
+  - **Map** (centre, bottom): the laser plane over the window, face on, coloured by total blur
+    (defocus and diffraction), depth per pixel, millimetres per pixel along the line, or the
+    triangulation angle. Hatched samples are out of view; a white contour marks the blur limit.
+  - **Figures** (right): the window's coverage and worst figures, the Scheimpflug setting, and
+    the camera's derived optics (fx and its breathing, magnification, working f-number, Airy
+    disc, pupils).
 - **Setup**: the cell.
   - **Scene** (left): the frame tree — the world, robots and their links, rigs, cameras, lasers,
     lights, targets and parts. **+** adds a frame, rig, camera, laser, target or light, attached

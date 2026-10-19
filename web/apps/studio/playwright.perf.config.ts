@@ -8,7 +8,7 @@ import { defineConfig } from "@playwright/test";
  */
 export default defineConfig({
   testDir: "e2e",
-  testMatch: ["perf.spec.ts", "perf_drag.spec.ts"],
+  testMatch: ["perf.spec.ts", "perf_drag.spec.ts", "perf_optics.spec.ts"],
   timeout: 120_000,
   workers: 1,
   reporter: "list",

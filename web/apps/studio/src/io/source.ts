@@ -39,7 +39,14 @@ export function urlSource(base: string, name = base): FileSource {
     },
     async list(dir) {
       const res = await fetch(url(`${dir.replace(/\/$/, "")}/${INDEX}`));
-      return res.ok ? ((await res.json()) as string[]) : [];
+      // A missing folder may come back as the app's own page (a server's fallback): no listing.
+      if (!res.ok || !(res.headers.get("content-type") ?? "").includes("json")) return [];
+      try {
+        const names: unknown = await res.json();
+        return Array.isArray(names) ? names.filter((n): n is string => typeof n === "string") : [];
+      } catch {
+        return [];
+      }
     },
   };
 }

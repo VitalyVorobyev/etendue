@@ -207,6 +207,17 @@ test("a new project gets the starter library, takes a cell, and reopens", async 
   expect(JSON.parse(saved["/proj/bench/scene.json"]!)).toHaveProperty("cameras");
   expect(saved["/proj/bench/scenario.json"]).toBeDefined();
 
+  // A head designed in the Optics workspace goes into the project's library.
+  await page.getByRole("radio", { name: "Optics" }).click();
+  await page.getByRole("button", { name: "Scheimpflug" }).click();
+  await page.getByRole("button", { name: "Save to library" }).click();
+  await expect(page.getByText("Saved Laser head")).toBeVisible();
+  const head = JSON.parse((await disk())["/proj/library/heads/laser_head.json"]!) as {
+    head: { camera: { optics: unknown } };
+  };
+  expect(head.head.camera.optics).toBeDefined();
+  await page.getByRole("radio", { name: "Setup" }).click();
+
   // The next session opens the project and its cell.
   await page.goto("/");
   await expect(page.getByRole("treeitem", { name: /cam_left/ })).toBeVisible({ timeout: 30_000 });

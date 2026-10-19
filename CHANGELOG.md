@@ -99,6 +99,28 @@ calibration datasets with exact ground truth. The 0.1.0 desktop app is replaced 
   and the baked motion, and datasets generated from the scene as edited (written into the
   dataset as `scene.json`). `EtendueScene.updateScene` in `@etendue/wasm` replaces a session's
   scene without re-parsing its robots.
+- **Live editing**: the inspector's numbers are sliders with typed fields, grouped in folds; a
+  gizmo moves and turns the selected item in 3D (local or parent axes, snapping). A pose change is
+  shown as it moves without baking (followers and robot links included); a release is one undo
+  step.
+- **Physical cameras** (ADR 0008): a camera's optional `optics` (sensor pitch, focal length,
+  f-number, principal-plane gap, entrance pupil, focus distance, sensor tilt) is the source of
+  truth for its pinhole, which is derived with focus breathing. The camera's pose is its
+  mechanical frame (the image-plane datum), independent of the lens; projection, blur and the
+  frame invariance are tested. `@etendue/wasm` has `deriveOptics` and `mechSe3Projection`;
+  `gt.json` records each camera's `mech_se3_projection`.
+- **Projects and the component library** (ADR 0009): a project folder (`etendue-project.json`)
+  holds cells, robots, defaults and a library of sensors, lenses, lasers, targets, cameras, heads
+  and rigs (`library.schema.json`, `project.schema.json`). `examples/` is the reference project,
+  `etendue project check` validates one, and the studio opens, creates and saves projects (on the
+  desktop, or through the browser's folder access).
+- **The Optics workspace**: design a laser-triangulation head from the library's parts against
+  the window it must measure in. A Scheimpflug section (sensor, principal planes, pupils, traced
+  rays, the plane of best focus and its depth of field, draggable focus, aim, laser and window), a
+  map of the laser plane (blur, depth and lateral resolution, triangulation angle), one-click
+  Scheimpflug, an optimiser over tilt, focus and f-number, saving to the library and placing in a
+  cell. `@etendue/wasm` has `headMap`, `headSection`, `headScheimpflug`, `headOptimise` and
+  `headApply` (`etendue-core::head`).
 
 ### Changed
 
@@ -122,8 +144,8 @@ calibration datasets with exact ground truth. The 0.1.0 desktop app is replaced 
 ### Removed
 
 - The 0.1.0 egui desktop app (`etendue-ui`). Its optics — defocus, Scheimpflug plane of best
-  focus, laser line, working volume and the Scheimpflug solver — remain in `etendue-core`;
-  bringing its heatmap and design panels to the studio is planned.
+  focus, laser line, working volume and the Scheimpflug solver — remain in `etendue-core`; the
+  studio's Optics workspace replaces its design panels.
 - `etendue-core`'s `Scene::triangulation_ring`: rig layouts (`RigSpec.layout`) build rings.
 
 ## [0.1.0] - 2026-05-20
