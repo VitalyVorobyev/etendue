@@ -36,6 +36,7 @@ import { tcpPath } from "./scene/TcpPath";
 import { CoverageLegend, SliceMaps } from "./rigs/SliceMaps";
 import { CameraGrid } from "./panels/CameraGrid";
 import { CellDialog } from "./panels/CellDialog";
+import { CalibratePanel } from "./panels/CalibratePanel";
 import { DatasetPanel } from "./panels/DatasetPanel";
 import { GeneratorPanel } from "./panels/GeneratorPanel";
 import { type ExportItem, Header, type Mode } from "./panels/Header";
@@ -57,6 +58,7 @@ import {
   updateEntity,
 } from "./scene/edit";
 import { sceneTree } from "./scene/model";
+import { CalibrationRunner } from "./state/calibrationRun";
 import { DatasetRunner } from "./state/datasetRun";
 import { Studio, initialExample, useStudio } from "./state/studio";
 
@@ -89,6 +91,7 @@ function inField(e: KeyboardEvent): boolean {
 export function App() {
   const [studio] = useState(() => new Studio(createPlayhead(1, 0.01)));
   const [runner] = useState(() => new DatasetRunner(studio));
+  const [calibration] = useState(() => new CalibrationRunner());
   const {
     current,
     failure,
@@ -513,6 +516,17 @@ export function App() {
       {mode === "dataset" && (
         <div className="min-h-0 flex-1 overflow-auto p-4">
           <DatasetPanel current={current} dataset={dataset} runner={runner} />
+          {dataset && (
+            <section className="mt-6 border-t border-line pt-4" aria-label="Calibrate">
+              <h2 className="mb-3 text-sm font-medium">Calibrate and compare</h2>
+              <CalibratePanel
+                dataset={dataset}
+                cameras={(current.loaded.scene.cameras ?? []).map((c) => c.id)}
+                lasers={(current.loaded.scene.lasers ?? []).length > 0}
+                runner={calibration}
+              />
+            </section>
+          )}
         </div>
       )}
       {/* The 3D view stays mounted in every workspace: the camera images render its scene. */}

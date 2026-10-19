@@ -704,6 +704,17 @@ studio code, so no phase waits on a review.
     - Eye-to-hand calibrates too.
     - CI runs the loops natively, with parity against the wheel.
     - **P13b** brings the shell command and the Calibrate workspace.
+  - *Status, P13b:* done.
+    - The shell's `calibrate_dataset` runs `etendue-cli::calibrate::run_dir`, with a progress
+      step per trial and cancel, writing `calibration.json` into the dataset folder.
+    - The studio's Dataset workspace is now **Calibrate**: generate, then calibrate (exact,
+      noisy with trials, or detected) and compare.
+    - The comparison is a table against the gate, the trial spread and a residual histogram.
+    - **Deferred:**
+      - estimated against true frusta and planes drawn in 3-D;
+      - a noise preview on the camera views (wasm `observe`);
+      - runs kept in the project's `runs/` (a run goes to its dataset folder);
+      - a browser preview of the source.
 
 ### Deferred (not planned; do not scaffold)
 

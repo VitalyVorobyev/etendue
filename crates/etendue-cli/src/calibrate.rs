@@ -1194,3 +1194,113 @@ pub fn row_stats(reports: &[Report]) -> Vec<RowStats> {
     out.sort_by_key(|(o, _)| *o);
     out.into_iter().map(|(_, s)| s).collect()
 }
+
+/// How [`run_dir`] calibrates a dataset directory.
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default, deny_unknown_fields)]
+pub struct RunOptions {
+    /// Noise on the analytic observations (`seed` is the first trial's).
+    pub noise: ObservationNoise,
+    /// Trials, with seeds `seed, seed + 1, …` (at least one).
+    pub trials: u32,
+    /// Calibrate this camera of a rig alone.
+    pub camera: Option<String>,
+    /// Calibrate `etendue detect`'s observations (`features.json`, `laser_features.json`)
+    /// instead of the ground truth's.
+    pub detected: bool,
+}
+
+/// What [`run_dir`] found: every trial's report and, with several, each row's spread.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Run {
+    pub reports: Vec<Report>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub row_stats: Option<Vec<RowStats>>,
+}
+
+/// The file [`run_dir`] writes into the dataset directory.
+pub const CALIBRATION: &str = "calibration.json";
+
+/// Calibrate the dataset in `dir` (`gt.json`, and `etendue detect`'s files when `detected`),
+/// reporting each trial through `ctl`, and write the run to `dir/calibration.json`.
+///
+/// # Errors
+///
+/// Unreadable files, bad noise, a failed workflow, or cancellation (`progress::Cancelled`).
+pub fn run_dir(
+    dir: &std::path::Path,
+    options: &RunOptions,
+    ctl: &crate::progress::Control,
+) -> Result<Run> {
+    use crate::progress::Stage;
+    let gt: GroundTruth = crate::read_json(&dir.join("gt.json"), "ground truth")?;
+    let problems = options.noise.problems();
+    ensure!(
+        problems.is_empty(),
+        "observation noise: {}",
+        problems.join("; ")
+    );
+    let trials = options.trials.max(1);
+    ensure!(
+        !options.detected || (options.noise == ObservationNoise::default() && trials == 1),
+        "noise and trials apply to the analytic observations, not to detected ones"
+    );
+    let detected = if options.detected {
+        let found: crate::detect::Features =
+            crate::read_json(&dir.join("features.json"), "features")?;
+        let stripes: Option<crate::detect::laser::LaserFeatures> = if gt.lasers.is_empty() {
+            None
+        } else {
+            Some(crate::read_json(
+                &dir.join(crate::detect::LASER_FEATURES),
+                "laser features",
+            )?)
+        };
+        Some(from_features(&gt, &found, stripes.as_ref())?)
+    } else {
+        None
+    };
+    let calibrate_options = Options {
+        camera: options.camera.clone(),
+        detected: options.detected,
+    };
+    let mut reports = Vec::with_capacity(trials as usize);
+    for k in 0..trials {
+        ctl.check()?;
+        ctl.step(Stage::Calibrate, k as usize, trials as usize);
+        let obs = match &detected {
+            Some(obs) => obs.clone(),
+            None => etendue_synth::observe::observe(
+                &gt,
+                &ObservationNoise {
+                    seed: options.noise.seed.wrapping_add(u64::from(k)),
+                    ..options.noise
+                },
+            ),
+        };
+        let report = calibrate(&gt, &obs, &calibrate_options)?;
+        ctl.log(format!(
+            "trial {}: {:?}, mean reprojection {:.4} px, {}",
+            k + 1,
+            report.workflow,
+            report.residuals.mean_px,
+            if !report.gated {
+                "not gated"
+            } else if report.pass {
+                "PASS"
+            } else {
+                "FAIL"
+            }
+        ));
+        reports.push(report);
+    }
+    ctl.step(Stage::Calibrate, trials as usize, trials as usize);
+    let run = Run {
+        row_stats: (reports.len() > 1).then(|| row_stats(&reports)),
+        reports,
+    };
+    let path = dir.join(CALIBRATION);
+    std::fs::write(&path, serde_json::to_string_pretty(&run)? + "\n")
+        .with_context(|| format!("writing {}", path.display()))?;
+    Ok(run)
+}

@@ -8,7 +8,11 @@
  * wiring: what the Dataset panel sends, and how it shows progress and results.
  */
 
+import { readFileSync } from "node:fs";
+
 import { type Page, expect, test } from "@playwright/test";
+
+import { CALIBRATION, ROOT } from "./global-setup";
 
 async function installShell(page: Page): Promise<void> {
   await page.addInitScript(() => {
@@ -16,6 +20,7 @@ async function installShell(page: Page): Promise<void> {
     let next = 1;
     const w = window as unknown as Record<string, unknown>;
     w.__requests = [];
+    w.__calibrations = [];
     w.__cancelled = false;
     // A project folder the user "picks", kept in sessionStorage so it survives a reload.
     const PROJECT = "/proj";
@@ -77,6 +82,13 @@ async function installShell(page: Page): Promise<void> {
           case "cancel_run":
             w.__cancelled = true;
             return true;
+          case "calibrate_dataset": {
+            (w.__calibrations as unknown[]).push({ dir: args.dir, options: args.options });
+            const channel = (args.onProgress as { id: number }).id;
+            callbacks.get(channel)?.({ index: 0, message: { kind: "step", stage: "calibrate", done: 0, total: 1 } });
+            // The native report on closed_loop_ur5e's exact observations (global setup).
+            return { kind: "ok", ...(w.__calibrationRun as object) };
+          }
           case "generate_dataset": {
             (w.__requests as unknown[]).push(args.request);
             const channel = (args.onProgress as { id: number }).id;
@@ -119,6 +131,10 @@ async function installShell(page: Page): Promise<void> {
 
 test("generates a dataset through the native pipeline", async ({ page }) => {
   await installShell(page);
+  const run = JSON.parse(readFileSync(`${ROOT}${CALIBRATION}`, "utf8")) as object;
+  await page.addInitScript((r) => {
+    (window as unknown as { __calibrationRun: object }).__calibrationRun = r;
+  }, run);
   await page.goto("/?example=closed_loop_ur5e");
   await expect(page.getByRole("treeitem", { name: /cam_left/ })).toBeVisible({ timeout: 30_000 });
   await page.getByRole("button", { name: "File" }).click();
@@ -126,7 +142,7 @@ test("generates a dataset through the native pipeline", async ({ page }) => {
   await expect(page.getByRole("menuitem", { name: "Import tool poses…" })).toBeEnabled();
   await page.keyboard.press("Escape");
 
-  await page.getByRole("radio", { name: "Dataset" }).click();
+  await page.getByRole("radio", { name: "Calibrate" }).click();
   const panel = page.getByTestId("dataset-panel");
   await expect(panel.getByTestId("blender-status")).toContainText("Blender 5.2.2");
   await expect(panel.getByTestId("blender-status")).not.toContainText("pinned");
@@ -145,7 +161,7 @@ test("generates a dataset through the native pipeline", async ({ page }) => {
   await expect(panel.getByRole("button", { name: "Cancel" })).toBeVisible();
   // The run outlives the panel: away and back, it still shows, and cannot start twice.
   await page.getByRole("radio", { name: "Images" }).click();
-  await page.getByRole("radio", { name: "Dataset" }).click();
+  await page.getByRole("radio", { name: "Calibrate" }).click();
   await expect(page.getByTestId("dataset-panel").getByRole("button", { name: "Cancel" })).toBeVisible();
   await expect(page.getByTestId("dataset-panel").getByRole("button", { name: "Generate" })).toBeDisabled();
 
@@ -170,12 +186,29 @@ test("generates a dataset through the native pipeline", async ({ page }) => {
   expect((request.scenario as { steps: unknown[] }).steps).toHaveLength(48);
   // The scene goes as the studio holds it (edits included), not as a path.
   expect((request.scene as { cameras: unknown[] }).cameras).toHaveLength(2);
+
+  // Calibrated natively (the shell's answer is `etendue calibrate`'s real report): the rows
+  // against the gate, the residuals and their histogram.
+  const calibrate = page.getByTestId("calibrate-panel");
+  await calibrate.getByRole("radio", { name: "With noise" }).click();
+  await expect(calibrate.getByTestId("noise-form")).toBeVisible();
+  await calibrate.getByRole("radio", { name: "Exact" }).click();
+  await calibrate.getByRole("button", { name: "Calibrate" }).click();
+  const outcome = page.getByTestId("calibration-result");
+  await expect(outcome).toContainText("G5.1 PASS");
+  await expect(outcome).toContainText("rig hand-eye");
+  await expect(outcome.getByRole("cell", { name: "hand-eye rotation deg" })).toBeVisible();
+  await expect(outcome.getByRole("img", { name: "Reprojection errors" })).toBeVisible();
+  const calibrations = await page.evaluate(
+    () => (window as unknown as { __calibrations: Record<string, unknown>[] }).__calibrations,
+  );
+  expect(calibrations).toEqual([{ dir: "/repo/target/studio/closed_loop_ur5e", options: {} }]);
 });
 
 test("a plain browser has no Dataset tab", async ({ page }) => {
   await page.goto("/?example=closed_loop_ur5e");
   await expect(page.getByRole("treeitem", { name: /cam_left/ })).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByRole("radio", { name: "Dataset" })).toHaveCount(0);
+  await expect(page.getByRole("radio", { name: "Calibrate" })).toHaveCount(0);
   await page.getByRole("button", { name: "File" }).click();
   await expect(page.getByRole("menuitem", { name: "Open scene…" })).toHaveCount(0);
   await expect(page.getByRole("menuitem", { name: "Open files…" })).toBeVisible();

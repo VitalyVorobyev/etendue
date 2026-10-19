@@ -215,13 +215,14 @@ calibration-rs 0.8.2); keep it that way. Never call entropy from kernel code.
 workspace (restates the calibration-rs patch and dev profile; `check-layering --manifest-path`
 guards its nalgebra). Native commands on the `etendue_cli` library: `generate_dataset` (gt →
 Blender → detect, progress over a channel, `cancel_run`), `blender_status`, `scenario_from_poses`,
-`pick` (file dialogs run in the shell), `read_text`/`path_exists` (only under allowed folders:
+`calibrate_dataset` (P13: `etendue-cli::calibrate::run_dir` on a generated dataset, a progress step per
+trial, `cancel_run`), `pick` (file dialogs run in the shell), `read_text`/`path_exists` (only under allowed folders:
 the data root, the datasets folder, and what was picked; the same folders form the asset-protocol
 scope), `data_root`. The data root is the checkout in a debug build and the bundle's resources
 (examples, robot library, `etendue.toml`) in a release build, which writes datasets under
 `Documents/etendue`. `release.yml` builds the bundles (dmg, msi/nsis, AppImage/deb, unsigned) and
 the CLI archives; its `workflow_dispatch` is a dry run. The shell has its own `deny.toml`. `@etendue/wasm` stays the per-frame kernel. The frontend checks `isTauri()`
-(`src/io/tauri.ts`, `src/kernel/native.ts`); in a browser the Dataset tab and the native buttons are
+(`src/io/tauri.ts`, `src/kernel/native.ts`); in a browser the Calibrate tab (dataset generation and calibration) and the native buttons are
 absent. `etendue-cli`'s lib is the top of the stack: no workspace crate may depend on it.
 
 **`web/`** — bun workspace: `@vitavision/config-{ts,vitest}`, TypeScript 7.0.2 (the native

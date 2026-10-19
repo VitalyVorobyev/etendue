@@ -12,7 +12,7 @@ import { Channel, invoke } from "@tauri-apps/api/core";
 import { normalize } from "../io/tauri";
 
 /** A pipeline step (`etendue_cli::progress::Stage`). */
-export type Stage = "ground_truth" | "render" | "resample" | "detect";
+export type Stage = "ground_truth" | "render" | "resample" | "detect" | "calibrate";
 
 /** A progress event (`etendue_cli::progress::Progress`). */
 export type Progress = { kind: "step"; stage: Stage; done: number; total: number } | { kind: "log"; line: string };
@@ -126,6 +126,89 @@ export function generateDataset(
   const channel = new Channel<Progress>();
   channel.onmessage = onProgress;
   return invoke<Outcome>("generate_dataset", { runId, request, onProgress: channel });
+}
+
+/** Noise on synthesised observations (`etendue-synth::observe`); every field defaults to 0. */
+export interface ObservationNoise {
+  pixel_sigma_px?: number;
+  outlier_fraction?: number;
+  outlier_sigma_px?: number;
+  dropout_fraction?: number;
+  laser_sigma_px?: number;
+  robot_rot_sigma_rad?: number;
+  robot_trans_sigma_m?: number;
+  seed?: number;
+}
+
+/** How a dataset is calibrated (`etendue-cli::calibrate::RunOptions`). */
+export interface CalibrateOptions {
+  noise?: ObservationNoise;
+  trials?: number;
+  camera?: string | null;
+  /** `etendue detect`'s observations instead of the ground truth's. */
+  detected?: boolean;
+}
+
+/** One compared quantity: its error against the truth, and the gate's limit if it has one. */
+export interface CalibrationRow {
+  label: string;
+  value: number;
+  limit?: number;
+}
+
+/** A calibration and its comparison with the truth (`etendue-cli::calibrate::Report`). */
+export interface CalibrationReport {
+  version: number;
+  workflow: "single_cam_handeye" | "rig_handeye" | "rig_handeye_laserline" | "laserline_device";
+  gate: string;
+  /** The gate applies: exact analytic observations. */
+  gated: boolean;
+  pass: boolean;
+  cameras: string[];
+  views: number;
+  points: number;
+  laser_pixels: number;
+  noise: ObservationNoise | null;
+  rows: CalibrationRow[];
+  residuals: {
+    count: number;
+    mean_px: number;
+    rms_axis_px: number;
+    max_px: number;
+    per_camera_mean_px: number[];
+    errors_px: number[];
+  };
+}
+
+/** A row's spread over trials. */
+export interface RowStats {
+  label: string;
+  mean: number;
+  std: number;
+  max: number;
+  limit?: number;
+}
+
+export interface CalibrationRun {
+  reports: CalibrationReport[];
+  row_stats?: RowStats[];
+}
+
+export type CalibrationOutcome =
+  | ({ kind: "ok" } & CalibrationRun)
+  | { kind: "cancelled" }
+  | { kind: "failed"; message: string };
+
+/** Calibrate the dataset in `dir` as `runId` (also written to `dir/calibration.json`). */
+export function calibrateDataset(
+  runId: string,
+  dir: string,
+  options: CalibrateOptions,
+  onProgress: (p: Progress) => void,
+): Promise<CalibrationOutcome> {
+  const channel = new Channel<Progress>();
+  channel.onmessage = onProgress;
+  return invoke<CalibrationOutcome>("calibrate_dataset", { runId, dir, options, onProgress: channel });
 }
 
 /** Ask run `runId` to stop; `true` if it was still running. */
