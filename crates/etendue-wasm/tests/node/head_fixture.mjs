@@ -31,3 +31,25 @@ export function headFixture(root) {
     window: { near_m: n - 0.06, far_m: n + 0.06, width_m: 0.04 },
   };
 }
+
+// A ring of three such heads 80 mm from the rig axis, converging at 0.35 m (P11: G0.1, G11.3),
+// and a box around the working point.
+export function ringFixture(root) {
+  const head = headFixture(root);
+  return {
+    layout: {
+      count: 3,
+      radius_m: 0.08,
+      working_distance_m: 0.35,
+      camera: head.camera,
+      lasers: {
+        camera_se3_laser: head.camera_se3_laser,
+        fan_half_angle: head.laser.fan_half_angle,
+        fan_length: head.fan_length_m,
+        wavelength_nm: head.laser.wavelength_nm,
+        beam_waist_m: head.laser.beam_waist_m ?? 5e-4,
+      },
+    },
+    box: { min: [-0.15, -0.15, 0.2], max: [0.15, 0.15, 0.5] },
+  };
+}

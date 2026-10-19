@@ -365,3 +365,33 @@ test("the Optics workspace designs a laser head: Scheimpflug, handles, optimiser
   await expect(page.getByRole("textbox", { name: "Id" })).toHaveValue("head_cam");
   await expect(page.getByRole("button", { name: "Undo place Laser head" })).toBeEnabled();
 });
+
+test("the Rigs workspace lays out a stereo pair and a ring of heads, and places them", async ({ page }) => {
+  await loaded(page);
+  await page.getByRole("radio", { name: "Rigs" }).click();
+  await expect(page.getByTestId("rig-view")).toBeVisible();
+  const figures = page.getByTestId("rig-readouts");
+  await expect(figures).toContainText("2 cameras");
+  const seen2 = page.getByTestId("rig-seen-2");
+  await expect(seen2).not.toHaveText(/^0[.,]00 cm³$/);
+
+  // A wider baseline, typed: the pair's geometry follows.
+  const baseline = page.getByTestId("baseline").getByRole("spinbutton");
+  await baseline.fill("200");
+  await baseline.press("Enter");
+  await expect(figures).toContainText("200 mm");
+
+  // A ring of the Optics workspace's head: every camera has its laser, and the rig measures.
+  await page.getByRole("combobox", { name: "unit" }).click();
+  await page.getByRole("option", { name: /\(Optics\)/ }).click();
+  await page.getByRole("radio", { name: "Ring" }).click();
+  await expect(figures).toContainText("3 cameras · 3 lasers");
+  await expect(page.getByTestId("rig-measured")).not.toHaveText(/^0[.,]00 cm³$/);
+
+  // Placed in the cell: a rig frame with its expanded cameras and lasers, one undoable edit.
+  await page.getByRole("button", { name: "Place in cell" }).click();
+  await expect(page.getByRole("radio", { name: "Setup" })).toBeChecked();
+  await expect(page.getByRole("treeitem", { name: /stereo_pair_cam2/ })).toBeVisible();
+  await expect(page.getByRole("treeitem", { name: /stereo_pair_laser2/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Undo place Stereo pair" })).toBeEnabled();
+});

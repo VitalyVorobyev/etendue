@@ -519,7 +519,7 @@ export interface RigLayout {
   /**
    * Which way each camera's image +X points.
    */
-  image_x?: "tangential" | "radial";
+  image_x?: "tangential" | "radial" | "common";
   /**
    * One laser per camera, if any.
    */
@@ -566,13 +566,18 @@ export interface CameraTemplate {
  */
 export interface LaserLayout {
   /**
-   * Azimuth of laser `i` relative to camera `i`, radians.
+   * Azimuth of laser `i` relative to camera `i`, radians (unused with `camera_se3_laser`).
    */
   azimuth_rad?: number;
   /**
    * Beam-waist `1/e²` radius at the laser, metres.
    */
   beam_waist_m: number;
+  /**
+   * Each laser fixed to its camera's body at this pose, as a head carries it; otherwise it
+   * stands on the ring, aimed at the working point.
+   */
+  camera_se3_laser?: Iso3Schema | null;
   /**
    * Fan half-angle, radians, in `(0, π/2)`.
    */
@@ -586,9 +591,9 @@ export interface LaserLayout {
    */
   power_w?: number | null;
   /**
-   * Distance of each laser from the rig axis, metres.
+   * Distance of each laser from the rig axis, metres (unused with `camera_se3_laser`).
    */
-  radius_m: number;
+  radius_m?: number;
   /**
    * Wavelength, nanometres.
    */

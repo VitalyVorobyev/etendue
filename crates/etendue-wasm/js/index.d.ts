@@ -330,6 +330,45 @@ export interface HeadMap {
   triangulation_rad: Float64Array;
 }
 
+/** A box in a rig's frame and its voxels. */
+export interface CoverageGrid {
+  /** Minimum corner (m). */
+  min: [number, number, number];
+  /** Maximum corner (m). */
+  max: [number, number, number];
+  /** Voxels along x, y and z (1–512 each). */
+  n: [number, number, number];
+}
+
+/** What counts as seeing a voxel. */
+export interface CoverageCriteria {
+  /** The most total blur (geometric and diffraction) a camera may have there (px); default 2. */
+  max_blur_px?: number;
+  /** The Airy disc's wavelength for a camera without a laser of its own (nm); default 550. */
+  wavelength_nm?: number;
+}
+
+/** A rig's coverage: one count per voxel, x fastest, then y, then z. */
+export interface RigCoverage {
+  grid: CoverageGrid;
+  /** How many cameras see the voxel sharply. */
+  views: Uint8Array;
+  /** How many (laser, camera) pairs see their own laser line in the voxel. */
+  lit: Uint8Array;
+}
+
+/**
+ * What a rig covers over `grid` (in the rig's frame): per voxel, the cameras that see it and the
+ * pairs that measure it. Physical cameras see within `max_blur_px`; pinhole cameras have no blur.
+ *
+ * @throws {@link EtendueError} for a layout that does not validate or a bad grid.
+ */
+export function rigCoverage(
+  layout: import("./types/scene.js").RigLayout | string,
+  grid: CoverageGrid,
+  criteria?: CoverageCriteria,
+): RigCoverage;
+
 /** A camera setting of a head. */
 export interface HeadSetting {
   /** Physical sensor tilt `[τx, τy]` (rad). */

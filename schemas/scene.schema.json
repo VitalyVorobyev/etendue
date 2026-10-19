@@ -501,6 +501,11 @@
           "description": "Away from the rig axis.",
           "type": "string",
           "const": "radial"
+        },
+        {
+          "description": "The rig's +X, as each camera sees it: classical stereo. For two cameras on the rig's x\naxis the image rows line up (the image +Y axes are the same); with no tilt (a parallel\nrig) the image +X axes are the same too.",
+          "type": "string",
+          "const": "common"
         }
       ]
     },
@@ -587,7 +592,7 @@
       "type": "object",
       "properties": {
         "azimuth_rad": {
-          "description": "Azimuth of laser `i` relative to camera `i`, radians.",
+          "description": "Azimuth of laser `i` relative to camera `i`, radians (unused with `camera_se3_laser`).",
           "type": "number",
           "format": "double",
           "default": 0.0
@@ -596,6 +601,17 @@
           "description": "Beam-waist `1/e²` radius at the laser, metres.",
           "type": "number",
           "format": "double"
+        },
+        "camera_se3_laser": {
+          "description": "Each laser fixed to its camera's body at this pose, as a head carries it; otherwise it\nstands on the ring, aimed at the working point.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Iso3Schema"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "fan_half_angle": {
           "description": "Fan half-angle, radians, in `(0, π/2)`.",
@@ -616,9 +632,10 @@
           "format": "double"
         },
         "radius_m": {
-          "description": "Distance of each laser from the rig axis, metres.",
+          "description": "Distance of each laser from the rig axis, metres (unused with `camera_se3_laser`).",
           "type": "number",
-          "format": "double"
+          "format": "double",
+          "default": 0.0
         },
         "wavelength_nm": {
           "description": "Wavelength, nanometres.",
@@ -628,7 +645,6 @@
       },
       "additionalProperties": false,
       "required": [
-        "radius_m",
         "fan_half_angle",
         "fan_length",
         "wavelength_nm",

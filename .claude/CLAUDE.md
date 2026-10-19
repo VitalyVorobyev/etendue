@@ -41,6 +41,9 @@ cargo run -p etendue-cli -- scenario sphere <scene.json> --spec <gen.json|scenar
 cargo run -p etendue-cli -- export <scene.json> <scenario.json> --captures c.csv --trajectory t.csv --report r.json --resolved s.json  # P7-2 motion exports
 cargo test -p etendue-kinematics --test motion -- --nocapture                                              # G1.4 motion limits
 node crates/etendue-wasm/tests/node/g2_3_generator.mjs                                                  # G2.3 generator ≤ 100 ms (after build-npm.mjs)
+node crates/etendue-wasm/tests/node/g10_1_head.mjs                                                      # G10.1 head map ≤ 30 ms (after build-npm.mjs)
+node crates/etendue-wasm/tests/node/g11_3_coverage.mjs                                                  # G11.3 rig coverage 64³ ≤ 100 ms (after build-npm.mjs)
+cargo test -p etendue-core --release --test rig_coverage -- --nocapture                                  # G11.2 stereo overlap
 cargo test -p etendue-synth --test g3_2 -- --nocapture                                                  # G3.2 target meshes
 cargo run --release -p etendue-cli -- render <scene.json> <scenario.json> -o target/render --samples 16   # Blender, local only; <capture>_laser.png per laser camera (P7-7)
 python3 -m unittest discover -s crates/etendue-cli/blender/tests                                          # Blender conventions
@@ -124,6 +127,8 @@ xtask (emit-schemas, check-layering, app)
 - `laser` — `LaserPlane`, `GaussianBeamWidth`, `stripe_on_target`, `project_stripe`
 - `analysis` — `defocus_map`, `working_volume`
 - `optics::camera` — `PhysicalCamera` (ADR 0008); `from_scene` — `resolve` (projection frames)
+- `head` — a triangulation head (P10): samples, map, section, Scheimpflug hinge, optimiser
+- `rig` — `coverage` of a `RigLayout` (P11): per-voxel camera views and laser–camera pairs
 
 **Physical cameras** (ADR 0008, P9) — `etendue-core::optics::camera::PhysicalCamera` is the camera
 model: a body (mechanical frame M, the image-plane datum) with a sensor and a thick lens with pupils,

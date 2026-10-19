@@ -49,6 +49,7 @@ pub mod geom;
 pub mod head;
 pub mod laser;
 pub mod optics;
+pub mod rig;
 pub mod scene;
 pub mod solver;
 

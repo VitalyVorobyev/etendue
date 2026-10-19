@@ -72,6 +72,10 @@ pub enum ImageX {
     Tangential,
     /// Away from the rig axis.
     Radial,
+    /// The rig's +X, as each camera sees it: classical stereo. For two cameras on the rig's x
+    /// axis the image rows line up (the image +Y axes are the same); with no tilt (a parallel
+    /// rig) the image +X axes are the same too.
+    Common,
 }
 
 /// The camera model of every position of a layout.
@@ -93,11 +97,20 @@ pub struct CameraTemplate {
 #[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct LaserLayout {
-    /// Distance of each laser from the rig axis, metres.
+    /// Distance of each laser from the rig axis, metres (unused with `camera_se3_laser`).
+    #[serde(default)]
     pub radius_m: f64,
-    /// Azimuth of laser `i` relative to camera `i`, radians.
+    /// Azimuth of laser `i` relative to camera `i`, radians (unused with `camera_se3_laser`).
     #[serde(default)]
     pub azimuth_rad: f64,
+    /// Each laser fixed to its camera's body at this pose, as a head carries it; otherwise it
+    /// stands on the ring, aimed at the working point.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(
+        feature = "schemars",
+        schemars(with = "Option<vision_calibration_core::Iso3Schema>")
+    )]
+    pub camera_se3_laser: Option<Isometry3<f64>>,
     /// Fan half-angle, radians, in `(0, π/2)`.
     pub fan_half_angle: f64,
     /// Fan reach along its central ray, metres.
@@ -164,6 +177,9 @@ impl RigLayout {
             optics.check(issues, &format!("{path}.camera.optics"));
         }
         if let Some(l) = &self.lasers {
+            if let Some(pose) = &l.camera_se3_laser {
+                issues.check_pose(&format!("{path}.lasers.camera_se3_laser"), pose);
+            }
             if !(l.radius_m.is_finite() && l.radius_m >= 0.0) {
                 issues.push(format!("{path}.lasers.radius_m"), "must be finite and ≥ 0");
             }
@@ -191,10 +207,21 @@ impl RigLayout {
             let z = Vector3::z() * tilt.cos() - radial * tilt.sin();
             // The radial direction made perpendicular to the optical axis.
             let outward = (radial * tilt.cos() + Vector3::z() * tilt.sin()).normalize();
-            let (x, y) = match self.image_x {
-                ImageX::Tangential => (tangential, z.cross(&tangential)),
-                ImageX::Radial => (outward, z.cross(&outward)),
+            let along = match self.image_x {
+                ImageX::Tangential => tangential,
+                ImageX::Radial => outward,
+                // The rig's +X projected onto the image plane; about the axis (a camera looking
+                // along the rig's x) the tangential direction stands in.
+                ImageX::Common => {
+                    let x = Vector3::x() - z * z.x;
+                    if x.norm() < 1e-9 {
+                        tangential
+                    } else {
+                        x.normalize()
+                    }
+                }
             };
+            let (x, y) = (along, z.cross(&along));
             let camera = format!("{rig}_cam{i}");
             cameras.push(CameraSpec {
                 id: camera.clone(),
@@ -207,7 +234,21 @@ impl RigLayout {
                 resolution: self.camera.resolution,
                 optics: self.camera.optics.clone(),
             });
-            if let Some(l) = &self.lasers {
+            if let Some(l) = &self.lasers
+                && let Some(camera_se3_laser) = &l.camera_se3_laser
+            {
+                lasers.push(LaserSpec {
+                    id: format!("{rig}_laser{i}"),
+                    parent: FrameRef::from(camera.as_str()),
+                    parent_se3_self: *camera_se3_laser,
+                    fan_half_angle: l.fan_half_angle,
+                    fan_length: l.fan_length,
+                    wavelength_nm: l.wavelength_nm,
+                    beam_waist_m: l.beam_waist_m,
+                    power_w: l.power_w,
+                    camera: Some(camera),
+                });
+            } else if let Some(l) = &self.lasers {
                 let psi = phi + l.azimuth_rad;
                 let at = Vector3::new(psi.cos(), psi.sin(), 0.0) * l.radius_m;
                 let ray = (target.coords - at).normalize();
@@ -332,5 +373,88 @@ mod tests {
             paths,
             ["rigs[0].layout.radius_m", "rigs[0].layout.tilt_rad"]
         );
+    }
+}
+
+#[cfg(test)]
+mod stereo_tests {
+    use super::*;
+
+    fn stereo(tilt: Option<f64>, lasers: Option<serde_json::Value>) -> RigLayout {
+        let mut v = serde_json::json!({
+            "count": 2,
+            "radius_m": 0.06,
+            "working_distance_m": 0.5,
+            "image_x": "common",
+            "camera": {
+                "params": {
+                    "projection": {"type": "pinhole"}, "distortion": {"type": "none"},
+                    "sensor": {"type": "identity"},
+                    "intrinsics": {"type": "fx_fy_cx_cy_skew", "fx": 2000.0, "fy": 2000.0,
+                                   "cx": 640.0, "cy": 512.0, "skew": 0.0}
+                },
+                "resolution": [1280, 1024]
+            }
+        });
+        if let Some(t) = tilt {
+            v["tilt_rad"] = serde_json::json!(t);
+        }
+        if let Some(l) = lasers {
+            v["lasers"] = l;
+        }
+        serde_json::from_value(v).unwrap()
+    }
+
+    fn axes(c: &CameraSpec) -> (Vector3<f64>, Vector3<f64>) {
+        let r = c.parent_se3_self.rotation;
+        (r * Vector3::x(), r * Vector3::y())
+    }
+
+    #[test]
+    fn two_cameras_with_common_image_x_are_a_stereo_pair() {
+        // G11.1: converged (toe-in) and parallel.
+        for tilt in [None, Some(0.0)] {
+            let (cams, _) = stereo(tilt, None).expand("rig");
+            let baseline = cams[0].parent_se3_self.translation.vector
+                - cams[1].parent_se3_self.translation.vector;
+            assert!((baseline.norm() - 0.12).abs() < 1e-12);
+            assert!(
+                baseline.y.abs() < 1e-12 && baseline.z.abs() < 1e-12,
+                "the baseline is the rig's x"
+            );
+            let ((x0, y0), (x1, y1)) = (axes(&cams[0]), axes(&cams[1]));
+            // Rows line up: the image +Y axes are the same.
+            assert!((y0 - y1).norm() < 1e-12, "{y0} vs {y1}");
+            // Image +X lies in the baseline plane (the rig's x–z plane), pointing along +X.
+            assert!(x0.y.abs() < 1e-12 && x1.y.abs() < 1e-12 && x0.x > 0.0 && x1.x > 0.0);
+            if tilt == Some(0.0) {
+                assert!(
+                    (x0 - x1).norm() < 1e-12,
+                    "a parallel rig's image +X axes are the same"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn a_head_unit_carries_its_laser_on_each_camera() {
+        let pose = Isometry3::from_parts(
+            Translation3::new(0.0, -0.1, 0.05),
+            UnitQuaternion::from_euler_angles(0.3, 0.0, 0.0),
+        );
+        let layout = stereo(
+            None,
+            Some(serde_json::json!({
+                "camera_se3_laser": pose,
+                "fan_half_angle": 0.3, "fan_length": 1.0, "wavelength_nm": 660.0, "beam_waist_m": 5e-4
+            })),
+        );
+        layout.validate().unwrap();
+        let (cams, lasers) = layout.expand("rig");
+        for (c, l) in cams.iter().zip(&lasers) {
+            assert_eq!(l.parent.as_str(), c.id);
+            assert_eq!(l.camera.as_deref(), Some(c.id.as_str()));
+            assert_eq!(l.parent_se3_self, pose);
+        }
     }
 }

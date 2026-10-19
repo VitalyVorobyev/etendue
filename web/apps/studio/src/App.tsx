@@ -16,7 +16,7 @@ import library, { type LibraryRobot } from "virtual:etendue-robots";
 import { exportFile, jsonText } from "./io/export";
 import { type Cell, defaultOf } from "./io/project";
 import { fileUrl, isTauri, parentDir } from "./io/tauri";
-import { describeFailure } from "./kernel/etendue";
+import { describeFailure, expandRig } from "./kernel/etendue";
 import { type Bodies, type PoseOverride, bodyPoses, posed } from "./kernel/posed";
 import type { GeneratedPoses } from "@etendue/wasm";
 import { scenarioFromPoses } from "./kernel/native";
@@ -25,6 +25,11 @@ import { type HeadParams, initialHead, placement, toItem } from "./optics/design
 import { OpticsForm, OpticsReadouts } from "./optics/OpticsPanels";
 import { PlaneMap } from "./optics/PlaneMap";
 import { SectionView } from "./optics/SectionView";
+import { analyse as analyseRig } from "./rigs/analysis";
+import { type RigParams, initialRig, toItem as toRigItem, toLayout } from "./rigs/design";
+import { RigForm, RigReadouts, TiltChart } from "./rigs/RigPanels";
+import { RigView, type VoxelShow } from "./rigs/RigView";
+import { CoverageLegend, SliceMaps } from "./rigs/SliceMaps";
 import { CameraGrid } from "./panels/CameraGrid";
 import { CellDialog } from "./panels/CellDialog";
 import { DatasetPanel } from "./panels/DatasetPanel";
@@ -39,6 +44,7 @@ import {
   type EntityList,
   IDENTITY,
   addEntity,
+  applyLayout,
   entityOf,
   newEntity,
   removeEntity,
@@ -100,9 +106,21 @@ export function App() {
   const startHead = useMemo(() => (project ? initialHead(project) : null), [project]);
   const headParams = head ?? startHead;
   const headAnalysis = useMemo(() => (headParams ? analyse(headParams) : null), [headParams]);
+  // The Rigs workspace's rig: a stereo pair of the head (or the project's default camera) at first.
+  const [rig, setRig] = useState<RigParams | null>(null);
+  const [voxels, setVoxels] = useState<VoxelShow>({ kind: "views", min: 2 });
+  const [rigSelected, setRigSelected] = useState<string | null>(null);
+  const startRig = useMemo(
+    () => (project ? initialRig(project, head) : null),
+    // A head edited later does not replace the rig's unit; only the first one seeds it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [project],
+  );
+  const rigParams = rig ?? startRig;
+  const rigAnalysis = useMemo(() => (rigParams ? analyseRig(rigParams) : null), [rigParams]);
   const { playhead } = studio;
   const modes = useMemo<Mode[]>(
-    () => ["optics", "setup", "motion", "images", ...(isTauri() ? ["dataset" as const] : [])],
+    () => ["optics", "rigs", "setup", "motion", "images", ...(isTauri() ? ["dataset" as const] : [])],
     [],
   );
   const [mode, setModeState] = useState<Mode>(() => storedMode(modes));
@@ -550,6 +568,76 @@ export function App() {
     }
   };
 
+  // A rig from the Rigs workspace into the open cell: a rig frame under the selected frame (or 0.8 m
+  // above the world origin, looking down), its cameras and lasers expanded from the layout.
+  const placeRig = (p: RigParams) => {
+    if (!current) return;
+    const scene = current.loaded.scene;
+    const parent = selected !== null && current.baked.frames.includes(selected) ? selected : "world";
+    const pose =
+      parent === "world"
+        ? {
+            rotation: [1, 0, 0, 0] as [number, number, number, number],
+            translation: [0, 0, 0.8] as [number, number, number],
+          }
+        : IDENTITY;
+    const id = uniqueId(scene, p.id || "rig");
+    const layout = toLayout(p);
+    const ok = studio.edit(`place ${p.name}`, (d) => {
+      const withRig = { ...d.scene, rigs: [...(d.scene.rigs ?? []), { id, parent, parent_se3_self: pose, layout }] };
+      return { ...d, scene: applyLayout(withRig, id, layout, expandRig(layout, id)) };
+    });
+    if (ok) {
+      setMode("setup");
+      setSelected(id);
+    }
+  };
+
+  // The Rigs workspace: k identical units as a stereo pair or a ring, and what they cover (P11).
+  const rigsLeft =
+    rigParams && rigAnalysis ? (
+      <RigForm
+        params={rigParams}
+        onChange={setRig}
+        analysis={rigAnalysis}
+        project={project}
+        head={headParams}
+        onSave={project?.write ? (p) => studio.saveLibraryItem(toRigItem(p)) : null}
+        onPlace={current ? placeRig : null}
+      />
+    ) : null;
+  const rigsMain =
+    rigParams && rigAnalysis ? (
+      typeof rigAnalysis === "string" ? (
+        <div className="p-4">
+          <Callout tone="warning" title="The kernel refused this rig">
+            <p>{rigAnalysis}</p>
+          </Callout>
+        </div>
+      ) : (
+        <div className="grid h-full min-h-0 grid-rows-[3fr_2fr] divide-y divide-line">
+          <div className="relative min-h-0">
+            <RigView analysis={rigAnalysis} show={voxels} selected={rigSelected} onSelect={setRigSelected} />
+            <div className="pointer-events-none absolute bottom-2 left-3 rounded bg-surface/80 px-2 py-1">
+              <CoverageLegend cameras={rigAnalysis.cameras.length} pairs={rigAnalysis.fans.length} />
+            </div>
+          </div>
+          <div className="grid min-h-0 grid-cols-[2fr_1fr] divide-x divide-line">
+            <SliceMaps analysis={rigAnalysis} />
+            <div className="min-h-0 p-2" data-testid="rig-tilt-chart">
+              <TiltChart params={rigParams} />
+            </div>
+          </div>
+        </div>
+      )
+    ) : (
+      <Empty>{loading ? "Loading…" : "The Rigs workspace needs a camera or a head in the project's library."}</Empty>
+    );
+  const rigsRight =
+    rigParams && rigAnalysis ? (
+      <RigReadouts params={rigParams} analysis={rigAnalysis} show={voxels} onShow={setVoxels} />
+    ) : null;
+
   // The Optics workspace: a head designed against its window (P10).
   const opticsLeft =
     headParams && headAnalysis ? (
@@ -705,16 +793,17 @@ export function App() {
             exports={exports}
           />
         }
-        left={mode === "optics" ? opticsLeft : left}
-        leftLabel={mode === "optics" ? "Design" : "Scene frames"}
-        main={mode === "optics" ? opticsMain : main}
-        right={mode === "optics" ? opticsRight : right}
-        rightLabel={mode === "optics" ? "Figures" : mode === "motion" ? "Program" : "Inspector"}
+        left={mode === "optics" ? opticsLeft : mode === "rigs" ? rigsLeft : left}
+        leftLabel={mode === "optics" || mode === "rigs" ? "Design" : "Scene frames"}
+        main={mode === "optics" ? opticsMain : mode === "rigs" ? rigsMain : main}
+        right={mode === "optics" ? opticsRight : mode === "rigs" ? rigsRight : right}
+        rightLabel={mode === "optics" || mode === "rigs" ? "Figures" : mode === "motion" ? "Program" : "Inspector"}
         rightSize={{ defaultSize: 380, minSize: 260, maxSize: "50%" }}
         bottom={
           current &&
           mode !== "dataset" &&
-          mode !== "optics" && (
+          mode !== "optics" &&
+          mode !== "rigs" && (
             <PlaybackBar
               playhead={playhead}
               playing={playing}

@@ -215,8 +215,9 @@ export function RigBuilder({ scene, rig, onEdit }: { scene: SceneSpec; rig: stri
               options={[
                 { value: "tangential", label: "Along the ring" },
                 { value: "radial", label: "Away from the axis" },
+                { value: "common", label: "The rig's x (stereo)" },
               ]}
-              onValueChange={(v) => (v === "tangential" || v === "radial") && set({ image_x: v })}
+              onValueChange={(v) => (v === "tangential" || v === "radial" || v === "common") && set({ image_x: v })}
             />
           </Row>
           {(scene.cameras ?? []).length > 0 && (
@@ -232,7 +233,10 @@ export function RigBuilder({ scene, rig, onEdit }: { scene: SceneSpec; rig: stri
                 }))}
                 onValueChange={(id) => {
                   const c = scene.cameras?.find((x) => x.id === id);
-                  if (c) set({ camera: { params: c.params, resolution: c.resolution } });
+                  if (c)
+                    set({
+                      camera: { params: c.params, resolution: c.resolution, ...(c.optics ? { optics: c.optics } : {}) },
+                    });
                 }}
               />
             </Row>
@@ -248,7 +252,7 @@ export function RigBuilder({ scene, rig, onEdit }: { scene: SceneSpec; rig: stri
           <div className="grid grid-cols-[minmax(4.5rem,auto)_1fr] gap-x-3 gap-y-1.5">
             <Num
               label="laser radius"
-              value={lasers.radius_m}
+              value={lasers.radius_m ?? 0}
               scale={1000}
               unit="mm"
               min={0}

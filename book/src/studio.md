@@ -63,6 +63,24 @@ surface; the panels around it hold only what that workspace needs.
   - **Figures** (right): the window's coverage and worst figures, the Scheimpflug setting, and
     the camera's derived optics (fx and its breathing, magnification, working f-number, Airy
     disc, pupils).
+- **Rigs**: repeat one unit — a camera from the library, or a head (from the library or the
+  Optics workspace) with its laser on each camera's body — as a stereo pair or a ring, and see
+  what the rig covers. It works on the library, not on the cell.
+  - **Design** (left): the unit; **Stereo** (baseline, working distance, converging or parallel)
+    or **Ring** (k cameras, radius ρ, tilt φ or converging at the working distance, phase, image
+    orientation); the box the rig is judged over (width, near, far along the rig axis), the blur
+    a camera may have at a point it sees, and the voxel grid (32³ to 64³). A camera unit with
+    optics is refocused on the working distance unless you turn it off. **Save to library**
+    writes `library/rigs/<id>.json`; **Place in cell** adds a rig frame with its cameras and
+    lasers to the open cell.
+  - **3D** (centre, top): the rig hanging over its box, with every camera's field and laser fan,
+    and the voxels seen by at least 1, 2 or all cameras, or measured by a laser and its own
+    camera.
+  - **Slices** (centre, bottom): the coverage through the rig axis (side) and across it at the
+    working distance (top), and the volumes seen by two cameras and measured against the tilt φ,
+    the current tilt marked.
+  - **Figures** (right): the baseline or neighbour distance, the tilt, the angle between the
+    axes, where they meet, and the volumes.
 - **Setup**: the cell.
   - **Scene** (left): the frame tree — the world, robots and their links, rigs, cameras, lasers,
     lights, targets and parts. **+** adds a frame, rig, camera, laser, target or light, attached

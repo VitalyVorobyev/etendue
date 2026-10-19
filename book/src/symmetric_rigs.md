@@ -12,6 +12,28 @@ A rig's `layout` builds a ring of N camera and laser pairs around the rig axis
 `expandRig` in `@etendue/wasm` lay it out. `voxelized_overlap` below works on an
 `etendue-core` `Scene`, pairing its cameras and lasers by index.
 
+## Rig coverage
+
+`etendue_core::rig::coverage` (and `rigCoverage` in `@etendue/wasm`) takes a rig layout, a box
+in the rig's frame with its voxel grid, and a blur limit. It returns two counts per voxel, x
+fastest, then y, then z:
+
+- **views**: the cameras that see the voxel's centre on their sensor. A camera with optics must
+  also image it with a total blur (circle of confusion and Airy disc, root sum of squares) of at
+  most the limit; a pinhole camera has no blur.
+- **lit**: the laser–camera pairs (`LaserSpec.camera`) whose laser fan meets the voxel (the plane
+  cuts it, within the fan's angle and reach) and whose camera sees it.
+
+A stereo pair needs two views of a point; a triangulation head needs one pair. The Rigs
+workspace in the studio draws both. Gate G11.2 checks the two-view volume of a parallel pinhole
+pair against the analytic intersection of the frusta (0.7 % at 128³).
+
+## Stereo layouts
+
+`image_x: "common"` turns each camera's image +X toward the rig's +X. Two cameras then form a
+classical stereo pair: they sit at ±ρ on the rig's x axis (baseline 2ρ), their image rows line
+up, and with no tilt the images are parallel.
+
 ## N-view voxel overlap
 
 `voxelized_overlap` (in `etendue_core::analysis`) evaluates a 3D voxel grid,
