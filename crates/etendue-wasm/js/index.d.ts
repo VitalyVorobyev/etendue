@@ -330,6 +330,38 @@ export interface HeadMap {
   triangulation_rad: Float64Array;
 }
 
+/** A robot's TCP and how far from singular it is. */
+export interface RobotTcp {
+  base_se3_tcp: Iso3Schema;
+  /** Yoshikawa's √det(J Jᵀ): 0 at a singularity. */
+  manipulability: number;
+}
+
+/** Overrides of the IK solver's defaults. */
+export interface IkOptions {
+  max_iterations?: number;
+  /** Converged within this TCP position error (m); default 1e-10. */
+  tol_translation?: number;
+  /** … and this rotation error (rad); default 1e-10. */
+  tol_rotation?: number;
+  /** Largest joint change per step (rad or m); default 0.3. */
+  max_step?: number;
+  /** Further attempts from spread seeds when the seed's fails; default 16. */
+  restarts?: number;
+}
+
+/** What IK found. */
+export interface IkAnswer {
+  converged: boolean;
+  /** The solution, or the seed when it did not converge. */
+  q: number[];
+  iterations: number;
+  translation_error: number | null;
+  rotation_error: number | null;
+  /** At `q`. */
+  manipulability: number;
+}
+
 /** A box in a rig's frame and its voxels. */
 export interface CoverageGrid {
   /** Minimum corner (m). */
@@ -476,6 +508,32 @@ export class EtendueScene {
    * @throws {@link EtendueError} `kind: "input"` for an unknown camera.
    */
   mechSe3Projection(cameraId: string): Iso3Schema | undefined;
+
+  /** Robot `robotId`'s links (URDF names), in the order `robotLinkPoses` gives them. */
+  robotLinks(robotId: string): string[];
+
+  /**
+   * `base_se3_link` of every link of robot `robotId` at joints `q`: seven values per link,
+   * `[qx, qy, qz, qw, tx, ty, tz]`, in the order of `robotLinks`.
+   *
+   * @throws {@link EtendueError} for an unknown robot, or `q` of the wrong length or outside the limits.
+   */
+  robotLinkPoses(robotId: string, q: Float64Array | readonly number[]): Float64Array;
+
+  /** Robot `robotId`'s TCP in its base frame at `q`, and its manipulability (0 at a singularity). */
+  robotTcp(robotId: string, q: Float64Array | readonly number[]): RobotTcp;
+
+  /**
+   * Joints that put robot `robotId`'s TCP at `baseSe3Tcp` (its base frame), from `seed`: damped
+   * least squares. Pass `{ restarts: 0 }` while dragging so the arm moves continuously. A pose
+   * it does not reach gives `converged: false` and the seed.
+   */
+  robotIk(
+    robotId: string,
+    baseSe3Tcp: Iso3Schema,
+    seed: Float64Array | readonly number[],
+    options?: IkOptions,
+  ): IkAnswer;
 
   /**
    * Compile and bake a scenario: `world_se3_frame` for every scene frame at every sample.

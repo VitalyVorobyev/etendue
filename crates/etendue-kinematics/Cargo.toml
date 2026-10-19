@@ -11,6 +11,9 @@ rust-version.workspace = true
 [dependencies]
 etendue-scene = { workspace = true }
 nalgebra = { workspace = true }
+# Transcendentals that give the same bits natively and in wasm (gate G12.1): the
+# platform's libm and Rust's wasm port differ in the last ulp.
+libm = { workspace = true }
 thiserror = { workspace = true }
 urdf-rs = "0.10"
 # Jerk-limited, time-optimal motion profiles (Ruckig, pure Rust): every PTP

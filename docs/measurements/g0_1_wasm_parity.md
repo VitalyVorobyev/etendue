@@ -177,3 +177,17 @@ G0.1 wasm/native projection parity
   The head first failed by one ulp in the Scheimpflug tilt and in 129 map values.
   `atan2`, `asin`, `acos` and `hypot` are the system libm's natively and Rust's port in wasm.
   The kernel now uses the `libm` crate for every transcendental (CLAUDE.md gotcha 6).
+- Re-run 2026-10-19 on branch `p11/rigs`, the probe extended by a ring of three heads' coverage
+  (`rigCoverage` on 20 × 20 × 16, 12,800 counts). Result: 18,524 values, **0 mismatches**.
+- Re-run 2026-10-19 on branch `p12/robot-jog`, the probe extended for gate G12.1:
+  - the UR5e's link poses at 1000 seeded joint vectors (91,000 values);
+  - a TCP with its manipulability;
+  - an IK answer from a nearby seed (JSON text).
+
+  Result: 109,524 values, **0 mismatches**. The first run had 10,983 mismatches, from two causes:
+  - **Transcendentals.** Joint rotations and URDF `rpy` went through nalgebra's `sin`/`cos`, which
+    are the system libm's natively. `etendue-kinematics::rot` now builds them with `libm`, and IK's
+    rotation error uses `libm::atan2`.
+  - **Matrix products.** IK's and the manipulability's `J·Jᵀ` and `Jᵀ·y` were `DMatrix` products.
+    nalgebra hands those to `matrixmultiply`, whose native kernels fuse multiply-adds and whose
+    wasm path does not. They are now summed in order (`fk::jjt`).

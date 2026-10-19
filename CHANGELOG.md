@@ -121,6 +121,13 @@ calibration datasets with exact ground truth. The 0.1.0 desktop app is replaced 
   Scheimpflug, an optimiser over tilt, focus and f-number, saving to the library and placing in a
   cell. `@etendue/wasm` has `headMap`, `headSection`, `headScheimpflug`, `headOptimise` and
   `headApply` (`etendue-core::head`).
+- **Robot jogging** (Motion ▸ Jog): move a robot at the playhead by its joints or in Cartesian
+  steps (tool or base axes), or drag its TCP with the gizmo (IK from the current joints). The TCP
+  pose, its manipulability, joints near their limits and out-of-reach targets are shown. The pose
+  can be taught as a PTP step, with its joints stored and optionally a capture. Steps can be
+  moved and deleted, and the program's TCP path is drawn with its captures. `@etendue/wasm` has
+  `robotLinks`, `robotLinkPoses`, `robotTcp` and `robotIk`, and robot FK and IK are bit-identical
+  in wasm and natively.
 - **The Rigs workspace**: repeat a camera or a head (its laser fixed on the camera's body,
   `LaserLayout.camera_se3_laser`) as a stereo pair (baseline, convergence) or a ring (k cameras,
   radius ρ, tilt φ, phase), and see what it covers.

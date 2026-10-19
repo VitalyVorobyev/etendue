@@ -93,7 +93,19 @@ surface; the panels around it hold only what that workspace needs.
     distortion, a laser's fan, reach, wavelength and waist, a target's layout, a light's power
     and colour, a robot's rest pose. All of them are editable.
 - **Motion**: the robot program.
-  - **Program** (right): the scenario's steps. Click a capture to move the playhead to it.
+  - **Program** (right): the scenario's steps. Click a capture to move the playhead to it. Hover
+    over a step to move it up or down, or delete it.
+  - **Jog** (right): move a robot from where the program has it at the playhead (pause first).
+    - Joint sliders J1–J6 (hover for a joint's name); joints within 5° of a limit are flagged.
+    - The TCP pose in the robot's base, and its manipulability, which falls to zero at a
+      singularity.
+    - Cartesian steps along or about the tool's axes or the base's.
+    - In the 3D view, the gizmo on the TCP drags it, solving inverse kinematics from the current
+      joints. A pose the arm cannot reach is reported, and the arm stays.
+    - **Add PTP step** appends a move to the pose, its joints stored so the bake keeps this arm
+      configuration. **Add PTP + capture** adds a capture after it. The playhead moves to the
+      end. Moving the playhead or changing the program returns the robot to the program's pose.
+  - The 3D view draws each robot's TCP path over the program, with a dot at every capture.
   - **Joints** (below the viewport): the joint positions over the scenario, with the playhead.
 - **Images**: what every camera sees at the playhead, side by side, with the targets projected
   through each camera's model. Hover over a camera and click its expand button to show it alone.

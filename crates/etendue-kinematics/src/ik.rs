@@ -82,7 +82,7 @@ impl SplitMix64 {
 
 fn pose_error(target: &Isometry3<f64>, current: &Isometry3<f64>) -> Vector6<f64> {
     let dp = target.translation.vector - current.translation.vector;
-    let dr = (target.rotation * current.rotation.inverse()).scaled_axis();
+    let dr = crate::rot::scaled_axis(&(target.rotation * current.rotation.inverse()));
     Vector6::new(dp.x, dp.y, dp.z, dr.x, dr.y, dr.z)
 }
 
@@ -176,15 +176,16 @@ impl RobotModel {
                     iteration,
                 );
             }
-            let jjt: Matrix6<f64> = (&jac * jac.transpose())
-                .fixed_view::<6, 6>(0, 0)
-                .into_owned()
-                + Matrix6::identity() * (lambda * lambda);
+            let jjt: Matrix6<f64> = crate::fk::jjt(&jac) + Matrix6::identity() * (lambda * lambda);
             let Some(y) = jjt.cholesky().map(|c| c.solve(&err)) else {
                 lambda *= 10.0;
                 continue;
             };
-            let mut dq = jac.transpose() * y;
+            // Jᵀ·y, summed in order (see `fk::jjt`).
+            let mut dq = nalgebra::DVector::from_iterator(
+                jac.ncols(),
+                (0..jac.ncols()).map(|c| (0..6).fold(0.0, |acc, r| acc + jac[(r, c)] * y[r])),
+            );
             let step = dq.amax();
             if step > opts.max_step {
                 dq *= opts.max_step / step;

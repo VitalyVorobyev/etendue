@@ -413,6 +413,89 @@ impl Session {
         generate(&self.scene, &self.robots, &sphere, dt).map_err(|e| Error::Input(e.to_string()))
     }
 
+    fn robot(&self, robot_id: &str) -> Result<&RobotModel> {
+        Ok(&self.robots[self.robot_index(robot_id)?])
+    }
+
+    /// The links of robot `robot_id` (URDF names), in the order [`Session::robot_link_poses`]
+    /// gives their poses.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Input`] for an unknown robot.
+    pub fn robot_links(&self, robot_id: &str) -> Result<Vec<String>> {
+        Ok(self.robot(robot_id)?.links().to_vec())
+    }
+
+    /// `base_se3_link` of every link of robot `robot_id` at joints `q`: seven values per link,
+    /// `[qx, qy, qz, qw, tx, ty, tz]`, in the order of [`Session::robot_links`].
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Kinematics`] when `q` has the wrong length, a non-finite value, or one outside
+    /// its joint's limits; [`Error::Input`] for an unknown robot.
+    pub fn robot_link_poses(&self, robot_id: &str, q: &[f64]) -> Result<Vec<f64>> {
+        let model = self.robot(robot_id)?;
+        model.check_q(q, JOG_LIMIT_TOLERANCE)?;
+        Ok(model.link_poses(q).iter().flat_map(iso_values).collect())
+    }
+
+    /// Robot `robot_id`'s TCP at joints `q`, and how far from singular it is.
+    ///
+    /// # Errors
+    ///
+    /// As [`Session::robot_link_poses`].
+    pub fn robot_tcp(&self, robot_id: &str, q: &[f64]) -> Result<TcpState> {
+        let model = self.robot(robot_id)?;
+        model.check_q(q, JOG_LIMIT_TOLERANCE)?;
+        Ok(TcpState {
+            base_se3_tcp: model.tcp_pose(q),
+            manipulability: model.manipulability(q),
+        })
+    }
+
+    /// Joints that put robot `robot_id`'s TCP at `base_se3_tcp_json`, from `seed` (damped least
+    /// squares, `etendue_kinematics::IkOptions`). `options_json` overrides the defaults (`{}`);
+    /// a drag passes `{"restarts": 0}` so the arm moves continuously. A pose the solver does not
+    /// reach is an answer too, `converged: false` with the seed.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Parse`] for malformed documents; [`Error::Kinematics`] for a bad seed;
+    /// [`Error::Input`] for an unknown robot.
+    pub fn robot_ik(
+        &self,
+        robot_id: &str,
+        base_se3_tcp_json: &str,
+        seed: &[f64],
+        options_json: &str,
+    ) -> Result<IkAnswer> {
+        let model = self.robot(robot_id)?;
+        let target: Isometry3<f64> = parse("TCP pose", base_se3_tcp_json)?;
+        let spec: IkSpec = parse("IK options", options_json)?;
+        let opts = spec.options();
+        model.check_q(seed, JOG_LIMIT_TOLERANCE)?;
+        Ok(match model.ik(&target, seed, &opts) {
+            Ok(sol) => IkAnswer {
+                converged: true,
+                iterations: sol.iterations,
+                translation_error: Some(sol.translation_error),
+                rotation_error: Some(sol.rotation_error),
+                manipulability: model.manipulability(&sol.q),
+                q: sol.q,
+            },
+            // The seed was checked: the solver only fails to reach the pose.
+            Err(_) => IkAnswer {
+                converged: false,
+                iterations: opts.max_iterations,
+                translation_error: None,
+                rotation_error: None,
+                manipulability: model.manipulability(seed),
+                q: seed.to_vec(),
+            },
+        })
+    }
+
     fn robot_index(&self, robot_id: &str) -> Result<usize> {
         self.scene
             .robots
@@ -921,6 +1004,60 @@ pub fn rig_coverage_js(
     rig_coverage(layout_json, grid_json, criteria_json).map_err(|e| js_error(&e))
 }
 
+/// How far outside its limits a jogged joint may be (rad or m): a slider at its end.
+const JOG_LIMIT_TOLERANCE: f64 = 1e-9;
+
+fn iso_values(p: &Isometry3<f64>) -> [f64; 7] {
+    let q = p.rotation.coords;
+    let t = p.translation.vector;
+    [q.x, q.y, q.z, q.w, t.x, t.y, t.z]
+}
+
+/// A robot's TCP and its distance from singularity. See [`Session::robot_tcp`].
+#[derive(Clone, Debug, serde::Serialize)]
+pub struct TcpState {
+    pub base_se3_tcp: Isometry3<f64>,
+    pub manipulability: f64,
+}
+
+/// What IK found. See [`Session::robot_ik`].
+#[derive(Clone, Debug, serde::Serialize)]
+pub struct IkAnswer {
+    pub converged: bool,
+    /// The solution, or the seed when it did not converge.
+    pub q: Vec<f64>,
+    pub iterations: usize,
+    pub translation_error: Option<f64>,
+    pub rotation_error: Option<f64>,
+    /// At `q`.
+    pub manipulability: f64,
+}
+
+/// Overrides of `etendue_kinematics::IkOptions`.
+#[derive(Clone, Copy, Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct IkSpec {
+    pub max_iterations: Option<usize>,
+    pub tol_translation: Option<f64>,
+    pub tol_rotation: Option<f64>,
+    pub max_step: Option<f64>,
+    pub restarts: Option<usize>,
+}
+
+impl IkSpec {
+    fn options(&self) -> etendue_kinematics::IkOptions {
+        let d = etendue_kinematics::IkOptions::default();
+        etendue_kinematics::IkOptions {
+            max_iterations: self.max_iterations.unwrap_or(d.max_iterations),
+            tol_translation: self.tol_translation.unwrap_or(d.tol_translation),
+            tol_rotation: self.tol_rotation.unwrap_or(d.tol_rotation),
+            max_step: self.max_step.unwrap_or(d.max_step),
+            restarts: self.restarts.unwrap_or(d.restarts),
+            ..d
+        }
+    }
+}
+
 /// Options of [`head_section`].
 #[derive(Clone, Debug, Default, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -1238,6 +1375,68 @@ impl EtendueScene {
     /// # Errors
     ///
     /// Throws an `Error` with `kind`.
+    /// See [`Session::robot_links`].
+    ///
+    /// # Errors
+    ///
+    /// Throws an `Error` with `kind`.
+    #[wasm_bindgen(js_name = robotLinks)]
+    pub fn robot_links(&self, robot_id: &str) -> std::result::Result<Vec<String>, JsValue> {
+        self.inner.robot_links(robot_id).map_err(|e| js_error(&e))
+    }
+
+    /// See [`Session::robot_link_poses`].
+    ///
+    /// # Errors
+    ///
+    /// Throws an `Error` with `kind`.
+    #[wasm_bindgen(js_name = robotLinkPoses)]
+    pub fn robot_link_poses(
+        &self,
+        robot_id: &str,
+        q: &[f64],
+    ) -> std::result::Result<Vec<f64>, JsValue> {
+        self.inner
+            .robot_link_poses(robot_id, q)
+            .map_err(|e| js_error(&e))
+    }
+
+    /// See [`Session::robot_tcp`]; JSON text.
+    ///
+    /// # Errors
+    ///
+    /// Throws an `Error` with `kind`.
+    #[wasm_bindgen(js_name = robotTcp)]
+    pub fn robot_tcp(&self, robot_id: &str, q: &[f64]) -> std::result::Result<String, JsValue> {
+        json_text(
+            &self
+                .inner
+                .robot_tcp(robot_id, q)
+                .map_err(|e| js_error(&e))?,
+        )
+    }
+
+    /// See [`Session::robot_ik`]; JSON text.
+    ///
+    /// # Errors
+    ///
+    /// Throws an `Error` with `kind`.
+    #[wasm_bindgen(js_name = robotIk)]
+    pub fn robot_ik(
+        &self,
+        robot_id: &str,
+        base_se3_tcp_json: &str,
+        seed: &[f64],
+        options_json: &str,
+    ) -> std::result::Result<String, JsValue> {
+        json_text(
+            &self
+                .inner
+                .robot_ik(robot_id, base_se3_tcp_json, seed, options_json)
+                .map_err(|e| js_error(&e))?,
+        )
+    }
+
     #[wasm_bindgen(js_name = generatePoses)]
     pub fn generate_poses(&self, spec_json: &str, dt: f64) -> std::result::Result<String, JsValue> {
         let generated = self

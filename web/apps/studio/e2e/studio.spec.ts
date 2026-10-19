@@ -395,3 +395,36 @@ test("the Rigs workspace lays out a stereo pair and a ring of heads, and places 
   await expect(page.getByRole("treeitem", { name: /stereo_pair_laser2/ })).toBeVisible();
   await expect(page.getByRole("button", { name: "Undo place Stereo pair" })).toBeEnabled();
 });
+
+test("the Motion workspace jogs a robot and teaches its pose", async ({ page }) => {
+  await loaded(page);
+  await page.getByRole("radio", { name: "Motion" }).click();
+  const steps = page.getByTestId("step-list").locator(":scope > li");
+  const before = await steps.count();
+  await page.getByRole("radio", { name: "Jog" }).click();
+  const tcp = page.getByTestId("jog-tcp");
+  const start = await tcp.textContent();
+
+  // A joint, typed: FK moves the TCP, without a bake.
+  const j1 = page.getByTestId("joint-0").getByRole("spinbutton");
+  await j1.fill("40");
+  await j1.press("Enter");
+  await expect(tcp).not.toHaveText(start!);
+  const afterJoint = await tcp.textContent();
+
+  // A Cartesian step along the tool's z: IK keeps the arm continuous.
+  await page.getByRole("button", { name: "Jog +z" }).click();
+  await expect(tcp).not.toHaveText(afterJoint!);
+  await expect(page.getByText("Out of reach")).toHaveCount(0);
+
+  // Taught: a PTP move to the pose and a capture, one undoable edit; the program grows by two.
+  await page.getByRole("button", { name: "Add PTP + capture" }).click();
+  await expect(page.getByRole("button", { name: "Undo teach a capture" })).toBeEnabled();
+  await page.getByRole("radio", { name: "Program" }).click();
+  await expect(steps).toHaveCount(before + 2);
+
+  // And deleted again from the program.
+  await steps.last().hover();
+  await page.getByRole("button", { name: `Delete step ${before + 2}` }).click();
+  await expect(steps).toHaveCount(before + 1);
+});

@@ -13,7 +13,7 @@
 use std::collections::HashMap;
 
 use etendue_scene::RobotManifest;
-use nalgebra::{Isometry3, Translation3, Unit, UnitQuaternion, Vector3};
+use nalgebra::{Isometry3, Translation3, Unit, Vector3};
 
 use crate::error::{Error, Result};
 
@@ -55,7 +55,7 @@ impl Joint {
     pub fn transform(&self, q: f64) -> Isometry3<f64> {
         match &self.kind {
             JointKind::Fixed => self.origin,
-            JointKind::Revolute { axis } => self.origin * UnitQuaternion::from_axis_angle(axis, q),
+            JointKind::Revolute { axis } => self.origin * crate::rot::axis_angle(axis, q),
             JointKind::Prismatic { axis } => {
                 self.origin * Translation3::from(axis.into_inner() * q)
             }
@@ -118,7 +118,7 @@ pub struct RobotModel {
 fn pose(p: &urdf_rs::Pose) -> Isometry3<f64> {
     Isometry3::from_parts(
         Translation3::new(p.xyz[0], p.xyz[1], p.xyz[2]),
-        UnitQuaternion::from_euler_angles(p.rpy[0], p.rpy[1], p.rpy[2]),
+        crate::rot::rpy(p.rpy[0], p.rpy[1], p.rpy[2]),
     )
 }
 

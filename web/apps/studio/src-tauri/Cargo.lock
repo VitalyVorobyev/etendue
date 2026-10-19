@@ -1153,6 +1153,7 @@ name = "etendue-core"
 version = "0.1.0"
 dependencies = [
  "etendue-scene",
+ "libm",
  "nalgebra",
  "serde",
  "serde_json",
@@ -1165,6 +1166,7 @@ name = "etendue-kinematics"
 version = "0.1.0"
 dependencies = [
  "etendue-scene",
+ "libm",
  "nalgebra",
  "rsruckig",
  "thiserror 2.0.21",

@@ -1,7 +1,7 @@
 import type { BakedScenario, MotionReport, MotionWarning, ScenarioSpec, Step, StepReport } from "@etendue/wasm";
 import { Badge, Empty } from "@vitavision/ui";
 import type { Playhead } from "@vitavision/workbench";
-import { AlertTriangle, Camera, Clock, MoveRight, Pin, Spline } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, Camera, Clock, MoveRight, Pin, Spline, Trash2 } from "lucide-react";
 import { useMemo } from "react";
 
 import { useThrottledPlayhead } from "../kernel/useThrottled";
@@ -61,18 +61,21 @@ function timing(report: StepReport): string | null {
 /**
  * The scenario as a program: one row per step, with its duration, the limit that sets it, and
  * any warning of the motion report. A capture row seeks the playhead to its sample; the row of
- * the capture at or before the playhead is marked.
+ * the capture at or before the playhead is marked. With `onSteps`, each step can be moved up or
+ * down and deleted.
  */
 export function StepList({
   scenario,
   baked,
   report,
   playhead,
+  onSteps,
 }: {
   scenario: ScenarioSpec | null;
   baked: BakedScenario;
   report: MotionReport | null;
   playhead: Playhead;
+  onSteps?: ((steps: Step[], label: string) => void) | undefined;
 }) {
   const k = useThrottledPlayhead(playhead, 100);
   const captures = useMemo(
@@ -121,22 +124,83 @@ export function StepList({
         return (
           // Steps have no identity of their own: their place in the program is it.
           // eslint-disable-next-line react/no-array-index-key
-          <li key={i}>
-            {at ? (
-              <button
-                type="button"
-                className={`flex w-full items-center gap-2 px-2 py-1.5 text-left hover:bg-raised ${here ? "bg-raised text-signal" : ""}`}
-                onClick={() => playhead.set(at.index)}
-                aria-current={here ? "step" : undefined}
-              >
-                {row}
-              </button>
-            ) : (
-              <div className="flex items-center gap-2 px-2 py-1.5">{row}</div>
+          <li key={i} className="group flex items-center">
+            <div className="min-w-0 flex-1">
+              {at ? (
+                <button
+                  type="button"
+                  className={`flex w-full items-center gap-2 px-2 py-1.5 text-left hover:bg-raised ${here ? "bg-raised text-signal" : ""}`}
+                  onClick={() => playhead.set(at.index)}
+                  aria-current={here ? "step" : undefined}
+                >
+                  {row}
+                </button>
+              ) : (
+                <div className="flex items-center gap-2 px-2 py-1.5">{row}</div>
+              )}
+            </div>
+            {onSteps && (
+              <StepActions
+                index={i}
+                count={scenario.steps.length}
+                onMove={(to) => {
+                  const steps = [...scenario.steps];
+                  const [moved] = steps.splice(i, 1);
+                  steps.splice(to, 0, moved!);
+                  onSteps(steps, `move step ${i + 1}`);
+                }}
+                onDelete={() =>
+                  onSteps(
+                    scenario.steps.filter((_, j) => j !== i),
+                    `delete step ${i + 1}`,
+                  )
+                }
+              />
             )}
           </li>
         );
       })}
     </ol>
+  );
+}
+
+/** A step's edit buttons, shown on hover or focus. */
+function StepActions({
+  index,
+  count,
+  onMove,
+  onDelete,
+}: {
+  index: number;
+  count: number;
+  onMove: (to: number) => void;
+  onDelete: () => void;
+}) {
+  const button =
+    "rounded p-1 text-fg-muted hover:bg-raised hover:text-fg disabled:opacity-30 focus-visible:opacity-100";
+  return (
+    <span className="flex shrink-0 items-center pr-1 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100">
+      <button
+        type="button"
+        className={button}
+        disabled={index === 0}
+        onClick={() => onMove(index - 1)}
+        aria-label={`Move step ${index + 1} up`}
+      >
+        <ArrowUp className="size-3.5" />
+      </button>
+      <button
+        type="button"
+        className={button}
+        disabled={index === count - 1}
+        onClick={() => onMove(index + 1)}
+        aria-label={`Move step ${index + 1} down`}
+      >
+        <ArrowDown className="size-3.5" />
+      </button>
+      <button type="button" className={button} onClick={onDelete} aria-label={`Delete step ${index + 1}`}>
+        <Trash2 className="size-3.5" />
+      </button>
+    </span>
   );
 }
