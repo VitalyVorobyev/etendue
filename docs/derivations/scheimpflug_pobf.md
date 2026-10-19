@@ -39,10 +39,12 @@ natural choice: `vision-calibration-core`'s pinhole `Camera` projects through a
 single center, and the center that reproduces image-formation geometry is the
 rear nodal point, which (in air) coincides with H'. Consequently:
 
-- The **front** principal plane H sits a distance `g` *toward the object*,
-  i.e. at `z = +g`.
 - An object point given at camera depth `z` (its `+z` coordinate) lies at
-  object distance **`d_H = z + g`** from H.
+  object distance **`d_H = z + g`** from H. That places H at `z = −g`, a
+  distance `g` on the image side of H′. (This section used to say "H sits a
+  distance `g` toward the object, at `z = +g`", which contradicts
+  `d_H = z + g`; the formulas and their tests are unchanged. ADR 0008's
+  `PhysicalCamera` places H, H′ and the pupils explicitly.)
 - The Gaussian conjugate equation is written with object distance from H and
   image distance from H'.
 
@@ -175,6 +177,18 @@ moves *away from the lens* (toward more negative `z`, i.e. larger axial
 distance from H'). This fixes the `+` sign in (8) and, through the derivation
 below, the direction in which the plane of best focus swings. The hinge-rule
 sanity check at the end of this section confirms the choice is physical.
+
+**Relation to calibration-rs.** calibration-rs's (OpenCV's) tilted sensor is
+the plane its homography projects onto, in front of the projection centre; the
+real sensor is that plane reflected through the lens, with the image inverted.
+For calibration-rs's `+tilt_x` the real sensor's `+y` edge therefore comes
+*toward* the lens: its `tilt_x` is `−tau_x` here, and its `tilt_y` is `tau_y`.
+Until 2026-10-19 `ThickLens` and the Scheimpflug solver passed
+calibration-rs's angles through unchanged, which mirrored the plane of best
+focus about `x` for a camera tilted about `x`. They now convert
+(`optics::coc_tilt`), and `crates/etendue-core/tests/camera_frames.rs` checks
+the legacy plane of best focus against `PhysicalCamera`, whose sensor
+reproduces calibration-rs's projection to 1e-12 px.
 
 **Conjugate of a tilted plane.** Each sensor point at image height `y_s` is the
 sharp image of exactly one object point — its optical conjugate. We find the

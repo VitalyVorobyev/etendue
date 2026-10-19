@@ -14,6 +14,12 @@
 //! - [`thick_lens`] — [`ThickLens`], a camera-aware wrapper that pairs a
 //!   `vision-calibration-core` `CameraParams` spec with the four thick-lens
 //!   parameters and exposes a clean `coc_diameter` API.
+//! - [`camera`] — [`PhysicalCamera`], the camera model of ADR 0008: a body (mechanical frame)
+//!   with a sensor and a thick lens with pupils, focused at a distance. It owns every conversion
+//!   between the mechanical frame and the lens's optical points, and gives the equivalent
+//!   calibration-rs pinhole, projection, blur and depth of field.
+//! - [`paraxial`] — a paraxial ray trace through a [`PhysicalCamera`]: the reference its closed
+//!   forms are tested against, and the ray fans for drawing.
 //! - [`psf`] — Gaussian point-spread function model: the
 //!   [`coc_to_gaussian_sigma`] conversion from the geometric CoC diameter to a
 //!   FWHM-matched Gaussian sigma, for drawing a Gaussian-halo band around an
@@ -34,13 +40,16 @@
 //! *exclusively* through Scheimpflug sensor tilt. See [`coc`] for the full
 //! statement of scope.
 
+pub mod camera;
 pub mod coc;
+pub mod paraxial;
 pub mod psf;
 pub mod thick_lens;
 
+pub use camera::{CardinalPoints, DepthOfField, Focusing, Lens, PhysicalCamera, SensorPlane};
 pub use coc::{
     PlaneOfBestFocus, coc_diameter_at_sensor, coc_to_pixels, image_distance, pobf_tilt_tan,
     sensor_distance,
 };
 pub use psf::{GAUSSIAN_FWHM_PER_SIGMA, coc_to_gaussian_sigma};
-pub use thick_lens::{ThickLens, scheimpflug_tilt};
+pub use thick_lens::{ThickLens, coc_tilt, scheimpflug_tilt};

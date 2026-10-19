@@ -26,11 +26,22 @@
 //! Camera-local, right-handed, optical axis along `+z` pointing **toward the
 //! object**; the object half-space is `z > 0`, the sensor lives at `z < 0`.
 //!
-//! The camera-local origin `z = 0` is the **rear principal plane `H'`**. The
-//! front principal plane `H` is a distance `g` toward the object, at `z = +g`.
-//! An object point at camera depth `z` is therefore at object distance
-//! `d_H = z + g` from `H`. The Gaussian conjugate relation is written with the
-//! object distance measured from `H` and the image distance from `H'`.
+//! The camera-local origin `z = 0` is the **rear principal plane `H'`**. An
+//! object point at camera depth `z` is at object distance `d_H = z + g` from
+//! the front principal plane `H`, so these formulas place `H` at `z = −g`: a
+//! distance `g` on the *image* side of `H'`. (Earlier versions of this text
+//! said `z = +g`, which contradicts `d_H = z + g`; the formulas are what the
+//! tests pin.) The Gaussian conjugate relation is written with the object
+//! distance measured from `H` and the image distance from `H'`.
+//!
+//! [`crate::optics::camera::PhysicalCamera`] places `H`, `H'` and the pupils
+//! explicitly in a mechanical frame and is the model new code should use.
+//!
+//! **Tilt convention.** `tau_x` and `tau_y` here follow this module's
+//! derivation: a positive `tau_x` moves the sensor's `+y` edge away from the
+//! lens. calibration-rs's (OpenCV's) `tilt_x` has the opposite sense, and its
+//! `tilt_y` the same: see [`crate::optics::coc_tilt`], which every bridge from
+//! `CameraParams` applies.
 //!
 //! This convention is the one modelling choice that makes the inter-principal
 //! gap `g` *physically load-bearing*: camera-frame depth enters the model only

@@ -321,6 +321,17 @@ Regime (b) contains a `1/z` term that regime (a) does not. The regime is chosen 
 sign of `z - s_o` where `z` is the depth of the object point and `s_o` is the focus
 distance. Mixing regimes silently produces wrong CoC values — the unit tests guard this.
 
+**Gotcha 4**: calibration-rs's (OpenCV's) `tilt_x` is the **negative** of `optics::coc`'s
+`tau_x`; `tilt_y` equals `tau_y`. calibration-rs's tilted plane is the virtual image plane in front
+of the projection centre; the real sensor is its reflection through the lens. Every bridge from
+`CameraParams` to the defocus physics applies `optics::coc_tilt` (`ThickLens`, the Scheimpflug
+solver). `PhysicalCamera` (ADR 0008) defines its sensor so its projection equals calibration-rs's
+to 1e-12 px, and `tests/camera_frames.rs` pins the legacy model against it.
+
+**Gotcha 5**: a pinhole's centre of projection is the **entrance pupil**, not a principal or
+nodal point; the camera's pose is its **mechanical frame** (the image-plane datum). Only
+`PhysicalCamera` converts between them; never offset a pose by an optical distance elsewhere.
+
 ## Quality gates — verify before every report
 
 All must be clean:

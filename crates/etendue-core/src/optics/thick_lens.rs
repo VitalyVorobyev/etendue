@@ -51,6 +51,20 @@ pub fn scheimpflug_tilt(params: &CameraParams) -> (f64, f64) {
     }
 }
 
+/// A calibration-rs (OpenCV) tilt `(tau_x, tau_y)` in the convention of
+/// [`crate::optics::coc`], and back (the map is its own inverse).
+///
+/// The two agree about `y` and differ in sign about `x`. calibration-rs's tilted sensor is the
+/// plane its homography projects onto; a lens images the real sensor inverted, and for
+/// calibration-rs's `+tau_x` the real sensor's `+y` edge comes *toward* the lens, where
+/// [`crate::optics::coc`]'s `+tau_x` moves it away (its derivation note, Section 4). The camera
+/// model ([`crate::optics::camera`]) checks this against a ray trace; its tests compare the two
+/// planes of best focus.
+#[must_use]
+pub fn coc_tilt((tau_x, tau_y): (f64, f64)) -> (f64, f64) {
+    (-tau_x, tau_y)
+}
+
 /// A thick-lens optical design: a camera spec plus its physical lens
 /// parameters.
 ///
@@ -200,13 +214,20 @@ impl ThickLens {
         self.focal_length_m / self.f_number
     }
 
-    /// The Scheimpflug tilt `(tau_x, tau_y)` of this lens's sensor, in radians.
+    /// The Scheimpflug tilt `(tau_x, tau_y)` of this lens's sensor, in radians, in
+    /// calibration-rs's (OpenCV's) convention.
     ///
     /// Read straight from the retained [`CameraParams`] — see
     /// [`scheimpflug_tilt`].
     #[must_use]
     pub fn sensor_tilt(&self) -> (f64, f64) {
         scheimpflug_tilt(&self.params)
+    }
+
+    /// The sensor tilt in the convention of [`crate::optics::coc`], which this lens's defocus
+    /// physics uses: see [`coc_tilt`].
+    fn coc_tilt(&self) -> (f64, f64) {
+        coc_tilt(self.sensor_tilt())
     }
 
     /// The on-axis sensor distance from the rear principal plane `H'`, metres.
@@ -235,7 +256,7 @@ impl ThickLens {
     ///
     /// Propagates [`PlaneOfBestFocus::new`]'s errors.
     pub fn plane_of_best_focus(&self) -> crate::Result<PlaneOfBestFocus> {
-        let (tau_x, tau_y) = self.sensor_tilt();
+        let (tau_x, tau_y) = self.coc_tilt();
         PlaneOfBestFocus::new(
             tau_x,
             tau_y,
@@ -264,7 +285,7 @@ impl ThickLens {
     /// point at or inside the front focal point (no real image), or a
     /// non-finite coordinate.
     pub fn coc_diameter(&self, point_camera: &Point3<f64>) -> crate::Result<f64> {
-        let (tau_x, tau_y) = self.sensor_tilt();
+        let (tau_x, tau_y) = self.coc_tilt();
         coc_diameter_at_sensor(
             point_camera,
             self.focal_length_m,
