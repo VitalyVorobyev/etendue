@@ -123,8 +123,19 @@
           "description": "Unique id.",
           "type": "string"
         },
+        "optics": {
+          "description": "The camera's physical optics, if it has them: then its frame is its body's (ADR 0008).",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OpticsSpec"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "params": {
-          "description": "Projection / distortion / sensor / intrinsics.",
+          "description": "Projection / distortion / sensor / intrinsics. With [`optics`](Self::optics), the\nfocal lengths, skew and sensor tilt are the equivalent pinhole the optics give.",
           "$ref": "#/$defs/CameraParams"
         },
         "parent": {
@@ -160,6 +171,17 @@
       "description": "The camera model of every position of a layout.",
       "type": "object",
       "properties": {
+        "optics": {
+          "description": "The cameras' physical optics, if they have them (ADR 0008).",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OpticsSpec"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "params": {
           "description": "Projection, distortion, sensor and intrinsics.",
           "$ref": "#/$defs/CameraParams"
@@ -421,6 +443,24 @@
         }
       ]
     },
+    "Focusing": {
+      "description": "How a lens focuses.",
+      "oneOf": [
+        {
+          "description": "The whole lens moves along its axis; its focal length does not change.",
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "unit"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        }
+      ]
+    },
     "FrameRef": {
       "description": "A reference to a frame: `\"world\"`, `\"<robot_id>/<link_name>\"`, or\n`\"<entity_id>\"`. Parse it with [`FrameRef::parse`].",
       "type": "string"
@@ -658,6 +698,53 @@
         "beam_waist_m"
       ]
     },
+    "LensOptics": {
+      "description": "An ideal thick lens with its entrance pupil.",
+      "type": "object",
+      "properties": {
+        "entrance_pupil_m": {
+          "description": "Signed distance from H to the entrance pupil, metres (positive toward the object).",
+          "type": "number",
+          "format": "double",
+          "default": 0.0
+        },
+        "f_number": {
+          "description": "f-number: the focal length over the entrance pupil diameter.",
+          "type": "number",
+          "format": "double"
+        },
+        "focal_length_m": {
+          "description": "Effective focal length, metres.",
+          "type": "number",
+          "format": "double"
+        },
+        "focusing": {
+          "description": "How the lens focuses.",
+          "$ref": "#/$defs/Focusing",
+          "default": {
+            "type": "unit"
+          }
+        },
+        "name": {
+          "description": "What the lens is, e.g. `Kowa LM25HC`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "principal_gap_m": {
+          "description": "Signed distance from the rear principal point H′ to the front one H, metres (positive\nwhen H lies on the object side).",
+          "type": "number",
+          "format": "double",
+          "default": 0.0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "focal_length_m",
+        "f_number"
+      ]
+    },
     "LightShape": {
       "description": "Emitter shape, tagged on `type`.",
       "oneOf": [
@@ -806,6 +893,41 @@
         "i",
         "j",
         "polarity"
+      ]
+    },
+    "OpticsSpec": {
+      "description": "A camera's physical optics.",
+      "type": "object",
+      "properties": {
+        "focus_distance_m": {
+          "description": "Distance from the image-plane datum to the plane in focus, metres, as a lens's focus scale\nreads it.",
+          "type": "number",
+          "format": "double"
+        },
+        "lens": {
+          "description": "The lens.",
+          "$ref": "#/$defs/LensOptics"
+        },
+        "sensor": {
+          "description": "The sensor.",
+          "$ref": "#/$defs/SensorOptics"
+        },
+        "tilt_rad": {
+          "description": "The sensor's tilt `[τx, τy]` about the image-plane datum, radians, in calibration-rs's\n(OpenCV's) convention.",
+          "type": "array",
+          "items": {
+            "type": "number",
+            "format": "double"
+          },
+          "maxItems": 2,
+          "minItems": 2
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "sensor",
+        "lens",
+        "focus_distance_m"
       ]
     },
     "PartSpec": {
@@ -1284,6 +1406,28 @@
         "parent",
         "parent_se3_self",
         "manifest"
+      ]
+    },
+    "SensorOptics": {
+      "description": "The image sensor.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "What the sensor is, e.g. `Sony IMX174`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "pixel_pitch_m": {
+          "description": "Pixel pitch, metres.",
+          "type": "number",
+          "format": "double"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "pixel_pitch_m"
       ]
     },
     "SensorParams": {

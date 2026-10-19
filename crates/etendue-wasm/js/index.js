@@ -4,6 +4,7 @@
 
 import init, {
   EtendueScene as RawScene,
+  deriveOptics as rawDeriveOptics,
   expandRig as rawExpandRig,
   initSync,
   poleCircumferences as rawPoleCircumferences,
@@ -22,6 +23,11 @@ export class EtendueScene {
 
   updateScene(scene) {
     this.#raw.updateScene(text(scene));
+  }
+
+  mechSe3Projection(cameraId) {
+    const w = this.#raw.mechSe3Projection(cameraId);
+    return w === undefined ? undefined : { rotation: [w[0], w[1], w[2], w[3]], translation: [w[4], w[5], w[6]] };
   }
 
   bake(scenario, options = {}) {
@@ -106,6 +112,10 @@ export class EtendueScene {
 
 export function poleCircumferences() {
   return JSON.parse(rawPoleCircumferences());
+}
+
+export function deriveOptics(optics, params) {
+  return JSON.parse(rawDeriveOptics(text(optics), text(params)));
 }
 
 export function expandRig(layout, rigId) {

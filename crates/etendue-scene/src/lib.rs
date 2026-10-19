@@ -37,6 +37,7 @@ pub mod entity;
 pub mod export;
 pub mod frame;
 pub mod light;
+pub mod optics;
 pub mod printed;
 pub mod report;
 pub mod rig;
@@ -54,6 +55,7 @@ pub use entity::{CameraSpec, LaserSpec, PartSpec, RigSpec, TargetGeometry, Targe
 pub use export::{CaptureExport, CaptureRow, ExportError};
 pub use frame::{FrameGraph, FrameRef, FrameSpec, ParsedFrameRef, WORLD, is_valid_id};
 pub use light::{LightShape, LightSpec};
+pub use optics::{Focusing, LensOptics, OpticsSpec, SensorOptics};
 pub use printed::{CharucoLayout, MarkerCircle, Polarity, PrintedTarget};
 pub use report::{Binding, IkReport, JointPeak, MotionReport, MotionWarning, Quantity, StepReport};
 pub use rig::{CameraTemplate, ImageX, LaserLayout, RigLayout};
@@ -263,6 +265,9 @@ impl SceneSpec {
                     format!("{path}.resolution"),
                     format!("must be non-zero, got {:?}", c.resolution),
                 );
+            }
+            if let Some(optics) = &c.optics {
+                optics.check(issues, &format!("{path}.optics"));
             }
             if let Err(e) = c.params.build() {
                 issues.push(

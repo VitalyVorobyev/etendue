@@ -54,3 +54,27 @@ with the pupil behind H, whose cone is widest.
   test then passed vacuously, because `f64::max` drops NaN. The tests now assert finiteness.
 - **argmin's Nelder–Mead stalled** at 0.49 px on the solver's fronto-parallel test (optimum
   0). Restarts reach 4e-6 px.
+
+## Through the scene and the pipeline (P9b)
+
+Measured 2026-10-19 on branch `p9b/scene-optics` (on top of the P9a merge).
+
+```bash
+cargo test -p etendue-core --test resolve_scene
+cargo test -p etendue-cli --test g9_4_pipeline -- --nocapture
+node crates/etendue-wasm/scripts/build-npm.mjs
+node crates/etendue-wasm/tests/node/g01_parity.mjs > target/g01.json
+cargo run -p etendue-wasm --example g01_verify -- target/g01.json
+```
+
+| Check | Tolerance | Measured |
+|---|---|---|
+| `resolve`d pinhole at P projects as the physical camera at M (3 tilts) | 1e-9 px | pass |
+| the camera lands at `world_se3_M · M_se3_P`; a laser on it keeps its world pose | 1e-12 | pass |
+| moving the whole cell, or re-parenting the camera to the world, changes no pixel | 1e-9 px | pass |
+| stale `params.intrinsics.fx` (1e-6 off) is reported at that path; an unreachable focus at `optics` | — | pass |
+| resolving twice changes nothing | identical JSON | pass |
+| `etendue gt` and the render job: physical `cam_left` vs its resolved pinhole (`eye_in_hand_ur5e`) | identical files, but for `mech_se3_projection` | pass |
+| ground-truth pixels vs `PhysicalCamera::project` from the body's (unresolved) bake | 1e-9 px | **2.6e-12 px** (387 points) |
+| G0.1, wasm vs native: projection with the physical camera, `deriveOptics`, `mechSe3Projection` | bit for bit | **0 mismatches** (4380 values) |
+| G2.1, gzipped wasm | ≤ 1 572 864 B | 638 942 B |

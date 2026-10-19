@@ -14,6 +14,8 @@ use nalgebra::Isometry3;
 use serde::{Deserialize, Serialize};
 use vision_calibration_core::CameraParams;
 
+use crate::optics::OpticsSpec;
+
 use crate::frame::FrameRef;
 
 /// A rigid mount that groups cameras (and optionally lasers). Cameras attach
@@ -56,10 +58,14 @@ pub struct CameraSpec {
         schemars(with = "vision_calibration_core::Iso3Schema")
     )]
     pub parent_se3_self: Isometry3<f64>,
-    /// Projection / distortion / sensor / intrinsics.
+    /// Projection / distortion / sensor / intrinsics. With [`optics`](Self::optics), the
+    /// focal lengths, skew and sensor tilt are the equivalent pinhole the optics give.
     pub params: CameraParams,
     /// Image size in pixels, `[width, height]`.
     pub resolution: [u32; 2],
+    /// The camera's physical optics, if it has them: then its frame is its body's (ADR 0008).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub optics: Option<OpticsSpec>,
 }
 
 /// A line laser: a flat fan with a Gaussian-beam cross-section (the

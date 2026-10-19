@@ -45,8 +45,25 @@ export function overridesOf(moved: readonly Moved[], followers: (id: string) => 
   }));
 }
 
-/** `runtime`'s poses with `overrides` applied. With none, the runtime itself. */
-export function posed(runtime: FrameTreeRuntime, overrides: readonly PoseOverride[]): PoseSource {
+/**
+ * Per camera with physical optics: `P_se3_M`, its body in its projection frame. The kernel bakes
+ * such a camera's frame at its entrance pupil P (ADR 0008); the document places it, and whatever
+ * hangs on it, by its body M.
+ */
+export type Bodies = ReadonlyMap<string, Iso3>;
+
+const NO_BODIES: Bodies = new Map();
+
+/**
+ * `runtime`'s poses with `overrides` applied. With none, the runtime itself. A moved entity's
+ * parent pose is its body's when the parent is a camera with optics (`bodies`): that is the
+ * frame its placement is in.
+ */
+export function posed(
+  runtime: FrameTreeRuntime,
+  overrides: readonly PoseOverride[],
+  bodies: Bodies = NO_BODIES,
+): PoseSource {
   if (overrides.length === 0) return runtime;
   return {
     pose: (name: string, k: number = runtime.current) => {
@@ -63,7 +80,9 @@ export function posed(runtime: FrameTreeRuntime, overrides: readonly PoseOverrid
       const correction = (o: PoseOverride, i: number): Iso3 => {
         let g = cache.get(i);
         if (g) return g;
-        const parent = at(o.parent, i) ?? { rotation: [0, 0, 0, 1], translation: [0, 0, 0] };
+        const baked = at(o.parent, i) ?? { rotation: [0, 0, 0, 1], translation: [0, 0, 0] };
+        const body = bodies.get(o.parent);
+        const parent = body ? composeIso3(baked, body) : baked;
         g = composeIso3(composeIso3(parent, o.local), invertIso3(parent));
         cache.set(i, g);
         return g;
@@ -73,21 +92,41 @@ export function posed(runtime: FrameTreeRuntime, overrides: readonly PoseOverrid
   };
 }
 
+/**
+ * `source`'s poses with every camera that has optics at its body instead of its projection
+ * frame: what an editor shows and moves, since the document places cameras by their bodies.
+ */
+export function bodyPoses(source: PoseSource, bodies: Bodies): PoseSource {
+  if (bodies.size === 0) return source;
+  return {
+    pose: (name: string, k?: number) => {
+      const p = source.pose(name, k);
+      const body = bodies.get(name);
+      return p && body ? composeIso3(p, body) : p;
+    },
+  };
+}
+
 /** Per runtime: the overrides its frames show, kept through every `apply`. */
-const layers = new WeakMap<FrameTreeRuntime, (overrides: readonly PoseOverride[]) => void>();
+const layers = new WeakMap<FrameTreeRuntime, (overrides: readonly PoseOverride[], bodies: Bodies) => void>();
 
 /**
  * Show `overrides` on `runtime`'s frame objects, and keep them through every later
  * `runtime.apply(k)` — the viewport's and every sensor image's, which call it on their own
  * schedule. Frames no longer overridden go back to their baked pose.
  */
-export function showOverrides(runtime: FrameTreeRuntime, overrides: readonly PoseOverride[]): void {
+export function showOverrides(
+  runtime: FrameTreeRuntime,
+  overrides: readonly PoseOverride[],
+  bodies: Bodies = NO_BODIES,
+): void {
   let set = layers.get(runtime);
   if (!set) {
     let current: readonly PoseOverride[] = [];
+    let currentBodies: Bodies = NO_BODIES;
     let written = new Set<string>();
     const write = (index: number, restore: ReadonlySet<string>) => {
-      const source = posed(runtime, current);
+      const source = posed(runtime, current, currentBodies);
       const now = new Set<string>();
       for (const o of current) for (const f of o.moves) now.add(f);
       for (const f of new Set([...restore, ...now])) {
@@ -107,12 +146,13 @@ export function showOverrides(runtime: FrameTreeRuntime, overrides: readonly Pos
       if (index !== before && written.size > 0) write(index, new Set());
       return index;
     };
-    set = (overrides) => {
+    set = (overrides, b) => {
       const stale = written;
       current = overrides;
+      currentBodies = b;
       write(runtime.current, stale);
     };
     layers.set(runtime, set);
   }
-  set(overrides);
+  set(overrides, bodies);
 }

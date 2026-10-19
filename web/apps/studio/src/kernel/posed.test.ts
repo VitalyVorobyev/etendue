@@ -1,9 +1,9 @@
 import type { Iso3Schema, SceneSpec } from "@etendue/wasm";
-import { FrameTreeRuntime, type Iso3, composeIso3 } from "@vitavision/three";
+import { FrameTreeRuntime, type Iso3, composeIso3, invertIso3 } from "@vitavision/three";
 import { describe, expect, it } from "vitest";
 
 import { followers, sceneEffect } from "../scene/effect";
-import { overridesOf, posed, showOverrides } from "./posed";
+import { bodyPoses, overridesOf, posed, showOverrides } from "./posed";
 
 /** A rotation of `angle` about the unit `axis`, and a translation. */
 function iso(axis: [number, number, number], angle: number, t: [number, number, number]): Iso3Schema {
@@ -145,5 +145,40 @@ describe("scene effects", () => {
       "rig",
       "cam",
     ]);
+  });
+});
+
+describe("cameras with optics", () => {
+  it("a move of what hangs on a camera is in the camera's body, though the bake holds its pupil", () => {
+    // The kernel bakes the camera at its entrance pupil P = M · M_se3_P; the laser on it is
+    // placed in its body M.
+    const worldSe3Body = iso([0, 1, 0], 0.4, [0.2, 0.1, 0.5]);
+    const bodySe3Pupil = iso([0, 0, 1], 0.002, [0, 0, 0.031]);
+    const laserBefore = iso([1, 0, 0], -0.3, [0.06, 0, 0]);
+    const laserAfter = iso([1, 0, 0], -0.25, [0.07, 0.01, 0]);
+    const runtime = new FrameTreeRuntime({
+      dt: 0.01,
+      frames: ["world", "cam", "laser"],
+      samples: [
+        {
+          t: 0,
+          world_se3_frame: [
+            iso([0, 0, 1], 0, [0, 0, 0]),
+            composeIso3(worldSe3Body, bodySe3Pupil),
+            composeIso3(worldSe3Body, laserBefore),
+          ],
+        },
+      ],
+    });
+    const bodies = new Map([["cam", invertIso3(bodySe3Pupil)]]);
+    const overrides = overridesOf(
+      [{ id: "laser", parent: "cam", from: laserBefore, to: laserAfter }],
+      () => new Set(["laser"]),
+    );
+    const source = posed(runtime, overrides, bodies);
+    expect(gap(source.pose("laser", 0), composeIso3(worldSe3Body, laserAfter))).toBeLessThan(1e-12);
+    // An editor sees the camera's body; projection keeps its pupil.
+    expect(gap(bodyPoses(source, bodies).pose("cam", 0), worldSe3Body)).toBeLessThan(1e-12);
+    expect(gap(source.pose("cam", 0), composeIso3(worldSe3Body, bodySe3Pupil))).toBeLessThan(1e-12);
   });
 });

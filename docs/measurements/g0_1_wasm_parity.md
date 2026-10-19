@@ -165,3 +165,7 @@ G0.1 wasm/native projection parity
 
 - Measured on etendue commit `ecc9741` (branch `pivot/p4-corners`), calibration-rs `v0.8.2`
   (`ce883adf`).
+- Re-run 2026-10-19 on branch `p9b/scene-optics` with the probe extended by a physical camera
+  (ADR 0008): `cam_left` with a thick lens, its pupil off H and a tilted sensor, loaded through
+  the session's projection-frame resolution; plus `deriveOptics` (compared as JSON text) and
+  `mechSe3Projection`. 4380 output values, **0 bit mismatches**.

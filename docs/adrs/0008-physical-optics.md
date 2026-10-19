@@ -177,11 +177,17 @@ caller passes points in M or in the world.
   - `cardinal_points()`, for drawing.
 
   Nothing else applies an optical offset.
-- **Consumers that need a pinhole pose ask the model.** These are the ground truth and
-  calibration-rs datasets (calibration estimates P), the Blender job's canonical
-  cameras, the wasm `project_points`/`backproject_pixels`, and the studio frustum. Each
-  computes `world_se3_P = world_se3_M · M_se3_P` through the model. The ground truth also
-  records `M_se3_P`, so a calibration result can be compared in either frame.
+- **Consumers that need a pinhole pose get it from one resolution.**
+  `etendue-core::from_scene::resolve` returns the scene in projection frames:
+  - each camera with optics is moved to P and given the derived pinhole;
+  - everything attached to it is re-expressed in P, so its world pose is unchanged.
+
+  The CLI's `load` and the wasm session both work on that scene. So the ground truth and
+  calibration-rs datasets (calibration estimates P), the Blender job's cameras, the remap
+  tables, every wasm projection and the studio's frustum all see P, and none of them meets
+  the optics. The ground truth also records `M_se3_P`, so a calibration result can be
+  compared in either frame. The studio edits bodies: it maps a baked camera frame back
+  through `mechSe3Projection` where it shows or moves one.
 - **The stored params are the equivalent pinhole.** For a camera with optics, the model
   writes fx, fy, the skew and the tilt in `params` as the equivalent pinhole about P. `validate` (CLI
   and wasm) rejects any that differ from the derived values by more than 1e-9 relative.
@@ -273,12 +279,15 @@ whose graph keeps no `getrandom` (gate G9.3). argmin leaves `Cargo.toml`,
 
 ### 8. The optics reach the browser through wasm
 
-`etendue-wasm` gains an `optics` module. Each function takes JSON and returns JSON or
+`etendue-wasm` exposes the model to the studio. Each function takes JSON and returns JSON or
 typed arrays:
 
-- `deriveIntrinsics`, `cameraFrames` (the cardinal points and `M_se3_P`),
-  `opticsSummary`, `blurProfile`, `crossSection`;
-- `workingVolume`, `solveScheimpflug`, `validateLibrary`.
+- `deriveOptics(optics, params)`: the derived pinhole, `M_se3_P`, the cardinal points,
+  magnification, pupil diameters and the working f-number (P9b);
+- `EtendueScene.mechSe3Projection(camera)`: where a camera's projection frame sits in its body.
+  The session works in projection frames (§3), so a baked camera frame is P;
+- with the workspaces that need them: `blurProfile`, `crossSection`, `workingVolume`
+  (P10), `solveScheimpflug` (P9c), `validateLibrary` (P9d).
 
 As for every kernel function, native and wasm results are checked bit for bit (the
 G0.1 recipe). If an analysis exceeds 100 ms per UI update, it moves to a worker or a

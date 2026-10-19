@@ -28,6 +28,7 @@ use serde::{Deserialize, Serialize};
 use vision_calibration_core::CameraParams;
 
 use crate::frame::FrameRef;
+use crate::optics::OpticsSpec;
 use crate::validate::Issues;
 use crate::{CameraSpec, LaserSpec};
 
@@ -82,6 +83,9 @@ pub struct CameraTemplate {
     pub params: CameraParams,
     /// Image size in pixels, `[width, height]`.
     pub resolution: [u32; 2],
+    /// The cameras' physical optics, if they have them (ADR 0008).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub optics: Option<OpticsSpec>,
 }
 
 /// One line laser per camera.
@@ -156,6 +160,9 @@ impl RigLayout {
         {
             issues.push(format!("{path}.tilt_rad"), "must be in [0, π/2)");
         }
+        if let Some(optics) = &self.camera.optics {
+            optics.check(issues, &format!("{path}.camera.optics"));
+        }
         if let Some(l) = &self.lasers {
             if !(l.radius_m.is_finite() && l.radius_m >= 0.0) {
                 issues.push(format!("{path}.lasers.radius_m"), "must be finite and ≥ 0");
@@ -198,6 +205,7 @@ impl RigLayout {
                 ),
                 params: self.camera.params.clone(),
                 resolution: self.camera.resolution,
+                optics: self.camera.optics.clone(),
             });
             if let Some(l) = &self.lasers {
                 let psi = phi + l.azimuth_rad;

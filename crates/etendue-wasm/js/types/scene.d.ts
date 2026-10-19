@@ -60,6 +60,10 @@ export interface CameraSpec {
    * Unique id.
    */
   id: string;
+  /**
+   * The camera's physical optics, if it has them: then its frame is its body's (ADR 0008).
+   */
+  optics?: OpticsSpec | null;
   params: CameraParams;
   /**
    * Parent frame (usually a rig).
@@ -75,7 +79,73 @@ export interface CameraSpec {
   resolution: [number, number];
 }
 /**
- * Projection / distortion / sensor / intrinsics.
+ * A camera's physical optics.
+ */
+export interface OpticsSpec {
+  /**
+   * Distance from the image-plane datum to the plane in focus, metres, as a lens's focus scale
+   * reads it.
+   */
+  focus_distance_m: number;
+  lens: LensOptics;
+  sensor: SensorOptics;
+  /**
+   * The sensor's tilt `[τx, τy]` about the image-plane datum, radians, in calibration-rs's
+   * (OpenCV's) convention.
+   *
+   * @minItems 2
+   * @maxItems 2
+   */
+  tilt_rad?: [number, number];
+}
+/**
+ * The lens.
+ */
+export interface LensOptics {
+  /**
+   * Signed distance from H to the entrance pupil, metres (positive toward the object).
+   */
+  entrance_pupil_m?: number;
+  /**
+   * f-number: the focal length over the entrance pupil diameter.
+   */
+  f_number: number;
+  /**
+   * Effective focal length, metres.
+   */
+  focal_length_m: number;
+  /**
+   * How the lens focuses.
+   */
+  focusing?: {
+    type: "unit";
+  };
+  /**
+   * What the lens is, e.g. `Kowa LM25HC`.
+   */
+  name?: string | null;
+  /**
+   * Signed distance from the rear principal point H′ to the front one H, metres (positive
+   * when H lies on the object side).
+   */
+  principal_gap_m?: number;
+}
+/**
+ * The sensor.
+ */
+export interface SensorOptics {
+  /**
+   * What the sensor is, e.g. `Sony IMX174`.
+   */
+  name?: string | null;
+  /**
+   * Pixel pitch, metres.
+   */
+  pixel_pitch_m: number;
+}
+/**
+ * Projection / distortion / sensor / intrinsics. With [`optics`](Self::optics), the
+ * focal lengths, skew and sensor tilt are the equivalent pinhole the optics give.
  */
 export interface CameraParams {
   /**
@@ -478,6 +548,10 @@ export interface RigLayout {
  * The camera every position gets.
  */
 export interface CameraTemplate {
+  /**
+   * The cameras' physical optics, if they have them (ADR 0008).
+   */
+  optics?: OpticsSpec | null;
   params: CameraParams;
   /**
    * Image size in pixels, `[width, height]`.

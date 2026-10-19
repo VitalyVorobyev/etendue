@@ -1,4 +1,4 @@
-import type { FrameTreeRuntime } from "@vitavision/three";
+import { type FrameTreeRuntime, type Iso3, invertIso3 } from "@vitavision/three";
 import { Button, Callout, Empty, Panel, SegmentedControl, Select } from "@vitavision/ui";
 import {
   AppShell,
@@ -16,7 +16,7 @@ import library, { type LibraryRobot } from "virtual:etendue-robots";
 import { exportFile, jsonText } from "./io/export";
 import { fileUrl, isTauri, parentDir } from "./io/tauri";
 import { describeFailure } from "./kernel/etendue";
-import { type PoseOverride, posed } from "./kernel/posed";
+import { type Bodies, type PoseOverride, bodyPoses, posed } from "./kernel/posed";
 import type { GeneratedPoses } from "@etendue/wasm";
 import { scenarioFromPoses } from "./kernel/native";
 import { CameraGrid } from "./panels/CameraGrid";
@@ -122,7 +122,19 @@ export function App() {
   const onRuntime = useCallback((r: FrameTreeRuntime) => setRuntime(r), []);
   // World poses with the edit in progress drawn over the bake.
   const overrides = editing?.overrides ?? NO_OVERRIDES;
-  const poses = useMemo(() => (runtime ? posed(runtime, overrides) : null), [runtime, overrides]);
+  // Cameras with physical optics are baked at their entrance pupil; the document places them by
+  // their bodies (ADR 0008).
+  const bodies = useMemo<Bodies>(() => {
+    const out = new Map<string, Iso3>();
+    for (const c of current?.loaded.scene.cameras ?? []) {
+      const m = c.optics ? current?.session.mechSe3Projection(c.id) : undefined;
+      if (m) out.set(c.id, invertIso3(m));
+    }
+    return out;
+  }, [current]);
+  const poses = useMemo(() => (runtime ? posed(runtime, overrides, bodies) : null), [runtime, overrides, bodies]);
+  // What an editor shows and moves: bodies, not projection frames.
+  const bodyPose = useMemo(() => (poses ? bodyPoses(poses, bodies) : null), [poses, bodies]);
   const live = useMemo(() => ({ preview: studio.preview, commit: studio.commit, cancel: studio.cancel }), [studio]);
 
   usePlaybackClock({ playhead, playing, speed, loop, onEnd: () => studio.setPlaying(false) });
@@ -360,7 +372,8 @@ export function App() {
       onRuntime={onRuntime}
       candidates={mode === "motion" && motionPanel === "generate" ? preview?.candidates : null}
       overrides={overrides}
-      poses={poses}
+      bodies={bodies}
+      poses={bodyPose}
       gizmo={gizmo}
     />
   ) : null;
@@ -502,7 +515,7 @@ export function App() {
       <Inspector
         current={current}
         preview={editing}
-        poses={poses}
+        poses={bodyPose}
         selected={selected}
         failure={failure}
         playhead={playhead}

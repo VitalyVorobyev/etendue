@@ -19,7 +19,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { LoadedRobot } from "../io/load";
 import type { Baked } from "../kernel/etendue";
 import { cachedMeshLoader } from "../kernel/meshCache";
-import { type PoseOverride, type PoseSource, showOverrides } from "../kernel/posed";
+import { type Bodies, type PoseOverride, type PoseSource, showOverrides } from "../kernel/posed";
 import { Gizmo, type GizmoOptions } from "../scene/Gizmo";
 import { CandidateGlyphs } from "../scene/CandidateGlyphs";
 import { TargetSurface } from "../scene/TargetSurface";
@@ -64,13 +64,13 @@ function RobotVisual({ robot, tcp }: { robot: LoadedRobot; tcp: string }) {
 }
 
 /** Draw `overrides` (an edit in progress) over the frame tree's baked poses. */
-function PoseOverrides({ overrides }: { overrides: readonly PoseOverride[] }) {
+function PoseOverrides({ overrides, bodies }: { overrides: readonly PoseOverride[]; bodies: Bodies }) {
   const runtime = useFrameTree();
   useEffect(() => {
-    showOverrides(runtime, overrides);
+    showOverrides(runtime, overrides, bodies);
     // Sensor images draw on their own schedule: wake them.
     invalidateScene(runtime);
-  }, [runtime, overrides]);
+  }, [runtime, overrides, bodies]);
   return null;
 }
 
@@ -136,6 +136,7 @@ function GizmoBar({ options, onChange }: { options: GizmoOptions; onChange: (o: 
 }
 
 const NONE: readonly PoseOverride[] = [];
+const NO_BODIES: Bodies = new Map();
 const NO_CAMERAS: readonly CameraSpec[] = [];
 
 /** The 3D scene: robots, rigs, cameras, lasers, lights, targets, posed at the playhead. */
@@ -147,6 +148,7 @@ export function Viewport({
   onRuntime,
   candidates,
   overrides = NONE,
+  bodies = NO_BODIES,
   poses = null,
   gizmo = null,
 }: {
@@ -159,7 +161,9 @@ export function Viewport({
   candidates?: readonly Candidate[] | null | undefined;
   /** Moves of an edit in progress, drawn over the bake. */
   overrides?: readonly PoseOverride[] | undefined;
-  /** World poses, the edit in progress included (for the gizmo). */
+  /** Cameras with optics: their bodies in their (baked) projection frames. */
+  bodies?: Bodies | undefined;
+  /** World poses of bodies, the edit in progress included (for the gizmo). */
   poses?: PoseSource | null | undefined;
   /** The selection's handle, when it can be moved. */
   gizmo?: GizmoTarget | null | undefined;
@@ -181,7 +185,7 @@ export function Viewport({
         keyboard
       >
         <FrameTree baked={baked} playhead={playhead} onRuntime={onRuntime}>
-          <PoseOverrides overrides={overrides} />
+          <PoseOverrides overrides={overrides} bodies={bodies} />
           {loaded.robots.map((r) => (
             <RobotVisual key={r.id} robot={r} tcp={r.manifest.tcp_link} />
           ))}

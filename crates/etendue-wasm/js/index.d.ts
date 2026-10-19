@@ -14,7 +14,15 @@
  */
 
 import type { InitInput, InitOutput, SyncInitInput } from "./etendue_wasm.js";
-import type { CameraParams, CameraSpec, Iso3Schema, LaserSpec, RigLayout, SceneSpec } from "./types/scene.js";
+import type {
+  CameraParams,
+  CameraSpec,
+  Iso3Schema,
+  LaserSpec,
+  OpticsSpec,
+  RigLayout,
+  SceneSpec,
+} from "./types/scene.js";
 import type { GeneratorSpec, ScenarioSpec } from "./types/scenario.js";
 import type { BakedScenario } from "./types/baked-scenario.js";
 import type { RobotManifest } from "./types/robot-manifest.js";
@@ -186,6 +194,54 @@ export interface EtendueError extends Error {
  */
 export function expandRig(layout: RigLayout | string, rigId: string): { cameras: CameraSpec[]; lasers: LaserSpec[] };
 
+/** The lens's points on a camera body's axis: metres from the image-plane datum, `+z` toward the object. */
+export interface CardinalPoints {
+  /** The sensor pivot and image-plane datum: `0`. */
+  sensor: number;
+  /** H′. */
+  rear_principal: number;
+  /** H. */
+  front_principal: number;
+  /** E, the centre of projection. */
+  entrance_pupil: number;
+  /** E′. */
+  exit_pupil: number;
+  /** F′. */
+  rear_focal: number;
+  /** F. */
+  front_focal: number;
+}
+
+/** What a camera's optics give (ADR 0008). */
+export interface DerivedOptics {
+  /** The equivalent pinhole about the entrance pupil: what the camera's `params` must hold. */
+  params: CameraParams;
+  /** The projection frame (entrance pupil) in the camera's body frame. */
+  mech_se3_projection: Iso3Schema;
+  cardinal_points: CardinalPoints;
+  /** H′ to the sensor at this focus (m). */
+  image_distance_m: number;
+  /** H to the plane in focus (m). */
+  object_distance_m: number;
+  /** Lateral magnification at this focus. */
+  magnification: number;
+  /** Exit over entrance pupil diameter. */
+  pupil_magnification: number;
+  entrance_pupil_diameter_m: number;
+  exit_pupil_diameter_m: number;
+  /** `N · (1 + m / m_p)`. */
+  working_f_number: number;
+}
+
+/**
+ * What `optics` give a camera built as `params`: its principal point and distortion are kept,
+ * its focal lengths, skew and sensor tilt derived. A camera with optics must store the returned
+ * `params` (`etendue-core::from_scene`).
+ *
+ * @throws {@link EtendueError} `kind: "input"` for optics that are not physical.
+ */
+export function deriveOptics(optics: OpticsSpec | string, params: CameraParams | string): DerivedOptics;
+
 /** Whether `error` was thrown by this package. */
 export function isEtendueError(error: unknown): error is EtendueError;
 
@@ -211,6 +267,15 @@ export class EtendueScene {
    * @throws {@link EtendueError}
    */
   updateScene(scene: SceneSpec | string): void;
+
+  /**
+   * Where camera `cameraId`'s projection frame (its entrance pupil) sits in its body's frame;
+   * `undefined` for a camera without optics. The session works in projection frames: a baked
+   * camera frame is the projection frame, so its body is at `baked · mechSe3Projection⁻¹`.
+   *
+   * @throws {@link EtendueError} `kind: "input"` for an unknown camera.
+   */
+  mechSe3Projection(cameraId: string): Iso3Schema | undefined;
 
   /**
    * Compile and bake a scenario: `world_se3_frame` for every scene frame at every sample.

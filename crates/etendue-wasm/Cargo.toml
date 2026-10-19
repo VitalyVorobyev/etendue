@@ -15,6 +15,7 @@ publish = false
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+etendue-core = { workspace = true }
 etendue-kinematics = { workspace = true }
 etendue-scene = { workspace = true }
 etendue-synth = { workspace = true }

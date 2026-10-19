@@ -3,16 +3,23 @@
 //! Robot manifests (`robot.json`) are resolved relative to the scene file;
 //! each manifest's URDF relative to the manifest.
 
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, anyhow};
+use etendue_core::from_scene::resolve;
 use etendue_kinematics::{BakeOptions, RobotModel, bake_with};
 use etendue_scene::{BakedScenario, FrameGraph, RobotManifest, ScenarioSpec, SceneSpec};
+use nalgebra::Isometry3;
 
 /// A scene with its robot models and manifests, read from disk.
 pub struct Loaded {
-    /// The validated scene.
+    /// The validated scene, in projection frames (`etendue-core::from_scene::resolve`): a camera
+    /// with optics sits at its entrance pupil with its equivalent pinhole, so everything that
+    /// bakes, projects or renders from it sees the physical camera.
     pub scene: SceneSpec,
+    /// For each camera with optics: its projection frame in its body's frame.
+    pub mech_se3_projection: BTreeMap<String, Isometry3<f64>>,
     /// One model per scene robot.
     pub models: Vec<RobotModel>,
     /// Per scene robot: the manifest and the directory it was read from.
@@ -43,6 +50,8 @@ pub fn load(path: &Path) -> Result<Loaded> {
     scene
         .validate()
         .map_err(|e| anyhow!("scene {}: {e}", path.display()))?;
+    let resolved = resolve(&scene).map_err(|e| anyhow!("scene {}: {e}", path.display()))?;
+    let (scene, mech_se3_projection) = (resolved.scene, resolved.mech_se3_projection);
     let dir = path.parent().unwrap_or(Path::new("."));
     let mut models = Vec::with_capacity(scene.robots.len());
     let mut manifests = Vec::with_capacity(scene.robots.len());
@@ -72,6 +81,7 @@ pub fn load(path: &Path) -> Result<Loaded> {
     FrameGraph::build(&scene, &links).map_err(|e| anyhow!("scene {}: {e}", path.display()))?;
     Ok(Loaded {
         scene,
+        mech_se3_projection,
         models,
         manifests,
         dir: dir.to_owned(),

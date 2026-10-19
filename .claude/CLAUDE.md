@@ -108,7 +108,7 @@ by phase, never up front. P0 and P1 are done.
 ```
 etendue-cli (lib `etendue_cli` + bin `etendue`) ──► etendue-kinematics, etendue-synth ──► etendue-scene ──► vision-calibration-{core,dataset}
 web/apps/studio/src-tauri (Tauri shell, own workspace) ──► etendue-cli (lib)
-etendue-wasm (npm @etendue/wasm) ──► etendue-kinematics ──► etendue-scene, etendue-synth ──► etendue-core, vision-calibration-core
+etendue-wasm (npm @etendue/wasm) ──► etendue-kinematics ──► etendue-scene, etendue-synth ──► etendue-core ──► etendue-scene, vision-calibration-core
 web/apps/studio ──► @etendue/wasm, @vitavision/{ui,workbench,three,three-react,charts,stage2d} (npm, from lab-ui)
 xtask (emit-schemas, check-layering, app)
 ```
@@ -124,6 +124,13 @@ xtask (emit-schemas, check-layering, app)
 - `analysis` — `defocus_map`, `working_volume`
 - `bank::schema` — `SensorSpec`, `LensSpec`, `LaserSpec` (seed JSON in
   `crates/etendue-core/assets/bank/`)
+
+**Physical cameras** (ADR 0008, P9) — `etendue-core::optics::camera::PhysicalCamera` is the camera
+model: a body (mechanical frame M, the image-plane datum) with a sensor and a thick lens with pupils,
+focused at a distance. `CameraSpec.optics` (etendue-scene) makes a scene camera physical; its
+`params` must hold the derived equivalent pinhole (checked at 1e-9). `etendue-core::from_scene::resolve`
+turns a scene into projection frames (cameras at their entrance pupils, attached things re-expressed);
+the CLI's `load` and the wasm session work on that, so nothing downstream sees optics.
 
 **`etendue-scene`** — versioned JSON documents: `SceneSpec` (frame tree of robots, rigs,
 cameras, lasers, lights, targets, parts; ADR 0002), `ScenarioSpec`, `BakedScenario`
