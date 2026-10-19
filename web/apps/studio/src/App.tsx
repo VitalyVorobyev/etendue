@@ -37,6 +37,7 @@ import { stepAt, tcpPath } from "./scene/TcpPath";
 import { CoverageLegend, SliceMaps } from "./rigs/SliceMaps";
 import { CameraGrid } from "./panels/CameraGrid";
 import { CellDialog } from "./panels/CellDialog";
+import { RobotLibrary } from "./robots/RobotLibrary";
 import { CALIBRATE_FORM, type CalibrateForm, CalibratePanel, noiseOf } from "./panels/CalibratePanel";
 import { CameraView } from "./panels/CameraView";
 import { DatasetPanel } from "./panels/DatasetPanel";
@@ -116,6 +117,7 @@ export function App() {
     reopenable,
   } = useStudio(studio);
   const [cellDialog, setCellDialog] = useState(false);
+  const [robotLibrary, setRobotLibrary] = useState(false);
   // The Optics workspace's head, kept across workspaces; it starts from the project's parts.
   const [head, setHead] = useState<HeadParams | null>(null);
   const startHead = useMemo(() => (project ? initialHead(project) : null), [project]);
@@ -441,6 +443,26 @@ export function App() {
       }))
       .then((ok) => ok && setSelected(id));
   };
+  const replaceRobot = (lib: LibraryRobot) => {
+    if (!current || selected === null || !isRobot(selected)) return;
+    const id = selected;
+    void studio.replaceRobot(lib.manifest, id, (d, robot) => ({
+      ...d,
+      scene: {
+        ...d.scene,
+        robots: (d.scene.robots ?? []).map((r) =>
+          r.id === id
+            ? {
+                ...r,
+                manifest: lib.manifest,
+                initial_q: robot.manifest.joints.map((j) => Math.min(Math.max(0, j.lower), j.upper)),
+              }
+            : r,
+        ),
+      },
+    }));
+  };
+  const loadLibraryRobot = useCallback((r: LibraryRobot) => studio.loadLibraryRobot(r.manifest, r.id), [studio]);
   const isRobot = (id: string | null) => id !== null && (current?.loaded.scene.robots ?? []).some((r) => r.id === id);
   const removable =
     current !== null && selected !== null && (entityOf(current.loaded.scene, selected) !== null || isRobot(selected));
@@ -917,6 +939,7 @@ export function App() {
         onAdd={add}
         robots={library}
         onAddRobot={addRobot}
+        onBrowseRobots={() => setRobotLibrary(true)}
         onRemove={removable ? remove : null}
       />
     ) : null;
@@ -1089,6 +1112,16 @@ export function App() {
           onSave={studio.saveAsCell}
         />
       )}
+      <RobotLibrary
+        open={robotLibrary}
+        onOpenChange={setRobotLibrary}
+        robots={library}
+        load={loadLibraryRobot}
+        attachTo={selected !== null && current?.baked.frames.includes(selected) ? selected : "world"}
+        replace={isRobot(selected) ? selected : null}
+        onAdd={addRobot}
+        onReplace={replaceRobot}
+      />
       <Toaster />
     </>
   );

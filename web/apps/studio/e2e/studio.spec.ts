@@ -252,6 +252,32 @@ test("a library robot is added and removed as one edit", async ({ page }) => {
   await expect(page.getByRole("treeitem", { name: /^igus_rebel_6dof/ })).toHaveCount(0);
 });
 
+test("the robot library compares robots, adds one and replaces it", async ({ page }) => {
+  await loaded(page);
+  await page.getByRole("treeitem", { name: /^world/ }).click();
+  await page.getByRole("button", { name: "Add to the scene" }).click();
+  await page.getByRole("menuitem", { name: "Robot library…" }).click();
+  const library = page.getByTestId("robot-library");
+  await expect(library).toBeVisible();
+  // Each robot's joints, limits and reach (the kernel's FK over joint vectors through the limits).
+  await library.getByRole("button", { name: /ABB IRB 1200/ }).click();
+  const facts = page.getByTestId("robot-facts");
+  await expect(facts).toContainText("6 axes");
+  await expect(facts).toContainText(/TCP up to \d+ mm from the base/);
+  await page.getByRole("button", { name: "Add to world" }).click();
+  await expect(page.getByRole("treeitem", { name: /^abb_irb1200_5_90/ })).toBeVisible({ timeout: 30_000 });
+
+  // With the new robot selected, another replaces it in place: one undoable edit.
+  await page.getByRole("treeitem", { name: /^abb_irb1200_5_90/ }).click();
+  await page.getByRole("button", { name: "Add to the scene" }).click();
+  await page.getByRole("menuitem", { name: "Robot library…" }).click();
+  await library.getByRole("button", { name: "igus ReBeL 6DOF" }).click();
+  await expect(facts).toContainText("6 axes");
+  await page.getByRole("button", { name: "Replace abb_irb1200_5_90" }).click();
+  await expect(page.getByTestId("inspector")).toContainText("igus ReBeL 6DOF", { timeout: 30_000 });
+  await expect(page.getByRole("button", { name: "Undo replace abb_irb1200_5_90" })).toBeEnabled();
+});
+
 test("the rig builder lays out a six-camera ring with a laser per camera", async ({ page }) => {
   await loaded(page);
   await page.getByRole("treeitem", { name: /^rig/ }).click();
