@@ -167,6 +167,10 @@ pub struct Report {
     pub rows: Vec<Row>,
     pub residuals: Residuals,
     pub estimate: Estimate,
+    /// calibration-rs's own export of the workflow (both workflows' for a single head, by
+    /// name): what a run keeps as `result.json`, not part of the report.
+    #[serde(skip)]
+    pub export: Value,
 }
 
 impl Report {
@@ -759,6 +763,7 @@ struct Solved {
     estimate: Estimate,
     /// The target pose the workflow reports (base frame eye-in-hand, gripper eye-to-hand).
     target: Option<Isometry3<f64>>,
+    export: Value,
 }
 
 /// The estimated camera `j` (truth camera `i`) in the true camera's frame.
@@ -843,6 +848,7 @@ fn finish(truth: &Truth, obs: &Observations, gated: bool, solved: Solved) -> Rep
         residuals,
         mut estimate,
         target,
+        export,
     } = solved;
     estimate.offsets = offsets(truth, &cameras, &estimate, target);
     let laser = !truth.gt.lasers.is_empty();
@@ -864,6 +870,7 @@ fn finish(truth: &Truth, obs: &Observations, gated: bool, solved: Solved) -> Rep
         rows,
         residuals,
         estimate,
+        export,
     }
 }
 
@@ -918,6 +925,7 @@ fn single(
             residuals: residuals(&export, 1),
             estimate,
             target,
+            export,
         },
     ))
 }
@@ -1043,6 +1051,7 @@ fn rig(
             residuals: residuals(&export, n),
             estimate,
             target,
+            export,
         },
     ))
 }
@@ -1145,6 +1154,7 @@ fn rig_laser(
             residuals: residuals(&export, n),
             estimate,
             target,
+            export,
         },
     ))
 }
@@ -1252,6 +1262,7 @@ fn head(
             residuals: residuals(&device, 1),
             estimate,
             target,
+            export: json!({"laserline_device": device, "single_cam_handeye": he_export}),
         },
     ))
 }
@@ -1301,7 +1312,7 @@ pub fn row_stats(reports: &[Report]) -> Vec<RowStats> {
 }
 
 /// How [`run_dir`] calibrates a dataset directory.
-#[derive(Clone, Debug, Default, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default, deny_unknown_fields)]
 pub struct RunOptions {
     /// Noise on the analytic observations (`seed` is the first trial's).
@@ -1323,11 +1334,8 @@ pub struct Run {
     pub row_stats: Option<Vec<RowStats>>,
 }
 
-/// The file [`run_dir`] writes into the dataset directory.
-pub const CALIBRATION: &str = "calibration.json";
-
 /// Calibrate the dataset in `dir` (`gt.json`, and `etendue detect`'s files when `detected`),
-/// reporting each trial through `ctl`, and write the run to `dir/calibration.json`.
+/// reporting each trial through `ctl`. [`write_run`] keeps the run.
 ///
 /// # Errors
 ///
@@ -1400,12 +1408,106 @@ pub fn run_dir(
         reports.push(report);
     }
     ctl.step(Stage::Calibrate, trials as usize, trials as usize);
-    let run = Run {
+    Ok(Run {
         row_stats: (reports.len() > 1).then(|| row_stats(&reports)),
         reports,
+    })
+}
+
+/// A kept run's version.
+pub const RUN_VERSION: u32 = 1;
+/// A kept run's files ([ADR 0009](https://github.com/VitalyVorobyev/etendue/blob/main/docs/adrs/0009-project-folder.md),
+/// `runs/<name>/`): what was calibrated and how; the report ([`Run`]); calibration-rs's own
+/// export of the first trial.
+pub const RUN_CONFIG: &str = "config.json";
+pub const RUN_REPORT: &str = "report.json";
+pub const RUN_RESULT: &str = "result.json";
+
+/// What a kept run calibrated, and how.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RunConfig {
+    pub version: u32,
+    /// The dataset directory, as given.
+    pub dataset: String,
+    pub options: RunOptions,
+}
+
+/// Keep `run` of `dataset` in `folder` (created): [`RUN_CONFIG`], [`RUN_REPORT`] and
+/// [`RUN_RESULT`].
+///
+/// # Errors
+///
+/// When a file cannot be written.
+pub fn write_run(
+    folder: &std::path::Path,
+    dataset: &std::path::Path,
+    options: &RunOptions,
+    run: &Run,
+) -> Result<()> {
+    std::fs::create_dir_all(folder).with_context(|| format!("creating {}", folder.display()))?;
+    let config = RunConfig {
+        version: RUN_VERSION,
+        dataset: dataset.to_string_lossy().into_owned(),
+        options: options.clone(),
     };
-    let path = dir.join(CALIBRATION);
-    std::fs::write(&path, serde_json::to_string_pretty(&run)? + "\n")
-        .with_context(|| format!("writing {}", path.display()))?;
-    Ok(run)
+    let result = run
+        .reports
+        .first()
+        .map_or(Value::Null, |r| r.export.clone());
+    for (name, text) in [
+        (RUN_CONFIG, serde_json::to_string_pretty(&config)?),
+        (RUN_REPORT, serde_json::to_string_pretty(run)?),
+        (RUN_RESULT, serde_json::to_string_pretty(&result)?),
+    ] {
+        let path = folder.join(name);
+        std::fs::write(&path, text + "\n")
+            .with_context(|| format!("writing {}", path.display()))?;
+    }
+    Ok(())
+}
+
+/// A kept run, read back.
+#[derive(Clone, Debug, Serialize)]
+pub struct StoredRun {
+    /// Its folder's name.
+    pub name: String,
+    pub config: RunConfig,
+    pub run: Run,
+}
+
+/// The runs kept under `folder` (one subfolder each), by name; a folder that does not hold a
+/// readable run is skipped. A missing `folder` has none.
+///
+/// # Errors
+///
+/// When `folder` exists but cannot be listed.
+pub fn read_runs(folder: &std::path::Path) -> Result<Vec<StoredRun>> {
+    if !folder.is_dir() {
+        return Ok(Vec::new());
+    }
+    let mut runs = Vec::new();
+    for entry in
+        std::fs::read_dir(folder).with_context(|| format!("listing {}", folder.display()))?
+    {
+        let path = entry?.path();
+        let read = || -> Result<StoredRun> {
+            Ok(StoredRun {
+                name: path
+                    .file_name()
+                    .context("a run folder has a name")?
+                    .to_string_lossy()
+                    .into_owned(),
+                config: crate::read_json(&path.join(RUN_CONFIG), "run config")?,
+                run: crate::read_json(&path.join(RUN_REPORT), "run report")?,
+            })
+        };
+        if path.is_dir()
+            && let Ok(run) = read()
+        {
+            runs.push(run);
+        }
+    }
+    runs.sort_by(|a, b| a.name.cmp(&b.name));
+    Ok(runs)
 }

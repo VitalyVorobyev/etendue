@@ -27,6 +27,8 @@ import type {
   ObservationNoise,
   RowStats,
 } from "../kernel/native";
+import { KeptRuns } from "../calibrate/KeptRuns";
+import { runName } from "../calibrate/runs";
 import { type CalibrationRunner, useCalibrationRun } from "../state/calibrationRun";
 
 export type Source = "exact" | "noisy" | "detected";
@@ -160,6 +162,7 @@ export function CalibratePanel({
   onForm,
   scale,
   onScale,
+  runsFolder,
 }: {
   dataset: Dataset;
   cameras: string[];
@@ -170,16 +173,24 @@ export function CalibratePanel({
   /** The 3-D view's exaggeration of the estimate. */
   scale: number;
   onScale: (scale: number) => void;
+  /** Where runs are kept: the project's `runs/`, or the dataset's own. */
+  runsFolder: string;
 }) {
   const { source, noise } = form;
   const setSource = (s: Source) => onForm({ ...form, source: s });
   const [camera, setCamera] = useState<string>("");
-  const { running, result, failure } = useCalibrationRun(runner);
+  const { running, result, failure, kept } = useCalibrationRun(runner);
   const detectedAvailable = dataset.render !== null && dataset.detection.length > 0;
   const set = (patch: Partial<NoiseForm>) => onForm({ ...form, noise: { ...noise, ...patch } });
 
   const options = (): CalibrateOptions => ({
-    ...(source === "noisy" ? { noise: noiseOf(noise), trials: Math.max(1, Math.round(noise.trials)) } : {}),
+    ...(source === "noisy"
+      ? {
+          // A scene without lasers has no stripe to perturb: its run says so.
+          noise: { ...noiseOf(noise), ...(lasers ? {} : { laser_sigma_px: 0 }) },
+          trials: Math.max(1, Math.round(noise.trials)),
+        }
+      : {}),
     ...(source === "detected" ? { detected: true } : {}),
     ...(camera !== "" ? { camera } : {}),
   });
@@ -224,7 +235,13 @@ export function CalibratePanel({
             Cancel
           </Button>
         ) : (
-          <Button icon={<Play className="size-4" />} onClick={() => runner.start(dataset.output, options())}>
+          <Button
+            icon={<Play className="size-4" />}
+            onClick={() => {
+              const o = options();
+              runner.start(dataset.output, o, runsFolder, runName(dataset.output, o, new Date()));
+            }}
+          >
             Calibrate
           </Button>
         )}
@@ -262,6 +279,7 @@ export function CalibratePanel({
               {first.cameras.join(", ")} · {first.views} views · {first.points} points
               {first.laser_pixels > 0 ? ` · ${first.laser_pixels} laser pixels` : ""}
             </span>
+            {result && <span className="font-mono text-xs text-fg-muted">{result.name}</span>}
             {first.gated ? (
               <Badge tone={first.pass ? "normal" : "defect"}>
                 {first.gate} {first.pass ? "PASS" : "FAIL"}
@@ -316,6 +334,13 @@ export function CalibratePanel({
           lasers).
         </p>
       )}
+      <KeptRuns
+        folder={runsFolder}
+        dataset={dataset.output}
+        kept={kept}
+        shown={result?.dir === dataset.output ? result.name : null}
+        onShow={(r) => runner.show(dataset.output, r)}
+      />
     </div>
   );
 }

@@ -83,11 +83,24 @@ async function installShell(page: Page): Promise<void> {
             w.__cancelled = true;
             return true;
           case "calibrate_dataset": {
-            (w.__calibrations as unknown[]).push({ dir: args.dir, options: args.options });
+            (w.__calibrations as unknown[]).push({ dir: args.dir, options: args.options, keep: args.keep });
             const channel = (args.onProgress as { id: number }).id;
             callbacks.get(channel)?.({ index: 0, message: { kind: "step", stage: "calibrate", done: 0, total: 1 } });
             // The native report on closed_loop_ur5e's exact observations (global setup).
             return { kind: "ok", ...(w.__calibrationRun as object) };
+          }
+          case "calibration_runs": {
+            // Every run calibrated so far, kept where the studio asked.
+            const kept = (w.__calibrations as { dir: string; options: object; keep: string }[]).filter((c) =>
+              c.keep.startsWith(`${args.folder as string}/`),
+            );
+            return kept
+              .map((c) => ({
+                name: c.keep.split("/").at(-1),
+                config: { version: 1, dataset: c.dir, options: c.options },
+                run: w.__calibrationRun,
+              }))
+              .sort((a, b) => (a.name! < b.name! ? -1 : 1));
           }
           case "generate_dataset": {
             (w.__requests as unknown[]).push(args.request);
@@ -202,7 +215,20 @@ test("generates a dataset through the native pipeline", async ({ page }) => {
   const calibrations = await page.evaluate(
     () => (window as unknown as { __calibrations: Record<string, unknown>[] }).__calibrations,
   );
-  expect(calibrations).toEqual([{ dir: "/repo/target/studio/closed_loop_ur5e", options: {} }]);
+  expect(calibrations).toEqual([
+    {
+      dir: "/repo/target/studio/closed_loop_ur5e",
+      options: {},
+      keep: expect.stringMatching(
+        /^\/repo\/target\/studio\/closed_loop_ur5e\/runs\/closed_loop_ur5e-\d{8}-\d{6}-exact$/,
+      ),
+    },
+  ]);
+  // The run is kept beside the dataset (no project is open for writing) and listed.
+  const kept = calibrate.getByTestId("kept-runs");
+  await expect(kept.getByRole("row")).toHaveCount(2);
+  await expect(kept).toContainText("exact");
+  await expect(kept).toContainText("shown");
 
   // The 3-D view draws the estimate (both cameras and the board) over the truth, exaggerated.
   await expect(page.getByTestId("viewport")).toHaveAttribute("data-estimate", "2");
@@ -227,6 +253,15 @@ test("generates a dataset through the native pipeline", async ({ page }) => {
   await expect
     .poll(async () => Number(await view.getAttribute("data-observed")), { timeout: 10_000 })
     .toBeLessThan(0.8 * exact);
+
+  // A second run, with that noise, is kept too; the first can be shown again.
+  await calibrate.getByRole("button", { name: "Calibrate" }).click();
+  await expect(kept.getByRole("row")).toHaveCount(3);
+  await expect(kept.getByRole("row").nth(1)).toContainText("50 % dropped, seed 1");
+  await expect(kept.getByRole("row").nth(1)).toContainText("shown");
+  await kept.getByRole("row").nth(2).getByRole("button", { name: "Show" }).click();
+  await expect(kept.getByRole("row").nth(2)).toContainText("shown");
+  await expect(outcome).toContainText(/closed_loop_ur5e-\d{8}-\d{6}-exact/);
 });
 
 test("a plain browser has no Dataset tab", async ({ page }) => {
@@ -291,4 +326,11 @@ test("a new project gets the starter library, takes a cell, and reopens", async 
   await page.getByRole("button", { name: "File" }).click();
   await expect(page.getByRole("menuitem", { name: "bench" })).toBeVisible();
   await expect(page.getByRole("menuitem", { name: "eye_in_hand_ur5e" })).toHaveCount(0);
+  await page.keyboard.press("Escape");
+
+  // Its datasets go into the project (ADR 0009), as do the calibration runs.
+  await page.getByRole("radio", { name: "Calibrate" }).click();
+  await expect(page.getByTestId("dataset-panel").getByRole("textbox", { name: "Output folder" })).toHaveValue(
+    "/proj/datasets/bench",
+  );
 });

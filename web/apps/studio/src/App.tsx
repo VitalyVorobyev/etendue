@@ -286,6 +286,12 @@ export function App() {
     [current, observations],
   );
   const shownCamera = cameras.find((c) => c.id === observedCamera) ?? cameras[0] ?? null;
+  // A project opened for writing keeps its datasets and calibration runs (ADR 0009); otherwise a
+  // dataset keeps its own runs.
+  const projectFolder =
+    project?.write && project.source.absolute ? project.source.absolute(project.root).replace(/[\\/]+$/, "") : null;
+  const cellName = project?.cells.some((c) => c.id === example) ? example.split("/").at(-1) : undefined;
+  const projectDatasets = projectFolder && cellName ? `${projectFolder}/datasets/${cellName}` : null;
   // The last calibration of this dataset (its first trial), drawn over the truth in 3-D.
   const calibrated =
     dataset && calibrationRun.result?.dir === dataset.output ? (calibrationRun.result.run.reports[0] ?? null) : null;
@@ -564,7 +570,7 @@ export function App() {
       )}
       {mode === "dataset" && (
         <div className="row-span-2 min-h-0 overflow-auto border-r border-line p-4">
-          <DatasetPanel current={current} dataset={dataset} runner={runner} />
+          <DatasetPanel current={current} dataset={dataset} runner={runner} projectFolder={projectDatasets} />
           {dataset && (
             <section className="mt-6 border-t border-line pt-4" aria-label="Calibrate">
               <h2 className="mb-3 text-sm font-medium">Calibrate and compare</h2>
@@ -577,6 +583,7 @@ export function App() {
                 onForm={setCalibrateForm}
                 scale={estimateScale}
                 onScale={setEstimateScale}
+                runsFolder={projectFolder ? `${projectFolder}/runs` : `${dataset.output}/runs`}
               />
             </section>
           )}

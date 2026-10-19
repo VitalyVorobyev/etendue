@@ -124,10 +124,13 @@ export function DatasetPanel({
   current,
   dataset,
   runner,
+  projectFolder = null,
 }: {
   current: Baked;
   dataset: Dataset | null;
   runner: DatasetRunner;
+  /** A project's dataset folder for this scene (ADR 0009 `datasets/<cell>`), which wins over the defaults. */
+  projectFolder?: string | null;
 }) {
   const { origin, scenario, scene, label } = current.loaded;
   const defaults = useDefaults(origin, label);
@@ -149,7 +152,7 @@ export function DatasetPanel({
     );
   }
 
-  const output = form.output ?? defaults?.output ?? "";
+  const output = form.output ?? projectFolder ?? defaults?.output ?? "";
   const sensor = form.sensor === undefined ? (defaults?.sensor ?? null) : form.sensor;
   const cameras = form.cameras ?? allCameras;
   const blender = defaults?.blender ?? null;
