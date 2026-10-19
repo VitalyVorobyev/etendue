@@ -427,4 +427,16 @@ test("the Motion workspace jogs a robot and teaches its pose", async ({ page }) 
   await steps.last().hover();
   await page.getByRole("button", { name: `Delete step ${before + 2}` }).click();
   await expect(steps).toHaveCount(before + 1);
+
+  // A step re-taught in place: the program keeps its length, the step its place.
+  await page.getByRole("radio", { name: "Jog" }).click();
+  await page.getByRole("button", { name: "Jog +x" }).click();
+  const reteach = page.getByTestId("reteach");
+  await reteach.getByRole("combobox", { name: "Step to re-teach" }).click();
+  await page.getByRole("option", { name: "Step 1: PTP" }).click();
+  await reteach.getByRole("button", { name: "Re-teach here" }).click();
+  await expect(page.getByRole("button", { name: "Undo re-teach step 1" })).toBeEnabled();
+  await page.getByRole("radio", { name: "Program" }).click();
+  await expect(steps).toHaveCount(before + 1);
+  await expect(steps.first()).toContainText("PTP");
 });

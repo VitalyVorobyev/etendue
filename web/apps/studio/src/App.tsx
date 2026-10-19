@@ -30,9 +30,9 @@ import { analyse as analyseRig } from "./rigs/analysis";
 import { type RigParams, initialRig, toItem as toRigItem, toLayout } from "./rigs/design";
 import { RigForm, RigReadouts, TiltChart } from "./rigs/RigPanels";
 import { RigView, type VoxelShow } from "./rigs/RigView";
-import { type Jog, bakedQ, jogOverrides, robotFrames, teach } from "./robot/jog";
+import { type Jog, bakedQ, jogOverrides, motionSteps, reteach, robotFrames, teach } from "./robot/jog";
 import { JogPanel } from "./robot/JogPanel";
-import { tcpPath } from "./scene/TcpPath";
+import { stepAt, tcpPath } from "./scene/TcpPath";
 import { CoverageLegend, SliceMaps } from "./rigs/SliceMaps";
 import { CameraGrid } from "./panels/CameraGrid";
 import { CellDialog } from "./panels/CellDialog";
@@ -516,6 +516,32 @@ export function App() {
     [current],
   );
 
+  // The robot motion at (or that led to) the playhead, which the TCP path highlights.
+  const pathStep = mode === "motion" && current ? stepAt(report, current.baked.samples[jogK]?.t ?? 0, true) : -1;
+  const paths = useMemo(
+    () => ({ data: tcpPaths, report, current: pathStep, onSeek: (k: number) => playhead.set(k) }),
+    [tcpPaths, report, pathStep, playhead],
+  );
+
+  // The jogged robot's steps, any of which can be re-taught at the jogged pose; the last that ran
+  // by the playhead is offered first.
+  const jogSteps = useMemo(() => (jog ? motionSteps(current?.loaded.scenario ?? null, jog.robot) : []), [jog, current]);
+  const jogStep = jog
+    ? (jogSteps.filter((s) => s.index <= stepAt(report, current?.baked.samples[jog.k]?.t ?? 0)).at(-1)?.index ?? null)
+    : null;
+  const reteachJog = (index: number) => {
+    const scenario = current?.loaded.scenario;
+    const step = scenario?.steps[index];
+    if (!jog || !current || !scenario || !step) return;
+    const next = reteach(step, jog.q, current.session.robotTcp(jog.robot, jog.q).base_se3_tcp);
+    if (next) {
+      studio.setScenario(
+        { ...scenario, steps: scenario.steps.map((s, i) => (i === index ? next : s)) },
+        `re-teach step ${index + 1}`,
+      );
+    }
+  };
+
   // The jogged pose as a program step (and a capture), the playhead at its end.
   const teachJog = (capture: boolean) => {
     if (!jog || !current) return;
@@ -539,7 +565,7 @@ export function App() {
       bodies={bodies}
       poses={bodyPose}
       gizmo={gizmo}
-      paths={mode === "motion" ? tcpPaths : undefined}
+      paths={mode === "motion" ? paths : undefined}
       estimate={estimate}
     />
   ) : null;
@@ -927,6 +953,9 @@ export function App() {
                   setJogRobot(robot);
                 }}
                 onTeach={teachJog}
+                steps={jogSteps}
+                defaultStep={jogStep}
+                onReteach={reteachJog}
               />
             ) : (
               <Empty>{playing ? "Pause to jog." : "The cell has no robot to jog."}</Empty>

@@ -150,6 +150,10 @@ calibration datasets with exact ground truth. The 0.1.0 desktop app is replaced 
 
   In a browser, the Calibrate workspace previews what a calibration observes, exactly or with
   noise, at each capture. Generating and calibrating need the desktop app.
+- **Program editing in 3D** (Motion):
+  - Re-teach a step in place from the Jog panel.
+  - The TCP path is coloured by step, with warnings marked and the current move highlighted.
+  - Clicking the path seeks the playhead to that sample.
 - **Robot jogging** (Motion ▸ Jog): move a robot at the playhead by its joints or in Cartesian
   steps (tool or base axes), or drag its TCP with the gizmo (IK from the current joints). The TCP
   pose, its manipulability, joints near their limits and out-of-reach targets are shown. The pose

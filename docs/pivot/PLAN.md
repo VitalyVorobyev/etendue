@@ -673,6 +673,15 @@ studio code, so no phase waits on a review.
     - The jog shows on the bake through pose overrides: 0 bakes, work p95 2.9 ms.
     - **Deferred:** re-teaching a step in place, colouring the path by step or binding limit,
       hover-to-seek on the path, a robot library preview.
+  - *Status, P12b:* three of the four deferred items are done.
+    - **Re-teach.** A step is re-taught in place from the Jog panel: a PTP keeps the joints, a
+      LIN the tool pose.
+    - **Path colour.** The TCP path is coloured by step, with warnings in the warning colour.
+      The move at or before the playhead is in the accent. Colouring by binding limit was
+      dropped: a time-optimal move is always at a limit.
+    - **Seek.** Pointing at the path marks a sample, and a click seeks to it. A pure hover-seek
+      would move the playhead whenever the pointer crossed the path.
+    - Still deferred: the robot library preview.
 - **P13 — Calibration lab.**
   - **Observations:** `etendue-synth::observe`, noise from a seed:
     - pixel σ;

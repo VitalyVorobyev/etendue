@@ -6,7 +6,7 @@
 import type { EtendueScene, RobotSource } from "@etendue/wasm";
 import type { Iso3 } from "@vitavision/three";
 import { Button, Callout, SegmentedControl, Select } from "@vitavision/ui";
-import { Camera, MoveRight, RotateCcw } from "lucide-react";
+import { Camera, MoveRight, RefreshCw, RotateCcw } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Euler, Quaternion } from "three";
 
@@ -42,6 +42,9 @@ export function JogPanel({
   onJog,
   onReset,
   onTeach,
+  steps = [],
+  defaultStep = null,
+  onReteach,
 }: {
   session: EtendueScene;
   robots: readonly RobotSource[];
@@ -51,7 +54,13 @@ export function JogPanel({
   onReset: (robot: string) => void;
   /** Append a PTP move to the jogged pose, and a capture if asked. */
   onTeach: (capture: boolean) => void;
+  /** The program's steps that move this robot, which can be re-taught at the jogged pose. */
+  steps?: readonly { index: number; label: string }[];
+  /** The one offered first: the last that ran by the playhead. */
+  defaultStep?: number | null;
+  onReteach?: ((index: number) => void) | undefined;
 }) {
+  const [picked, setPicked] = useState<number | null>(null);
   const [frame, setFrame] = useState<"base" | "tool">("tool");
   const [move, setMove] = useState(0.01);
   const [turn, setTurn] = useState(5 / DEG);
@@ -59,6 +68,8 @@ export function JogPanel({
   const tcp = useMemo(() => session.robotTcp(jog.robot, jog.q), [session, jog.robot, jog.q]);
   if (!robot) return null;
   const joints = robot.manifest.joints;
+  const chosen =
+    picked !== null && steps.some((s) => s.index === picked) ? picked : (defaultStep ?? steps.at(-1)?.index ?? 0);
 
   const step = (kind: "move" | "turn", axis: number, sign: number) => {
     const target = jogged(tcp.base_se3_tcp, delta(kind, axis, sign * (kind === "move" ? move : turn)), frame);
@@ -202,6 +213,19 @@ export function JogPanel({
           Add PTP + capture
         </Button>
       </div>
+      {onReteach && steps.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5 px-3 pt-2" data-testid="reteach">
+          <Select
+            aria-label="Step to re-teach"
+            value={String(chosen)}
+            options={steps.map((s) => ({ value: String(s.index), label: `Step ${s.label}` }))}
+            onValueChange={(v) => setPicked(Number(v))}
+          />
+          <Button size="sm" variant="ghost" icon={<RefreshCw className="size-3.5" />} onClick={() => onReteach(chosen)}>
+            Re-teach here
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
