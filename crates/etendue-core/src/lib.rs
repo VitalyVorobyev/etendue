@@ -31,6 +31,8 @@
 //!   projection frames, for everything that projects.
 //! - [`optics`]: the thick-lens defocus physics — conjugates, the Scheimpflug
 //!   plane of best focus, and the geometric circle of confusion.
+//! - [`head`]: a laser-triangulation head (a physical camera and a line laser on its body)
+//!   analysed in its laser plane: blur, resolution, the Scheimpflug drawing, the optimiser.
 //! - [`laser`]: the laser-line model — the laser fan plane, its Gaussian-beam
 //!   cross-section width, the stripe where it strikes a target, and the
 //!   projection of that stripe into the camera's pixel space.
@@ -44,6 +46,7 @@ pub mod analysis;
 pub mod error;
 pub mod from_scene;
 pub mod geom;
+pub mod head;
 pub mod laser;
 pub mod optics;
 pub mod scene;

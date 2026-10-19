@@ -6,6 +6,11 @@ import init, {
   EtendueScene as RawScene,
   deriveOptics as rawDeriveOptics,
   expandRig as rawExpandRig,
+  headApply as rawHeadApply,
+  headMap as rawHeadMap,
+  headOptimise as rawHeadOptimise,
+  headScheimpflug as rawHeadScheimpflug,
+  headSection as rawHeadSection,
   initSync,
   poleCircumferences as rawPoleCircumferences,
   validateLibraryItem as rawValidateLibraryItem,
@@ -121,6 +126,45 @@ export function deriveOptics(optics, params) {
 
 export function validateLibraryItem(text) {
   return JSON.parse(rawValidateLibraryItem(typeof text === "string" ? text : JSON.stringify(text)));
+}
+
+const HEAD_MAP_FIELDS = 7;
+
+export function headMap(design, window, across, along) {
+  const raw = rawHeadMap(text(design), window == null ? undefined : text(window), across, along);
+  const n = across * along;
+  const field = (k) => {
+    const out = new Float64Array(n);
+    for (let i = 0; i < n; i++) out[i] = raw[i * HEAD_MAP_FIELDS + k];
+    return out;
+  };
+  return {
+    across,
+    along,
+    visible: Uint8Array.from(field(0)),
+    coc_px: field(1),
+    airy_px: field(2),
+    blur_px: field(3),
+    lateral_m_per_px: field(4),
+    depth_m_per_px: field(5),
+    triangulation_rad: field(6),
+  };
+}
+
+export function headSection(design, options = {}) {
+  return JSON.parse(rawHeadSection(text(design), text(options)));
+}
+
+export function headScheimpflug(design) {
+  return JSON.parse(rawHeadScheimpflug(text(design)));
+}
+
+export function headOptimise(design, search) {
+  return JSON.parse(rawHeadOptimise(text(design), text(search)));
+}
+
+export function headApply(design, setting) {
+  return JSON.parse(rawHeadApply(text(design), text(setting)));
 }
 
 export function expandRig(layout, rigId) {

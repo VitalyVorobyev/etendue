@@ -339,6 +339,12 @@ to 1e-12 px, and `tests/camera_frames.rs` pins the legacy model against it.
 nodal point; the camera's pose is its **mechanical frame** (the image-plane datum). Only
 `PhysicalCamera` converts between them; never offset a pose by an optical distance elsewhere.
 
+**Gotcha 6**: kernel math that crosses into wasm must be bit-identical (G0.1). `+ − × ÷` and `sqrt`
+are exactly rounded everywhere, but `sin`, `cos`, `atan2`, `asin`, `acos` and `hypot` are not:
+native builds call the system libm, wasm Rust's port. Use the `libm` crate for every transcendental
+in kernel code (`optics::camera`, `optics::paraxial`, `head`), and build rotations from `libm`
+sines rather than nalgebra's `from_axis_angle`.
+
 ## Quality gates — verify before every report
 
 All must be clean:

@@ -18,6 +18,18 @@ use std::path::Path;
 use std::process::ExitCode;
 
 use etendue_wasm::{Session, iso3_from_wire};
+
+/// JSON text of anything serialisable, for comparing with the wasm side's.
+mod erased {
+    pub trait Json {
+        fn text(&self) -> String;
+    }
+    impl<T: serde::Serialize> Json for T {
+        fn text(&self) -> String {
+            serde_json::to_string(self).expect("serialise")
+        }
+    }
+}
 use serde_json::{Value, json};
 
 fn decode(v: &Value) -> Vec<f64> {
@@ -148,6 +160,47 @@ fn main() -> ExitCode {
             .chunks_exact(2)
             .filter(|uv| uv[0].is_finite())
             .count()
+    );
+    // The triangulation head (P10).
+    let head = &probe["head"];
+    let text = |key: &str| head[key].as_str().expect("head probe text");
+    let native_map =
+        etendue_wasm::head_map(text("design"), None, [16, 12]).expect("native head map");
+    let wasm_map = decode(&head["map"]);
+    for (i, (a, b)) in native_map.iter().zip(&wasm_map).enumerate() {
+        if a.to_bits() != b.to_bits() {
+            if mismatches < 10 {
+                eprintln!("head map: mismatch at {i}: native {a:e} vs wasm {b:e}");
+            }
+            mismatches += 1;
+        }
+    }
+    total += native_map.len();
+    let json = |v: &dyn erased::Json| v.text();
+    let section = etendue_wasm::head_section(
+        text("design"),
+        r#"{"probes":[0.25,0.32,0.4],"blur_limit_px":2}"#,
+    )
+    .expect("native section");
+    let scheimpflug = etendue_wasm::head_scheimpflug(text("design")).expect("native scheimpflug");
+    let optimum =
+        etendue_wasm::head_optimise(text("design"), text("search")).expect("native optimum");
+    for (name, native) in [
+        ("section", json(&section)),
+        ("scheimpflug", json(&scheimpflug)),
+        ("optimum", json(&optimum)),
+    ] {
+        if native != text(name) {
+            eprintln!(
+                "head {name} differs:\n  native {native}\n  wasm   {}",
+                text(name)
+            );
+            mismatches += 1;
+        }
+    }
+    println!(
+        "  head               map {} values, section, Scheimpflug, optimum",
+        native_map.len()
     );
     println!("  output values:     {total}");
     println!("  bit mismatches:    {mismatches}");

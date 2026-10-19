@@ -834,6 +834,224 @@ pub fn validate_library_item_js(text: &str) -> std::result::Result<String, JsVal
     serde_json::to_string(&item).map_err(|e| js_error(&Error::Input(e.to_string())))
 }
 
+/// A head and, if given, a window (the design's own otherwise), from JSON.
+fn head_of(
+    design_json: &str,
+    window_json: Option<&str>,
+) -> Result<(etendue_core::head::Head, Option<etendue_core::head::Window>)> {
+    let design: etendue_scene::HeadDesign = parse("head design", design_json)?;
+    let head =
+        etendue_core::head::Head::from_design(&design).map_err(|e| Error::Input(e.to_string()))?;
+    let window = match window_json {
+        Some(w) => Some((&parse::<etendue_scene::HeadWindow>("window", w)?).into()),
+        None => design.window.as_ref().map(Into::into),
+    };
+    Ok((head, window))
+}
+
+/// The values [`head_map`] gives per sample, in order.
+pub const HEAD_MAP_FIELDS: [&str; 7] = [
+    "visible",
+    "coc_px",
+    "airy_px",
+    "blur_px",
+    "lateral_m_per_px",
+    "depth_m_per_px",
+    "triangulation_rad",
+];
+
+/// A head's samples over a window (the design's, or `window_json`'s): [`HEAD_MAP_FIELDS`] per
+/// sample, `grid[0]` across the line by `grid[1]` along the range, row by row from the nearest.
+///
+/// # Errors
+///
+/// [`Error::Parse`] for malformed documents; [`Error::Input`] for a head without optics or a
+/// window.
+pub fn head_map(
+    design_json: &str,
+    window_json: Option<&str>,
+    grid: [usize; 2],
+) -> Result<Vec<f64>> {
+    let (head, window) = head_of(design_json, window_json)?;
+    let window = window.ok_or_else(|| Error::Input("the head has no window".into()))?;
+    let mut out = Vec::with_capacity(grid[0] * grid[1] * HEAD_MAP_FIELDS.len());
+    for s in head.map(&window, grid) {
+        out.extend([
+            f64::from(u8::from(s.visible)),
+            s.coc_px,
+            s.airy_px,
+            s.blur_px,
+            s.lateral_m_per_px,
+            s.depth_m_per_px,
+            s.triangulation_rad,
+        ]);
+    }
+    Ok(out)
+}
+
+/// Options of [`head_section`].
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SectionOptions {
+    /// Ranges along the laser's central ray to trace rays from (m).
+    #[serde(default)]
+    pub probes: Vec<f64>,
+    /// Draw the depth of field for this blur (px).
+    #[serde(default)]
+    pub blur_limit_px: Option<f64>,
+}
+
+/// A head's Scheimpflug drawing (`etendue_core::head::Section`).
+///
+/// # Errors
+///
+/// As [`head_map`]; [`Error::Input`] when a probe cannot be traced.
+pub fn head_section(design_json: &str, options_json: &str) -> Result<etendue_core::head::Section> {
+    let (head, window) = head_of(design_json, None)?;
+    let options: SectionOptions = parse("section options", options_json)?;
+    head.section(window.as_ref(), &options.probes, options.blur_limit_px)
+        .map_err(|e| Error::Input(e.to_string()))
+}
+
+/// The setting that puts a head's plane of best focus on its laser plane.
+///
+/// # Errors
+///
+/// As [`head_map`]; [`Error::Input`] when the laser plane contains the camera's axis.
+pub fn head_scheimpflug(design_json: &str) -> Result<etendue_core::head::Setting> {
+    head_of(design_json, None)?
+        .0
+        .scheimpflug()
+        .map_err(|e| Error::Input(e.to_string()))
+}
+
+/// How [`head_optimise`] searches (`etendue_core::head::Search`).
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SearchSpec {
+    /// Samples across and along the window.
+    pub grid: [usize; 2],
+    /// The f-numbers it may use; absent keeps the design's.
+    #[serde(default)]
+    pub f_number_range: Option<[f64; 2]>,
+    /// Whether the sensor may tilt.
+    pub tilt_free: bool,
+}
+
+/// The best camera setting for a head's window. See `etendue_core::head::Head::optimise`.
+///
+/// # Errors
+///
+/// As [`head_map`].
+pub fn head_optimise(design_json: &str, search_json: &str) -> Result<etendue_core::head::Optimum> {
+    let (head, window) = head_of(design_json, None)?;
+    let window = window.ok_or_else(|| Error::Input("the head has no window".into()))?;
+    let spec: SearchSpec = parse("search", search_json)?;
+    let search = etendue_core::head::Search {
+        grid: spec.grid,
+        f_number_range: spec.f_number_range,
+        tilt_free: spec.tilt_free,
+    };
+    head.optimise(&window, &search)
+        .map_err(|e| Error::Input(e.to_string()))
+}
+
+/// A head design with its camera at a setting: optics changed, params derived.
+///
+/// # Errors
+///
+/// As [`head_map`].
+pub fn head_apply(design_json: &str, setting_json: &str) -> Result<etendue_scene::HeadDesign> {
+    let design: etendue_scene::HeadDesign = parse("head design", design_json)?;
+    let setting: SettingSpec = parse("setting", setting_json)?;
+    etendue_core::head::apply(
+        &design,
+        &etendue_core::head::Setting {
+            tilt: setting.tilt,
+            focus_distance_m: setting.focus_distance_m,
+            f_number: setting.f_number,
+        },
+    )
+    .map_err(|e| Error::Input(e.to_string()))
+}
+
+/// A camera setting, as JSON (`etendue_core::head::Setting`).
+#[derive(Clone, Copy, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SettingSpec {
+    pub tilt: [f64; 2],
+    pub focus_distance_m: f64,
+    pub f_number: f64,
+}
+
+fn json_text<T: serde::Serialize>(value: &T) -> std::result::Result<String, JsValue> {
+    serde_json::to_string(value).map_err(|e| js_error(&Error::Input(e.to_string())))
+}
+
+/// See [`head_map`]. `window_json` may be `undefined` (the design's window).
+///
+/// # Errors
+///
+/// Throws an `Error` with `kind`.
+#[wasm_bindgen(js_name = headMap)]
+pub fn head_map_js(
+    design_json: &str,
+    window_json: Option<String>,
+    across: usize,
+    along: usize,
+) -> std::result::Result<Vec<f64>, JsValue> {
+    head_map(design_json, window_json.as_deref(), [across, along]).map_err(|e| js_error(&e))
+}
+
+/// See [`head_section`]; JSON text.
+///
+/// # Errors
+///
+/// Throws an `Error` with `kind`.
+#[wasm_bindgen(js_name = headSection)]
+pub fn head_section_js(
+    design_json: &str,
+    options_json: &str,
+) -> std::result::Result<String, JsValue> {
+    json_text(&head_section(design_json, options_json).map_err(|e| js_error(&e))?)
+}
+
+/// See [`head_scheimpflug`]; JSON text.
+///
+/// # Errors
+///
+/// Throws an `Error` with `kind`.
+#[wasm_bindgen(js_name = headScheimpflug)]
+pub fn head_scheimpflug_js(design_json: &str) -> std::result::Result<String, JsValue> {
+    json_text(&head_scheimpflug(design_json).map_err(|e| js_error(&e))?)
+}
+
+/// See [`head_optimise`]; JSON text.
+///
+/// # Errors
+///
+/// Throws an `Error` with `kind`.
+#[wasm_bindgen(js_name = headOptimise)]
+pub fn head_optimise_js(
+    design_json: &str,
+    search_json: &str,
+) -> std::result::Result<String, JsValue> {
+    json_text(&head_optimise(design_json, search_json).map_err(|e| js_error(&e))?)
+}
+
+/// See [`head_apply`]; JSON text.
+///
+/// # Errors
+///
+/// Throws an `Error` with `kind`.
+#[wasm_bindgen(js_name = headApply)]
+pub fn head_apply_js(
+    design_json: &str,
+    setting_json: &str,
+) -> std::result::Result<String, JsValue> {
+    json_text(&head_apply(design_json, setting_json).map_err(|e| js_error(&e))?)
+}
+
 /// What a camera's optics give, as JSON text. See [`derive_optics`].
 ///
 /// # Errors

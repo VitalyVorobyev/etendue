@@ -73,7 +73,7 @@
 //!   axis: about 5 % at 5°.
 
 use nalgebra::{
-    Isometry3, Matrix3, Point2, Point3, Rotation3, Translation3, UnitQuaternion, Vector3,
+    Isometry3, Matrix3, Point2, Point3, Quaternion, Translation3, UnitQuaternion, Vector3,
 };
 use serde::{Deserialize, Serialize};
 use vision_calibration_core::{
@@ -179,9 +179,13 @@ fn finite(name: &str, x: f64) -> Result<f64> {
 /// normal. This is the rotation calibration-rs's (OpenCV's) tilted-sensor model uses, so that a
 /// lens with unit pupil magnification has a model tilt equal to the physical one.
 fn sensor_rotation(tilt_x: f64, tilt_y: f64) -> Matrix3<f64> {
-    let rx = Rotation3::from_axis_angle(&Vector3::x_axis(), -tilt_x);
-    let ry = Rotation3::from_axis_angle(&Vector3::y_axis(), -tilt_y);
-    *(ry * rx).matrix()
+    // `Ry · Rx` with OpenCV's sensor-frame signs. Sines and cosines come from `libm`, so native
+    // and wasm builds agree to the bit.
+    let (sx, cx) = (libm::sin(tilt_x), libm::cos(tilt_x));
+    let (sy, cy) = (libm::sin(tilt_y), libm::cos(tilt_y));
+    let rx = Matrix3::new(1.0, 0.0, 0.0, 0.0, cx, sx, 0.0, -sx, cx);
+    let ry = Matrix3::new(cy, 0.0, -sy, 0.0, 1.0, 0.0, sy, 0.0, cy);
+    ry * rx
 }
 
 /// The model tilt τ′ whose tilted-sensor homography has `row` as its last row (up to scale), and
@@ -190,8 +194,8 @@ fn decompose(h: &Matrix3<f64>) -> Result<([f64; 2], Matrix3<f64>)> {
     let row = h.row(2).transpose();
     let n = row.norm();
     let r = if row.z < 0.0 { -row / n } else { row / n };
-    let tilt_y = r.x.clamp(-1.0, 1.0).asin();
-    let tilt_x = (-r.y).atan2(r.z);
+    let tilt_y = libm::asin(r.x.clamp(-1.0, 1.0));
+    let tilt_x = libm::atan2(-r.y, r.z);
     let sensor = ScheimpflugParams { tilt_x, tilt_y }.compile();
     let k = h * sensor.h_inv;
     if k[(2, 2)].abs() < f64::EPSILON || !k.iter().all(|x| x.is_finite()) {
@@ -203,7 +207,8 @@ fn decompose(h: &Matrix3<f64>) -> Result<([f64; 2], Matrix3<f64>)> {
 }
 
 fn roll(angle: f64) -> Matrix3<f64> {
-    *Rotation3::from_axis_angle(&Vector3::z_axis(), angle).matrix()
+    let (s, c) = (libm::sin(angle), libm::cos(angle));
+    Matrix3::new(c, -s, 0.0, s, c, 0.0, 0.0, 0.0, 1.0)
 }
 
 impl PhysicalCamera {
@@ -358,7 +363,12 @@ impl PhysicalCamera {
             .map_err(|err| invalid(format!("the derived pinhole does not build: {err}")))?;
         let mech_se3_projection = Isometry3::from_parts(
             Translation3::new(0.0, 0.0, points.entrance_pupil),
-            UnitQuaternion::from_axis_angle(&Vector3::z_axis(), psi),
+            UnitQuaternion::new_unchecked(Quaternion::new(
+                libm::cos(psi / 2.0),
+                0.0,
+                0.0,
+                libm::sin(psi / 2.0),
+            )),
         );
         Ok(Self {
             lens,

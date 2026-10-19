@@ -32,7 +32,16 @@ export type * from "./types/scene.js";
 export type { AngleSteps, GeneratorSpec, ScenarioSpec, Step, Visibility } from "./types/scenario.js";
 export type { BakedScenario, BakedRobot, BakedSample, CaptureEvent } from "./types/baked-scenario.js";
 export type * from "./types/motion-report.js";
-export type { LibraryItem, SensorPart, LensPart, LaserPart, TargetPart, RigDesign } from "./types/library.js";
+export type {
+  LibraryItem,
+  HeadDesign,
+  HeadWindow,
+  SensorPart,
+  LensPart,
+  LaserPart,
+  TargetPart,
+  RigDesign,
+} from "./types/library.js";
 export type { ProjectManifest, ProjectDefaults } from "./types/project.js";
 export type { CaptureExport, CaptureRow } from "./types/captures.js";
 export type {
@@ -251,6 +260,148 @@ export function deriveOptics(optics: OpticsSpec | string, params: CameraParams |
  * @throws {@link EtendueError} `kind: "invalid"` with every problem found.
  */
 export function validateLibraryItem(text: string | object): import("./types/library.js").LibraryItem;
+
+/** A 2-D point or direction of a head's section, `[s, z]` (m): `z` along the camera axis. */
+export type SectionPoint = [number, number];
+
+/** A line of a head's section. */
+export interface SectionLine {
+  point: SectionPoint;
+  direction: SectionPoint;
+}
+
+/** One traced ray of a head's section: object → entrance pupil → exit pupil → sensor. */
+export interface SectionRay {
+  kind: "chief" | "marginal";
+  object: SectionPoint;
+  entrance: SectionPoint;
+  exit: SectionPoint;
+  /** The object's image, which every ray from it passes through. */
+  image: SectionPoint;
+  on_sensor: SectionPoint;
+}
+
+/**
+ * A head's Scheimpflug drawing, in the plane through the camera axis perpendicular to the laser
+ * plane (`etendue_core::head::Section`). Coordinates `[s, z]` in metres, in the camera's body
+ * frame.
+ */
+export interface HeadSection {
+  /** The section's `s` axis in the camera's body frame. */
+  s_axis: [number, number, number];
+  cardinal_points: CardinalPoints;
+  entrance_radius: number;
+  exit_radius: number;
+  /** The sensor where the section cuts it. */
+  sensor: [SectionPoint, SectionPoint];
+  /** The plane of best focus's trace. */
+  focus: SectionLine;
+  laser_origin: SectionPoint;
+  laser_central: SectionPoint;
+  laser_trace: SectionLine;
+  /** The window's range on the laser trace. */
+  window: [SectionPoint, SectionPoint] | null;
+  /** The hinge rule: these share a height when the Scheimpflug condition holds. */
+  sensor_at_rear_principal: SectionPoint | null;
+  focus_at_front_principal: SectionPoint | null;
+  /** Rays from the entrance pupil through the sensor's ends. */
+  field: [SectionLine, SectionLine];
+  rays: SectionRay[];
+  /** Near and far polylines where the blur reaches the limit. */
+  depth_of_field: [SectionPoint[], SectionPoint[]] | null;
+}
+
+/** A head's samples over its window: one value per sample, `across` × `along`, row by row from the nearest range. */
+export interface HeadMap {
+  across: number;
+  along: number;
+  /** 1 where the camera sees the point (in front, on the sensor, within the fan). */
+  visible: Uint8Array;
+  /** Geometric blur. */
+  coc_px: Float64Array;
+  /** Diffraction blur (the Airy diameter). */
+  airy_px: Float64Array;
+  /** Both, root sum of squares. */
+  blur_px: Float64Array;
+  /** Metres per pixel along the laser line. */
+  lateral_m_per_px: Float64Array;
+  /** Depth per pixel of stripe displacement across the line. */
+  depth_m_per_px: Float64Array;
+  triangulation_rad: Float64Array;
+}
+
+/** A camera setting of a head. */
+export interface HeadSetting {
+  /** Physical sensor tilt `[τx, τy]` (rad). */
+  tilt: [number, number];
+  /** From the image-plane datum (m). */
+  focus_distance_m: number;
+  f_number: number;
+}
+
+/** What the head optimiser found. */
+export interface HeadOptimum {
+  start: HeadSetting;
+  start_worst_blur_px: number;
+  best: HeadSetting;
+  worst_blur_px: number;
+  iterations: number;
+  converged: boolean;
+}
+
+type HeadDesignDoc = import("./types/library.js").HeadDesign;
+
+/**
+ * A head's samples over a window (the design's when `window` is null): blur, resolution and
+ * triangulation at every point of an `across` × `along` grid in its laser plane.
+ *
+ * @throws {@link EtendueError} for a head without optics or without a window.
+ */
+export function headMap(
+  design: HeadDesignDoc | string,
+  window: import("./types/library.js").HeadWindow | string | null,
+  across: number,
+  along: number,
+): HeadMap;
+
+/**
+ * A head's Scheimpflug drawing: rays traced from the laser's central ray at `probes` (m), and the
+ * depth of field for `blur_limit_px` when given.
+ *
+ * @throws {@link EtendueError}
+ */
+export function headSection(
+  design: HeadDesignDoc | string,
+  options?: { probes?: number[]; blur_limit_px?: number },
+): HeadSection;
+
+/**
+ * The setting that puts a head's plane of best focus on its laser plane (the Scheimpflug
+ * condition) at its f-number.
+ *
+ * @throws {@link EtendueError} when the laser plane contains the camera's axis.
+ */
+export function headScheimpflug(design: HeadDesignDoc | string): HeadSetting;
+
+/**
+ * The tilt (when free), focus and f-number (within `f_number_range`) that minimise the worst blur
+ * over the design's window while the camera sees all of it. Starts from the Scheimpflug condition
+ * and never ends worse.
+ *
+ * @throws {@link EtendueError}
+ */
+export function headOptimise(
+  design: HeadDesignDoc | string,
+  search: { grid: [number, number]; f_number_range?: [number, number]; tilt_free: boolean },
+): HeadOptimum;
+
+/**
+ * `design` with its camera at `setting`: the optics' tilt, focus and f-number set, and the
+ * camera's params derived again.
+ *
+ * @throws {@link EtendueError}
+ */
+export function headApply(design: HeadDesignDoc | string, setting: HeadSetting): HeadDesignDoc;
 
 /** Whether `error` was thrown by this package. */
 export function isEtendueError(error: unknown): error is EtendueError;
