@@ -225,8 +225,8 @@ scope), `data_root`. The data root is the checkout in a debug build and the bund
 (examples, robot library, `etendue.toml`) in a release build, which writes datasets under
 `Documents/etendue`. `release.yml` builds the bundles (dmg, msi/nsis, AppImage/deb, unsigned) and
 the CLI archives; its `workflow_dispatch` is a dry run. The shell has its own `deny.toml`. `@etendue/wasm` stays the per-frame kernel. The frontend checks `isTauri()`
-(`src/io/tauri.ts`, `src/kernel/native.ts`); in a browser the Calibrate tab (dataset generation and calibration) and the native buttons are
-absent. `etendue-cli`'s lib is the top of the stack: no workspace crate may depend on it.
+(`src/io/tauri.ts`, `src/kernel/native.ts`); in a browser the native buttons are absent, and the Calibrate tab only previews the observations
+(wasm `observe`), without dataset generation or calibration. `etendue-cli`'s lib is the top of the stack: no workspace crate may depend on it.
 
 **`web/`** — bun workspace: `@vitavision/config-{ts,vitest}`, TypeScript 7.0.2 (the native
 `tsc`), Tailwind v4, tokens only. Lint is oxlint (`web/.oxlintrc.json`): `--type-aware` through

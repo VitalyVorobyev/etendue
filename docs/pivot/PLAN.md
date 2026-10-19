@@ -738,6 +738,9 @@ studio code, so no phase waits on a review.
     - **Studio.** The Calibrate workspace lists a dataset's kept runs and shows any of them
       again.
     - Still deferred: a browser preview of the source.
+  - *Status, P13e:* the browser has the Calibrate workspace as a preview. It shows the
+    observations, exact or noisy, at each capture with their totals. Generating a dataset and
+    calibrating stay in the desktop app. That closes P13's deferred list.
 
 ### Deferred (not planned; do not scaffold)
 
