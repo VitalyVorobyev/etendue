@@ -10,7 +10,7 @@ import {
 import { FileDrop } from "@vitavision/workbench";
 import { Aperture, Check, Download, FileInput, FolderOpen, Menu as MenuIcon, Redo2, Save, Undo2 } from "lucide-react";
 import { useRef } from "react";
-import examples from "virtual:etendue-examples";
+import type { Cell } from "../io/project";
 
 import { isTauri } from "../io/tauri";
 import { pickJsonFiles } from "../kernel/native";
@@ -50,6 +50,7 @@ export function Header({
   onUndo,
   onRedo,
   example,
+  cells,
   onExample,
   onFiles,
   onPaths,
@@ -69,6 +70,8 @@ export function Header({
   onUndo: () => void;
   onRedo: () => void;
   example: string;
+  /** The open project's cells. */
+  cells: readonly Cell[];
   onExample: (id: string) => void;
   onFiles: (files: File[]) => void;
   onPaths: (paths: string[]) => void;
@@ -182,7 +185,7 @@ export function Header({
           )}
           <MenuSeparator />
           <MenuLabel>Examples</MenuLabel>
-          {examples.map((e) => (
+          {cells.map((e) => (
             <MenuItem
               key={e.id}
               icon={e.id === example ? <Check className="size-4" /> : undefined}

@@ -1177,6 +1177,7 @@ version = "0.1.0"
 dependencies = [
  "nalgebra",
  "serde",
+ "serde_json",
  "thiserror 2.0.21",
  "vision-calibration-core",
  "vision-calibration-dataset",

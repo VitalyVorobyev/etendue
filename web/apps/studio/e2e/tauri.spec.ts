@@ -36,6 +36,10 @@ async function installShell(page: Page): Promise<void> {
             if (!res.ok) throw new Error(`${args.path as string}: not found`);
             return res.text();
           }
+          case "list_dir": {
+            const res = await fetch(`${args.path as string}/.index.json`);
+            return res.ok ? ((await res.json()) as string[]) : [];
+          }
           case "blender_status":
             return { found: true, exe: "/Applications/Blender.app", version: "5.2.2", pin: "5.2", message: null };
           case "cancel_run":

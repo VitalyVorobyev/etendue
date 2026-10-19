@@ -307,6 +307,22 @@ fn path_exists(path: PathBuf, access: State<'_, Access>) -> bool {
     access.readable(&path).is_ok_and(|p| p.is_file())
 }
 
+/// The names of the files in folder `path`, sorted, if it is under an allowed folder (a
+/// project's library folder, say). Subfolders are left out.
+#[tauri::command]
+fn list_dir(path: PathBuf, access: State<'_, Access>) -> Result<Vec<String>, String> {
+    let dir = access.readable(&path)?;
+    let mut names: Vec<String> = std::fs::read_dir(&dir)
+        .map_err(|e| format!("{}: {e}", dir.display()))?
+        .filter_map(|entry| {
+            let entry = entry.ok()?;
+            entry.file_type().ok()?.is_file().then(|| entry.file_name().to_string_lossy().into_owned())
+        })
+        .collect();
+    names.sort();
+    Ok(names)
+}
+
 /// The etendue checkout this shell was built from, if it is still there and
 /// this is a development build: a release bundle uses its own resources, even
 /// on the machine that built it.
@@ -466,6 +482,7 @@ pub fn run() {
             save_scene,
             read_text,
             path_exists,
+            list_dir,
             data_root,
             blender_status,
             scenario_from_poses,

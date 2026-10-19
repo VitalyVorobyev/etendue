@@ -14,6 +14,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import library, { type LibraryRobot } from "virtual:etendue-robots";
 
 import { exportFile, jsonText } from "./io/export";
+import { type Cell, defaultOf } from "./io/project";
 import { fileUrl, isTauri, parentDir } from "./io/tauri";
 import { describeFailure } from "./kernel/etendue";
 import { type Bodies, type PoseOverride, bodyPoses, posed } from "./kernel/posed";
@@ -51,6 +52,7 @@ interface Scoped<T> {
 
 const MODE_KEY = "etendue-studio:mode";
 const NO_OVERRIDES: readonly PoseOverride[] = [];
+const NO_CELLS: readonly Cell[] = [];
 
 function storedMode(modes: Mode[]): Mode {
   try {
@@ -83,6 +85,7 @@ export function App() {
     dirty,
     opened,
     preview: editing,
+    project,
   } = useStudio(studio);
   const { playhead } = studio;
   const modes = useMemo<Mode[]>(() => ["setup", "motion", "images", ...(isTauri() ? ["dataset" as const] : [])], []);
@@ -285,7 +288,11 @@ export function App() {
     if (!current) return;
     // Attach to the selected frame (a link, an entity), else to the world.
     const parent = selected !== null && current.baked.frames.includes(selected) ? selected : "world";
-    const entity = newEntity(current.loaded.scene, list, parent);
+    const entity = newEntity(current.loaded.scene, list, parent, {
+      camera: defaultOf(project, "camera"),
+      laser: defaultOf(project, "laser"),
+      target: defaultOf(project, "target"),
+    });
     if (studio.edit(`add ${entity.id}`, (d) => ({ ...d, scene: addEntity(d.scene, list, entity) }))) {
       setSelected(entity.id);
     }
@@ -602,6 +609,7 @@ export function App() {
             onUndo={studio.undo}
             onRedo={studio.redo}
             example={example}
+            cells={project?.cells ?? NO_CELLS}
             onExample={studio.openExample}
             onFiles={studio.openFiles}
             onPaths={studio.openPaths}

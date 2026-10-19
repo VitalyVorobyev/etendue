@@ -17,7 +17,16 @@ import { compileFromFile } from "json-schema-to-typescript";
 
 const ROOT = resolve(dirname(new URL(import.meta.url).pathname), "../..");
 const OUT = join(ROOT, "crates/etendue-wasm/js/types");
-const SCHEMAS = ["scene", "scenario", "baked_scenario", "robot_manifest", "motion_report", "captures"];
+const SCHEMAS = [
+  "scene",
+  "scenario",
+  "baked_scenario",
+  "robot_manifest",
+  "motion_report",
+  "captures",
+  "library",
+  "project",
+];
 
 const banner = `/**
  * DO NOT EDIT: generated from schemas/*.schema.json by \`bun run generate:types\` (in web/).

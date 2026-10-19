@@ -7,13 +7,13 @@
 import type { ScenarioSpec, SceneSpec } from "@etendue/wasm";
 import { type Playhead, toast } from "@vitavision/workbench";
 import { useSyncExternalStore } from "react";
-import examples from "virtual:etendue-examples";
 
 import { download, jsonText } from "../io/export";
 import { type LoadedRobot, type LoadedScene, documentKind, loadRobot, loadScene } from "../io/load";
+import { type Project, loadProject } from "../io/project";
 import { type FileSource, filePath, filesSource, urlSource } from "../io/source";
 import { fsSource, isTauri, normalize, parentDir, splitAbsolute } from "../io/tauri";
-import { type Baked, type KernelFailure, bakeScene, describeFailure, rebake } from "../kernel/etendue";
+import { type Baked, type KernelFailure, bakeScene, describeFailure, initKernel, rebake } from "../kernel/etendue";
 import { type Dataset, dataRoot, saveDialog, saveScene } from "../kernel/native";
 import { type PoseOverride, overridesOf } from "../kernel/posed";
 import { followers, sceneEffect } from "../scene/effect";
@@ -63,6 +63,8 @@ export interface StudioState {
   opened: number;
   /** The edit in progress, if any. */
   preview: Preview | null;
+  /** The open project: its cells, its library, its defaults (ADR 0009). */
+  project: Project | null;
 }
 
 /** One entry of the undo or redo stack: the document before (or after) an edit. */
@@ -172,6 +174,7 @@ export class Studio {
     saveTo: null,
     opened: 0,
     preview: null,
+    project: null,
   };
   readonly #listeners = new Set<() => void>();
   #generation = 0;
@@ -179,6 +182,7 @@ export class Studio {
   #redo: Step[] = [];
   /** The document as opened or last saved. */
   #saved: Doc | null = null;
+  #starting = false;
   /** The open transaction: its label and the document before it. */
   #tx: { label: string; before: Doc } | null = null;
   /** A previewed document waiting for its bake (at most one bake per animation frame). */
@@ -203,15 +207,13 @@ export class Studio {
   /** Start or stop playback. */
   readonly setPlaying = (playing: boolean): void => this.#set({ playing });
 
-  /** Open the example `id` (see `virtual:etendue-examples`). */
+  /** Open cell `id` of the project (one of `project.cells`). */
   readonly openExample = (id: string): void => {
-    const ex = examples.find((e) => e.id === id);
-    if (!ex) return;
+    const project = this.#state.project;
+    const cell = project?.cells.find((c) => c.id === id);
+    if (!project || !cell) return;
     this.#set({ example: id });
-    void this.#open(ex.id, async () => {
-      const repo = await repository();
-      return loadScene(repo, ex.scene, ex.scenario, repo);
-    });
+    void this.#open(cell.id, async () => loadScene(project.source, cell.scene, cell.scenario, await repository()));
   };
 
   /** Open files picked by absolute path (the Tauri shell's file dialog). */
@@ -530,9 +532,28 @@ export class Studio {
     void this.#open(`${files.length} file(s)`, () => loadDropped(files));
   };
 
-  /** Open `id` unless something is loaded or loading already (safe to call on every mount). */
+  /**
+   * Open the reference project (the repository's `examples/`), then its cell `id` (or its first),
+   * unless something is loaded or loading already (safe to call on every mount).
+   */
   start(id: string): void {
-    if (this.#state.current === null && !this.#state.loading && this.#generation === 0) this.openExample(id);
+    if (this.#state.current !== null || this.#state.loading || this.#generation !== 0 || this.#starting) return;
+    this.#starting = true;
+    this.#set({ loading: true });
+    // Library items are checked by the kernel.
+    void Promise.all([repository(), initKernel()])
+      .then(([repo]) => loadProject(repo, "examples"))
+      .then((project) => {
+        for (const p of project.problems) console.warn(`project: ${p.path}: ${p.message}`);
+        this.#set({ project, loading: false });
+        if (this.#state.current === null && this.#generation === 0) {
+          this.openExample(project.cells.some((c) => c.id === id) ? id : (project.cells[0]?.id ?? ""));
+        }
+      })
+      .catch((e: unknown) => {
+        const failure = describeFailure(e);
+        this.#set({ failure: { ...failure, title: "The examples project did not open" }, loading: false });
+      });
   }
 
   /** Free the kernel session. */
@@ -588,8 +609,7 @@ export function useStudio(studio: Studio): StudioState {
   return useSyncExternalStore(studio.subscribe, studio.get, studio.get);
 }
 
-/** The example named by `?example=`, else the first. */
+/** The cell named by `?example=`, if any (the project's first otherwise). */
 export function initialExample(): string {
-  const wanted = new URLSearchParams(window.location.search).get("example");
-  return examples.find((e) => e.id === wanted)?.id ?? examples[0]?.id ?? "";
+  return new URLSearchParams(window.location.search).get("example") ?? "";
 }

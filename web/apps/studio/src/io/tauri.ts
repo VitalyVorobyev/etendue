@@ -50,6 +50,7 @@ export function fsSource(root: string, name = root === "/" || root === "" ? "fil
     readText: (path) => invoke<string>("read_text", { path: abs(path) }),
     url: (path) => convertFileSrc(abs(path)),
     absolute: abs,
+    list: (dir) => invoke<string[]>("list_dir", { path: abs(dir) }).catch(() => []),
   };
 }
 

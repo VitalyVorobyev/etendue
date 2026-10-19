@@ -32,6 +32,8 @@ export type * from "./types/scene.js";
 export type { AngleSteps, GeneratorSpec, ScenarioSpec, Step, Visibility } from "./types/scenario.js";
 export type { BakedScenario, BakedRobot, BakedSample, CaptureEvent } from "./types/baked-scenario.js";
 export type * from "./types/motion-report.js";
+export type { LibraryItem, SensorPart, LensPart, LaserPart, TargetPart, RigDesign } from "./types/library.js";
+export type { ProjectManifest, ProjectDefaults } from "./types/project.js";
 export type { CaptureExport, CaptureRow } from "./types/captures.js";
 export type {
   RobotManifest,
@@ -241,6 +243,14 @@ export interface DerivedOptics {
  * @throws {@link EtendueError} `kind: "input"` for optics that are not physical.
  */
 export function deriveOptics(optics: OpticsSpec | string, params: CameraParams | string): DerivedOptics;
+
+/**
+ * Parse and check a library item (`library/<folder>/<id>.json`, ADR 0009): its version first,
+ * then its fields, its single part, and a camera design's params against its optics.
+ *
+ * @throws {@link EtendueError} `kind: "invalid"` with every problem found.
+ */
+export function validateLibraryItem(text: string | object): import("./types/library.js").LibraryItem;
 
 /** Whether `error` was thrown by this package. */
 export function isEtendueError(error: unknown): error is EtendueError;

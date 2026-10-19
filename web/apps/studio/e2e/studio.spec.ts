@@ -179,6 +179,8 @@ test("entities are added, refused when invalid, and removed", async ({ page }) =
   await page.getByRole("button", { name: "Add to the scene" }).click();
   await page.getByRole("menuitem", { name: "Camera" }).click();
   await expect(page.getByRole("treeitem", { name: /^cam\b/ })).toBeVisible();
+  // It is made from the project's default camera: a physical IMX174 behind a 25 mm lens.
+  await expect(page.getByTestId("inspector")).toContainText("1936×1216 px");
   // Renaming onto a taken id is refused; the field keeps the text.
   const id = page.getByRole("textbox", { name: "Id" });
   await id.fill("cam_left");
