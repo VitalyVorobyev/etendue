@@ -22,6 +22,17 @@
         "null"
       ]
     },
+    "head": {
+      "description": "A laser-triangulation head.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/HeadDesign"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "id": {
       "description": "The item's id: its file stem.",
       "type": "string"
@@ -421,6 +432,82 @@
         }
       ]
     },
+    "HeadDesign": {
+      "description": "A laser-triangulation head: a camera design and a line laser fixed to the camera's body.",
+      "type": "object",
+      "properties": {
+        "camera": {
+          "description": "The camera: physical (its `optics` set), as a head's analyses need.",
+          "$ref": "#/$defs/CameraTemplate"
+        },
+        "camera_se3_laser": {
+          "description": "The laser's pose in the camera's body frame (its fan in the laser's `y–z` plane,\nopening about `+z`).",
+          "$ref": "#/$defs/Iso3Schema"
+        },
+        "fan_length_m": {
+          "description": "How far the fan reaches along its edge rays, metres.",
+          "type": "number",
+          "format": "double"
+        },
+        "laser": {
+          "description": "The laser.",
+          "$ref": "#/$defs/LaserPart"
+        },
+        "window": {
+          "description": "Where it must work.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HeadWindow"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "camera",
+        "laser",
+        "fan_length_m",
+        "camera_se3_laser"
+      ]
+    },
+    "HeadWindow": {
+      "description": "Where a head must work: a window in its laser plane, measured from the laser's origin.",
+      "type": "object",
+      "properties": {
+        "far_m": {
+          "description": "Farthest range, metres.",
+          "type": "number",
+          "format": "double"
+        },
+        "max_blur_px": {
+          "description": "The largest acceptable blur (geometric and diffraction), pixels.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "near_m": {
+          "description": "Nearest range along the laser's central ray, metres.",
+          "type": "number",
+          "format": "double"
+        },
+        "width_m": {
+          "description": "Width along the laser line, centred on the central ray, metres.",
+          "type": "number",
+          "format": "double"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "near_m",
+        "far_m",
+        "width_m"
+      ]
+    },
     "ImageX": {
       "description": "The direction of a ring camera's image +X.",
       "oneOf": [
@@ -482,6 +569,36 @@
             "skew"
           ]
         }
+      ]
+    },
+    "Iso3Schema": {
+      "description": "JSON Schema proxy for [`Iso3`] (`nalgebra::Isometry3<f64>`).\n\n`nalgebra` does not implement [`schemars::JsonSchema`], so `*Export` and\nparameter types that embed [`Iso3`] annotate the field with\n`#[cfg_attr(feature = \"schemars\", schemars(with = \"Iso3Schema\"))]`\n(or `Vec<Iso3Schema>` / `Option<Iso3Schema>`). This proxy mirrors the exact\nserde wire format of `Isometry3`:\n`{ \"rotation\": [qx, qy, qz, qw], \"translation\": [tx, ty, tz] }`.\n\nIt exists only to describe that shape to `schemars`; it is never\nconstructed at runtime.",
+      "type": "object",
+      "properties": {
+        "rotation": {
+          "description": "Unit quaternion `[qx, qy, qz, qw]` (i, j, k, w order).",
+          "type": "array",
+          "items": {
+            "type": "number",
+            "format": "double"
+          },
+          "maxItems": 4,
+          "minItems": 4
+        },
+        "translation": {
+          "description": "Translation `[tx, ty, tz]` in meters.",
+          "type": "array",
+          "items": {
+            "type": "number",
+            "format": "double"
+          },
+          "maxItems": 3,
+          "minItems": 3
+        }
+      },
+      "required": [
+        "rotation",
+        "translation"
       ]
     },
     "LaserLayout": {

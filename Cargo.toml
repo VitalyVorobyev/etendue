@@ -30,6 +30,7 @@ etendue-synth = { path = "crates/etendue-synth", version = "0.1.0" }
 # exchanges Isometry3<f64> / Point3<f64> / Matrix3<f64> across the
 # vision-calibration-core crate boundary; a semver-incompatible second
 # nalgebra would make those distinct types and break every cross-crate call.
+libm = "0.2"
 nalgebra = { version = "0.34", features = ["serde-serialize"] }
 # calibration-rs crates come from crates.io so every etendue library crate is
 # publishable. For local development they are redirected to the sibling

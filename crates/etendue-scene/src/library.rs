@@ -117,6 +117,45 @@ pub struct TargetPart {
     pub geometry: TargetGeometry,
 }
 
+/// Where a head must work: a window in its laser plane, measured from the laser's origin.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
+#[serde(deny_unknown_fields)]
+pub struct HeadWindow {
+    /// Nearest range along the laser's central ray, metres.
+    pub near_m: f64,
+    /// Farthest range, metres.
+    pub far_m: f64,
+    /// Width along the laser line, centred on the central ray, metres.
+    pub width_m: f64,
+    /// The largest acceptable blur (geometric and diffraction), pixels.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_blur_px: Option<f64>,
+}
+
+/// A laser-triangulation head: a camera design and a line laser fixed to the camera's body.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
+#[serde(deny_unknown_fields)]
+pub struct HeadDesign {
+    /// The camera: physical (its `optics` set), as a head's analyses need.
+    pub camera: CameraTemplate,
+    /// The laser.
+    pub laser: LaserPart,
+    /// How far the fan reaches along its edge rays, metres.
+    pub fan_length_m: f64,
+    /// The laser's pose in the camera's body frame (its fan in the laser's `y–z` plane,
+    /// opening about `+z`).
+    #[cfg_attr(
+        feature = "schemars",
+        schemars(with = "vision_calibration_core::Iso3Schema")
+    )]
+    pub camera_se3_laser: nalgebra::Isometry3<f64>,
+    /// Where it must work.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub window: Option<HeadWindow>,
+}
+
 /// A rig of identical units.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
@@ -155,18 +194,22 @@ pub struct LibraryItem {
     /// A camera design: optics (when physical), the as-built model and the image size.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub camera: Option<CameraTemplate>,
+    /// A laser-triangulation head.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub head: Option<HeadDesign>,
     /// A rig design.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rig: Option<RigDesign>,
 }
 
 /// The kinds of library item, and the folder each lives in.
-pub const KINDS: [(&str, &str); 6] = [
+pub const KINDS: [(&str, &str); 7] = [
     ("sensor", "sensors"),
     ("lens", "lenses"),
     ("laser", "lasers"),
     ("target", "targets"),
     ("camera", "cameras"),
+    ("head", "heads"),
     ("rig", "rigs"),
 ];
 
@@ -201,6 +244,7 @@ impl LibraryItem {
             self.laser.is_some(),
             self.target.is_some(),
             self.camera.is_some(),
+            self.head.is_some(),
             self.rig.is_some(),
         ];
         (set.iter().filter(|s| **s).count() == 1)
@@ -229,7 +273,7 @@ impl LibraryItem {
         if self.kind().is_none() {
             issues.push(
                 "",
-                "must hold exactly one of sensor, lens, laser, target, camera, rig",
+                "must hold exactly one of sensor, lens, laser, target, camera, head, rig",
             );
         }
         if let Some(s) = &self.sensor {
@@ -271,6 +315,38 @@ impl LibraryItem {
             }
             if let Some(o) = &c.optics {
                 o.check(&mut issues, "camera.optics");
+            }
+        }
+        if let Some(h) = &self.head {
+            if h.camera.optics.is_none() {
+                issues.push(
+                    "head.camera.optics",
+                    "a head's camera must be physical (have optics)",
+                );
+            }
+            if let Some(o) = &h.camera.optics {
+                o.check(&mut issues, "head.camera.optics");
+            }
+            issues.check_positive("head.laser.wavelength_nm", h.laser.wavelength_nm);
+            if !(h.laser.fan_half_angle > 0.0
+                && h.laser.fan_half_angle < std::f64::consts::FRAC_PI_2)
+            {
+                issues.push("head.laser.fan_half_angle", "must be in (0, π/2)");
+            }
+            issues.check_positive("head.fan_length_m", h.fan_length_m);
+            issues.check_pose("head.camera_se3_laser", &h.camera_se3_laser);
+            if let Some(w) = &h.window {
+                issues.check_positive("head.window.width_m", w.width_m);
+                if !(w.near_m.is_finite()
+                    && w.far_m.is_finite()
+                    && 0.0 < w.near_m
+                    && w.near_m <= w.far_m)
+                {
+                    issues.push("head.window", "needs 0 < near_m ≤ far_m");
+                }
+                if let Some(b) = w.max_blur_px {
+                    issues.check_positive("head.window.max_blur_px", b);
+                }
             }
         }
         if let Some(r) = &self.rig {

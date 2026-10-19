@@ -169,3 +169,11 @@ G0.1 wasm/native projection parity
   (ADR 0008): `cam_left` with a thick lens, its pupil off H and a tilted sensor, loaded through
   the session's projection-frame resolution; plus `deriveOptics` (compared as JSON text) and
   `mechSe3Projection`. 4380 output values, **0 bit mismatches**.
+- Re-run 2026-10-19 on branch `p10a/head-kernel`, the probe extended by a triangulation head:
+  - `headMap` on 16 × 12 (1344 values), `headSection`, `headScheimpflug`, and a square-sensor
+    `headOptimise` (about 100 Nelder–Mead iterations), compared as bits and JSON text;
+  - result: 5724 output values, **0 bit mismatches**.
+
+  The head first failed by one ulp in the Scheimpflug tilt and in 129 map values.
+  `atan2`, `asin`, `acos` and `hypot` are the system libm's natively and Rust's port in wasm.
+  The kernel now uses the `libm` crate for every transcendental (CLAUDE.md gotcha 6).

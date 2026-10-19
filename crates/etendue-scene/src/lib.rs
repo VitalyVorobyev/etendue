@@ -57,8 +57,8 @@ pub use entity::{CameraSpec, LaserSpec, PartSpec, RigSpec, TargetGeometry, Targe
 pub use export::{CaptureExport, CaptureRow, ExportError};
 pub use frame::{FrameGraph, FrameRef, FrameSpec, ParsedFrameRef, WORLD, is_valid_id};
 pub use library::{
-    KINDS, LIBRARY_VERSION, LaserPart, LensMount, LensPart, LibraryItem, RigDesign, SensorPart,
-    TargetPart, Versioned,
+    HeadDesign, HeadWindow, KINDS, LIBRARY_VERSION, LaserPart, LensMount, LensPart, LibraryItem,
+    RigDesign, SensorPart, TargetPart, Versioned,
 };
 pub use light::{LightShape, LightSpec};
 pub use optics::{Focusing, LensOptics, OpticsSpec, SensorOptics};

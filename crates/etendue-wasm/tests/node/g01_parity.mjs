@@ -13,6 +13,7 @@
 import { readFileSync } from "node:fs";
 
 import * as wasm from "../../pkg/etendue_wasm.js";
+import { headFixture } from "./head_fixture.mjs";
 
 wasm.initSync({ module: readFileSync(new URL("../../pkg/etendue_wasm_bg.wasm", import.meta.url)) });
 const root = new URL("../../../../", import.meta.url);
@@ -95,6 +96,14 @@ const uvOptics = Array.from(
 const mech = Array.from(physical.mechSe3Projection("cam_left"), hex);
 physical.free();
 
+// A triangulation head (P10): its map, section, Scheimpflug setting and a square-sensor optimum.
+const headDesign = JSON.stringify(headFixture(root));
+const headMap = Array.from(wasm.headMap(headDesign, undefined, 16, 12), hex);
+const headSection = wasm.headSection(headDesign, JSON.stringify({ probes: [0.25, 0.32, 0.4], blur_limit_px: 2 }));
+const headScheimpflug = wasm.headScheimpflug(headDesign);
+const headSearch = JSON.stringify({ grid: [9, 9], f_number_range: [2, 16], tilt_free: false });
+const headOptimum = wasm.headOptimise(headDesign, headSearch);
+
 process.stdout.write(
   JSON.stringify({
     gate: "G0.1",
@@ -109,6 +118,14 @@ process.stdout.write(
       scene: opticsScene,
       uv: uvOptics,
       mech_se3_projection: mech,
+    },
+    head: {
+      design: headDesign,
+      map: headMap,
+      section: headSection,
+      scheimpflug: headScheimpflug,
+      search: headSearch,
+      optimum: headOptimum,
     },
   }) + "\n",
 );

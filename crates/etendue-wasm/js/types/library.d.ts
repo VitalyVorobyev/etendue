@@ -16,6 +16,10 @@ export interface LibraryItem {
    */
   description?: string | null;
   /**
+   * A laser-triangulation head.
+   */
+  head?: HeadDesign | null;
+  /**
    * The item's id: its file stem.
    */
   id: string;
@@ -319,7 +323,43 @@ export interface CameraParams {
       };
 }
 /**
- * A line laser.
+ * A laser-triangulation head: a camera design and a line laser fixed to the camera's body.
+ */
+export interface HeadDesign {
+  camera: CameraTemplate;
+  camera_se3_laser: Iso3Schema;
+  /**
+   * How far the fan reaches along its edge rays, metres.
+   */
+  fan_length_m: number;
+  laser: LaserPart;
+  /**
+   * Where it must work.
+   */
+  window?: HeadWindow | null;
+}
+/**
+ * The laser's pose in the camera's body frame (its fan in the laser's `y–z` plane,
+ * opening about `+z`).
+ */
+export interface Iso3Schema {
+  /**
+   * Unit quaternion `[qx, qy, qz, qw]` (i, j, k, w order).
+   *
+   * @minItems 4
+   * @maxItems 4
+   */
+  rotation: [number, number, number, number];
+  /**
+   * Translation `[tx, ty, tz]` in meters.
+   *
+   * @minItems 3
+   * @maxItems 3
+   */
+  translation: [number, number, number];
+}
+/**
+ * The laser.
  */
 export interface LaserPart {
   /**
@@ -338,6 +378,27 @@ export interface LaserPart {
    * Emission wavelength, nanometres.
    */
   wavelength_nm: number;
+}
+/**
+ * Where a head must work: a window in its laser plane, measured from the laser's origin.
+ */
+export interface HeadWindow {
+  /**
+   * Farthest range, metres.
+   */
+  far_m: number;
+  /**
+   * The largest acceptable blur (geometric and diffraction), pixels.
+   */
+  max_blur_px?: number | null;
+  /**
+   * Nearest range along the laser's central ray, metres.
+   */
+  near_m: number;
+  /**
+   * Width along the laser line, centred on the central ray, metres.
+   */
+  width_m: number;
 }
 /**
  * A lens: what a datasheet gives, and the thick-lens data the camera model needs.

@@ -97,7 +97,7 @@ pub fn rim_rays(
     (0..count)
         .map(|i| {
             let a = std::f64::consts::TAU * i as f64 / count as f64;
-            ray_through(camera, object, [r * a.cos(), r * a.sin()])
+            ray_through(camera, object, [r * libm::cos(a), r * libm::sin(a)])
         })
         .collect()
 }
