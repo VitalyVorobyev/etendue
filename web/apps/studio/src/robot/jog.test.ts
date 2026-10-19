@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { jogged, teach } from "./jog";
+import { jogged, motionSteps, reteach, teach } from "./jog";
 
 const s = Math.SQRT1_2;
 // A TCP 0.5 m out along x, its tool z pointing down (180° about x).
@@ -39,5 +39,39 @@ describe("jogging", () => {
       dt: 0.01,
       steps: [{ type: "ptp_pose", robot: "ur5e", base_se3_tool: tcp, q }],
     });
+  });
+
+  it("re-teaches a step in place", () => {
+    const q = [0, -1, 1, -1, -1.5, 0];
+    const scenario = {
+      version: 1,
+      dt: 0.01,
+      steps: [
+        { type: "ptp_joints" as const, robot: "ur5e", q: [0, 0, 0, 0, 0, 0] },
+        { type: "capture" as const },
+        { type: "lin" as const, robot: "ur5e", base_se3_tool: tcp, speed_scale: 0.5 },
+        { type: "ptp_pose" as const, robot: "other", base_se3_tool: tcp },
+      ],
+    };
+    expect(motionSteps(scenario, "ur5e")).toEqual([
+      { index: 0, label: "1: PTP" },
+      { index: 2, label: "3: LIN" },
+    ]);
+    const moved = { ...tcp, translation: [0.4, 0.1, 0.3] as [number, number, number] };
+    expect(reteach(scenario.steps[0]!, q, moved)).toEqual({ type: "ptp_joints", robot: "ur5e", q });
+    // A LIN keeps its speed and takes the pose.
+    expect(reteach(scenario.steps[2]!, q, moved)).toEqual({
+      type: "lin",
+      robot: "ur5e",
+      base_se3_tool: moved,
+      speed_scale: 0.5,
+    });
+    expect(reteach(scenario.steps[3]!, q, moved)).toEqual({
+      type: "ptp_pose",
+      robot: "other",
+      base_se3_tool: moved,
+      q,
+    });
+    expect(reteach(scenario.steps[1]!, q, moved)).toBeNull();
   });
 });

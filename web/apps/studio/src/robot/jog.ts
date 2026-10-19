@@ -116,3 +116,29 @@ export function jogged(tcp: Iso3, delta: Iso3, frame: "base" | "tool"): Iso3 {
     ],
   };
 }
+
+/** The steps that move `robot` (PTP and LIN), by index, for people. */
+export function motionSteps(scenario: ScenarioSpec | null, robot: string): { index: number; label: string }[] {
+  return (scenario?.steps ?? []).flatMap((s, index) =>
+    (s.type === "ptp_pose" || s.type === "ptp_joints" || s.type === "lin") && s.robot === robot
+      ? [{ index, label: `${index + 1}: ${s.type === "lin" ? "LIN" : "PTP"}` }]
+      : [],
+  );
+}
+
+/**
+ * Step `step` re-taught at the jogged pose: a PTP keeps the joints (and a pose target its tool
+ * pose too), a LIN takes the tool pose. Other steps do not move a robot: `null`.
+ */
+export function reteach(step: Step, q: number[], baseSe3Tool: Iso3Schema): Step | null {
+  switch (step.type) {
+    case "ptp_pose":
+      return { ...step, base_se3_tool: baseSe3Tool, q };
+    case "ptp_joints":
+      return { ...step, q };
+    case "lin":
+      return { ...step, base_se3_tool: baseSe3Tool };
+    default:
+      return null;
+  }
+}

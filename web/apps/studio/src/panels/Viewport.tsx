@@ -1,4 +1,4 @@
-import type { CameraSpec, Candidate, EtendueScene, Iso3Schema } from "@etendue/wasm";
+import type { CameraSpec, Candidate, EtendueScene, Iso3Schema, MotionReport } from "@etendue/wasm";
 import { type FrameTreeRuntime, type LightShapeLike, imageBorderPixels } from "@vitavision/three";
 import {
   AtFrame,
@@ -24,7 +24,7 @@ import { Gizmo, type GizmoOptions } from "../scene/Gizmo";
 import { CandidateGlyphs } from "../scene/CandidateGlyphs";
 import { type EstimateDrawing, Estimates } from "../scene/Estimates";
 import { TargetSurface } from "../scene/TargetSurface";
-import { TcpPath } from "../scene/TcpPath";
+import { TcpPath, type TcpPathData } from "../scene/TcpPath";
 
 /** Per kernel session: each camera's border rays and the model they were computed for. */
 const rayCache = new WeakMap<EtendueScene, Map<string, { key: string; rays: Float64Array }>>();
@@ -171,8 +171,10 @@ export function Viewport({
   poses?: PoseSource | null | undefined;
   /** The selection's handle, when it can be moved. */
   gizmo?: GizmoTarget | null | undefined;
-  /** Robot TCP paths to draw (the Motion workspace). */
-  paths?: { path: Float32Array; captures: Float32Array }[] | undefined;
+  /** Robot TCP paths to draw (the Motion workspace), coloured by the report's steps; a click seeks. */
+  paths?:
+    | { data: TcpPathData[]; report: MotionReport | null; current: number; onSeek: (k: number) => void }
+    | undefined;
   /** A calibration's estimate to draw beside the truth (the Calibrate workspace). */
   estimate?: EstimateDrawing | null | undefined;
 }) {
@@ -245,10 +247,10 @@ export function Viewport({
             </AtFrame>
           )}
         </FrameTree>
-        {paths?.map((p, i) => (
+        {paths?.data.map((p, i) => (
           // A path per robot, in scene order.
           // eslint-disable-next-line react/no-array-index-key
-          <TcpPath key={i} path={p.path} captures={p.captures} />
+          <TcpPath key={i} data={p} report={paths.report} current={paths.current} onSeek={paths.onSeek} />
         ))}
         {gizmo && poses && (
           <Gizmo

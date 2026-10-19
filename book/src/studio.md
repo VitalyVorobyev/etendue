@@ -105,7 +105,14 @@ surface; the panels around it hold only what that workspace needs.
     - **Add PTP step** appends a move to the pose, its joints stored so the bake keeps this arm
       configuration. **Add PTP + capture** adds a capture after it. The playhead moves to the
       end. Moving the playhead or changing the program returns the robot to the program's pose.
+    - **Re-teach here** replaces a chosen step's target with the jogged pose, in place. A PTP
+      step stores the joints, and a LIN step takes the tool pose. The step offered first is the
+      last one that ran by the playhead.
   - The 3D view draws each robot's TCP path over the program, with a dot at every capture.
+    - Steps alternate between two slate tones, and a step with a motion warning is drawn in the
+      warning colour.
+    - The move at the playhead, or the one that led to it, is in the accent colour.
+    - Pointing at the path marks the nearest sample, and a click moves the playhead there.
   - **Joints** (below the viewport): the joint positions over the scenario, with the playhead.
 - **Images**: what every camera sees at the playhead, side by side, with the targets projected
   through each camera's model. Hover over a camera and click its expand button to show it alone.
