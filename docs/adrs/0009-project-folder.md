@@ -1,6 +1,6 @@
 # ADR 0009: The Project Folder
 
-- Status: Proposed
+- Status: Accepted (2026-10-19)
 - Date: 2026-10-19
 
 ## Context

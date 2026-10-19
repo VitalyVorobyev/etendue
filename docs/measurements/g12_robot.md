@@ -51,5 +51,9 @@ link and of what hangs on it.
 | Idle | 217 | — | 8.3 / 9.4 ms | 0.4 / 0.6 ms |
 | Jog | 602 | **0** | 8.3 / 9.3 ms | 2.4 / **2.9 ms** |
 
-The work limit is G8.1's 4 ms. The jog's interval p95 does not exceed the idle one. G8.1's own
-interval criterion is still pending a decision (`g8_1_drag.md`).
+The work limit is G8.1's 4 ms. The jog's interval p95 does not exceed the idle one.
+
+Re-measured 2026-10-19 on `c812423` against G8.1's revised interval criterion (p95 ≤ 1.1× the
+idle p95), which `perf_jog.spec.ts` now asserts: idle 239 frames, interval p95 9.3 ms, work p95
+0.6 ms; jog 603 frames, 0 bakes, interval p95 **9.3 ms** (≤ 10.2 ms), work p95 **3.1 ms**
+(≤ 4 ms). PASS.
