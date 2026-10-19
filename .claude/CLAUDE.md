@@ -360,9 +360,11 @@ also run its gates (`cargo clippy/test --manifest-path web/apps/studio/src-tauri
 
 ## Roadmap
 
-`docs/pivot/PLAN.md` is the roadmap, with phases P0–P6 and their gates. ADRs 0001–0006
-were accepted on 2026-09-26. P0 and P1 are done, with gates G0.1 and G1.1–G1.3 recorded
-in `docs/measurements/`. P2 (web packages) is next.
+`docs/pivot/PLAN.md` is the roadmap, with phases and their gates. P0–P5 and P7 are done
+(gates in `docs/measurements/`); P6-1/P6-3 are absorbed by P10/P11. The current roadmap is
+P8–P13 (2026-10-19): interactive editing → optics model, library and project folder
+(ADRs 0008, 0009, proposed) → Optics workspace → Rigs workspace → Robot jogging →
+Calibration lab.
 
-One item from the old post-MVP queue remains open: promoting `ThickLens` to
-`ApertureModel<S>` in calibration-rs, as an upstream PR with user review.
+Promoting `ThickLens` to `ApertureModel<S>` in calibration-rs is deferred (ADR 0008): no
+phase needs it upstream.

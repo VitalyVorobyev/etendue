@@ -431,6 +431,8 @@ and ask; do not silently relax it.
   simulated-image panel, heatmap; also the Scheimpflug solver UI and the rig builder) gets a
   studio equivalent. *Status (2026-10-17):* the user waived the gate and `crates/etendue-ui`
   is deleted (tag `egui-ui-final`); the features remain to be brought to the studio.
+- *Status (2026-10-19):* P6-1 and P6-3 are absorbed by P10 (Optics workspace) and P11 (Rigs
+  workspace); P6-2 stays the escalation rule they follow.
 
 ### P7 — Authoring (user request 2026-10-17)
 
@@ -519,11 +521,162 @@ collision checking. Order: P7-0 → (P7-1, P7-3, P7-4) → P7-2 → P7-5 → P7-
     compositor test covers the width law from inside to 5× its Rayleigh range
     (`docs/measurements/g5_2_laser_width.md`).
 
+### P8–P13 — From a cell editor to an optical-design instrument (user request 2026-10-19)
+
+The studio edits cells well, but the optics the project started from never reached it. The
+user asked for:
+- an interactive inspector (sliders, immediate rendering);
+- an Optics workspace (camera design from physical optics, laser triangulation, depth of
+  field, Scheimpflug, ray propagation, a working volume to explore and optimise);
+- a rig editor for classical stereo and for rings of k identical cameras or camera–laser
+  pairs (radius ρ, tilt φ to the axis);
+- interactive robots (joint sliders, TCP drag, trajectories);
+- a calibration lab: noise-controlled synthetic observations, calibration, comparison with
+  the ground truth.
+
+Every view is interactive, in 2-D and 3-D, and every artifact lives in a project folder.
+
+User decisions (2026-10-19):
+- calibration runs natively (calibration-rs pipelines in Rust, through the shell) before
+  any browser build;
+- order after P8: optics, rigs, robot, calibration;
+- a project folder holds every artifact (ADR 0009);
+- a scene camera may carry its physical optics (ADR 0008).
+
+Order: P8 → P9 → P10 → P11 → P12 → P13. Upstream lab-ui changes are drafts with interim
+studio code, so no phase waits on a review.
+
+- **P8 — Interactive editing.** Every field edit runs a full bake on the main thread. Each
+  bake rebuilds the frame runtime, which re-fetches every robot mesh. Sliders cannot sit on
+  that path.
+  - **Measure first:** rebake time and mesh loads per edit on `examples/rig3_laser_ur5e`.
+  - **Preview and commit:** `Studio.preview` / `commit` / `cancel`.
+    - A pose preview never bakes. It overrides the edited frame and its descendants at
+      every sample (`W_F' = W_F·P_old⁻¹·P_new`, descendants `W_D' = W_F'·W_F⁻¹·W_D`), in
+      3-D and in the poses the camera views read.
+    - Other previews rebake at most once per animation frame.
+    - A commit is one undo step.
+  - **No more reloads:** a mesh cache for robot visuals, and border rays memoised per
+    camera.
+  - **Inspector:** slider rows for pose (one per DOF, with a numeric field and a unit),
+    collapsible sections, a fixed label column, tabular numerals.
+  - **3-D gizmo:** `TransformControls` on the selected frame.
+  - **lab-ui drafts:** a reusable frame runtime, overrides honoured by `pose()`, a gizmo,
+    and a slider-number row.
+  - **Gates:**
+    - **G8.1:** during a 5 s slider drag on rig3_laser_ur5e there are 0 bakes, JS work p95
+      ≤ 4 ms, and frame interval p95 ≤ 1.1× the display period (headed, as G2.2).
+    - **G8.2:** a commit makes one undo entry and loads no mesh.
+- **P9 — Optics model, library, project folder** (ADRs 0008, 0009).
+  - **Scene and library:**
+    - `CameraSpec.optics` (fx and fy derived and validated; origin at H);
+    - the intrinsics fix (`fx = v0 / pitch`);
+    - library documents in `etendue-scene`;
+    - the bridge `etendue-core::from_scene`.
+  - **Core physics:** `optics::budget` (DOF, diffraction, total blur, mm/px),
+    `optics::paraxial` (ray fans) and `analysis::triangulation` (dZ/px).
+  - **Solver:** a deterministic Nelder–Mead replaces argmin; the `solver` feature goes.
+  - **wasm:** `optics` functions.
+  - **Project I/O:** in the shell and in the browser (File System Access).
+  - **Reference project:** `examples/` becomes it, with the bank as its library. New
+    entities come from project defaults.
+  - **Gates:**
+    - **G9.1:** thin-lens limit at 1e-12 relative: fx, and near/far DOF.
+    - **G9.2:** Nelder–Mead reproduces argmin's recorded optimum to 1e-6 rad / 1e-6 m.
+    - **G9.3:** no `getrandom` in the wasm graph; bit parity for every new wasm function;
+      G2.1 re-measured.
+- **P10 — Optics workspace.** A camera, or a camera + laser head, against a design volume.
+  - **2-D cross-section** in the laser plane:
+    - the principal planes, the aperture, the tilted sensor;
+    - paraxial ray fans, the plane of best focus, the DOF band, the field of view;
+    - the laser line and the Scheimpflug hinge;
+    - the working volume shaded by blur, mm/px or dZ/px;
+    - draggable handles.
+  - **3-D anatomy** view.
+  - **Sensor view** of the stripe.
+  - **Charts** against depth.
+  - **Optimiser:**
+    1. the hinge rule gives the start;
+    2. Nelder–Mead minimises worst-case blur over (τ, s_o, N) under coverage;
+    3. a lens search runs over the library.
+  - **Output:** save as a camera or head design; place it in a cell with provenance.
+  - **Gates:**
+    - **G10.1:** slider to redraw p95 ≤ 16 ms; `workingVolume` 64×64 ≤ 30 ms in wasm.
+    - **G10.2:** the cross-section's PoBF matches `plane_of_best_focus` to 1e-9.
+    - **G10.3:** on a thin depth window the optimiser reproduces the analytic Scheimpflug
+      tilt within 0.05°, never worse than its start.
+- **P11 — Rigs workspace.**
+  - **Schema:**
+    - `ImageX::Common` makes k = 2 a classical stereo pair (baseline 2ρ, convergence
+      ρ / tan φ);
+    - `LaserLayout.camera_se3_laser` makes the unit a head;
+    - the template carries optics.
+  - **Core:**
+    - `analysis::camera_overlap` (N-view coverage, visible and sharp);
+    - `voxelized_overlap` pairs by `LaserSpec.camera`.
+  - **UI:**
+    - top view (ρ, phase) and side view (φ, the convergence point, DOF bands, overlap);
+    - overlap voxels in 3-D;
+    - a chart against φ;
+    - a rig library, and placement in a cell.
+  - **Gates:**
+    - **G11.1:** k = 2 `Common`: parallel image +X to 1e-12, baseline 2ρ.
+    - **G11.2:** two-frustum overlap within 2 % of the analytic volume at 128³.
+    - **G11.3:** 64³ ≤ 100 ms in wasm.
+- **P12 — Robot workspace (in Motion).**
+  - **wasm:**
+    - `robotLinkPoses(robot, q)`;
+    - `robotIk(robot, base_se3_tcp, seed, opts)` (DLS, `restarts: 0` while dragging).
+  - **Jogging:**
+    - robot library preview;
+    - joint sliders through P8's overrides, so the rig and its camera views follow;
+    - TCP drag with IK, coloured by limit and singularity margin;
+    - Cartesian jog.
+  - **Programming:** "add PTP / capture here" and an editable step list.
+  - **Trajectory view:** the TCP path drawn over the bake, coloured by step or binding
+    limit, with capture markers and hover-to-seek.
+  - **Gates:**
+    - **G12.1:** FK bit parity on 1000 seeded q.
+    - **G12.2:** UR5e IK p95 ≤ 2 ms in wasm, and ≥ 99 % success on a 1000-step drag path
+      at 1e-6 m / 1e-6 rad.
+- **P13 — Calibration lab.**
+  - **Observations:** `etendue-synth::observe`, noise from a seed:
+    - pixel σ;
+    - outliers and dropouts;
+    - laser σ;
+    - robot pose σ.
+  - **Single heads:** emission of a single camera + laser head.
+  - **Calibration:**
+    - `etendue-cli::calibrate`: calibration-rs sessions with in-memory inputs, and a port of
+      `closed_loop.py`'s comparison rows;
+    - `etendue calibrate` with N trials;
+    - a shell command with progress and cancel;
+    - results in the project's `runs/`.
+  - **Calibrate workspace** (absorbs Dataset): Source → Calibrate → Compare.
+    - Source is analytic + noise, or rendered + detected.
+    - Compare has a table against the gate tolerances, residual histograms, and estimated
+      vs true frusta and planes.
+  - `closed_loop.py` stays as a cross-check until parity is recorded.
+  - **Gates:**
+    - **G13.1:** noise-free on closed_loop_ur5e, laser_ur5e and rig3_laser_ur5e: every row
+      matches `closed_loop.py` within max(1e-9, 1e-6 rel), and G5.1, G5.3 and G5.3b pass
+      through Rust.
+    - **G13.2:** same seed, byte-identical report.
+    - **G13.3:** at σ = 0.5 px, the reprojection RMS within 5 % of σ·√(1 − p/2n).
+
 ### Deferred (not planned; do not scaffold)
 
 Motion blur and rolling shutter (on-the-fly capture), a Mitsuba 3 backend, a telecentric
-projection model (upstream to calibration-rs first), a voxelized working volume (the
-existing roadmap item 2), and collision checking.
+projection model (upstream to calibration-rs first), and collision checking. The voxelized
+working volume left this list on 2026-10-19 (P11). After P8–P13:
+- radiometry and SNR (laser power to electrons per pixel, using the sensors' QE, full well
+  and read noise);
+- MTF;
+- occlusion ray casting;
+- a Monte Carlo sweeps UI;
+- OPW branches in wasm and the reach envelope;
+- calibration in the browser (calibration-rs optim without `getrandom` and `rayon`);
+- `ApertureModel` upstream.
 
 ## 6. CI
 
