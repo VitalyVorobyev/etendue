@@ -578,6 +578,7 @@ dependencies = [
  "etendue-kinematics",
  "etendue-scene",
  "exr",
+ "libm",
  "nalgebra",
  "png",
  "rand 0.10.1",

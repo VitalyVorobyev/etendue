@@ -9,6 +9,8 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+# Rotations from rotation vectors in `observe`, bit-identical natively and in wasm (gotcha 6).
+libm = { workspace = true }
 calib-targets-charuco = { workspace = true }
 calib-targets-print = { workspace = true }
 calib-targets-puzzleboard = { workspace = true }

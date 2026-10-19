@@ -29,6 +29,10 @@
 //! - [`dataset`] — the synthetic dataset bundle: a calibration-rs
 //!   `DatasetSpec`, robot poses, and `gt.json`.
 //!
+//! - [`observe`] — observations of a dataset's ground truth with controlled,
+//!   seeded noise: pixel noise, outliers, dropouts, laser and robot-pose noise
+//!   (P13).
+//!
 //! No camera-model math lives here. Every projection and back-projection is
 //! `vision-calibration-core`'s (`CameraModel::project_point_c`,
 //! `CameraModel::backproject_pixel`); this crate only chooses the canonical
@@ -45,6 +49,7 @@ pub mod job;
 pub mod laser;
 #[cfg(feature = "images")]
 pub mod laser_render;
+pub mod observe;
 pub mod poses;
 pub mod remap;
 pub mod sensor;
