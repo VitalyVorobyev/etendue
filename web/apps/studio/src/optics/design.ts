@@ -5,7 +5,7 @@
  * library's `HeadDesign`, with the camera's params derived by the kernel (ADR 0008).
  */
 
-import { type HeadDesign, type LibraryItem, deriveOptics } from "@etendue/wasm";
+import { type CameraSpec, type HeadDesign, type LaserSpec, type LibraryItem, deriveOptics } from "@etendue/wasm";
 import { Matrix4, Quaternion, Vector3 } from "three";
 
 import { type Project, itemsOf } from "../io/project";
@@ -104,13 +104,41 @@ export function withSetting(
   return { ...p, tilt: s.tilt, focus_distance_m: s.focus_distance_m, f_number: s.f_number };
 }
 
-/** A head to start from: the project's first sensor, lens and laser, or a 25 mm IMX174 rig. */
+/**
+ * A head to start from: the project's default camera when it is physical (its sensor, lens and
+ * setting), else its first sensor and a 25 mm lens; its default laser, else its first.
+ */
 export function initialHead(project: Project | null): HeadParams {
+  const fallback = startingParts(project);
+  const ref = project?.manifest.defaults?.camera;
+  const camera = ref ? project?.library.get(ref)?.camera : undefined;
+  const optics = camera?.optics;
+  if (!camera || !optics) return fallback;
+  return {
+    ...fallback,
+    sensor: {
+      name: optics.sensor.name ?? "sensor",
+      pixel_pitch_m: optics.sensor.pixel_pitch_m,
+      resolution: camera.resolution,
+    },
+    lens: {
+      name: optics.lens.name ?? "lens",
+      focal_length_m: optics.lens.focal_length_m,
+      min_f_number: Math.min(1.4, optics.lens.f_number),
+      principal_gap_m: optics.lens.principal_gap_m ?? 0,
+      entrance_pupil_m: optics.lens.entrance_pupil_m ?? 0,
+    },
+    f_number: optics.lens.f_number,
+  };
+}
+
+function startingParts(project: Project | null): HeadParams {
   const first = (kind: "sensor" | "lens" | "laser") => (project ? itemsOf(project, kind)[0]?.[1] : undefined);
   const sensor = first("sensor");
   const lens =
     itemsOf(project ?? EMPTY, "lens").find(([, l]) => l.lens!.focal_length_m === 0.025)?.[1] ?? first("lens");
-  const laser = first("laser");
+  const defaultLaser = project?.manifest.defaults?.laser;
+  const laser = (defaultLaser ? project?.library.get(defaultLaser) : undefined) ?? first("laser");
   return {
     name: "Laser head",
     id: "laser_head",
@@ -213,5 +241,40 @@ export function fromItem(item: LibraryItem): HeadParams | null {
     max_blur_px: window?.max_blur_px ?? 2,
     // A window off its centre is re-centred on the aim point.
     ...(window ? { depth_m: 2 * Math.max(centre - window.near_m, window.far_m - centre) } : {}),
+  };
+}
+
+/**
+ * The camera and laser of `p` for a scene: the camera (with its optics) at `cameraPose` in
+ * `parent`, the laser on the camera's body, linked to it. Ids are `cameraId` and `laserId`.
+ */
+export function placement(
+  p: HeadParams,
+  parent: string,
+  cameraPose: { rotation: [number, number, number, number]; translation: [number, number, number] },
+  cameraId: string,
+  laserId: string,
+): { camera: CameraSpec; laser: LaserSpec } {
+  const design = toDesign(p);
+  return {
+    camera: {
+      id: cameraId,
+      parent,
+      parent_se3_self: cameraPose,
+      params: design.camera.params,
+      resolution: design.camera.resolution,
+      ...(design.camera.optics ? { optics: design.camera.optics } : {}),
+    },
+    laser: {
+      id: laserId,
+      parent: cameraId,
+      parent_se3_self: design.camera_se3_laser,
+      fan_half_angle: p.laser.fan_half_angle,
+      fan_length: p.fan_length_m,
+      wavelength_nm: p.laser.wavelength_nm,
+      // The scene's beam model needs a waist; a laser part without one gets 0.5 mm.
+      beam_waist_m: p.laser.beam_waist_m ?? 5e-4,
+      camera: cameraId,
+    },
   };
 }

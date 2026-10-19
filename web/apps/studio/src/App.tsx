@@ -21,7 +21,7 @@ import { type Bodies, type PoseOverride, bodyPoses, posed } from "./kernel/posed
 import type { GeneratedPoses } from "@etendue/wasm";
 import { scenarioFromPoses } from "./kernel/native";
 import { analyse } from "./optics/analysis";
-import { type HeadParams, initialHead, toItem } from "./optics/design";
+import { type HeadParams, initialHead, placement, toItem } from "./optics/design";
 import { OpticsForm, OpticsReadouts } from "./optics/OpticsPanels";
 import { PlaneMap } from "./optics/PlaneMap";
 import { SectionView } from "./optics/SectionView";
@@ -521,6 +521,35 @@ export function App() {
     </div>
   );
 
+  // A head from the Optics workspace into the open cell: under the selected frame, or above the
+  // world origin looking down; then the Setup workspace, with its camera selected.
+  const placeHead = (p: HeadParams) => {
+    if (!current) return;
+    const scene = current.loaded.scene;
+    const parent = selected !== null && current.baked.frames.includes(selected) ? selected : "world";
+    const pose =
+      parent === "world"
+        ? {
+            rotation: [1, 0, 0, 0] as [number, number, number, number],
+            translation: [0, 0, 0.8] as [number, number, number],
+          }
+        : IDENTITY;
+    const cameraId = uniqueId(scene, "head_cam");
+    const laserId = uniqueId(
+      { ...scene, cameras: [...(scene.cameras ?? []), { id: cameraId } as never] },
+      "head_laser",
+    );
+    const { camera, laser } = placement(p, parent, pose, cameraId, laserId);
+    const ok = studio.edit(`place ${p.name}`, (d) => ({
+      ...d,
+      scene: addEntity(addEntity(d.scene, "cameras", camera), "lasers", laser),
+    }));
+    if (ok) {
+      setMode("setup");
+      setSelected(cameraId);
+    }
+  };
+
   // The Optics workspace: a head designed against its window (P10).
   const opticsLeft =
     headParams && headAnalysis ? (
@@ -530,6 +559,7 @@ export function App() {
         analysis={headAnalysis}
         project={project}
         onSave={project?.write ? (p) => studio.saveLibraryItem(toItem(p)) : null}
+        onPlace={current ? placeHead : null}
       />
     ) : null;
   const opticsMain =

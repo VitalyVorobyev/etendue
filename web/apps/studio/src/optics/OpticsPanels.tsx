@@ -1,6 +1,6 @@
 import { type HeadOptimum, headOptimise } from "@etendue/wasm";
 import { Button, Callout, Input, Select, Switch } from "@vitavision/ui";
-import { Crosshair, Save, Sparkles } from "lucide-react";
+import { Crosshair, PackagePlus, Save, Sparkles } from "lucide-react";
 import { type ReactNode, useState } from "react";
 
 import { type Project, itemsOf } from "../io/project";
@@ -62,6 +62,7 @@ export function OpticsForm({
   analysis,
   project,
   onSave,
+  onPlace,
 }: {
   params: HeadParams;
   onChange: (p: HeadParams) => void;
@@ -69,6 +70,8 @@ export function OpticsForm({
   project: Project | null;
   /** Save the design to the project's library; `null` when the project is read-only. */
   onSave: ((p: HeadParams) => Promise<boolean>) | null;
+  /** Put the head into the open cell; `null` when no cell is open. */
+  onPlace: ((p: HeadParams) => void) | null;
 }) {
   const [tiltFree, setTiltFree] = useState(true);
   const [optimum, setOptimum] = useState<{ for: HeadParams; result: HeadOptimum } | null>(null);
@@ -416,7 +419,21 @@ export function OpticsForm({
             onChange={(e) => onChange({ ...p, id: e.target.value.replace(/[^a-z0-9_-]/g, "_").toLowerCase() })}
           />
         </Rows>
-        <SaveButton params={p} onSave={onSave} disabled={typeof analysis === "string"} />
+        <div className="flex flex-wrap gap-1.5">
+          <SaveButton params={p} onSave={onSave} disabled={typeof analysis === "string"} />
+          {onPlace && (
+            <Button
+              size="sm"
+              variant="ghost"
+              icon={<PackagePlus className="size-3.5" />}
+              disabled={typeof analysis === "string"}
+              onClick={() => onPlace(p)}
+              title="Add this head's camera and laser to the open cell"
+            >
+              Place in cell
+            </Button>
+          )}
+        </div>
       </Fold>
     </div>
   );

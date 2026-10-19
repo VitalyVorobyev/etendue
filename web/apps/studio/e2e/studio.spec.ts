@@ -356,4 +356,12 @@ test("the Optics workspace designs a laser head: Scheimpflug, handles, optimiser
   await expect(optimum).toContainText("0.00°, 0.00°");
   await optimum.getByRole("button", { name: "Apply" }).click();
   await expect(page.getByRole("spinbutton", { name: "tilt x value" })).toHaveValue(/^-?0[.,]00$/);
+
+  // Placed in the cell: a physical camera with the laser on its body, one undoable edit.
+  await page.getByRole("button", { name: "Place in cell" }).click();
+  await expect(page.getByRole("radio", { name: "Setup" })).toBeChecked();
+  await expect(page.getByRole("treeitem", { name: /head_cam/ })).toBeVisible();
+  await expect(page.getByRole("treeitem", { name: /head_laser/ })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Id" })).toHaveValue("head_cam");
+  await expect(page.getByRole("button", { name: "Undo place Laser head" })).toBeEnabled();
 });
