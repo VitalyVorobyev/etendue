@@ -17,6 +17,8 @@ pub enum Stage {
     Resample,
     /// Corner detection (`etendue detect`).
     Detect,
+    /// Calibration trials (`etendue calibrate`).
+    Calibrate,
 }
 
 /// One progress event.

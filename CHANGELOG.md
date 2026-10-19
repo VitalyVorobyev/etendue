@@ -132,7 +132,10 @@ calibration datasets with exact ground truth. The 0.1.0 desktop app is replaced 
   - **Report:** JSON with the rows, residuals and the estimate.
 
   `etendue-synth::observe` synthesises the noisy observations. A single camera with its laser
-  on a robot now emits a `laserline_device` dataset.
+  on a robot now emits a `laserline_device` dataset. In the studio (desktop), the Dataset
+  workspace becomes **Calibrate**: generate a dataset, then calibrate it (exact, with noise and
+  trials, or detected) and compare. It shows a table against the gate, the trial spread and a
+  residual histogram.
 - **Robot jogging** (Motion ▸ Jog): move a robot at the playhead by its joints or in Cartesian
   steps (tool or base axes), or drag its TCP with the gizmo (IK from the current joints). The TCP
   pose, its manipulability, joints near their limits and out-of-reach targets are shown. The pose

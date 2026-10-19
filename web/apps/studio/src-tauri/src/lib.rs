@@ -473,6 +473,53 @@ async fn generate_dataset(
     result.map_err(|e| format!("dataset run panicked: {e}"))
 }
 
+/// How a calibration run ended.
+#[derive(Clone, Debug, serde::Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+enum CalibrationOutcome {
+    Ok {
+        #[serde(flatten)]
+        run: etendue_cli::calibrate::Run,
+    },
+    Cancelled,
+    Failed {
+        message: String,
+    },
+}
+
+/// Calibrate the dataset in `dir` natively (`etendue calibrate`) on a worker thread, one progress
+/// step per trial; `run_id` names the run for [`cancel_run`]. The run is also written to
+/// `dir/calibration.json`.
+#[tauri::command]
+async fn calibrate_dataset(
+    run_id: String,
+    dir: PathBuf,
+    options: etendue_cli::calibrate::RunOptions,
+    on_progress: Channel<Progress>,
+    runs: State<'_, Runs>,
+    access: State<'_, Access>,
+) -> Result<CalibrationOutcome, String> {
+    let dir = access.writable(&dir)?;
+    let cancel = runs.start(&run_id);
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let report = move |p: Progress| {
+            let _ = on_progress.send(p);
+        };
+        match etendue_cli::calibrate::run_dir(&dir, &options, &Control::new(&report, Some(&cancel))) {
+            Ok(run) => CalibrationOutcome::Ok { run },
+            Err(e) if e.downcast_ref::<etendue_cli::progress::Cancelled>().is_some() => {
+                CalibrationOutcome::Cancelled
+            }
+            Err(e) => CalibrationOutcome::Failed {
+                message: format!("{e:#}"),
+            },
+        }
+    })
+    .await;
+    runs.finish(&run_id);
+    result.map_err(|e| format!("calibration run panicked: {e}"))
+}
+
 /// Ask a run to stop. `true` if it was still running.
 #[tauri::command]
 fn cancel_run(run_id: String, runs: State<'_, Runs>) -> bool {
@@ -519,6 +566,7 @@ pub fn run() {
             blender_status,
             scenario_from_poses,
             generate_dataset,
+            calibrate_dataset,
             cancel_run,
         ])
         .run(tauri::generate_context!())

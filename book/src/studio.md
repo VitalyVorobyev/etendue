@@ -110,14 +110,15 @@ surface; the panels around it hold only what that workspace needs.
 - **Images**: what every camera sees at the playhead, side by side, with the targets projected
   through each camera's model. Hover over a camera and click its expand button to show it alone.
   The 3D view stays in a corner; hide it to see the whole grid.
-- **Dataset** (desktop): generate a dataset; see below.
+- **Calibrate** (desktop): generate a dataset, calibrate it natively and compare the result with
+  the ground truth; see below.
 
 The **playback** bar along the bottom plays, pauses, scrubs and loops the scenario at a chosen
 speed. Captures are marked on the timeline.
 
-## Generating a dataset (desktop)
+## Generating and calibrating a dataset (desktop)
 
-The **Dataset** workspace runs the native pipeline on the current scene and scenario, as edited.
+The **Calibrate** workspace runs the native pipeline on the current scene and scenario, as edited.
 The scene goes into the output folder as `scene.json`, with the scenario:
 
 | Setting | Meaning |
@@ -141,3 +142,31 @@ live view.
 A new run starts from an empty dataset: the previous run's images and detections are removed.
 
 The files written are described in [Datasets](datasets.md).
+
+### Calibrate and compare
+
+Once a dataset exists, **Calibrate** calibrates it with calibration-rs's own workflows, natively
+(as `etendue calibrate` does; see [the command line](cli.md#calibrate)), and compares every
+result with the ground truth.
+
+**Observations:**
+- **Exact:** the ground truth's own pixels. The closed-loop gate applies (G5.1, or G5.3 with
+  lasers), and every gated row shows PASS or FAIL.
+- **With noise:** the same pixels with seeded noise:
+  - pixel σ;
+  - outliers (share and σ);
+  - dropouts;
+  - laser-stripe σ;
+  - robot TCP rotation and translation σ.
+
+  Several **trials** use seeds `seed, seed + 1, …`, and the table then gives each quantity's
+  mean, spread and maximum. The gate's limits are shown for reference.
+- **Detected:** after a render, the detector's corners and stripes.
+
+A rig without lasers can also be calibrated one camera at a time. The result shows:
+- the workflow and the views, points and laser pixels used;
+- every intrinsic, distortion coefficient, rig transform, tilt and laser plane, the hand-eye and
+  the target, each as an error against the truth;
+- the mean and per-axis RMS reprojection error, and a histogram of every point's error.
+
+The run is also written to the dataset folder as `calibration.json`.

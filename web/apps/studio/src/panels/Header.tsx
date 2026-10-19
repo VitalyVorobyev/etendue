@@ -37,7 +37,7 @@ export const MODES: { value: Mode; label: string }[] = [
   { value: "setup", label: "Setup" },
   { value: "motion", label: "Motion" },
   { value: "images", label: "Images" },
-  { value: "dataset", label: "Dataset" },
+  { value: "dataset", label: "Calibrate" },
 ];
 
 /** One entry of the File ▸ Export section. */

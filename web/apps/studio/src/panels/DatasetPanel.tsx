@@ -34,6 +34,7 @@ const STAGES: Record<Stage, string> = {
   render: "Rendering",
   resample: "Resampling",
   detect: "Detecting",
+  calibrate: "Calibrating",
 };
 
 /** Lines of the run log kept on screen. */

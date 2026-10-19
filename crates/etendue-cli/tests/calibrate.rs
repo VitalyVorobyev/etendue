@@ -101,3 +101,42 @@ fn g13_2_the_same_seed_gives_the_same_report() {
     let report: etendue_cli::calibrate::Report = serde_json::from_str(&first).unwrap();
     assert!(!report.gated && report.noise.is_some());
 }
+
+#[test]
+fn a_dataset_directory_runs_trials_and_keeps_the_run() {
+    use etendue_cli::calibrate::{CALIBRATION, Run, RunOptions, run_dir};
+    use etendue_cli::progress::Control;
+    use std::sync::atomic::AtomicBool;
+
+    truth(&example("closed_loop_ur5e"), "closed_loop_ur5e", "trials");
+    let dir = root().join("target/calibrate_test/trials/gt");
+    let options = RunOptions {
+        noise: ObservationNoise {
+            pixel_sigma_px: 0.3,
+            seed: 9,
+            ..ObservationNoise::default()
+        },
+        trials: 3,
+        ..RunOptions::default()
+    };
+    let steps = std::sync::Mutex::new(Vec::new());
+    let report = |p: etendue_cli::progress::Progress| steps.lock().unwrap().push(p);
+    let run = run_dir(&dir, &options, &Control::new(&report, None)).unwrap();
+    assert_eq!(run.reports.len(), 3);
+    let stats = run.row_stats.as_ref().unwrap();
+    assert_eq!(stats.len(), run.reports[0].rows.len());
+    let written: Run =
+        serde_json::from_str(&std::fs::read_to_string(dir.join(CALIBRATION)).unwrap()).unwrap();
+    assert_eq!(written.reports.len(), 3);
+    assert!(
+        steps.lock().unwrap().len() >= 4,
+        "a step per trial and the end"
+    );
+    // Cancelled before the first trial.
+    let cancel = AtomicBool::new(true);
+    let err = run_dir(&dir, &options, &Control::new(&report, Some(&cancel))).unwrap_err();
+    assert!(
+        err.downcast_ref::<etendue_cli::progress::Cancelled>()
+            .is_some()
+    );
+}
