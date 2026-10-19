@@ -79,6 +79,9 @@ function noiseOf(f: NoiseForm): ObservationNoise {
 }
 
 const sci = (v: number) => (Number.isFinite(v) ? v.toExponential(3) : "—");
+/** Pixels: fixed where readable, scientific below a thousandth. */
+const px = (v: number) =>
+  !Number.isFinite(v) ? "—" : v !== 0 && Math.abs(v) < 1e-3 ? v.toExponential(2) : v.toFixed(4);
 
 function verdict(row: CalibrationRow, gated: boolean): { text: string; tone: "normal" | "defect" | "warning" } | null {
   if (row.limit === undefined) return null;
@@ -248,9 +251,8 @@ export function CalibratePanel({
             )}
           </div>
           <p className="font-mono text-xs text-fg-muted" data-testid="calibration-residuals">
-            reprojection: mean {first.residuals.mean_px.toFixed(4)} px · rms per axis{" "}
-            {first.residuals.rms_axis_px.toFixed(4)} px · max {first.residuals.max_px.toFixed(3)} px over{" "}
-            {first.residuals.count} points
+            reprojection: mean {px(first.residuals.mean_px)} px · rms per axis {px(first.residuals.rms_axis_px)} px ·
+            max {px(first.residuals.max_px)} px over {first.residuals.count} points
           </p>
           <div className="grid gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
             <div className="min-w-0">
@@ -270,7 +272,7 @@ export function CalibratePanel({
               variant="fluid"
               height={220}
               footer={`${shown.reports.length > 1 ? "First trial. " : ""}Mean per camera: ${first.residuals.per_camera_mean_px
-                .map((m, i) => `${first.cameras[i] ?? i} ${m.toFixed(4)} px`)
+                .map((m, i) => `${first.cameras[i] ?? i} ${px(m)} px`)
                 .join(", ")}`}
             />
           </div>
