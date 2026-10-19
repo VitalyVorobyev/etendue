@@ -61,7 +61,7 @@ pub fn write(loaded: &Loaded, baked: &BakedScenario, output: &Path) -> Result<Gt
         })?
         .points;
     let manifests: Vec<RobotManifest> = loaded.manifests.iter().map(|(m, _)| m.clone()).collect();
-    let bundle = emit(
+    let mut bundle = emit(
         &loaded.scene,
         baked,
         &manifests,
@@ -72,6 +72,10 @@ pub fn write(loaded: &Loaded, baked: &BakedScenario, output: &Path) -> Result<Gt
             laser_spacing_m: 1e-3,
         },
     )?;
+    // The scene was resolved into projection frames: say where each body is.
+    for camera in &mut bundle.gt.cameras {
+        camera.mech_se3_projection = loaded.mech_se3_projection.get(&camera.id).copied();
+    }
     std::fs::create_dir_all(output).with_context(|| format!("creating {}", output.display()))?;
     let write = |name: &str, text: String| {
         let path = output.join(name);

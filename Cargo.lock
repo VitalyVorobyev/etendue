@@ -540,6 +540,7 @@ dependencies = [
  "calib-targets-puzzleboard",
  "chess-corners",
  "clap",
+ "etendue-core",
  "etendue-kinematics",
  "etendue-scene",
  "etendue-synth",
@@ -558,6 +559,7 @@ dependencies = [
  "approx",
  "argmin",
  "argmin-math",
+ "etendue-scene",
  "nalgebra",
  "serde",
  "serde_json",
@@ -622,6 +624,7 @@ dependencies = [
 name = "etendue-wasm"
 version = "0.1.0"
 dependencies = [
+ "etendue-core",
  "etendue-kinematics",
  "etendue-scene",
  "etendue-synth",

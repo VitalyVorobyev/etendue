@@ -27,6 +27,8 @@
 //! - [`error`]: the crate's typed [`Error`] enum and [`Result`] alias.
 //! - [`geom`]: pure geometry — triangle meshes and primitive constructors.
 //! - [`scene`]: the posed-entity scene — cameras, lasers, and targets.
+//! - [`from_scene`]: the bridge from `etendue-scene` documents to the camera model: a scene in
+//!   projection frames, for everything that projects.
 //! - [`optics`]: the thick-lens defocus physics — conjugates, the Scheimpflug
 //!   plane of best focus, and the geometric circle of confusion.
 //! - [`laser`]: the laser-line model — the laser fan plane, its Gaussian-beam
@@ -41,6 +43,7 @@
 pub mod analysis;
 pub mod bank;
 pub mod error;
+pub mod from_scene;
 pub mod geom;
 pub mod laser;
 pub mod optics;

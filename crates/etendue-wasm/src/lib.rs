@@ -17,7 +17,11 @@
 //! resolves and reads them and passes the contents in as [`RobotSource`]s;
 //! this crate does no I/O.
 
+use std::collections::BTreeMap;
 use std::fmt;
+
+use etendue_core::from_scene::{physical_camera, resolve};
+use etendue_core::optics::CardinalPoints;
 
 use etendue_kinematics::{
     BakeOptions, ReportOptions, RobotModel, bake_trajectory, compile, report_trajectory,
@@ -33,7 +37,7 @@ use etendue_synth::target_mesh::{TargetMesh, geometry_mesh};
 use etendue_synth::{CanonicalCamera, CanonicalSpec, PixelCentre, RemapLut, remap_lut};
 use nalgebra::{Isometry3, Point2, Point3, Quaternion, Translation3, UnitQuaternion};
 use serde::Deserialize;
-use vision_calibration_core::CameraModel;
+use vision_calibration_core::{CameraModel, CameraParams};
 use wasm_bindgen::prelude::*;
 
 /// The contents of one robot's asset files, for the scene robot `id`.
@@ -129,8 +133,14 @@ fn parse<T: serde::de::DeserializeOwned>(what: &'static str, json: &str) -> Resu
 }
 
 /// A loaded, validated scene.
+///
+/// The session keeps the scene in projection frames (`etendue-core::from_scene::resolve`): a
+/// camera with optics sits at its entrance pupil with its equivalent pinhole, so every bake,
+/// projection and image here is the physical camera's. [`Session::mech_se3_projection`] gives
+/// where each such camera's projection frame is in its body's frame.
 pub struct Session {
     scene: SceneSpec,
+    mech_se3_projection: BTreeMap<String, Isometry3<f64>>,
     robots: Vec<RobotModel>,
     cameras: Vec<CameraModel>,
 }
@@ -152,6 +162,8 @@ impl Session {
     pub fn load(scene_json: &str, robots_json: &str) -> Result<Self> {
         let scene: SceneSpec = parse("scene", scene_json)?;
         scene.validate().map_err(|e| Error::invalid("scene", e))?;
+        let resolved = resolve(&scene).map_err(|e| Error::invalid("scene", e))?;
+        let (scene, mech_se3_projection) = (resolved.scene, resolved.mech_se3_projection);
         let mut sources: Vec<RobotSource> = parse("robots", robots_json)?;
 
         let mut robots = Vec::with_capacity(scene.robots.len());
@@ -192,6 +204,7 @@ impl Session {
             .map_err(|e| Error::Input(format!("camera model does not build: {e}")))?;
         Ok(Self {
             scene,
+            mech_se3_projection,
             robots,
             cameras,
         })
@@ -212,6 +225,8 @@ impl Session {
     pub fn update_scene(&mut self, scene_json: &str) -> Result<()> {
         let scene: SceneSpec = parse("scene", scene_json)?;
         scene.validate().map_err(|e| Error::invalid("scene", e))?;
+        let resolved = resolve(&scene).map_err(|e| Error::invalid("scene", e))?;
+        let (scene, mech_se3_projection) = (resolved.scene, resolved.mech_se3_projection);
         let mut robots = Vec::with_capacity(scene.robots.len());
         for spec in &scene.robots {
             let at = self
@@ -253,8 +268,20 @@ impl Session {
             .map(|&at| old[at].take().expect("robot ids are unique"))
             .collect();
         self.scene = scene;
+        self.mech_se3_projection = mech_se3_projection;
         self.cameras = cameras;
         Ok(())
+    }
+
+    /// Where camera `camera_id`'s projection frame (its entrance pupil) is in its body's frame,
+    /// for a camera with optics; `None` for a plain pinhole, whose frame is its projection frame.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Input`] for an unknown camera.
+    pub fn mech_se3_projection(&self, camera_id: &str) -> Result<Option<Isometry3<f64>>> {
+        self.camera_index(camera_id)?;
+        Ok(self.mech_se3_projection.get(camera_id).copied())
     }
 
     /// The loaded scene.
@@ -637,6 +664,56 @@ impl Session {
     }
 }
 
+/// What a camera's optics give (ADR 0008), for an editor to show and store.
+#[derive(Clone, Debug, serde::Serialize)]
+pub struct DerivedOptics {
+    /// The equivalent pinhole about the entrance pupil: what the camera's `params` must hold.
+    pub params: CameraParams,
+    /// The projection frame (entrance pupil) in the camera's body frame.
+    pub mech_se3_projection: Isometry3<f64>,
+    /// The lens's points on the body's axis (m from the image-plane datum).
+    pub cardinal_points: CardinalPoints,
+    /// H′ to the sensor at this focus (m).
+    pub image_distance_m: f64,
+    /// H to the plane in focus (m).
+    pub object_distance_m: f64,
+    /// Lateral magnification at this focus.
+    pub magnification: f64,
+    /// Exit over entrance pupil diameter.
+    pub pupil_magnification: f64,
+    /// Entrance pupil diameter (m).
+    pub entrance_pupil_diameter_m: f64,
+    /// Exit pupil diameter (m).
+    pub exit_pupil_diameter_m: f64,
+    /// `N · (1 + m / m_p)`.
+    pub working_f_number: f64,
+}
+
+/// What `optics` give a camera built as `params` (its principal point and distortion are kept;
+/// its focal lengths, skew and sensor tilt are derived).
+///
+/// # Errors
+///
+/// [`Error::Parse`] for malformed documents; [`Error::Input`] for optics that are not physical
+/// (a focus the lens cannot reach, a pupil beyond the focal point).
+pub fn derive_optics(optics_json: &str, params_json: &str) -> Result<DerivedOptics> {
+    let optics: etendue_scene::OpticsSpec = parse("optics", optics_json)?;
+    let params: CameraParams = parse("camera params", params_json)?;
+    let camera = physical_camera(&optics, &params).map_err(|e| Error::Input(e.to_string()))?;
+    Ok(DerivedOptics {
+        params: camera.pinhole().clone(),
+        mech_se3_projection: *camera.mech_se3_projection(),
+        cardinal_points: *camera.cardinal_points(),
+        image_distance_m: camera.image_distance_m(),
+        object_distance_m: camera.object_distance_m(),
+        magnification: camera.magnification(),
+        pupil_magnification: camera.pupil_magnification(),
+        entrance_pupil_diameter_m: camera.entrance_pupil_diameter_m(),
+        exit_pupil_diameter_m: camera.exit_pupil_diameter_m(),
+        working_f_number: camera.working_f_number(),
+    })
+}
+
 /// A rig layout's cameras and lasers.
 #[derive(Clone, Debug, serde::Serialize)]
 pub struct ExpandedRig {
@@ -720,6 +797,20 @@ pub fn expand_rig_js(layout_json: &str, rig: &str) -> std::result::Result<String
     serde_json::to_string(&expanded).map_err(|e| js_error(&Error::Input(e.to_string())))
 }
 
+/// What a camera's optics give, as JSON text. See [`derive_optics`].
+///
+/// # Errors
+///
+/// Throws an `Error` with `kind`.
+#[wasm_bindgen(js_name = deriveOptics)]
+pub fn derive_optics_js(
+    optics_json: &str,
+    params_json: &str,
+) -> std::result::Result<String, JsValue> {
+    let derived = derive_optics(optics_json, params_json).map_err(|e| js_error(&e))?;
+    serde_json::to_string(&derived).map_err(|e| js_error(&Error::Input(e.to_string())))
+}
+
 /// The PuzzlePole circumferences calib-targets supports, with their seam
 /// rows: `[{squares, start_row}]` as JSON text.
 #[wasm_bindgen(js_name = poleCircumferences)]
@@ -765,6 +856,28 @@ impl EtendueScene {
         self.inner
             .update_scene(scene_json)
             .map_err(|e| js_error(&e))
+    }
+
+    /// Where camera `camera_id`'s projection frame (its entrance pupil) is in its body's frame,
+    /// as `[qx, qy, qz, qw, tx, ty, tz]`; `undefined` for a camera without optics. The baked
+    /// frame of a camera is its projection frame. See [`Session::mech_se3_projection`].
+    ///
+    /// # Errors
+    ///
+    /// Throws an `Error` with `kind` for an unknown camera.
+    #[wasm_bindgen(js_name = mechSe3Projection)]
+    pub fn mech_se3_projection(
+        &self,
+        camera_id: &str,
+    ) -> std::result::Result<Option<Vec<f64>>, JsValue> {
+        let pose = self
+            .inner
+            .mech_se3_projection(camera_id)
+            .map_err(|e| js_error(&e))?;
+        Ok(pose.map(|p| {
+            let (q, t) = (p.rotation.coords, p.translation.vector);
+            vec![q.x, q.y, q.z, q.w, t.x, t.y, t.z]
+        }))
     }
 
     /// Bake a scenario; returns the `BakedScenario` as JSON text. See

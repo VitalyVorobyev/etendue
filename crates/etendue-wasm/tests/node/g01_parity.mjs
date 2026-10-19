@@ -72,6 +72,29 @@ const uv = cameras.map((id) =>
 );
 session.free();
 
+// ADR 0008: cam_left with physical optics (a tilted sensor, a thick lens with its pupil off H).
+// deriveOptics gives its params; the session works in its projection frame.
+const optics = {
+  sensor: { pixel_pitch_m: 4.8e-6 },
+  lens: { focal_length_m: 0.012, f_number: 5.6, principal_gap_m: 0.004, entrance_pupil_m: 0.003 },
+  focus_distance_m: 0.5,
+  tilt_rad: [0.02, -0.01],
+};
+const opticsDoc = JSON.parse(scene);
+const left = opticsDoc.cameras.find((c) => c.id === "cam_left");
+const opticsParams = JSON.stringify(left.params);
+const derived = wasm.deriveOptics(JSON.stringify(optics), opticsParams);
+left.params = JSON.parse(derived).params;
+left.optics = optics;
+const opticsScene = JSON.stringify(opticsDoc);
+const physical = new wasm.EtendueScene(opticsScene, robots);
+const uvOptics = Array.from(
+  physical.projectPoints("cam_left", new Float64Array(worldSe3Camera), new Float64Array(xyz)),
+  hex,
+);
+const mech = Array.from(physical.mechSe3Projection("cam_left"), hex);
+physical.free();
+
 process.stdout.write(
   JSON.stringify({
     gate: "G0.1",
@@ -79,5 +102,13 @@ process.stdout.write(
     world_se3_camera: worldSe3Camera.map(hex),
     xyz: xyz.map(hex),
     uv,
+    optics: {
+      spec: JSON.stringify(optics),
+      params: opticsParams,
+      derived,
+      scene: opticsScene,
+      uv: uvOptics,
+      mech_se3_projection: mech,
+    },
   }) + "\n",
 );

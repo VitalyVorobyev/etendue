@@ -165,7 +165,7 @@ prop_compose! {
             frames: frames.into_iter().map(|(id, parent, parent_se3_self)| FrameSpec { id, parent, parent_se3_self }).collect(),
             robots: robots.into_iter().map(|(id, parent, parent_se3_self, manifest, initial_q)| RobotSpec { id, parent, parent_se3_self, manifest, initial_q }).collect(),
             rigs: rigs.into_iter().map(|(id, parent, parent_se3_self)| RigSpec { id, parent, parent_se3_self, layout: None }).collect(),
-            cameras: cameras.into_iter().map(|(id, parent, parent_se3_self, params, resolution)| CameraSpec { id, parent, parent_se3_self, params, resolution }).collect(),
+            cameras: cameras.into_iter().map(|(id, parent, parent_se3_self, params, resolution)| CameraSpec { id, parent, parent_se3_self, params, resolution, optics: None }).collect(),
             lasers: lasers.into_iter().map(|(id, parent, parent_se3_self, p)| LaserSpec {
                 camera: (p[0] > 0.5).then(|| id.clone()),
                 id, parent, parent_se3_self,

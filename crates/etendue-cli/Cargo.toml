@@ -19,6 +19,7 @@ name = "etendue"
 path = "src/main.rs"
 
 [dependencies]
+etendue-core = { workspace = true }
 anyhow = { workspace = true }
 calib-targets-charuco = { workspace = true }
 calib-targets-chessboard = { workspace = true }

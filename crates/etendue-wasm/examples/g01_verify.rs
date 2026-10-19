@@ -103,6 +103,52 @@ fn main() -> ExitCode {
             xyz.len() / 3 - imaged
         );
     }
+    // ADR 0008: the physical camera, its derived params and its projection frame.
+    let optics = &probe["optics"];
+    let text = |key: &str| optics[key].as_str().expect("optics probe text");
+    let derived = etendue_wasm::derive_optics(text("spec"), text("params")).expect("native derive");
+    let native_derived = serde_json::to_string(&derived).expect("serialise");
+    if native_derived != text("derived") {
+        eprintln!(
+            "deriveOptics differs:\n  native {native_derived}\n  wasm   {}",
+            text("derived")
+        );
+        mismatches += 1;
+    }
+    let physical = Session::load(text("scene"), &robots.to_string()).expect("optics scene loads");
+    let native_uv = physical
+        .project_points("cam_left", &pose, &xyz)
+        .expect("native projection");
+    let wasm_uv = decode(&optics["uv"]);
+    for (i, (a, b)) in native_uv.iter().zip(&wasm_uv).enumerate() {
+        if a.to_bits() != b.to_bits() {
+            if mismatches < 10 {
+                eprintln!("cam_left (optics): mismatch at output {i}: native {a:e} vs wasm {b:e}");
+            }
+            mismatches += 1;
+        }
+    }
+    total += native_uv.len();
+    let mech = physical
+        .mech_se3_projection("cam_left")
+        .expect("known camera")
+        .expect("a camera with optics");
+    let (q, t) = (mech.rotation.coords, mech.translation.vector);
+    for (a, b) in [q.x, q.y, q.z, q.w, t.x, t.y, t.z]
+        .iter()
+        .zip(decode(&optics["mech_se3_projection"]))
+    {
+        if a.to_bits() != b.to_bits() {
+            mismatches += 1;
+        }
+    }
+    println!(
+        "  cam_left (optics)  imaged {}, plus deriveOptics and its projection frame",
+        native_uv
+            .chunks_exact(2)
+            .filter(|uv| uv[0].is_finite())
+            .count()
+    );
     println!("  output values:     {total}");
     println!("  bit mismatches:    {mismatches}");
     println!("  max |Δ| (px):      {max_abs_diff:e}");

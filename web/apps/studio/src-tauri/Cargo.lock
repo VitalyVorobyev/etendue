@@ -1136,6 +1136,7 @@ dependencies = [
  "calib-targets-puzzleboard",
  "chess-corners",
  "clap",
+ "etendue-core",
  "etendue-kinematics",
  "etendue-scene",
  "etendue-synth",
@@ -1151,6 +1152,7 @@ dependencies = [
 name = "etendue-core"
 version = "0.1.0"
 dependencies = [
+ "etendue-scene",
  "nalgebra",
  "serde",
  "serde_json",

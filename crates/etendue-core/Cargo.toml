@@ -9,6 +9,7 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+etendue-scene = { workspace = true }
 nalgebra = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

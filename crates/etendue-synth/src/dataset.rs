@@ -140,6 +140,11 @@ pub struct GtCamera {
     /// Pose of the rig in the camera frame, if the camera is on a rig.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cam_se3_rig: Option<Isometry3<f64>>,
+    /// For a camera with physical optics (ADR 0008): its projection frame (the entrance pupil,
+    /// the frame of `params` and of every camera pose here) in its body's frame, where the scene
+    /// places it. A calibration recovers the projection frame; this gives the body.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mech_se3_projection: Option<Isometry3<f64>>,
 }
 
 /// True hand-eye transform, in calibration-rs `HandeyeMountSpec` terms.
@@ -521,6 +526,7 @@ pub fn emit(
                 params: c.params.clone(),
                 resolution: c.resolution,
                 cam_se3_rig,
+                mech_se3_projection: None,
             })
         })
         .collect::<Result<Vec<_>>>()?;

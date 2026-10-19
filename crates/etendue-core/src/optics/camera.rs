@@ -82,14 +82,7 @@ use vision_calibration_core::{
 
 use crate::{Error, Result};
 
-/// How a lens focuses.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
-pub enum Focusing {
-    /// The whole lens moves along its axis; its focal length does not change.
-    #[default]
-    Unit,
-}
+pub use etendue_scene::Focusing;
 
 /// An ideal thick lens with its entrance pupil.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
