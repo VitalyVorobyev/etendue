@@ -411,6 +411,36 @@ export class Studio {
     this.#publishHistory();
   }
 
+  /** The library robot whose manifest is `manifest` (repository-relative), as `id`. */
+  readonly loadLibraryRobot = async (manifest: string, id: string): Promise<LoadedRobot> =>
+    loadRobot(await repository(), manifest, id);
+
+  /**
+   * Make robot `id` of the scene the library robot whose manifest is `manifest`, by `change`
+   * (which updates its `RobotSpec`). One undoable edit; refused, like any edit, when the scene or
+   * the program no longer validates (a program written for other joints).
+   */
+  readonly replaceRobot = async (
+    manifest: string,
+    id: string,
+    change: (doc: Doc, robot: LoadedRobot) => Doc,
+  ): Promise<boolean> => {
+    let robot: LoadedRobot;
+    try {
+      robot = await this.loadLibraryRobot(manifest, id);
+    } catch (e) {
+      toast({
+        title: "Could not load the robot",
+        description: e instanceof Error ? e.message : String(e),
+        tone: "error",
+      });
+      return false;
+    }
+    return this.edit(`replace ${id}`, (d) =>
+      change({ ...d, robots: d.robots.map((r) => (r.id === id ? robot : r)) }, robot),
+    );
+  };
+
   /**
    * Add the library robot whose manifest is `manifest` (repository-relative) to the scene, as
    * `id`, attached to `parent`, by `change` (which places the new `RobotSpec`). One undoable edit.

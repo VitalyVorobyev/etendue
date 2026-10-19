@@ -7,6 +7,7 @@ import {
   Camera,
   Globe,
   Grid3x3,
+  Library,
   Lightbulb,
   Link2,
   type LucideIcon,
@@ -68,6 +69,7 @@ export function Navigator({
   onAdd,
   robots,
   onAddRobot,
+  onBrowseRobots,
   onRemove,
 }: {
   tree: SceneNode;
@@ -78,6 +80,8 @@ export function Navigator({
   /** The robot library. */
   robots: readonly LibraryRobot[];
   onAddRobot: (robot: LibraryRobot) => void;
+  /** Open the robot library, to compare robots before adding or replacing one. */
+  onBrowseRobots?: (() => void) | undefined;
   /** Remove the selection; `null` when it is not removable. */
   onRemove: (() => void) | null;
 }) {
@@ -124,6 +128,11 @@ export function Navigator({
                   {r.local ? `${r.name} (local only)` : r.name}
                 </MenuItem>
               ))}
+              {onBrowseRobots && (
+                <MenuItem icon={<Library className="size-4" />} onSelect={onBrowseRobots}>
+                  Robot library…
+                </MenuItem>
+              )}
             </>
           )}
         </DropdownMenu>

@@ -697,7 +697,10 @@ studio code, so no phase waits on a review.
       dropped: a time-optimal move is always at a limit.
     - **Seek.** Pointing at the path marks a sample, and a click seeks to it. A pure hover-seek
       would move the playhead whenever the pointer crossed the path.
-    - Still deferred: the robot library preview.
+    - Still deferred: the robot library preview. *Done in P12c:* **Robot library…** in Setup's
+      add menu lists the studio's robots with their axes, joint ranges and speeds and how far
+      the TCP gets from the base (kernel FK over 4096 seeded joint vectors), and adds one or
+      replaces the selected robot (one edit, refused when the program no longer fits).
 - **P13 — Calibration lab.**
   - **Observations:** `etendue-synth::observe`, noise from a seed:
     - pixel σ;

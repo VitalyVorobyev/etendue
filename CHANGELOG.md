@@ -122,6 +122,8 @@ calibration datasets with exact ground truth. The 0.1.0 desktop app is replaced 
   width and resolution against range, one-click
   Scheimpflug, an optimiser over tilt, focus and f-number, saving to the library and placing in a
   cell.
+- **Robot library**: compare the studio's robots (axes, joint ranges and speeds, how far the TCP
+  gets from the base) and add one to the cell or replace the selected robot.
 - **Rigs workspace slices**: to scale, with each camera's sharp range along its axis
   (`etendue-core::rig::sharpness`, `rigSharpness` in `@etendue/wasm`) and handles for the working
   distance, ρ, φ, the phase and the box.

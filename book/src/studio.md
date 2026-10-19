@@ -99,15 +99,19 @@ surface; the panels around it hold only what that workspace needs.
     axes, where they meet, and the volumes.
 - **Setup**: the cell.
   - **Scene** (left): the frame tree — the world, robots and their links, rigs, cameras, lasers,
-    lights, targets and parts. **+** adds a frame, rig, camera, laser, target or light, attached
-    to the selected item; the bin removes the selected item and everything attached to it.
+    lights, targets and parts. **+** adds a frame, rig, camera, laser, target, light or a library
+    robot, attached to the selected item; the bin removes the selected item and everything
+    attached to it. **+ › Robot library…** compares the robots the studio carries: each one's
+    axes, joint ranges and speeds, and how far its TCP gets from its base (the farthest over 4096
+    joint vectors through the limits). From there a robot is added, or replaces the selected one
+    in place; a replacement the program no longer fits (other joints) is refused.
   - **Viewport** (centre): the cell in 3D, with camera frusta, laser fans, lights and targets.
     Drag to orbit; with the viewport focused, the arrow keys orbit (Shift for larger steps), `+`
     and `−` zoom and `0` resets the view. Click an item to select it.
   - **Inspector** (right): the selected item's id, parent frame and pose (translation in mm,
     roll/pitch/yaw in degrees), and its parameters — a camera's resolution, intrinsics and
-    distortion, a laser's fan, reach, wavelength, waist and focus (where the waist is), a target's layout, a light's power
-    and colour, a robot's rest pose. All of them are editable.
+    distortion, a laser's fan, reach, wavelength, waist and focus (where the waist is), a
+    target's layout, a light's power and colour, a robot's rest pose. All of them are editable.
 - **Motion**: the robot program.
   - **Program** (right): the scenario's steps. Click a capture to move the playhead to it. Hover
     over a step to move it up or down, or delete it.
