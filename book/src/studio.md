@@ -63,11 +63,15 @@ surface; the panels around it hold only what that workspace needs.
     blur (defocus and diffraction), depth per pixel, millimetres per pixel along the line, the
     triangulation angle, or the stripe's width. Hatched samples are out of view; a white contour
     marks the blur limit.
-  - **Sensor** (centre, bottom right): the camera's image, with the laser line where it falls at
-    seven ranges across the window, near to far. Triangulation is the line moving across the
-    image as the range changes. Each is labelled with its range and its width at the line's
-    centre: the beam's thickness (a Gaussian beam focused where the laser is focused) imaged
-    across the stripe, with the camera's blur, root sum of squares. It needs the laser's waist.
+  - **Along the laser** (centre, bottom right), from the window's near end to its far end:
+    - **Sensor:** the camera's image, with the laser line where it falls at seven ranges across
+      the window, near to far. Triangulation is the line moving across the
+      image as the range changes. Each is labelled with its range and its width at the line's
+      centre: the beam's thickness (a Gaussian beam focused where the laser is focused) imaged
+      across the stripe, with the camera's blur, root sum of squares. It needs the laser's waist.
+    - **Blur:** a chart of the blur and the stripe's width (px) against range, on the line's
+      centre and the worst across it, with the blur limit and a tick where the laser is focused.
+    - **Resolution:** a chart of depth and lateral resolution (µm per px) against range.
   - **Figures** (right): the window's coverage and worst figures, the stripe's width, the Scheimpflug setting, and
     the camera's derived optics (fx and its breathing, magnification, working f-number, Airy
     disc, pupils).

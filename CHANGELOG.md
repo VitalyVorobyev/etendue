@@ -118,7 +118,8 @@ calibration datasets with exact ground truth. The 0.1.0 desktop app is replaced 
   the window it must measure in. A Scheimpflug section (sensor, principal planes, pupils, traced
   rays, the plane of best focus and its depth of field, draggable focus, aim, laser and window), a
   map of the laser plane (blur, depth and lateral resolution, triangulation angle, stripe width),
-  the laser line on the sensor at several ranges with its width in pixels, one-click
+  the laser line on the sensor at several ranges with its width in pixels, charts of blur, stripe
+  width and resolution against range, one-click
   Scheimpflug, an optimiser over tilt, focus and f-number, saving to the library and placing in a
   cell.
 - **Focused lasers**: a laser's `waist_distance_m` (scene, rig and library) says where it is
