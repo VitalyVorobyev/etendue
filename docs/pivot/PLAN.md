@@ -696,6 +696,14 @@ studio code, so no phase waits on a review.
       through Rust.
     - **G13.2:** same seed, byte-identical report.
     - **G13.3:** at σ = 0.5 px, the reprojection RMS within 5 % of σ·√(1 − p/2n).
+  - *Status (2026-10-19), P13a:* all three gates pass (`docs/measurements/g13_calibration.md`).
+    - G13.1 differs from the wheel by at most 2e-12, and 2e-8 on the seeded Scheimpflug case.
+    - G13.3 is −1.5 %.
+    - By user decision, the detector stack may use its own nalgebra (ADR 0001 amendment).
+    - A single head emits `laserline_device` and calibrates with the hand-eye alongside.
+    - Eye-to-hand calibrates too.
+    - CI runs the loops natively, with parity against the wheel.
+    - **P13b** brings the shell command and the Calibrate workspace.
 
 ### Deferred (not planned; do not scaffold)
 

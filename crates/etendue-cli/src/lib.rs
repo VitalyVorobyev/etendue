@@ -7,6 +7,7 @@
 //! Nothing in the workspace depends on this crate (`cargo xtask
 //! check-layering`); it sits on top of the library crates.
 
+pub mod calibrate;
 pub mod detect;
 pub mod export;
 pub mod gt;

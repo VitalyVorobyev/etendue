@@ -121,6 +121,18 @@ calibration datasets with exact ground truth. The 0.1.0 desktop app is replaced 
   Scheimpflug, an optimiser over tilt, focus and f-number, saving to the library and placing in a
   cell. `@etendue/wasm` has `headMap`, `headSection`, `headScheimpflug`, `headOptimise` and
   `headApply` (`etendue-core::head`).
+- **Native calibration** (`etendue calibrate`): a dataset is calibrated with calibration-rs's
+  own workflows in Rust and compared with its ground truth, row for row as the closed-loop script
+  does. The rows equal the script's to 2e-12.
+  - **Workflows:** single-camera and rig hand-eye, rig hand-eye laserline, and the laserline
+    device for a single triangulation head.
+  - **Hand-eye:** eye-in-hand and eye-to-hand.
+  - **Observations:** exact; or with seeded noise (pixel, outliers, dropouts, laser, robot pose),
+    with `--trials` statistics; or detected (`--features`).
+  - **Report:** JSON with the rows, residuals and the estimate.
+
+  `etendue-synth::observe` synthesises the noisy observations. A single camera with its laser
+  on a robot now emits a `laserline_device` dataset.
 - **Robot jogging** (Motion ▸ Jog): move a robot at the playhead by its joints or in Cartesian
   steps (tool or base axes), or drag its TCP with the gizmo (IK from the current joints). The TCP
   pose, its manipulability, joints near their limits and out-of-reach targets are shown. The pose

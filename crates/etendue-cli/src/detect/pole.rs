@@ -48,7 +48,10 @@ impl PuzzlePole {
         match self.detector.detect_with_corners(image, corners) {
             Ok(found) => labelled(
                 &self.by_id,
-                found.corners.iter().map(|c| (Some(c.id), c.position)),
+                found
+                    .corners
+                    .iter()
+                    .map(|c| (Some(c.id), [c.position.x, c.position.y])),
             ),
             Err(e) => {
                 let status = match e {

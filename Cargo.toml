@@ -37,6 +37,9 @@ nalgebra = { version = "0.34", features = ["serde-serialize"] }
 # checkout by `[patch.crates-io]` at the bottom of this file.
 vision-calibration-core = "0.9.0"
 vision-calibration-dataset = "0.9.0"
+# The calibration workflows (P13, `etendue calibrate`): native only. It pulls the
+# solvers (faer, rayon) and calibration-rs's detectors; none of it reaches wasm.
+vision-calibration-pipeline = "0.9.0"
 serde = { version = "1", features = ["derive"] }
 thiserror = "2"
 # Float-comparison assertions for kernel unit tests. 0.5 matches the version
@@ -110,3 +113,8 @@ opt-level = 2
 [patch.crates-io]
 vision-calibration-core = { path = "../calibration-rs/crates/vision-calibration-core" }
 vision-calibration-dataset = { path = "../calibration-rs/crates/vision-calibration-dataset" }
+vision-calibration-pipeline = { path = "../calibration-rs/crates/vision-calibration-pipeline" }
+vision-calibration-optim = { path = "../calibration-rs/crates/vision-calibration-optim" }
+vision-calibration-linear = { path = "../calibration-rs/crates/vision-calibration-linear" }
+vision-calibration-detect = { path = "../calibration-rs/crates/vision-calibration-detect" }
+vision-geometry = { path = "../calibration-rs/crates/vision-geometry" }

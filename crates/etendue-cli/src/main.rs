@@ -6,6 +6,7 @@
 //! etendue render <scene.json> <scenario.json> -o <out_dir> [--samples N] [--supersample S]
 //! etendue gt <scene.json> <scenario.json> -o <out_dir>
 //! etendue detect <dataset_dir>
+//! etendue calibrate <dataset_dir> [--noise <noise.json>] [--trials N] [--camera ID] [--features <features.json>] [-o <report.json>]
 //! etendue scenario from-poses <poses.json> --robot <id> -o <scenario.json> [--scene <scene.json>]
 //! ```
 //!
@@ -19,7 +20,7 @@ use anyhow::{Context, Result, anyhow};
 use clap::{Parser, Subcommand};
 use etendue_cli::progress::{self, Control};
 use etendue_cli::render::{Blender, RenderOptions};
-use etendue_cli::{bake_file, detect, export, gt, load, poses, read_json, render};
+use etendue_cli::{bake_file, calibrate, detect, export, gt, load, poses, read_json, render};
 use etendue_kinematics::{BakeOptions, RobotModel, compile};
 use etendue_scene::{GeneratorSpec, ScenarioSpec, SceneSpec};
 use etendue_synth::sensor::SensorModel;
@@ -114,6 +115,33 @@ enum Command {
     Detect {
         /// Dataset directory (gt.json, images/).
         dir: PathBuf,
+    },
+    /// Calibrate a dataset natively with calibration-rs and compare the
+    /// result with its ground truth (`etendue gt`'s directory): gate G5.1
+    /// (G5.3 with lasers) on exact observations, as `closed_loop.py` does.
+    Calibrate {
+        /// Dataset directory (gt.json).
+        dir: PathBuf,
+        /// Observation noise (etendue-synth `ObservationNoise` JSON); none
+        /// gives the exact analytic observations.
+        #[arg(long)]
+        noise: Option<PathBuf>,
+        /// Repeat with seeds `seed, seed + 1, …` and report each row's spread.
+        #[arg(long, default_value_t = 1)]
+        trials: u32,
+        /// Calibrate this camera of a rig alone (single-camera hand-eye).
+        #[arg(long)]
+        camera: Option<String>,
+        /// Observations from `etendue detect` instead of the ground truth.
+        #[arg(long)]
+        features: Option<PathBuf>,
+        /// Laser pixels from `etendue detect` (default: laser_features.json
+        /// next to --features).
+        #[arg(long)]
+        laser_features: Option<PathBuf>,
+        /// Write the report (JSON) here.
+        #[arg(short, long)]
+        output: Option<PathBuf>,
     },
     /// Build scenarios.
     Scenario {
@@ -435,6 +463,23 @@ fn run(cli: Cli) -> Result<()> {
             }
             Ok(())
         }
+        Command::Calibrate {
+            dir,
+            noise,
+            trials,
+            camera,
+            features,
+            laser_features,
+            output,
+        } => run_calibrate(
+            &dir,
+            noise.as_deref(),
+            trials,
+            camera,
+            features.as_deref(),
+            laser_features.as_deref(),
+            output.as_deref(),
+        ),
         Command::Scenario {
             command:
                 ScenarioCommand::FromPoses {
@@ -584,6 +629,107 @@ fn run(cli: Cli) -> Result<()> {
             }
         }
     }
+}
+
+/// `etendue calibrate`: one run (or `trials`), printed as `closed_loop.py` prints it; fails when
+/// a gated run fails.
+fn run_calibrate(
+    dir: &Path,
+    noise: Option<&Path>,
+    trials: u32,
+    camera: Option<String>,
+    features: Option<&Path>,
+    laser_features: Option<&Path>,
+    output: Option<&Path>,
+) -> Result<()> {
+    use etendue_synth::dataset::GroundTruth;
+    use etendue_synth::observe::{ObservationNoise, observe};
+    let gt: GroundTruth = read_json(&dir.join("gt.json"), "ground truth")?;
+    let noise: ObservationNoise = match noise {
+        Some(p) => read_json(p, "observation noise")?,
+        None => ObservationNoise::default(),
+    };
+    let problems = noise.problems();
+    if !problems.is_empty() {
+        return Err(anyhow!("observation noise: {}", problems.join("; ")));
+    }
+    if features.is_some() && (noise != ObservationNoise::default() || trials > 1) {
+        return Err(anyhow!(
+            "--noise and --trials apply to the analytic observations, not to --features"
+        ));
+    }
+    let options = calibrate::Options {
+        camera,
+        detected: features.is_some(),
+    };
+    let mut reports = Vec::new();
+    for k in 0..trials.max(1) {
+        let obs = match features {
+            Some(f) => {
+                let found: detect::Features = read_json(f, "features")?;
+                let laser_path = laser_features
+                    .map(Path::to_path_buf)
+                    .unwrap_or_else(|| f.with_file_name(detect::LASER_FEATURES));
+                let stripes: Option<detect::laser::LaserFeatures> = if gt.lasers.is_empty() {
+                    None
+                } else {
+                    Some(read_json(&laser_path, "laser features")?)
+                };
+                calibrate::from_features(&gt, &found, stripes.as_ref())?
+            }
+            None => observe(
+                &gt,
+                &ObservationNoise {
+                    seed: noise.seed + u64::from(k),
+                    ..noise
+                },
+            ),
+        };
+        let report = calibrate::calibrate(&gt, &obs, &options)?;
+        if k == 0 || trials == 1 {
+            println!(
+                "{}: {:?} ({} cameras {:?}, {} views, {} points, {} laser pixels){}",
+                dir.display(),
+                report.workflow,
+                report.cameras.len(),
+                report.cameras,
+                report.views,
+                report.points,
+                report.laser_pixels,
+                if report.noise.is_some() {
+                    format!(", noise seed {}", noise.seed + u64::from(k))
+                } else {
+                    String::new()
+                },
+            );
+            print!("{}", report.table());
+            println!(
+                "  reprojection: mean {:.4} px, rms per axis {:.4} px over {} points",
+                report.residuals.mean_px, report.residuals.rms_axis_px, report.residuals.count
+            );
+        }
+        reports.push(report);
+    }
+    let stats = (reports.len() > 1).then(|| calibrate::row_stats(&reports));
+    if let Some(stats) = &stats {
+        println!("{} trials:", reports.len());
+        for s in stats {
+            println!(
+                "  {:<28} mean {:10.3e}  std {:10.3e}  max {:10.3e}",
+                s.label, s.mean, s.std, s.max
+            );
+        }
+    }
+    if let Some(out) = output {
+        let doc = serde_json::json!({"reports": reports, "row_stats": stats});
+        std::fs::write(out, serde_json::to_string_pretty(&doc)? + "\n")
+            .with_context(|| format!("writing {}", out.display()))?;
+        println!("report → {}", out.display());
+    }
+    if reports.iter().any(|r| r.gated && !r.pass) {
+        return Err(anyhow!("{} failed", reports[0].gate));
+    }
+    Ok(())
 }
 
 fn main() -> ExitCode {

@@ -3,7 +3,8 @@
 //! - `emit-schemas [--check]`: write (or verify) the JSON Schemas of the
 //!   `etendue-scene` document types into `schemas/`.
 //! - `check-layering [--manifest-path <Cargo.toml>]`: enforce the crate
-//!   dependency rules of ADR 0001 §2 and the single-nalgebra hard pin (with a
+//!   dependency rules of ADR 0001 §2 and the nalgebra hard pin: one solvers'
+//!   nalgebra, a second only in calibration-rs's detector stack (with a
 //!   manifest: the pin alone, for a crate outside the workspace).
 //! - `app [--release] [tauri args…]`: run the studio desktop app (debug) or
 //!   build its release bundles (aliases `cargo app`, `cargo app-release`).

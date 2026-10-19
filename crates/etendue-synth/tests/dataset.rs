@@ -271,9 +271,10 @@ fn rejects_laser_topologies_not_emitted_yet() {
     let mut fixed = scene.clone();
     fixed.lasers[0].parent = etendue_scene::FrameRef::world();
     assert!(emit(&fixed, &baked, &manifests, &points, &OPTIONS).is_err());
-    // One camera: rig hand-eye laserline needs two or more.
+    // One camera, the laser on the rig but not on the camera: not one head.
     let mut single = scene.clone();
     single.cameras.truncate(1);
+    single.cameras[0].parent = etendue_scene::FrameRef::from("ur5e/tool0");
     assert!(emit(&single, &baked, &manifests, &points, &OPTIONS).is_err());
     // Two lasers.
     let mut two = scene.clone();
@@ -381,4 +382,35 @@ fn a_puzzlepole_has_ground_truth_but_no_dataset() {
     }
     assert!(visible > 0, "the pole's corners are seen");
     assert!(stripe_points > 0, "the laser hits the pole");
+}
+
+#[test]
+fn a_single_camera_with_its_laser_is_a_laserline_device() {
+    // A triangulation head as the Optics workspace places it: the laser on the camera's body.
+    let (mut scene, baked, manifests) = example("laser_ur5e");
+    let points = laser_board_points(&scene);
+    let cam = scene.cameras[0].clone();
+    scene.cameras.truncate(1);
+    let rig_se3_cam = cam.parent_se3_self;
+    let laser = &mut scene.lasers[0];
+    laser.parent_se3_self = rig_se3_cam.inverse() * laser.parent_se3_self;
+    laser.parent = etendue_scene::FrameRef::from(cam.id.as_str());
+    laser.camera = Some(cam.id.clone());
+    let bundle = emit(&scene, &baked, &manifests, &points, &OPTIONS).unwrap();
+    let dataset = bundle.dataset.expect("a dataset");
+    assert_eq!(dataset.topology, Topology::LaserlineDevice);
+    validate(&dataset).expect("calibration-rs accepts it");
+    assert!(
+        dataset.robot_poses.is_some(),
+        "the robot's poses ride along"
+    );
+    let gt = bundle.gt;
+    assert_eq!(gt.cameras.len(), 1);
+    assert_eq!(gt.lasers.len(), 1);
+    let stripes = gt
+        .captures
+        .iter()
+        .filter(|c| c.views[0].laser_points.iter().any(|s| !s.points.is_empty()))
+        .count();
+    assert!(stripes > 10, "{stripes} captures see the stripe");
 }

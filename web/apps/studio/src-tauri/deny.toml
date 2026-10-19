@@ -41,6 +41,11 @@ allow = [
     "MPL-2.0",
     "Apache-2.0 WITH LLVM-exception",
 ]
+# libfuzzer-sys bundles LLVM's libFuzzer (NCSA, OSI-approved, permissive), through
+# rav1e (image's AVIF encoder) under calibration-rs's detectors (P13).
+exceptions = [
+    { allow = ["NCSA"], crate = "libfuzzer-sys" },
+]
 # Any license not listed in `allow` above is denied by default (cargo-deny ≥ 0.15).
 # This already covers copyleft licenses without needing the removed `copyleft` key.
 

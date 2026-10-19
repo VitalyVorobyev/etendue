@@ -55,3 +55,8 @@ opt-level = 2
 [patch.crates-io]
 vision-calibration-core = { path = "../../../../../calibration-rs/crates/vision-calibration-core" }
 vision-calibration-dataset = { path = "../../../../../calibration-rs/crates/vision-calibration-dataset" }
+vision-calibration-pipeline = { path = "../../../../../calibration-rs/crates/vision-calibration-pipeline" }
+vision-calibration-optim = { path = "../../../../../calibration-rs/crates/vision-calibration-optim" }
+vision-calibration-linear = { path = "../../../../../calibration-rs/crates/vision-calibration-linear" }
+vision-calibration-detect = { path = "../../../../../calibration-rs/crates/vision-calibration-detect" }
+vision-geometry = { path = "../../../../../calibration-rs/crates/vision-geometry" }

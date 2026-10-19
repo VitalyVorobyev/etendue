@@ -111,6 +111,52 @@ With laser images it also extracts each stripe's centre line into `laser_feature
 ChArUco and marker boards are labelled correctly at any in-plane rotation since calib-targets
 0.15.5 (before it, boards turned more than 45° had every id one square off).
 
+## `calibrate`
+
+```bash
+etendue calibrate <dataset_dir> [--noise noise.json] [--trials N] [--camera ID] \
+  [--features features.json] [--laser-features laser_features.json] [-o report.json]
+```
+
+Calibrates a dataset (`gt`'s directory) with calibration-rs's own workflows, natively, and
+compares every result with the ground truth.
+
+**Workflow,** chosen from the dataset:
+
+| Dataset | Workflow |
+|---|---|
+| one camera on (or seeing) a robot | single-camera hand-eye |
+| a rig of cameras | rig hand-eye |
+| a rig with lasers | rig hand-eye laserline; a Scheimpflug rig is seeded with nominal values (focal length to 100 px, principal point at the centre, tilt to a degree) |
+| one camera carrying its laser (a triangulation head) | laserline device (intrinsics, tilt and laser plane), with the hand-eye from the single-camera workflow on the same views |
+
+Eye-in-hand and eye-to-hand are both calibrated. `--camera` calibrates one camera of a rig
+alone.
+
+**Observations.** These are the ground truth's exact pixels unless you choose otherwise:
+- `--noise` takes a JSON object of noise. Every field is optional and defaults to 0:
+  - `pixel_sigma_px`
+  - `outlier_fraction` and `outlier_sigma_px`
+  - `dropout_fraction`
+  - `laser_sigma_px`
+  - `robot_rot_sigma_rad` and `robot_trans_sigma_m`
+  - `seed`
+
+  The noise is drawn from a seeded ChaCha8 stream, so a seed always gives the same report.
+- `--trials N` repeats with seeds `seed, seed + 1, …` and prints each row's mean, spread and
+  maximum.
+- `--features` takes `etendue detect`'s output instead (the image-level loop).
+
+**Output.** The rows are those of `tools/closed-loop/closed_loop.py`:
+- every intrinsic, distortion coefficient, rig transform, tilt and laser plane against the truth;
+- the hand-eye and the target pose;
+- the mean reprojection error and the per-axis RMS.
+
+On exact observations the gate applies: G5.1, or G5.3 with lasers. The command then fails if a
+gated row is outside its limit. On noisy or detected observations the limits are shown for
+reference. `-o` writes the report as JSON: the rows, the residuals (every point's error) and the
+estimate.
+
 ## `scenario from-poses`
 
 Builds a stop-and-shoot scenario from tool poses: for each pose a point-to-point move, then a

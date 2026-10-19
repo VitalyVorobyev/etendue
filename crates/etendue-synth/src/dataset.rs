@@ -440,15 +440,13 @@ pub fn emit(
     let n = scene.cameras.len();
     // Lasers on the hand-eye rig: the joint rig hand-eye laserline problem,
     // with one laser that every camera images, or one per camera.
+    // A single camera is a rig of one, its laser on the camera's body (a triangulation head).
     let lasers_on_rig: Vec<&LaserSpec> = scene.lasers.iter().collect();
     for laser in &lasers_on_rig {
-        let on_rig = rig
-            .as_deref()
-            .is_some_and(|r| mounted_on(scene, &laser.id, r));
-        if robot.is_none() || n < 2 || !on_rig {
+        if robot.is_none() || !mounted_on(scene, &laser.id, &mount) {
             return bad(format!(
-                "laser `{}`: the only laser topology emitted so far is lasers on a hand-eye rig \
-                 of two or more cameras (rig hand-eye laserline)",
+                "laser `{}`: the only laser topology emitted so far is lasers on a hand-eye rig, \
+                 or on a single hand-eye camera (rig hand-eye laserline)",
                 laser.id
             ));
         }
@@ -478,6 +476,9 @@ pub fn emit(
             .collect()
     };
     let topology = match (&robot, n) {
+        // One camera with its laser: the device (intrinsics and plane); the robot's poses ride
+        // along for a hand-eye solve on the same views.
+        (_, 1) if extent.is_some() => Topology::LaserlineDevice,
         _ if extent.is_some() => Topology::RigHandeyeLaserline,
         (None, 1) => match scene.cameras[0].params.sensor {
             SensorParams::Scheimpflug { .. } => Topology::ScheimpflugIntrinsics,

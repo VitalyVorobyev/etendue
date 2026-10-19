@@ -54,7 +54,9 @@ cargo run --release -p etendue-cli -- measure p4-5 -o target/p4_5               
 cargo run --release -p etendue-cli -- measure g4-2 -o target/g4_2                                          # G4.2 corner bias (chess-corners)
 cd web/apps/studio && bun x vitest run --project browser src/probe/g4_3.browser.test.ts                   # G4.3 web vs Blender (after g4-2)
 cargo test -p etendue-synth --release --test ptc -- --nocapture                                           # P4-6 photon transfer
-uv run --locked --project tools/closed-loop tools/closed-loop/closed_loop.py target/gt [--camera ID]     # G5.1 closed loop (after `etendue gt`); G5.3 on a laser dataset (examples/laser_ur5e); G5.3b on examples/rig3_laser_ur5e
+cargo run -p etendue-cli -- calibrate target/gt [--camera ID] [--noise n.json --trials N] [--features f.json] -o report.json   # P13 native closed loop: G5.1 / G5.3 / G5.3b gated on exact input
+uv run --locked --project tools/closed-loop tools/closed-loop/parity.py report.json target/gt [--camera ID]   # G13.1: native rows = the wheel's
+uv run --locked --project tools/closed-loop tools/closed-loop/closed_loop.py target/gt [--camera ID]     # the wheel's closed loop (cross-check since P13)
 # P5-1b image-level loop (Blender, local only): gt, then render linear at s = 4, detect, calibrate
 cargo run --release -p etendue-cli -- render examples/closed_loop_ur5e/{scene,scenario}.json -o target/gt --supersample 4 --samples 16 --sensor examples/closed_loop_ur5e/sensor_linear.json
 cargo run --release -p etendue-cli -- detect target/gt                                                    # features.json (Radon + calib-targets labels, checked vs GT); with laser images laser_features.json and G5.2 (width/beam column)
@@ -112,6 +114,7 @@ by phase, never up front. P0 and P1 are done.
 
 ```
 etendue-cli (lib `etendue_cli` + bin `etendue`) ──► etendue-kinematics, etendue-synth ──► etendue-scene ──► vision-calibration-{core,dataset}
+etendue-cli ──► vision-calibration-pipeline (native calibration, P13; detectors on their own nalgebra)
 web/apps/studio/src-tauri (Tauri shell, own workspace) ──► etendue-cli (lib)
 etendue-wasm (npm @etendue/wasm) ──► etendue-kinematics ──► etendue-scene, etendue-synth ──► etendue-core ──► etendue-scene, vision-calibration-core
 web/apps/studio ──► @etendue/wasm, @vitavision/{ui,workbench,three,three-react,charts,stage2d} (npm, from lab-ui)
@@ -160,7 +163,10 @@ Render job v4.
 
 **Closed loop** (P5-1) — `etendue gt` writes a scene's analytic ground truth as a
 calibration-rs dataset; `tools/closed-loop` (uv, the `vision-calibration` wheel) solves it with
-calibration-rs and checks the truth is recovered (G5.1). `examples/closed_loop_ur5e` is its
+calibration-rs and checks the truth is recovered (G5.1). Since P13, `etendue calibrate`
+(`etendue-cli::calibrate`, `vision-calibration-pipeline` in Rust) does the same natively, with
+seeded observation noise (`etendue-synth::observe`), trials, single heads (laserline device) and
+eye-to-hand; CI runs it, and `parity.py` checks its rows against the wheel's (G13.1). `examples/closed_loop_ur5e` is its
 scene; its scenario is the sphere pose generator's (`etendue scenario sphere`, P7-6), which keeps its
 spec in `generator`, so `--spec <scenario.json>` regenerates it. CI runs it. The image-level loop (P5-1b) renders
 the same dataset, `etendue detect` finds the board (chess-corners Radon, calib-targets labels, the
@@ -241,8 +247,10 @@ studio imports only what it declares.
   to build this workspace. Published crates do not need it.
 - CI clones calibration-rs at `CALIBRATION_RS_REF` (a tag). Bump that together with the
   version requirement.
-- Both calibration-rs crates have a `[patch]` line. Do not add a patch line for a crate
-  nothing uses yet: cargo warns about unused patches on every command.
+- Every calibration-rs crate in the graph has a `[patch]` line: core, dataset, and
+  (P13) pipeline, optim, linear, detect and vision-geometry, so they all come from one
+  checkout. Do not add a patch line for a crate nothing uses yet: cargo warns about
+  unused patches on every command.
 - `serde_json` has `float_roundtrip` enabled workspace-wide, because the default parser
   can be off by one ULP. Keep it: bit-exact round trips of poses and ground truth depend
   on it.
@@ -257,6 +265,21 @@ etendue-core exchanges `Isometry3<f64>`, `Point3<f64>`, `Matrix3<f64>` across th
 crate boundary into `vision-calibration-core`. A semver-incompatible second nalgebra
 in the tree makes those distinct types and breaks every cross-crate call. The pin must
 match calibration-rs exactly.
+
+**One exception** (ADR 0001 amendment of 2026-10-19, user decision):
+- `vision-calibration-pipeline` (in `etendue-cli`, for `etendue calibrate`) pulls calibration-rs's
+  detectors. The detector stack (calib-targets, projective-grid, ringgrid) runs on nalgebra 0.35, as
+  it does in calibration-rs. calibration-rs 0.9.0's detectors bring calib-targets 0.12 beside etendue's
+  0.15, and both are on 0.35.
+- Its points cross into etendue only as plain arrays (`etendue-cli::detect`).
+- `cargo xtask check-layering` allows the second nalgebra for those crates only.
+- If a `cargo update` drags `projective-grid` back to 0.34, the detectors stop compiling. Re-resolve
+  with `cargo update -p nalgebra@0.35.0 --precise 0.34.2` (it fails, but re-resolves), then
+  `cargo update -p projective-grid`, in the root and in `web/apps/studio/src-tauri`.
+- Both locks are resolved against calibration-rs at `CALIBRATION_RS_REF`, which is what CI builds.
+  A sibling checkout on another branch resolves differently. Build against a clean clone of the tag
+  with `cargo … --config <file>`, where the file holds a `[patch.crates-io]` table with the seven
+  calibration-rs paths. Config patches override the manifest's.
 
 ## Conventions
 
