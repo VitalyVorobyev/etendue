@@ -254,11 +254,38 @@ async fn save_dialog(
     Ok(Some(path))
 }
 
-/// Write a text file in a writable folder.
+/// Write a text file in a writable folder, creating the folders it needs there (a project's
+/// `library/cameras/`, say).
 #[tauri::command]
 fn write_text(path: PathBuf, text: String, access: State<'_, Access>) -> Result<(), String> {
     let path = access.writable(&path)?;
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+    }
     std::fs::write(&path, text).map_err(|e| format!("{}: {e}", path.display()))
+}
+
+/// Open the project folder `dir` (ADR 0009): it must hold an `etendue-project.json` that
+/// parses. The folder becomes readable and writable (it is the user's), and so does nothing
+/// else. Returns the manifest.
+#[tauri::command]
+fn open_project(
+    app: AppHandle,
+    dir: PathBuf,
+    access: State<'_, Access>,
+) -> Result<etendue_scene::ProjectManifest, String> {
+    let dir = resolve(&dir)
+        .filter(|d| d.is_dir())
+        .ok_or_else(|| format!("{}: not a folder", dir.display()))?;
+    let path = dir.join(etendue_scene::PROJECT_FILE);
+    let text = std::fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+    let manifest: etendue_scene::ProjectManifest =
+        serde_json::from_str(&text).map_err(|e| format!("{}: {e}", path.display()))?;
+    manifest
+        .validate()
+        .map_err(|e| format!("{}: {e}", path.display()))?;
+    access.allow_write(&app, &dir);
+    Ok(manifest)
 }
 
 /// Save a scene (and its scenario) to `scene_path` (and `scenario_path`),
@@ -316,7 +343,11 @@ fn list_dir(path: PathBuf, access: State<'_, Access>) -> Result<Vec<String>, Str
         .map_err(|e| format!("{}: {e}", dir.display()))?
         .filter_map(|entry| {
             let entry = entry.ok()?;
-            entry.file_type().ok()?.is_file().then(|| entry.file_name().to_string_lossy().into_owned())
+            entry
+                .file_type()
+                .ok()?
+                .is_file()
+                .then(|| entry.file_name().to_string_lossy().into_owned())
         })
         .collect();
     names.sort();
@@ -479,6 +510,7 @@ pub fn run() {
             pick,
             save_dialog,
             write_text,
+            open_project,
             save_scene,
             read_text,
             path_exists,

@@ -17,6 +17,12 @@ async function installShell(page: Page): Promise<void> {
     const w = window as unknown as Record<string, unknown>;
     w.__requests = [];
     w.__cancelled = false;
+    // A project folder the user "picks", kept in sessionStorage so it survives a reload.
+    const PROJECT = "/proj";
+    const disk = (): Record<string, string> =>
+      JSON.parse(sessionStorage.getItem("fake-disk") ?? "{}") as Record<string, string>;
+    const store = (files: Record<string, string>) => sessionStorage.setItem("fake-disk", JSON.stringify(files));
+    const inProject = (path: string) => path === PROJECT || path.startsWith(`${PROJECT}/`);
     w.__TAURI_INTERNALS__ = {
       transformCallback: (cb: (data: unknown) => void) => {
         const id = next++;
@@ -29,14 +35,40 @@ async function installShell(page: Page): Promise<void> {
         switch (cmd) {
           case "data_root":
             return { root: "/repo", datasets: "/repo/target/studio" };
+          case "pick":
+            return args.directory ? [PROJECT] : [];
+          case "write_text": {
+            const files = disk();
+            files[args.path as string] = args.text as string;
+            store(files);
+            return null;
+          }
+          case "open_project": {
+            const text = disk()[`${args.dir as string}/etendue-project.json`];
+            if (text === undefined) throw new Error(`${args.dir as string}: no etendue-project.json`);
+            return JSON.parse(text) as unknown;
+          }
           case "path_exists":
+            if (inProject(args.path as string)) return (args.path as string) in disk();
             return (await fetch(args.path as string, { method: "HEAD" })).ok;
           case "read_text": {
+            if (inProject(args.path as string)) {
+              const text = disk()[args.path as string];
+              if (text === undefined) throw new Error(`${args.path as string}: not found`);
+              return text;
+            }
             const res = await fetch(args.path as string);
             if (!res.ok) throw new Error(`${args.path as string}: not found`);
             return res.text();
           }
           case "list_dir": {
+            if (inProject(args.path as string)) {
+              const dir = `${args.path as string}/`;
+              return Object.keys(disk())
+                .filter((p) => p.startsWith(dir) && !p.slice(dir.length).includes("/"))
+                .map((p) => p.slice(dir.length))
+                .sort();
+            }
             const res = await fetch(`${args.path as string}/.index.json`);
             return res.ok ? ((await res.json()) as string[]) : [];
           }
@@ -147,4 +179,38 @@ test("a plain browser has no Dataset tab", async ({ page }) => {
   await page.getByRole("button", { name: "File" }).click();
   await expect(page.getByRole("menuitem", { name: "Open scene…" })).toHaveCount(0);
   await expect(page.getByRole("menuitem", { name: "Open files…" })).toBeVisible();
+});
+
+test("a new project gets the starter library, takes a cell, and reopens", async ({ page }) => {
+  await installShell(page);
+  await page.goto("/?example=eye_in_hand_ur5e");
+  await expect(page.getByRole("treeitem", { name: /cam_left/ })).toBeVisible({ timeout: 30_000 });
+
+  await page.getByRole("button", { name: "File" }).click();
+  await page.getByRole("menuitem", { name: "New project…" }).click();
+  await expect(page.getByText("Opened proj")).toBeVisible();
+  const disk = () =>
+    page.evaluate(() => JSON.parse(sessionStorage.getItem("fake-disk") ?? "{}") as Record<string, string>);
+  const files = await disk();
+  expect(JSON.parse(files["/proj/etendue-project.json"]!)).toMatchObject({ name: "proj", cells: [] });
+  expect(files["/proj/library/cameras/imx174_lm25hc.json"]).toBeDefined();
+  // The example's scene stays open, to save into the project.
+  await expect(page.getByRole("treeitem", { name: /cam_left/ })).toBeVisible();
+
+  await page.getByRole("button", { name: "File" }).click();
+  await page.getByRole("menuitem", { name: "Save as a cell of proj…" }).click();
+  await page.getByRole("textbox", { name: "Cell" }).fill("bench");
+  await page.getByRole("dialog").getByRole("button", { name: "Save" }).click();
+  await expect(page.getByText("Saved as bench")).toBeVisible();
+  const saved = await disk();
+  expect((JSON.parse(saved["/proj/etendue-project.json"]!) as { cells: string[] }).cells).toEqual(["bench"]);
+  expect(JSON.parse(saved["/proj/bench/scene.json"]!)).toHaveProperty("cameras");
+  expect(saved["/proj/bench/scenario.json"]).toBeDefined();
+
+  // The next session opens the project and its cell.
+  await page.goto("/");
+  await expect(page.getByRole("treeitem", { name: /cam_left/ })).toBeVisible({ timeout: 30_000 });
+  await page.getByRole("button", { name: "File" }).click();
+  await expect(page.getByRole("menuitem", { name: "bench" })).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: "eye_in_hand_ur5e" })).toHaveCount(0);
 });

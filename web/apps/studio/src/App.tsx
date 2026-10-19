@@ -21,6 +21,7 @@ import { type Bodies, type PoseOverride, bodyPoses, posed } from "./kernel/posed
 import type { GeneratedPoses } from "@etendue/wasm";
 import { scenarioFromPoses } from "./kernel/native";
 import { CameraGrid } from "./panels/CameraGrid";
+import { CellDialog } from "./panels/CellDialog";
 import { DatasetPanel } from "./panels/DatasetPanel";
 import { GeneratorPanel } from "./panels/GeneratorPanel";
 import { type ExportItem, Header, type Mode } from "./panels/Header";
@@ -86,7 +87,9 @@ export function App() {
     opened,
     preview: editing,
     project,
+    reopenable,
   } = useStudio(studio);
+  const [cellDialog, setCellDialog] = useState(false);
   const { playhead } = studio;
   const modes = useMemo<Mode[]>(() => ["setup", "motion", "images", ...(isTauri() ? ["dataset" as const] : [])], []);
   const [mode, setModeState] = useState<Mode>(() => storedMode(modes));
@@ -609,8 +612,13 @@ export function App() {
             onUndo={studio.undo}
             onRedo={studio.redo}
             example={example}
+            project={project ? { name: project.manifest.name, writable: project.write !== null } : null}
             cells={project?.cells ?? NO_CELLS}
             onExample={studio.openExample}
+            onProject={studio.canOpenProjects() ? (create) => void studio.openProject(create) : null}
+            reopenable={reopenable}
+            onReopen={() => void studio.reopenProject()}
+            onSaveAsCell={current && project?.write ? () => setCellDialog(true) : null}
             onFiles={studio.openFiles}
             onPaths={studio.openPaths}
             onPoses={current ? importPoses : null}
@@ -640,6 +648,15 @@ export function App() {
           )
         }
       />
+      {project && (
+        <CellDialog
+          open={cellDialog}
+          onOpenChange={setCellDialog}
+          project={project.manifest.name}
+          taken={project.manifest.cells ?? []}
+          onSave={studio.saveAsCell}
+        />
+      )}
       <Toaster />
     </>
   );

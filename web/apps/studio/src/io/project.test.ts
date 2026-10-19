@@ -68,3 +68,50 @@ describe("projects", () => {
     await expect(loadProject(source, "")).rejects.toThrow(/project version 2/);
   });
 });
+
+describe("writing projects", () => {
+  it("creates a project from a starter, adds a cell, saves a library item", async () => {
+    const { addCell, createProject, saveLibraryItem } = await import("./project");
+    const starterFiles = {
+      "s/etendue-project.json": JSON.stringify({ version: 1, name: "s", cells: [], defaults: { camera: "cameras/c" } }),
+      "s/library/cameras/c.json": item("c", "Camera", "camera"),
+    };
+    const starter = await loadProject(memory(starterFiles), "s");
+    const written = new Map<string, string>();
+    const write = (path: string, text: string) => {
+      written.set(path, text);
+      return Promise.resolve();
+    };
+    await createProject(write, "bench", starter);
+    expect(JSON.parse(written.get("etendue-project.json")!)).toEqual({
+      version: 1,
+      name: "bench",
+      cells: [],
+      defaults: { camera: "cameras/c" },
+    });
+    expect(JSON.parse(written.get("library/cameras/c.json")!)).toMatchObject({ id: "c", camera: {} });
+
+    const files = Object.fromEntries(written);
+    let project = await loadProject(memory(files), "", write, "bench");
+    project = await addCell(
+      project,
+      "ring3",
+      { version: 1, description: "a ring" },
+      { version: 1, dt: 0.01, steps: [] },
+    );
+    expect(project.cells.map((c) => [c.id, c.description, c.scenario])).toEqual([
+      ["ring3", "a ring", "ring3/scenario.json"],
+    ]);
+    expect((JSON.parse(written.get("etendue-project.json")!) as { cells: string[] }).cells).toEqual(["ring3"]);
+    await expect(addCell(project, "ring3", {}, null)).rejects.toThrow(/already has a cell/);
+
+    project = await saveLibraryItem(project, { version: 1, id: "l1", name: "Laser", laser: {} } as never);
+    expect(written.has("library/lasers/l1.json")).toBe(true);
+    expect(project.library.get("lasers/l1")?.name).toBe("Laser");
+
+    const readOnly = { ...project, write: null };
+    await expect(saveLibraryItem(readOnly, { version: 1, id: "x", name: "X", laser: {} } as never)).rejects.toThrow(
+      /read-only/,
+    );
+  });
+});

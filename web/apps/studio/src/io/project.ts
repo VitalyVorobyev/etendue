@@ -34,11 +34,18 @@ export interface Cell {
   scenario: string | null;
 }
 
+/** Writes `text` to `path` (relative to the project folder), creating folders as needed. */
+export type ProjectWriter = (path: string, text: string) => Promise<void>;
+
 /** A project, read. */
 export interface Project {
   source: FileSource;
   /** The project folder, as a path in `source` (`""` when the source is the folder). */
   root: string;
+  /** Where it is, for people (a path, or a folder name). */
+  location: string;
+  /** How to write into it; `null` for a read-only project (the bundled examples). */
+  write: ProjectWriter | null;
   manifest: ProjectManifest;
   cells: Cell[];
   /** Every library item that parsed and checked, by reference (`cameras/imx174_lm25hc`). */
@@ -53,7 +60,12 @@ const join = (root: string, path: string) => (root === "" ? path : `${root.repla
  * Read the project at `root` in `source`. A cell or library item that does not read is left out
  * and reported in `problems`; a missing or unreadable manifest rejects.
  */
-export async function loadProject(source: FileSource, root: string): Promise<Project> {
+export async function loadProject(
+  source: FileSource,
+  root: string,
+  write: ProjectWriter | null = null,
+  location: string = root === "" ? source.name : root,
+): Promise<Project> {
   const manifest = JSON.parse(await source.readText(join(root, PROJECT_FILE))) as ProjectManifest;
   if (manifest.version !== 1)
     throw new Error(`${PROJECT_FILE}: project version ${manifest.version}; this studio reads version 1`);
@@ -96,7 +108,65 @@ export async function loadProject(source: FileSource, root: string): Promise<Pro
       for (const entry of items) if (entry) library.set(entry[0], entry[1]);
     }
   }
-  return { source, root, manifest, cells, library, problems };
+  return { source, root, location, write, manifest, cells, library, problems };
+}
+
+/** The library folder an item belongs in, by the one part it holds. */
+export function folderOf(item: LibraryItem): string | null {
+  const kind = (Object.keys(LIBRARY_FOLDERS) as LibraryKind[]).find((k) => item[k] != null);
+  return kind ? LIBRARY_FOLDERS[kind] : null;
+}
+
+const text = (doc: unknown) => `${JSON.stringify(doc, null, 2)}\n`;
+
+function writable(project: Project): ProjectWriter {
+  if (!project.write) throw new Error(`${project.location} is read-only: open or create a project to save into`);
+  return project.write;
+}
+
+/**
+ * Write `item` into the project's library (`library/<folder>/<id>.json`), replacing an item with
+ * its id. Returns the project with it.
+ */
+export async function saveLibraryItem(project: Project, item: LibraryItem): Promise<Project> {
+  const folder = folderOf(item);
+  if (!folder) throw new Error(`library item \`${item.id}\` holds no part`);
+  validateLibraryItem(JSON.stringify(item));
+  await writable(project)(`library/${folder}/${item.id}.json`, text(item));
+  const library = new Map(project.library);
+  library.set(`${folder}/${item.id}`, item);
+  return { ...project, library };
+}
+
+/**
+ * Make `write`'s folder a new project named `name`: a manifest whose defaults are `starter`'s, and
+ * a copy of `starter`'s library. No cells yet.
+ */
+export async function createProject(write: ProjectWriter, name: string, starter: Project): Promise<void> {
+  for (const [ref, item] of starter.library) await write(`library/${ref}.json`, text(item));
+  const manifest: ProjectManifest = { version: 1, name, cells: [], defaults: starter.manifest.defaults ?? {} };
+  await write(PROJECT_FILE, text(manifest));
+}
+
+/**
+ * Add cell `id` (a folder) with `scene` and, if given, `scenario` to the project, and list it in
+ * the manifest. Returns the project with it.
+ */
+export async function addCell(project: Project, id: string, scene: unknown, scenario: unknown): Promise<Project> {
+  const write = writable(project);
+  if (project.manifest.cells?.includes(id)) throw new Error(`the project already has a cell \`${id}\``);
+  await write(`${id}/scene.json`, text(scene));
+  if (scenario != null) await write(`${id}/scenario.json`, text(scenario));
+  const manifest = { ...project.manifest, cells: [...(project.manifest.cells ?? []), id] };
+  await write(PROJECT_FILE, text(manifest));
+  const description = (scene as { description?: string | null }).description ?? "";
+  const cell: Cell = {
+    id,
+    description,
+    scene: join(project.root, `${id}/scene.json`),
+    scenario: scenario != null ? join(project.root, `${id}/scenario.json`) : null,
+  };
+  return { ...project, manifest, cells: [...project.cells, cell] };
 }
 
 /** The items of one kind, by reference, in name order. */

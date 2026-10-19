@@ -8,7 +8,20 @@ import {
   ThemeToggle,
 } from "@vitavision/ui";
 import { FileDrop } from "@vitavision/workbench";
-import { Aperture, Check, Download, FileInput, FolderOpen, Menu as MenuIcon, Redo2, Save, Undo2 } from "lucide-react";
+import {
+  Aperture,
+  Check,
+  Download,
+  FileInput,
+  FolderOpen,
+  FolderPlus,
+  FolderSync,
+  Menu as MenuIcon,
+  Redo2,
+  Save,
+  SaveAll,
+  Undo2,
+} from "lucide-react";
 import { useRef } from "react";
 import type { Cell } from "../io/project";
 
@@ -50,8 +63,13 @@ export function Header({
   onUndo,
   onRedo,
   example,
+  project,
   cells,
   onExample,
+  onProject,
+  reopenable,
+  onReopen,
+  onSaveAsCell,
   onFiles,
   onPaths,
   onPoses,
@@ -70,9 +88,18 @@ export function Header({
   onUndo: () => void;
   onRedo: () => void;
   example: string;
+  /** The open project: its name, and whether it can be saved into. */
+  project: { name: string; writable: boolean } | null;
   /** The open project's cells. */
   cells: readonly Cell[];
   onExample: (id: string) => void;
+  /** Open (or, with `create`, make) a project folder; `null` where folders cannot be opened. */
+  onProject: ((create: boolean) => void) | null;
+  /** A project of an earlier session the browser must be allowed again, by name. */
+  reopenable: string | null;
+  onReopen: () => void;
+  /** Save the scene as a new cell of the open project; `null` when it cannot. */
+  onSaveAsCell: (() => void) | null;
   onFiles: (files: File[]) => void;
   onPaths: (paths: string[]) => void;
   /** Import tool poses; `null` while nothing is loaded. */
@@ -137,6 +164,22 @@ export function Header({
             </Button>
           }
         >
+          {onProject && (
+            <>
+              <MenuItem icon={<FolderOpen className="size-4" />} onSelect={() => onProject(false)}>
+                Open project…
+              </MenuItem>
+              <MenuItem icon={<FolderPlus className="size-4" />} onSelect={() => onProject(true)}>
+                New project…
+              </MenuItem>
+              {reopenable !== null && (
+                <MenuItem icon={<FolderSync className="size-4" />} onSelect={onReopen}>
+                  Reopen {reopenable}
+                </MenuItem>
+              )}
+              <MenuSeparator />
+            </>
+          )}
           {native ? (
             <MenuItem
               icon={<FolderOpen className="size-4" />}
@@ -165,11 +208,16 @@ export function Header({
             disabled={onSave === null}
             onSelect={() => onSave?.(false)}
           >
-            {native ? "Save" : "Download scene"}
+            {native || (project?.writable && cells.some((c) => c.id === example)) ? "Save" : "Download scene"}
           </MenuItem>
           {native && (
             <MenuItem shortcut={`${MOD}⇧S`} disabled={onSave === null} onSelect={() => onSave?.(true)}>
               Save as…
+            </MenuItem>
+          )}
+          {onSaveAsCell && project && (
+            <MenuItem icon={<SaveAll className="size-4" />} onSelect={onSaveAsCell}>
+              Save as a cell of {project.name}…
             </MenuItem>
           )}
           {exports.length > 0 && (
@@ -184,7 +232,7 @@ export function Header({
             </>
           )}
           <MenuSeparator />
-          <MenuLabel>Examples</MenuLabel>
+          <MenuLabel>{project?.name ?? "Cells"}</MenuLabel>
           {cells.map((e) => (
             <MenuItem
               key={e.id}
