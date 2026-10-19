@@ -5,6 +5,7 @@ import type { Playhead } from "@vitavision/workbench";
 import { LayoutGrid, Maximize2 } from "lucide-react";
 import { useState } from "react";
 
+import type { PoseSource } from "../kernel/posed";
 import { CameraView } from "./CameraView";
 
 /** Grid columns for `n` tiles: one row up to three cameras, then two rows. */
@@ -20,6 +21,7 @@ function columns(n: number): number {
 export function CameraGrid({
   session,
   runtime,
+  poses,
   cameras,
   targets,
   lasers,
@@ -30,6 +32,8 @@ export function CameraGrid({
 }: {
   session: EtendueScene;
   runtime: FrameTreeRuntime | null;
+  /** Where poses are read: `runtime`, or it with an edit in progress drawn over it. */
+  poses?: PoseSource | null | undefined;
   cameras: readonly CameraSpec[];
   targets: readonly TargetSpec[];
   lasers: readonly LaserSpec[];
@@ -80,6 +84,7 @@ export function CameraGrid({
             <CameraView
               session={session}
               runtime={runtime}
+              poses={poses ?? runtime}
               camera={camera}
               targets={targets}
               lasers={lasers}

@@ -16,6 +16,7 @@ import library, { type LibraryRobot } from "virtual:etendue-robots";
 import { exportFile, jsonText } from "./io/export";
 import { fileUrl, isTauri, parentDir } from "./io/tauri";
 import { describeFailure } from "./kernel/etendue";
+import { type PoseOverride, posed } from "./kernel/posed";
 import type { GeneratedPoses } from "@etendue/wasm";
 import { scenarioFromPoses } from "./kernel/native";
 import { CameraGrid } from "./panels/CameraGrid";
@@ -48,6 +49,7 @@ interface Scoped<T> {
 }
 
 const MODE_KEY = "etendue-studio:mode";
+const NO_OVERRIDES: readonly PoseOverride[] = [];
 
 function storedMode(modes: Mode[]): Mode {
   try {
@@ -68,7 +70,19 @@ function inField(e: KeyboardEvent): boolean {
 export function App() {
   const [studio] = useState(() => new Studio(createPlayhead(1, 0.01)));
   const [runner] = useState(() => new DatasetRunner(studio));
-  const { current, failure, loading, playing, example, dataset, undo, redo, dirty, opened } = useStudio(studio);
+  const {
+    current,
+    failure,
+    loading,
+    playing,
+    example,
+    dataset,
+    undo,
+    redo,
+    dirty,
+    opened,
+    preview: editing,
+  } = useStudio(studio);
   const { playhead } = studio;
   const modes = useMemo<Mode[]>(() => ["setup", "motion", "images", ...(isTauri() ? ["dataset" as const] : [])], []);
   const [mode, setModeState] = useState<Mode>(() => storedMode(modes));
@@ -105,6 +119,10 @@ export function App() {
   const setSelected = (id: string | null) => setSelection({ opened, value: id });
   // The frame tree's runtime: a new one for every bake.
   const onRuntime = useCallback((r: FrameTreeRuntime) => setRuntime(r), []);
+  // World poses with the edit in progress drawn over the bake.
+  const overrides = editing?.overrides ?? NO_OVERRIDES;
+  const poses = useMemo(() => (runtime ? posed(runtime, overrides) : null), [runtime, overrides]);
+  const live = useMemo(() => ({ preview: studio.preview, commit: studio.commit, cancel: studio.cancel }), [studio]);
 
   usePlaybackClock({ playhead, playing, speed, loop, onEnd: () => studio.setPlaying(false) });
 
@@ -307,6 +325,7 @@ export function App() {
       onSelect={setSelected}
       onRuntime={onRuntime}
       candidates={mode === "motion" && motionPanel === "generate" ? preview?.candidates : null}
+      overrides={overrides}
     />
   ) : null;
 
@@ -317,6 +336,7 @@ export function App() {
           <CameraGrid
             session={current.session}
             runtime={runtime}
+            poses={poses}
             cameras={cameras}
             targets={scene?.targets ?? []}
             lasers={scene?.lasers ?? []}
@@ -445,10 +465,12 @@ export function App() {
     current && mode === "setup" ? (
       <Inspector
         current={current}
-        runtime={runtime}
+        preview={editing}
+        poses={poses}
         selected={selected}
         failure={failure}
         playhead={playhead}
+        live={live}
         onEdit={studio.edit}
         onRenamed={setSelected}
       />

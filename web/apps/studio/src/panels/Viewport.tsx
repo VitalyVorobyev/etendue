@@ -1,4 +1,4 @@
-import type { Candidate, EtendueScene, SceneSpec } from "@etendue/wasm";
+import type { CameraSpec, Candidate, EtendueScene } from "@etendue/wasm";
 import { type FrameTreeRuntime, type LightShapeLike, imageBorderPixels } from "@vitavision/three";
 import {
   AtFrame,
@@ -9,33 +9,71 @@ import {
   LightGizmo,
   Robot,
   SceneCanvas,
+  invalidateScene,
+  useFrameTree,
 } from "@vitavision/three-react";
 import type { Playhead } from "@vitavision/workbench";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 
 import type { LoadedRobot } from "../io/load";
 import type { Baked } from "../kernel/etendue";
+import { cachedMeshLoader } from "../kernel/meshCache";
+import { type PoseOverride, showOverrides } from "../kernel/posed";
 import { CandidateGlyphs } from "../scene/CandidateGlyphs";
 import { TargetSurface } from "../scene/TargetSurface";
 
-/** Border rays of every camera, from the kernel's back-projection (distortion included). */
-function useBorderRays(session: EtendueScene, scene: SceneSpec): Map<string, Float64Array> {
-  return useMemo(
-    () =>
-      new Map(
-        (scene.cameras ?? []).map((c) => [
-          c.id,
-          session.backprojectPixels(c.id, imageBorderPixels(c.resolution[0], c.resolution[1], 8)),
-        ]),
-      ),
-    [session, scene],
-  );
+/** Per kernel session: each camera's border rays and the model they were computed for. */
+const rayCache = new WeakMap<EtendueScene, Map<string, { key: string; rays: Float64Array }>>();
+
+/**
+ * Border rays of every camera, from the kernel's back-projection (distortion included). A
+ * camera's rays are computed again only when its model or image size changes, not when it or
+ * anything else moves.
+ */
+function useBorderRays(session: EtendueScene, cameras: readonly CameraSpec[]): Map<string, Float64Array> {
+  return useMemo(() => {
+    let cache = rayCache.get(session);
+    if (!cache) rayCache.set(session, (cache = new Map<string, { key: string; rays: Float64Array }>()));
+    const rays = new Map<string, Float64Array>();
+    for (const c of cameras) {
+      const key = JSON.stringify([c.params, c.resolution]);
+      let hit = cache.get(c.id);
+      if (hit?.key !== key) {
+        hit = { key, rays: session.backprojectPixels(c.id, imageBorderPixels(c.resolution[0], c.resolution[1], 8)) };
+        cache.set(c.id, hit);
+      }
+      rays.set(c.id, hit.rays);
+    }
+    return rays;
+  }, [session, cameras]);
 }
 
 function RobotVisual({ robot, tcp }: { robot: LoadedRobot; tcp: string }) {
   const axes = useMemo(() => [tcp], [tcp]);
-  return <Robot id={robot.id} visuals={robot.manifest.visuals} resolve={robot.meshUrl} axes={axes} />;
+  return (
+    <Robot
+      id={robot.id}
+      visuals={robot.manifest.visuals}
+      resolve={robot.meshUrl}
+      loader={cachedMeshLoader}
+      axes={axes}
+    />
+  );
 }
+
+/** Draw `overrides` (an edit in progress) over the frame tree's baked poses. */
+function PoseOverrides({ overrides }: { overrides: readonly PoseOverride[] }) {
+  const runtime = useFrameTree();
+  useEffect(() => {
+    showOverrides(runtime, overrides);
+    // Sensor images draw on their own schedule: wake them.
+    invalidateScene(runtime);
+  }, [runtime, overrides]);
+  return null;
+}
+
+const NONE: readonly PoseOverride[] = [];
+const NO_CAMERAS: readonly CameraSpec[] = [];
 
 /** The 3D scene: robots, rigs, cameras, lasers, lights, targets, posed at the playhead. */
 export function Viewport({
@@ -45,6 +83,7 @@ export function Viewport({
   onSelect,
   onRuntime,
   candidates,
+  overrides = NONE,
 }: {
   current: Baked;
   playhead: Playhead;
@@ -53,10 +92,12 @@ export function Viewport({
   onRuntime: (runtime: FrameTreeRuntime) => void;
   /** Generated candidate poses to show, if any. */
   candidates?: readonly Candidate[] | null | undefined;
+  /** Moves of an edit in progress, drawn over the bake. */
+  overrides?: readonly PoseOverride[] | undefined;
 }) {
   const { loaded, session, baked } = current;
   const { scene } = loaded;
-  const rays = useBorderRays(session, scene);
+  const rays = useBorderRays(session, scene.cameras ?? NO_CAMERAS);
   const selectedFrame = selected !== null && baked.frames.includes(selected) ? selected : null;
 
   return (
@@ -68,6 +109,7 @@ export function Viewport({
       keyboard
     >
       <FrameTree baked={baked} playhead={playhead} onRuntime={onRuntime}>
+        <PoseOverrides overrides={overrides} />
         {loaded.robots.map((r) => (
           <RobotVisual key={r.id} robot={r} tcp={r.manifest.tcp_link} />
         ))}
