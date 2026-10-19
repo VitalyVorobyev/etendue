@@ -505,11 +505,10 @@ async fn calibrate_dataset(
         let report = move |p: Progress| {
             let _ = on_progress.send(p);
         };
-        match etendue_cli::calibrate::run_dir(&dir, &options, &Control::new(&report, Some(&cancel))) {
+        let control = Control::new(&report, Some(&cancel));
+        match etendue_cli::calibrate::run_dir(&dir, &options, &control) {
             Ok(run) => CalibrationOutcome::Ok { run },
-            Err(e) if e.downcast_ref::<etendue_cli::progress::Cancelled>().is_some() => {
-                CalibrationOutcome::Cancelled
-            }
+            Err(e) if e.is::<etendue_cli::progress::Cancelled>() => CalibrationOutcome::Cancelled,
             Err(e) => CalibrationOutcome::Failed {
                 message: format!("{e:#}"),
             },
