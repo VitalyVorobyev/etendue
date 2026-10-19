@@ -61,7 +61,10 @@ surface; the panels around it hold only what that workspace needs.
     best focus with the depth of field for the blur limit, the Scheimpflug hinge points, and the
     laser's waist.
     Drag the handles to move the focus, the aim, the laser and the window's depth. **Lens**
-    zooms onto the camera; the wheel zooms, a drag pans.
+    zooms onto the camera; the wheel zooms, a drag pans. **3-D** shows the same head to scale
+    in 3-D instead: the sensor as tilted, the principal planes and pupils, the camera's field,
+    the laser's fan, the plane of best focus, and the window on the laser plane coloured by
+    total blur. Where the plane of best focus cuts the laser plane, the window is sharpest.
   - **Map** (centre, bottom left): the laser plane over the window, face on, coloured by total
     blur (defocus and diffraction), depth per pixel, millimetres per pixel along the line, the
     triangulation angle, or the stripe's width. Hatched samples are out of view; a white contour

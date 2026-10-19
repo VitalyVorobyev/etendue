@@ -2,8 +2,8 @@
  * The head's sensor, face on: where the laser line images at several ranges across the window,
  * from the near end (blue) to the far end (yellow). Triangulation is the stripe moving across
  * the image as the range changes; how far it moves per millimetre is the depth resolution. Each
- * stripe is labelled with its range and, when the beam's waist is known, its width at the line's
- * centre.
+ * stripe is labelled with its range and, when the beam's waist is known, drawn as wide as it
+ * images (its width at the line's centre, to scale) and labelled with that width.
  */
 
 import type { HeadMap } from "@etendue/wasm";
@@ -88,6 +88,17 @@ export function SensorStripes({
           const b = range[0] + (j / Math.max(1, map.along - 1)) * (range[1] - range[0]);
           return (
             <g key={j} data-range-mm={(b * 1000).toFixed(0)}>
+              {s.mid !== null && (
+                // The stripe as wide as it images (sensor px, its width at the line's centre).
+                <polyline
+                  points={s.points}
+                  fill="none"
+                  stroke={colour}
+                  strokeOpacity={0.35}
+                  strokeWidth={s.mid}
+                  strokeLinejoin="round"
+                />
+              )}
               <polyline
                 points={s.points}
                 fill="none"

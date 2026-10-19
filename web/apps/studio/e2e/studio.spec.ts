@@ -360,6 +360,12 @@ test("the Optics workspace designs a laser head: Scheimpflug, handles, optimiser
   await expect(figures).toContainText("100 % seen");
   // The laser line on the sensor at seven ranges, and its width (the StingRay's waist is known).
   await expect(page.getByTestId("sensor-stripes").locator("[data-range-mm]")).toHaveCount(7);
+  // The head in 3-D, and back to its section.
+  await page.getByRole("radio", { name: "3-D" }).click();
+  await expect(page.getByTestId("anatomy-3d").locator("canvas")).toBeVisible();
+  await page.getByRole("radio", { name: "Section" }).click();
+  await expect(section).toBeVisible();
+
   // Against range, as charts: the blur and the stripe's width, and the resolution.
   const views = page.getByTestId("range-views");
   await views.getByRole("radio", { name: "Blur" }).click();

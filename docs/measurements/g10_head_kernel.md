@@ -100,3 +100,17 @@ StingRay head, over its 120 mm deep window:
 
 The 50 µm waist has a Rayleigh range of 12 mm at 660 nm. Focused at the laser, the beam is
 2.7 mm thick at the aim point; focused at the aim point, it is 0.1 mm thick there.
+
+## P10f: the head in 3-D (2026-10-19, branch `p10f/anatomy`)
+
+The head's section now carries the camera in 3-D (`Section.solid`). Its test checks three
+things on a tilted sensor:
+- each corner is on the sensor at its pixel, to 1e-9 px;
+- a point along each field ray projects to its corner, to 1e-6 px;
+- the plane of best focus is the camera's own, compared bit for bit.
+
+| Gate | Limit | Measured |
+|---|---|---|
+| G10.1 kernel: `headMap` 64 × 64; `headSection` | ≤ 30 ms | **0.87 ms**; 0.49 ms |
+| G0.1 (the section's JSON text now includes the solid) | 0 mismatches | **0** of 216,630 values |
+| G2.1: gzip -9 | ≤ 1,572,864 B | **773,473 B** |

@@ -306,3 +306,42 @@ fn a_focused_beam_is_its_waist_where_it_is_focused() {
     let focused = at(r);
     assert!(focused[1].beam_px > focused[4].beam_px && focused[7].beam_px > focused[4].beam_px);
 }
+
+#[test]
+fn the_solid_is_the_camera_in_three_dimensions() {
+    use etendue_core::optics::paraxial::sensor_pixel;
+    // A tilted sensor, so the corners are not in one z plane.
+    let mut h = head(0.004, 0.003);
+    h = h
+        .with_setting(&Setting {
+            tilt: [0.1, 0.03],
+            focus_distance_m: 0.35,
+            f_number: 4.0,
+        })
+        .unwrap();
+    let section = h.section(Some(&window(0.1)), &[], None).unwrap();
+    let solid = section.solid;
+    let cam = h.camera();
+    let corners = [[0.0, 0.0], [1936.0, 0.0], [1936.0, 1216.0], [0.0, 1216.0]];
+    for (i, [u, v]) in corners.into_iter().enumerate() {
+        // Each corner is on the sensor at its pixel.
+        let p = Point3::from(solid.sensor[i]);
+        let px = sensor_pixel(cam, &p);
+        assert!(
+            (px.x - u).abs() < 1e-9 && (px.y - v).abs() < 1e-9,
+            "{px:?} for {u}, {v}"
+        );
+        // A point along its field ray projects to that pixel.
+        let r = solid.field[i];
+        let q = Point3::from(r.point) + 0.4 * Vector3::from(r.direction);
+        let back = cam.project(&q).unwrap();
+        assert!(
+            (back.x - u).abs() < 1e-6 && (back.y - v).abs() < 1e-6,
+            "{back:?} for {u}, {v}"
+        );
+    }
+    // The plane of best focus is the camera's own.
+    let (point, normal) = cam.plane_of_best_focus().unwrap();
+    assert_eq!(solid.focus.point, <[f64; 3]>::from(point.coords));
+    assert_eq!(solid.focus.normal, <[f64; 3]>::from(normal));
+}

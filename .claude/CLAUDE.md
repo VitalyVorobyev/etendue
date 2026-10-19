@@ -4,7 +4,7 @@
 
 ```bash
 cargo build --workspace                                    # build all crates
-cargo test --workspace --locked                            # run all 240 tests
+cargo test --workspace --locked                            # run every test (335)
 cargo clippy --workspace --all-targets -- -D warnings      # lint (must be clean)
 cargo fmt --all                                            # format
 cargo fmt --all --check                                    # CI format check
@@ -128,11 +128,14 @@ xtask (emit-schemas, check-layering, app)
 - `optics::thick_lens` — `ThickLens`, `coc_diameter`, `coc_diameter_px`,
   `sync_intrinsics_from_physical`
 - `optics::coc` — Scheimpflug plane-of-best-focus and off-axis CoC
-- `laser` — `LaserPlane`, `GaussianBeamWidth`, `stripe_on_target`, `project_stripe`
+- `laser` — `LaserPlane`, `GaussianBeamWidth` (waist at `waist_distance_m` from the laser: where it is
+  focused), `stripe_on_target`, `project_stripe`
 - `analysis` — `defocus_map`, `working_volume`
 - `optics::camera` — `PhysicalCamera` (ADR 0008); `from_scene` — `resolve` (projection frames)
-- `head` — a triangulation head (P10): samples, map, section, Scheimpflug hinge, optimiser
-- `rig` — `coverage` of a `RigLayout` (P11): per-voxel camera views and laser–camera pairs
+- `head` — a triangulation head (P10): samples (with the stripe's imaged width), map, section (2-D,
+  and the camera in 3-D as `solid`), Scheimpflug hinge, optimiser
+- `rig` — `coverage` of a `RigLayout` (P11): per-voxel camera views and laser–camera pairs;
+  `sharpness`, each camera's sharp range along its axis, judged as `coverage` judges it
 
 **Physical cameras** (ADR 0008, P9) — `etendue-core::optics::camera::PhysicalCamera` is the camera
 model: a body (mechanical frame M, the image-plane datum) with a sensor and a thick lens with pupils,
