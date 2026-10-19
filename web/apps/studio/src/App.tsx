@@ -26,7 +26,7 @@ import { type HeadParams, initialHead, placement, toItem } from "./optics/design
 import { OpticsForm, OpticsReadouts } from "./optics/OpticsPanels";
 import { PlaneMap } from "./optics/PlaneMap";
 import { SectionView } from "./optics/SectionView";
-import { SensorStripes } from "./optics/SensorStripes";
+import { RangeViews } from "./optics/RangeViews";
 import { analyse as analyseRig } from "./rigs/analysis";
 import { type RigParams, initialRig, toItem as toRigItem, toLayout } from "./rigs/design";
 import { RigForm, RigReadouts, TiltChart } from "./rigs/RigPanels";
@@ -892,10 +892,12 @@ export function App() {
               width={headParams.width_m}
               blurLimitPx={headParams.max_blur_px}
             />
-            <SensorStripes
+            <RangeViews
               map={headAnalysis.map}
               range={headAnalysis.range}
               resolution={headAnalysis.design.camera.resolution}
+              blurLimitPx={headParams.max_blur_px}
+              focus={headParams.laser.beam_waist_m !== null ? headParams.laser.waist_distance_m : null}
             />
           </div>
         </div>

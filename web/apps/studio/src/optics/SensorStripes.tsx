@@ -60,7 +60,7 @@ export function SensorStripes({
   const rows = Array.from({ length: STRIPES }, (_, n) => Math.round((n * (map.along - 1)) / (STRIPES - 1)));
   const font = Math.max(w, h) / 40;
   return (
-    <div className="flex h-full min-h-0 flex-col gap-2 p-2" data-testid="sensor-stripes">
+    <div className="flex h-full min-h-0 flex-col gap-2" data-testid="sensor-stripes">
       <div className="font-mono text-[11px] text-fg-muted">
         The laser line on the sensor, {(range[0] * 1000).toFixed(0)}–{(range[1] * 1000).toFixed(0)} mm out
       </div>

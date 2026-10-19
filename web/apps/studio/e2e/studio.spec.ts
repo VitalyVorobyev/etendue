@@ -334,6 +334,14 @@ test("the Optics workspace designs a laser head: Scheimpflug, handles, optimiser
   await expect(figures).toContainText("100 % seen");
   // The laser line on the sensor at seven ranges, and its width (the StingRay's waist is known).
   await expect(page.getByTestId("sensor-stripes").locator("[data-range-mm]")).toHaveCount(7);
+  // Against range, as charts: the blur and the stripe's width, and the resolution.
+  const views = page.getByTestId("range-views");
+  await views.getByRole("radio", { name: "Blur" }).click();
+  await expect(views.getByRole("img", { name: "Blur and stripe width against range" })).toBeVisible();
+  await expect(views).toContainText("stripe, worst");
+  await views.getByRole("radio", { name: "Resolution" }).click();
+  await expect(views.getByRole("img", { name: "Resolution against range" })).toBeVisible();
+  await views.getByRole("radio", { name: "Sensor" }).click();
   await expect(figures).toContainText(/stripe width\s*[\d.]+ – [\d.]+ px/);
   await page.getByTestId("plane-map").getByRole("radio", { name: "Stripe" }).click();
   await expect(page.getByRole("img", { name: "Stripe over the window" })).toBeVisible();

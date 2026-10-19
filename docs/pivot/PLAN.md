@@ -625,9 +625,10 @@ studio code, so no phase waits on a review.
       A laser now has a `waist_distance_m`, where it is focused. Before, the waist was at the
       laser, so a focusable laser's thin waist made a 36–40 px stripe; focused at the aim point
       it is 1.8–8.9 px.
+    - **P10d:** charts against range along the laser: the blur and the stripe width, and the
+      depth and lateral resolution, on the line's centre and the worst across it.
 
-    Not built yet: the 3-D anatomy view, the charts against depth, and the lens search over the
-    library.
+    Not built yet: the 3-D anatomy view and the lens search over the library.
 - **P11 — Rigs workspace.**
   - **Schema:**
     - `ImageX::Common` makes k = 2 a classical stereo pair (baseline 2ρ, convergence

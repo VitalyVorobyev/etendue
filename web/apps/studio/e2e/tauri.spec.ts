@@ -108,7 +108,10 @@ async function installShell(page: Page): Promise<void> {
             const send = (index: number, message: unknown) => callbacks.get(channel)?.({ index, message });
             send(0, { kind: "step", stage: "render", done: 1, total: 2 });
             send(1, { kind: "log", line: "etendue: rendered exr/cam_left/cap_000.exr" });
-            await new Promise((resolve) => setTimeout(resolve, 5000));
+            // The run lasts until the test lets it finish (`__finishRun`), not for a set time.
+            await new Promise((resolve) => {
+              w.__finishRun = resolve;
+            });
             const request = args.request as { output: string };
             return {
               kind: "ok",
@@ -177,6 +180,7 @@ test("generates a dataset through the native pipeline", async ({ page }) => {
   await page.getByRole("radio", { name: "Calibrate" }).click();
   await expect(page.getByTestId("dataset-panel").getByRole("button", { name: "Cancel" })).toBeVisible();
   await expect(page.getByTestId("dataset-panel").getByRole("button", { name: "Generate" })).toBeDisabled();
+  await page.evaluate(() => (window as unknown as { __finishRun: () => void }).__finishRun());
 
   const result = panel.getByTestId("dataset-result");
   await expect(result).toContainText("20 captures, 40 views, 2160 visible points");
