@@ -73,8 +73,9 @@ same block.
 
 - **The physical values are the source of truth.** Everything the pinhole model needs is
   derived from them by the camera model (§3).
-- **Distortion stays as-built.** So do the principal point and skew: cx, cy, skew and
-  distortion are parameters of the built camera, and the optics block does not touch them.
+- **Distortion stays as-built,** and so does the principal point. cx, cy and the distortion
+  are parameters of the built camera; the distortion acts in P's normalised coordinates. The
+  focal lengths, the skew and the model tilt are derived (§3).
 - **Focus breathing is modelled.** With unit focusing, refocusing moves the lens, its
   principal points and its pupils along the axis. fx changes with them (§3).
 - **A camera without the block behaves exactly as today.** Every existing scene stays
@@ -139,14 +140,16 @@ caller passes points in M or in the world.
 
   With `e = 0` this is `v0 / pitch`, the fix to `sync_intrinsics_from_physical`.
 
-  A physical sensor tilt τ maps to calibration-rs's (OpenCV's) tilt model about P. For a
-  tilt about one axis:
-  - the model tilt is `tan τ′ = tan τ / m_p`;
-  - the focal length across the tilt axis scales by `cos τ′ / cos τ`.
-
-  With `m_p = 1` the model tilt is the physical tilt. For a compound tilt the model
-  decomposes the exact tilted-plane homography into K·T(τ′). Any in-plane roll goes into
-  `M_se3_P`.
+  A physical sensor tilt τ maps to calibration-rs's (OpenCV's) tilt model about P. The
+  model decomposes the exact homography from P's normalised coordinates to pixels into
+  K·H(τ′).
+  - **With `m_p = 1`** the model tilt is the physical tilt, and K is the plain pinhole.
+  - **For a tilt about one axis,** `tan τ′ = tan τ / m_p`, and the focal length across the
+    tilt axis scales by `cos τ′ / cos τ`.
+  - **For a compound tilt with `m_p ≠ 1`,** K has a lower-left term that calibration-rs's
+    upper-triangular K cannot hold. A roll ψ of P about its axis, found by bisection,
+    removes it. The rest is a small derived skew (−1.4e-3 of fx at τ = (0.1, 0.05) rad,
+    m_p = 1.25). ψ goes into `M_se3_P`.
 - **Circle of confusion in the H′ frame.** The existing derivation is kept and
   generalised from an aperture at the principal planes to the true exit pupil. The blur is
   the exit pupil, of diameter `D_X = m_p · f / N`, projected from the image point onto the
@@ -156,10 +159,17 @@ caller passes points in M or in the world.
   c = D_X · |s_i − v_sensor| / (s_i − s′E)
   ```
 
-  Here `s_i` and `s′E` are measured from H′. With `e = 0` this is the current formula, and
-  its tests (including the regime (a)/(b) guards) keep passing unchanged. The plane of best
-  focus depends on the conjugates only, not on the pupils. The model converts M to the
-  core's H′ frame (`z − v0`) internally.
+  Here `s_i` and `s′E` are measured from H′. With `e = 0` and `g = 0` this is the current
+  formula, and its tests (including the regime (a)/(b) guards) keep passing unchanged. The
+  plane of best focus depends on the conjugates only, not on the pupils: it is the
+  conjugate of the sensor plane. The model computes the blur from explicit positions in M.
+  - **Exact:** without tilt; and with tilt, the zero locus (the plane of best focus) and
+    the blur's centre.
+  - **First order with tilt, off that plane:** `v_sensor` is read at the image's lateral
+    position, where the oblique chief ray meets the tilted sensor beside it. Over a
+    ±0.2 rad field the diameter is within `0.6·tan θ` (relative) of the traced ellipse's
+    mean diameter, with θ the sensor's tilt from the axis (measured: 0.54·tan θ at most).
+    An exact blur ellipse comes with the Optics workspace (P10), whose optimiser needs it.
 - **Its API takes mechanical inputs only:**
   - `project` / `backproject`: points in M, with rays returned in M;
   - `coc`, `blur` and `plane_of_best_focus`, in M;
@@ -173,7 +183,7 @@ caller passes points in M or in the world.
   computes `world_se3_P = world_se3_M · M_se3_P` through the model. The ground truth also
   records `M_se3_P`, so a calibration result can be compared in either frame.
 - **The stored params are the equivalent pinhole.** For a camera with optics, the model
-  writes fx, fy and the tilt in `params` as the equivalent pinhole about P. `validate` (CLI
+  writes fx, fy, the skew and the tilt in `params` as the equivalent pinhole about P. `validate` (CLI
   and wasm) rejects any that differ from the derived values by more than 1e-9 relative.
   They are a readable copy, and nothing pairs them with the mechanical pose.
 - **A camera without optics** has `M_se3_P = I` and its `params` as stored. Every current
@@ -273,6 +283,29 @@ typed arrays:
 As for every kernel function, native and wasm results are checked bit for bit (the
 G0.1 recipe). If an analysis exceeds 100 ms per UI update, it moves to a worker or a
 Tauri command (P6-2).
+
+### 9. Findings while implementing (2026-10-19)
+
+The model's tests, which compare it with an independent paraxial trace, found three defects
+in the legacy core:
+
+- **Mirrored τx.** calibration-rs's tilted plane is the virtual image plane in front of the
+  projection centre. The real sensor is its reflection through the lens. So calibration-rs's
+  `tilt_x` is the negative of `optics::coc`'s `tau_x`; `tilt_y` agrees.
+  - `ThickLens` and the Scheimpflug solver passed the angles through unchanged. For a camera
+    tilted about x, that mirrored the plane of best focus, every blur computed from it, and the
+    solver's proposal.
+  - Both now convert (`optics::coc_tilt`, CLAUDE.md gotcha 4).
+  - A test pins the legacy plane of best focus against `PhysicalCamera`: exact for a tilt
+    about one axis. For a compound tilt it agrees within `1 − cos τx`, because the legacy
+    model composes the axes independently.
+- **H's position.** The legacy text put H at `z = +g`, but its formulas use `d_H = z + g`,
+  which puts H at `z = −g`. The text is corrected; the formulas and their tests are
+  unchanged.
+- **The solver stalled.** argmin's Nelder–Mead stopped at 0.49 px worst blur where the
+  optimum is 0. The cost is steep in focus and one tilt, and nearly flat in the other.
+  Restarting from the best point with a fresh simplex reaches 4e-6 px. The in-tree port (§7)
+  keeps the restarts, and G9.2 is recorded on the restarted solver.
 
 ## Consequences
 

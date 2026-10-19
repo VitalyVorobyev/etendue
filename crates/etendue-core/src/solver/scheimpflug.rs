@@ -48,7 +48,7 @@ use argmin::solver::neldermead::NelderMead;
 use serde::{Deserialize, Serialize};
 
 use crate::laser::LaserPlane;
-use crate::optics::{coc_diameter_at_sensor, coc_to_pixels, scheimpflug_tilt};
+use crate::optics::{coc_diameter_at_sensor, coc_tilt, coc_to_pixels, scheimpflug_tilt};
 use crate::scene::{CameraEntity, LaserEntity};
 
 /// Sampling resolution of the laser fan during cost evaluation.
@@ -100,9 +100,10 @@ pub struct SolverSpec {
 /// Solver outputs: the proposed Scheimpflug tilt + focus, plus diagnostics.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SolverResult {
-    /// Proposed sensor tilt about camera `x`, in radians.
+    /// Proposed sensor tilt about camera `x`, in radians (calibration-rs's convention, as
+    /// `CameraParams` stores it).
     pub tau_x: f64,
-    /// Proposed sensor tilt about camera `y`, in radians.
+    /// Proposed sensor tilt about camera `y`, in radians (calibration-rs's convention).
     pub tau_y: f64,
     /// Proposed object-side focus distance from the rear principal plane
     /// `H'`, in metres.
@@ -174,8 +175,9 @@ pub fn solve_scheimpflug(
 ) -> Result<SolverResult, SolverError> {
     validate_spec(spec)?;
 
-    // Initial simplex anchored at the camera's current state.
-    let (tau_x0, tau_y0) = scheimpflug_tilt(&camera.params);
+    // Initial simplex anchored at the camera's current state. The search runs in the defocus
+    // physics' tilt convention; the result is given back in calibration-rs's.
+    let (tau_x0, tau_y0) = coc_tilt(scheimpflug_tilt(&camera.params));
     let s_o0 = camera.optics.focus_distance_m;
     let initial = vec![tau_x0, tau_y0, s_o0];
 
@@ -185,41 +187,58 @@ pub fn solve_scheimpflug(
     // approximately convex around the optimum.
     let d_tau = 1.0_f64.to_radians();
     let d_s = (0.05 * spec.d_opt).max(5.0e-3);
-    let simplex = vec![
-        initial.clone(),
-        vec![initial[0] + d_tau, initial[1], initial[2]],
-        vec![initial[0], initial[1] + d_tau, initial[2]],
-        vec![initial[0], initial[1], initial[2] + d_s],
-    ];
 
-    let cost = ScheimpflugCost::new(camera, laser, spec)?;
-
-    let solver = NelderMead::new(simplex)
-        .with_sd_tolerance(1.0e-6)
-        .map_err(|e| SolverError::SolverFailure(format!("simplex tolerance: {e}")))?;
-    let executor = Executor::new(cost, solver).configure(|state| state.max_iters(500));
-
-    let outcome = executor
-        .run()
-        .map_err(|e| SolverError::SolverFailure(format!("Nelder-Mead: {e}")))?;
-
-    let state = outcome.state();
-    let best = state
-        .get_best_param()
-        .ok_or_else(|| SolverError::SolverFailure("no best parameter".to_string()))?
-        .clone();
-    let max_coc_px = state.get_best_cost();
-    let iterations = u32::try_from(state.get_iter()).unwrap_or(u32::MAX);
-    let converged = state.get_termination_status().terminated();
+    // Nelder-Mead stalls on this cost: the worst-case blur is steep in focus and in one tilt
+    // and nearly flat in the other, and the simplex collapses before the flat direction is
+    // explored. Restart from the best point with a fresh simplex until a restart stops helping.
+    const RESTARTS: usize = 8;
+    let mut best = initial;
+    let mut max_coc_px = f64::INFINITY;
+    let mut iterations = 0_u32;
+    let mut converged = false;
+    for _ in 0..RESTARTS {
+        let simplex = vec![
+            best.clone(),
+            vec![best[0] + d_tau, best[1], best[2]],
+            vec![best[0], best[1] + d_tau, best[2]],
+            vec![best[0], best[1], best[2] + d_s],
+        ];
+        let cost = ScheimpflugCost::new(camera, laser, spec)?;
+        let solver = NelderMead::new(simplex)
+            .with_sd_tolerance(1.0e-6)
+            .map_err(|e| SolverError::SolverFailure(format!("simplex tolerance: {e}")))?;
+        let executor = Executor::new(cost, solver).configure(|state| state.max_iters(500));
+        let outcome = executor
+            .run()
+            .map_err(|e| SolverError::SolverFailure(format!("Nelder-Mead: {e}")))?;
+        let state = outcome.state();
+        let found = state
+            .get_best_param()
+            .ok_or_else(|| SolverError::SolverFailure("no best parameter".to_string()))?
+            .clone();
+        let found_cost = state.get_best_cost();
+        iterations = iterations.saturating_add(u32::try_from(state.get_iter()).unwrap_or(u32::MAX));
+        converged = state.get_termination_status().terminated();
+        let improved =
+            !max_coc_px.is_finite() || found_cost < max_coc_px - 1e-9 * max_coc_px.max(1.0);
+        if found_cost <= max_coc_px {
+            best = found;
+            max_coc_px = found_cost;
+        }
+        if !improved {
+            break;
+        }
+    }
 
     // Re-evaluate at the best point to get the valid-sample count (argmin
     // doesn't surface custom auxiliary diagnostics from the cost function).
     let cost_for_diag = ScheimpflugCost::new(camera, laser, spec)?;
     let diag = cost_for_diag.evaluate(best[0], best[1], best[2]);
 
+    let (tau_x, tau_y) = coc_tilt((best[0], best[1]));
     Ok(SolverResult {
-        tau_x: best[0],
-        tau_y: best[1],
+        tau_x,
+        tau_y,
         s_o: best[2],
         max_coc_px,
         n_valid_samples: diag.n_valid,
@@ -628,7 +647,7 @@ mod tests {
         };
         // Baseline cost: evaluate at the camera's current state directly.
         let baseline_cost = ScheimpflugCost::new(&cam, &laser, &spec).unwrap();
-        let (tau_x0, tau_y0) = scheimpflug_tilt(&cam.params);
+        let (tau_x0, tau_y0) = coc_tilt(scheimpflug_tilt(&cam.params));
         let baseline = baseline_cost
             .evaluate(tau_x0, tau_y0, cam.optics.focus_distance_m)
             .max_coc_px;
