@@ -15,12 +15,26 @@ import { type FileSource, filePath, filesSource, urlSource } from "../io/source"
 import { fsSource, isTauri, normalize, parentDir, splitAbsolute } from "../io/tauri";
 import { type Baked, type KernelFailure, bakeScene, describeFailure, rebake } from "../kernel/etendue";
 import { type Dataset, dataRoot, saveDialog, saveScene } from "../kernel/native";
+import { type PoseOverride, overridesOf } from "../kernel/posed";
+import { followers, sceneEffect } from "../scene/effect";
 
 /** What an edit changes: the scene, the scenario, and the robot models the scene names. */
 export interface Doc {
   scene: SceneSpec;
   scenario: ScenarioSpec | null;
   robots: LoadedRobot[];
+}
+
+/**
+ * An edit in progress (a slider or a gizmo being dragged): shown as it goes, one undo step when
+ * it is committed.
+ */
+export interface Preview {
+  label: string;
+  /** The document as shown. */
+  doc: Doc;
+  /** Moves shown on top of the current bake, without baking. */
+  overrides: readonly PoseOverride[];
 }
 
 /** Where Save writes, once known (a picked or saved scene); `null` until then. */
@@ -47,6 +61,8 @@ export interface StudioState {
   saveTo: SavePaths | null;
   /** Counts opened documents (not edits): what belongs to one document resets when it changes. */
   opened: number;
+  /** The edit in progress, if any. */
+  preview: Preview | null;
 }
 
 /** One entry of the undo or redo stack: the document before (or after) an edit. */
@@ -155,6 +171,7 @@ export class Studio {
     dirty: false,
     saveTo: null,
     opened: 0,
+    preview: null,
   };
   readonly #listeners = new Set<() => void>();
   #generation = 0;
@@ -162,6 +179,10 @@ export class Studio {
   #redo: Step[] = [];
   /** The document as opened or last saved. */
   #saved: Doc | null = null;
+  /** The open transaction: its label and the document before it. */
+  #tx: { label: string; before: Doc } | null = null;
+  /** A previewed document waiting for its bake (at most one bake per animation frame). */
+  #pending: { doc: Doc; frame: number } | null = null;
 
   constructor(playhead: Playhead) {
     this.playhead = playhead;
@@ -217,6 +238,7 @@ export class Studio {
    * together.
    */
   readonly edit = (label: string, change: (doc: Doc) => Doc): boolean => {
+    this.commit();
     const current = this.#state.current;
     if (!current) return false;
     const before = docOf(current);
@@ -237,11 +259,115 @@ export class Studio {
     return true;
   };
 
+  /**
+   * Show an edit in progress: `change` gets the document as currently shown. Nothing enters the
+   * history until {@link Studio.commit}; another label commits the open edit first.
+   *
+   * - A move of placed things is drawn over the current bake (no kernel call at all).
+   * - An edit that moves nothing (intrinsics, a laser's fan) replaces the kernel's scene and
+   *   keeps the bake.
+   * - Anything else is baked, at most once per animation frame.
+   *
+   * A preview the kernel rejects is shown as the failure, without a toast; the commit reports it.
+   */
+  readonly preview = (label: string, change: (doc: Doc) => Doc): void => {
+    if (this.#tx && this.#tx.label !== label) this.commit();
+    const current = this.#state.current;
+    if (!current) return;
+    const shown = this.#state.preview?.doc ?? docOf(current);
+    const doc = change(shown);
+    if (doc.scene === shown.scene && doc.scenario === shown.scenario && doc.robots === shown.robots) return;
+    this.#tx ??= { label, before: docOf(current) };
+    this.#show(label, current, doc);
+  };
+
+  #show(label: string, current: Baked, doc: Doc): void {
+    this.#unschedule();
+    const applied = docOf(current);
+    const effect =
+      doc.robots === applied.robots && doc.scenario === applied.scenario
+        ? sceneEffect(applied.scene, doc.scene)
+        : ({ kind: "bake" } as const);
+    if (effect.kind === "none") {
+      this.#set({ preview: { label, doc, overrides: [] } });
+    } else if (effect.kind === "poses") {
+      const frames = current.baked.frames;
+      const overrides = overridesOf(effect.moved, (id) => followers(doc.scene, frames, id));
+      this.#set({ preview: { label, doc, overrides } });
+    } else if (effect.kind === "params") {
+      this.#apply(current, doc, true);
+      this.#set({ preview: { label, doc, overrides: [] } });
+    } else {
+      this.#set({ preview: { label, doc, overrides: [] } });
+      this.#pending = {
+        doc,
+        frame: requestAnimationFrame(() => {
+          const pending = this.#pending;
+          const now = this.#state.current;
+          this.#pending = null;
+          if (pending && now) this.#apply(now, pending.doc, true);
+        }),
+      };
+    }
+  }
+
+  #unschedule(): void {
+    if (this.#pending) cancelAnimationFrame(this.#pending.frame);
+    this.#pending = null;
+  }
+
+  /**
+   * End the edit in progress: bake what it shows and record it as one undo step. If the kernel
+   * rejects it, the document goes back to what it was before the edit. Returns whether the edit
+   * was applied (`true` when none was open).
+   */
+  readonly commit = (): boolean => {
+    const tx = this.#tx;
+    if (!tx) return true;
+    this.#tx = null;
+    this.#unschedule();
+    const current = this.#state.current;
+    const preview = this.#state.preview;
+    if (!current) return false;
+    const target = preview?.doc ?? docOf(current);
+    const ok = sameDoc(target, docOf(current)) || this.#apply(current, target);
+    this.#set({ preview: null });
+    if (!ok) {
+      const now = this.#state.current;
+      if (now && !sameDoc(docOf(now), tx.before)) this.#apply(now, tx.before, true);
+      this.#set({ failure: null });
+      return false;
+    }
+    if (!sameDoc(target, tx.before)) {
+      this.#undo = [...this.#undo, { label: tx.label, doc: tx.before, at: 0 }].slice(-HISTORY);
+      this.#redo = [];
+    }
+    this.#publishHistory();
+    return true;
+  };
+
+  /** Drop the edit in progress: the document goes back to what it was before it. */
+  readonly cancel = (): void => {
+    const tx = this.#tx;
+    if (!tx) return;
+    this.#tx = null;
+    this.#unschedule();
+    const current = this.#state.current;
+    if (current && !sameDoc(docOf(current), tx.before)) this.#apply(current, tx.before, true);
+    this.#set({ preview: null, failure: null });
+  };
+
   /** Revert the last edit. */
-  readonly undo = (): void => this.#travel(this.#undo, this.#redo);
+  readonly undo = (): void => {
+    this.commit();
+    this.#travel(this.#undo, this.#redo);
+  };
 
   /** Apply the last undone edit again. */
-  readonly redo = (): void => this.#travel(this.#redo, this.#undo);
+  readonly redo = (): void => {
+    this.commit();
+    this.#travel(this.#redo, this.#undo);
+  };
 
   #travel(from: Step[], to: Step[]): void {
     const current = this.#state.current;
@@ -277,20 +403,27 @@ export class Studio {
     return this.edit(`add ${id}`, (d) => change({ ...d, robots: [...d.robots, robot] }, robot));
   };
 
-  /** Bake `doc` in place of the current document. */
-  #apply(current: Baked, doc: Doc): boolean {
+  /**
+   * Bake `doc` in place of the current document. A failure is shown as a toast, or `quiet`ly as
+   * the state's failure (a preview in progress).
+   */
+  #apply(current: Baked, doc: Doc, quiet = false): boolean {
     let next: Baked;
     try {
       next = rebake(current, { ...current.loaded, scene: doc.scene, scenario: doc.scenario, robots: doc.robots });
     } catch (e) {
       const failure = describeFailure(e);
-      const detail = failure.issues.map((i) => `${i.path}: ${i.message}`).join("\n");
-      toast({ title: `Not applied: ${failure.title}`, description: detail || failure.message, tone: "error" });
+      if (quiet) {
+        this.#set({ failure });
+      } else {
+        const detail = failure.issues.map((i) => `${i.path}: ${i.message}`).join("\n");
+        toast({ title: `Not applied: ${failure.title}`, description: detail || failure.message, tone: "error" });
+      }
       return false;
     }
     // The edit invalidates any dataset of the old document, and a run in flight for it.
     this.#generation++;
-    this.playhead.setTimeline(next.baked.samples.length, next.baked.dt);
+    if (next.baked !== current.baked) this.playhead.setTimeline(next.baked.samples.length, next.baked.dt);
     this.#set({ current: next, failure: null, dataset: null });
     return true;
   }
@@ -312,6 +445,7 @@ export class Studio {
    * overwritten); in a browser as downloads. Resolves to whether it saved.
    */
   readonly save = async (as = false): Promise<boolean> => {
+    this.commit();
     const current = this.#state.current;
     if (!current) return false;
     const doc = docOf(current);
@@ -407,6 +541,7 @@ export class Studio {
   }
 
   async #open(what: string, load: () => Promise<LoadedScene>, saveTo: SavePaths | null = null): Promise<void> {
+    this.commit();
     const generation = ++this.#generation;
     this.#set({ loading: true, playing: false });
     try {
@@ -442,6 +577,10 @@ export class Studio {
 
 function docOf(baked: Baked): Doc {
   return { scene: baked.loaded.scene, scenario: baked.loaded.scenario, robots: baked.loaded.robots };
+}
+
+function sameDoc(a: Doc, b: Doc): boolean {
+  return a.scene === b.scene && a.scenario === b.scenario && a.robots === b.robots;
 }
 
 /** The studio's current state, re-rendering on change. */

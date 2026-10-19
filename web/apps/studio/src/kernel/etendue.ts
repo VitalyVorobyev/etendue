@@ -9,6 +9,7 @@ import init, { type BakedScenario, EtendueScene, type EtendueError, isEtendueErr
 export { expandRig } from "@etendue/wasm";
 
 import type { LoadedScene } from "../io/load";
+import { sceneEffect } from "../scene/effect";
 
 let ready: Promise<unknown> | undefined;
 
@@ -35,6 +36,17 @@ export interface KernelFailure {
 /** Every bake records joint velocities and accelerations: the Motion workspace charts them. */
 const BAKE = { derivatives: true };
 
+/**
+ * The name of the performance mark set at every bake: a slider drag must set none (gate G8.1),
+ * which tests count with `performance.getEntriesByName(BAKE_MARK)`.
+ */
+export const BAKE_MARK = "etendue:bake";
+
+function bake(session: EtendueScene, loaded: LoadedScene): BakedScenario {
+  performance.mark(BAKE_MARK);
+  return session.bake(loaded.scenario ?? REST, BAKE);
+}
+
 /** The rest pose: a scenario with no steps bakes to one sample at `initial_q`. */
 export const REST: { version: number; dt: number; steps: [] } = { version: 1, dt: 0.01, steps: [] };
 
@@ -47,7 +59,7 @@ export async function bakeScene(loaded: LoadedScene): Promise<Baked> {
   const robots = loaded.robots.map(({ id, manifest, urdf }) => ({ id, manifest, urdf }));
   const session = new EtendueScene(loaded.scene, robots);
   try {
-    const baked = session.bake(loaded.scenario ?? REST, BAKE);
+    const baked = bake(session, loaded);
     return { loaded, session, baked };
   } catch (e) {
     session.free();
@@ -60,6 +72,9 @@ export async function bakeScene(loaded: LoadedScene): Promise<Baked> {
  * same robots (no URDF is parsed again): its scene is replaced in place, and `prev` must not be
  * used afterwards. Otherwise a new session is built and `prev`'s freed. On error nothing
  * changes and `prev` stays valid.
+ *
+ * An edit that changes no baked pose (intrinsics, a laser's fan, a target's print) keeps
+ * `prev.baked`, the same object: the frame tree, and the robot meshes on it, stay as they are.
  */
 export function rebake(prev: Baked, loaded: LoadedScene): Baked {
   const sameRobots = loaded.robots === prev.loaded.robots;
@@ -67,7 +82,7 @@ export function rebake(prev: Baked, loaded: LoadedScene): Baked {
     const robots = loaded.robots.map(({ id, manifest, urdf }) => ({ id, manifest, urdf }));
     const session = new EtendueScene(loaded.scene, robots);
     try {
-      const baked = session.bake(loaded.scenario ?? REST, BAKE);
+      const baked = bake(session, loaded);
       prev.session.free();
       return { loaded, session, baked };
     } catch (e) {
@@ -78,15 +93,18 @@ export function rebake(prev: Baked, loaded: LoadedScene): Baked {
   if (loaded.scene !== prev.loaded.scene) {
     // An invalid scene throws here and leaves the session as it was.
     prev.session.updateScene(loaded.scene);
+    if (loaded.scenario === prev.loaded.scenario && sceneEffect(prev.loaded.scene, loaded.scene).kind === "params") {
+      return { loaded, session: prev.session, baked: prev.baked };
+    }
     try {
-      return { loaded, session: prev.session, baked: prev.session.bake(loaded.scenario ?? REST, BAKE) };
+      return { loaded, session: prev.session, baked: bake(prev.session, loaded) };
     } catch (e) {
       // The scene is valid but the scenario does not run in it: put the old scene back.
       prev.session.updateScene(prev.loaded.scene);
       throw e;
     }
   }
-  return { loaded, session: prev.session, baked: prev.session.bake(loaded.scenario ?? REST, BAKE) };
+  return { loaded, session: prev.session, baked: bake(prev.session, loaded) };
 }
 
 /** Describe any error thrown while loading or baking. */

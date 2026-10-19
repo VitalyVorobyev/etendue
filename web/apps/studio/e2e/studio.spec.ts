@@ -50,6 +50,44 @@ test("a camera's world pose matches the CLI bake at a capture", async ({ page })
   await expect(image).toHaveAttribute("height", "1024");
 });
 
+test("a pose slider moves the camera live, bakes once on release, and undoes as one step", async ({ page }) => {
+  const meshes: string[] = [];
+  page.on("request", (r) => {
+    if (r.url().endsWith(".glb")) meshes.push(r.url());
+  });
+  await loaded(page);
+  // The robot's meshes load once, after the scene appears.
+  await expect.poll(() => meshes.length, { timeout: 30_000 }).toBeGreaterThan(0);
+  await page.waitForLoadState("networkidle");
+  const loadedMeshes = meshes.length;
+  await page.getByRole("treeitem", { name: /cam_left/ }).click();
+  const world = page.getByTestId("world-pose").locator("summary");
+  const before = await world.textContent();
+  const bakes = () => page.evaluate(() => performance.getEntriesByName("etendue:bake").length);
+  const baked = await bakes();
+
+  const thumb = page.getByTestId("pose-x").getByRole("slider");
+  const box = (await thumb.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  for (let dx = 4; dx <= 40; dx += 4) await page.mouse.move(box.x + box.width / 2 + dx, box.y + box.height / 2);
+  // While dragging: the camera has moved in the world, and nothing was baked or recorded.
+  await expect(world).not.toHaveText(before!);
+  expect(await bakes()).toBe(baked);
+  await expect(page.getByRole("button", { name: "Undo move cam_left" })).toHaveCount(0);
+  await page.mouse.up();
+
+  // On release: one bake, one undo step, no mesh fetched again.
+  await expect(page.getByRole("button", { name: "Undo move cam_left" })).toBeEnabled();
+  expect(await bakes()).toBe(baked + 1);
+  expect(meshes.length).toBe(loadedMeshes);
+  const moved = await world.textContent();
+  await page.getByRole("button", { name: "Undo move cam_left" }).click();
+  await expect(world).toHaveText(before!);
+  await page.getByRole("button", { name: "Redo move cam_left" }).click();
+  await expect(world).toHaveText(moved!);
+});
+
 test("an invalid scene reports its issues and keeps the loaded one", async ({ page }) => {
   await loaded(page);
   const scene = JSON.parse(readFileSync(`${ROOT}examples/eye_in_hand_ur5e/scene.json`, "utf8")) as { version: number };
@@ -94,7 +132,7 @@ test("an edit rebakes in place and undoes", async ({ page }) => {
   const position = page.getByText(/^\d+\/\d+$/);
   const before = await position.textContent();
   await page.getByRole("treeitem", { name: /cam_left/ }).click();
-  const width = page.getByRole("group", { name: "Image size" }).getByRole("spinbutton").first();
+  const width = page.getByRole("spinbutton", { name: "width" });
   await width.fill("640");
   await width.press("Enter");
   await expect(page.getByTestId("dirty")).toBeVisible();

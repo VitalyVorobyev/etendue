@@ -16,6 +16,7 @@ import { type Playhead, usePlayhead } from "@vitavision/workbench";
 import { useMemo, useState } from "react";
 import { Vector3 } from "three";
 
+import type { PoseSource } from "../kernel/posed";
 import { targetOutline } from "../scene/targets";
 
 /** `[u0, v0, u1, v1, …]` with `NaN` breaks as segments between consecutive seen points. */
@@ -37,7 +38,7 @@ function polyline(uv: Float64Array): number[] {
  */
 function project(
   session: EtendueScene,
-  runtime: FrameTreeRuntime,
+  runtime: PoseSource,
   camera: CameraSpec,
   targets: readonly TargetSpec[],
   lasers: readonly LaserSpec[],
@@ -131,6 +132,7 @@ const PIXEL_CENTRE = "integer";
 export function CameraView({
   session,
   runtime,
+  poses = runtime,
   camera,
   targets,
   lasers = [],
@@ -139,6 +141,8 @@ export function CameraView({
 }: {
   session: EtendueScene;
   runtime: FrameTreeRuntime;
+  /** Where poses are read: `runtime`, or it with an edit in progress drawn over it. */
+  poses?: PoseSource | undefined;
   camera: CameraSpec;
   targets: readonly TargetSpec[];
   /** The scene's lasers; the camera's own stripes are drawn. */
@@ -163,8 +167,8 @@ export function CameraView({
   }, [session, camera]);
   const [cursor, setCursor] = useState<{ x: number; y: number } | null>(null);
   const { primitives, visible, stripes } = useMemo(
-    () => project(session, runtime, camera, targets, lasers, k),
-    [session, runtime, camera, targets, lasers, k],
+    () => project(session, poses, camera, targets, lasers, k),
+    [session, poses, camera, targets, lasers, k],
   );
   const [w, h] = [camera.resolution[0], camera.resolution[1]];
   return (
