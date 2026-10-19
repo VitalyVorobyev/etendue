@@ -59,3 +59,19 @@ On the 64³ grid, 1154 voxels are seen by all three cameras and 1974 are measure
 - **G0.1:** the probe adds the ring's coverage on 20 × 20 × 16 (12,800 counts). Of 18,524
   values, **0 differ** between native and wasm.
 - **G2.1:** `etendue_wasm_bg.wasm` is **689,423 B** gzipped (limit 1,572,864).
+
+## P11b: sharp ranges and slice handles (2026-10-19, branch `p11b/slices`)
+
+`etendue-core::rig::sharpness` gives each camera's sharp range along its axis, judged as the
+coverage judges it: the depth of field for √(max blur² − Airy²). Its test checks that the blur
+at both ends equals the limit to 1e-9 px. It also checks "nowhere" when diffraction alone is
+over the limit, and "everywhere" for a pinhole.
+
+| Gate | Limit | Measured |
+|---|---|---|
+| G11.3: coverage 64³ in wasm | ≤ 100 ms | **12.7 ms** (32³: 1.7 ms) |
+| G0.1: wasm against native, bits (the ring's sharp ranges added) | 0 mismatches | **0** of 216,630 values |
+| G2.1: `etendue_wasm_bg.wasm`, gzip -9 | ≤ 1,572,864 B | **772,672 B** |
+
+The default stereo pair (IMX174 + LM25HC at f/4, refocused on 400 mm, 2 px blur) is sharp
+from 391 to 409 mm along each axis. The side slice's coverage shows the same thin band.

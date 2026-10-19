@@ -847,7 +847,7 @@ export function App() {
             </div>
           </div>
           <div className="grid min-h-0 grid-cols-[2fr_1fr] divide-x divide-line">
-            <SliceMaps analysis={rigAnalysis} />
+            <SliceMaps analysis={rigAnalysis} params={rigParams} onChange={setRig} />
             <div className="min-h-0 p-2" data-testid="rig-tilt-chart">
               <TiltChart params={rigParams} />
             </div>

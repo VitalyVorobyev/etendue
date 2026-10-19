@@ -458,6 +458,28 @@ export function rigCoverage(
   criteria?: CoverageCriteria,
 ): RigCoverage;
 
+/**
+ * Where a rig camera is sharp along its own axis, as {@link rigCoverage} judges it: depth `z` in
+ * the camera's mechanical frame (m).
+ */
+export type Sharpness =
+  /** A pinhole, or a limit no defocus reaches. */
+  | { kind: "everywhere" }
+  /** Diffraction alone is over the limit. */
+  | { kind: "nowhere" }
+  /** From `near` to `far` (`null`: to infinity). */
+  | { kind: "between"; near: number; far: number | null };
+
+/**
+ * Where each of a rig's cameras is sharp along its axis, in the order the layout expands them.
+ *
+ * @throws {@link EtendueError} for a layout that does not validate.
+ */
+export function rigSharpness(
+  layout: import("./types/scene.js").RigLayout | string,
+  criteria?: CoverageCriteria,
+): Sharpness[];
+
 /** A camera setting of a head. */
 export interface HeadSetting {
   /** Physical sensor tilt `[τx, τy]` (rad). */

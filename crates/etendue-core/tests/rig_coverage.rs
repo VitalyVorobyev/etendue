@@ -112,3 +112,67 @@ fn head_units_measure_at_their_working_point() {
         1e6 * cov.volume_m3(0, 1)
     );
 }
+
+/// Each camera's sharp range along its axis ends where its blur with its Airy disc is the limit:
+/// the depths coverage counts as seen.
+#[test]
+fn sharp_ranges_end_where_the_blur_is_the_limit() {
+    use etendue_core::from_scene::physical_camera;
+    use etendue_core::rig::{Sharpness, sharpness};
+    use nalgebra::Point3;
+
+    let mut camera = pinhole(1.0, 1936, 1216);
+    camera["optics"] = json!({
+        "sensor": {"pixel_pitch_m": 5.86e-6},
+        "lens": {"focal_length_m": 0.025, "f_number": 8.0},
+        "focus_distance_m": 0.35
+    });
+    let layout: RigLayout = serde_json::from_value(json!({
+        "count": 2, "radius_m": 0.06, "working_distance_m": 0.35, "image_x": "common", "camera": camera
+    }))
+    .unwrap();
+    let criteria = Criteria {
+        max_blur_px: 3.0,
+        ..Criteria::default()
+    };
+    let ranges = sharpness(&layout, &criteria).unwrap();
+    assert_eq!(ranges.len(), 2);
+    let (cameras, _) = layout.expand("rig");
+    for (c, range) in cameras.iter().zip(&ranges) {
+        let Sharpness::Between {
+            near,
+            far: Some(far),
+        } = *range
+        else {
+            panic!("{range:?}")
+        };
+        assert!(near < 0.35 && 0.35 < far, "{near} {far}");
+        let cam = physical_camera(c.optics.as_ref().unwrap(), &c.params).unwrap();
+        let airy = cam.airy_diameter_m(550e-9) / cam.pixel_pitch_m();
+        for z in [near, far] {
+            let blur = cam.coc_px(&Point3::new(0.0, 0.0, z)).unwrap().hypot(airy);
+            assert!((blur - 3.0).abs() < 1e-9, "blur {blur} px at {z} m");
+        }
+    }
+    // Diffraction alone over the limit: nowhere; a pinhole: everywhere.
+    let tight = Criteria {
+        max_blur_px: 0.5,
+        ..Criteria::default()
+    };
+    assert!(
+        sharpness(&layout, &tight)
+            .unwrap()
+            .iter()
+            .all(|s| *s == Sharpness::Nowhere)
+    );
+    let pin: RigLayout = serde_json::from_value(json!({
+        "count": 2, "radius_m": 0.06, "working_distance_m": 0.35, "camera": pinhole(1000.0, 1000, 800)
+    }))
+    .unwrap();
+    assert!(
+        sharpness(&pin, &criteria)
+            .unwrap()
+            .iter()
+            .all(|s| *s == Sharpness::Everywhere)
+    );
+}

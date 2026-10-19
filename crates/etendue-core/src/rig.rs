@@ -148,6 +148,24 @@ impl Eye {
         })
     }
 
+    /// Where the camera is sharp along its axis: its depth of field for a blur limit that leaves
+    /// room for its Airy disc, so the same depths `sees` passes.
+    fn sharpness(&self, max_blur_px: f64) -> Sharpness {
+        let Model::Physical(c) = &self.model else {
+            return Sharpness::Everywhere;
+        };
+        if max_blur_px <= self.airy_px {
+            return Sharpness::Nowhere;
+        }
+        let coc_px = (max_blur_px * max_blur_px - self.airy_px * self.airy_px).sqrt();
+        // The only refusal left is a limit at least the exit pupil: no depth exceeds it.
+        c.depth_of_field(coc_px * c.pixel_pitch_m())
+            .map_or(Sharpness::Everywhere, |d| Sharpness::Between {
+                near: d.near,
+                far: d.far,
+            })
+    }
+
     /// Whether the camera sees `p` (rig frame) with at most `max_blur_px`.
     fn sees(&self, p: &Point3<f64>, max_blur_px: f64) -> bool {
         let q = self.from_rig * p;
@@ -194,6 +212,60 @@ impl Fan {
     }
 }
 
+/// Where a rig camera is sharp along its own axis, as [`coverage`] judges sharpness (its blur
+/// with its Airy disc at most `max_blur_px`), as depth `z` in the camera's mechanical frame.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum Sharpness {
+    /// A pinhole, or a limit no defocus reaches: sharp at every depth.
+    Everywhere,
+    /// Diffraction alone is over the limit.
+    Nowhere,
+    /// From `near` to `far` (`None`: to infinity).
+    Between { near: f64, far: Option<f64> },
+}
+
+/// The frame a rig is expanded in.
+const RIG: &str = "rig";
+
+/// `layout`, checked and expanded in [`RIG`].
+fn expand(layout: &RigLayout) -> Result<(Vec<CameraSpec>, Vec<etendue_scene::LaserSpec>)> {
+    layout.validate().map_err(|e| Error::InvalidInput {
+        reason: e.to_string(),
+    })?;
+    Ok(layout.expand(RIG))
+}
+
+/// The cameras as coverage sees them, each at its own laser's wavelength when it has one.
+fn eyes(
+    cameras: &[CameraSpec],
+    lasers: &[etendue_scene::LaserSpec],
+    criteria: &Criteria,
+) -> Result<Vec<Eye>> {
+    cameras
+        .iter()
+        .map(|c| {
+            let own = lasers
+                .iter()
+                .find(|l| l.camera.as_deref() == Some(c.id.as_str()));
+            Eye::new(c, own.map_or(criteria.wavelength_nm, |l| l.wavelength_nm))
+        })
+        .collect()
+}
+
+/// Where each of `layout`'s cameras is sharp along its axis, in the order it expands them.
+///
+/// # Errors
+///
+/// As [`coverage`], without the grid.
+pub fn sharpness(layout: &RigLayout, criteria: &Criteria) -> Result<Vec<Sharpness>> {
+    let (cameras, lasers) = expand(layout)?;
+    Ok(eyes(&cameras, &lasers, criteria)?
+        .iter()
+        .map(|e| e.sharpness(criteria.max_blur_px))
+        .collect())
+}
+
 /// The coverage of `layout`'s rig over `grid`.
 ///
 /// # Errors
@@ -202,24 +274,10 @@ impl Fan {
 /// does not build; as [`PhysicalCamera::new`].
 pub fn coverage(layout: &RigLayout, grid: &Grid, criteria: &Criteria) -> Result<Coverage> {
     grid.check()?;
-    layout.validate().map_err(|e| Error::InvalidInput {
-        reason: e.to_string(),
-    })?;
-    const RIG: &str = "rig";
-    let (cameras, lasers) = layout.expand(RIG);
+    let (cameras, lasers) = expand(layout)?;
     let index = |id: &str| cameras.iter().position(|c| c.id == id);
     let voxel = grid.voxel();
-    let mut eyes = Vec::with_capacity(cameras.len());
-    for c in &cameras {
-        // A camera takes its wavelength from its own laser, when it has one.
-        let own = lasers
-            .iter()
-            .find(|l| l.camera.as_deref() == Some(c.id.as_str()));
-        eyes.push(Eye::new(
-            c,
-            own.map_or(criteria.wavelength_nm, |l| l.wavelength_nm),
-        )?);
-    }
+    let eyes = eyes(&cameras, &lasers, criteria)?;
     let fans: Vec<Fan> = lasers
         .iter()
         .filter_map(|l| {

@@ -274,6 +274,22 @@ fn main() -> ExitCode {
             .filter(|&&v| v > 0)
             .count()
     );
+    // Where each camera is sharp along its axis (P11): the JSON text, so every value.
+    let sharpness = etendue_wasm::rig_sharpness(text("layout"), text("criteria"))
+        .expect("native rig sharpness");
+    let native = serde_json::to_string(&sharpness).expect("sharpness as JSON");
+    if native != text("sharpness") {
+        eprintln!(
+            "rig sharpness differs:\n  native {native}\n  wasm   {}",
+            text("sharpness")
+        );
+        mismatches += 1;
+    }
+    total += 2 * sharpness.len();
+    println!(
+        "  rig                sharp ranges of {} cameras",
+        sharpness.len()
+    );
     // Noisy observations of a laser rig's ground truth (P13): the JSON text, so every value.
     let observe = &probe["observe"];
     let text = |key: &str| observe[key].as_str().expect("observe probe text");

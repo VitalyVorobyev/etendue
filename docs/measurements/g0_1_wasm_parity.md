@@ -198,3 +198,5 @@ G0.1 wasm/native projection parity
 - Re-run 2026-10-19 on `64639cb` (branch `p10c/stripe`). The head map carries three more fields
   (the imaged beam thickness and the pixel, 576 values), and the probe's laser is focused at its
   aim (`waist_distance_m`). Result: 216,624 values, **0 mismatches**.
+- Re-run 2026-10-19 on branch `p11b/slices`: the ring's sharp ranges along each camera's axis
+  (`rigSharpness`, JSON text) are added. Result: 216,630 values, **0 mismatches**.
