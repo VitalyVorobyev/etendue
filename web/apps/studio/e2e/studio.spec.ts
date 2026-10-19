@@ -408,6 +408,13 @@ test("the Optics workspace designs a laser head: Scheimpflug, handles, optimiser
   await optimum.getByRole("button", { name: "Apply" }).click();
   await expect(page.getByRole("spinbutton", { name: "tilt x value" })).toHaveValue(/^-?0[.,]00$/);
 
+  // The lens search: every library lens optimised on the head the same way, ranked; one applied.
+  await page.getByRole("button", { name: /^Search \d+ lenses$/ }).click();
+  const search = page.getByTestId("lens-search");
+  await expect(search.getByRole("button", { name: "Apply" })).toHaveCount(3);
+  await search.getByRole("button", { name: "Apply" }).first().click();
+  await expect(search).toHaveCount(0);
+
   // Placed in the cell: a physical camera with the laser on its body, one undoable edit.
   await page.getByRole("button", { name: "Place in cell" }).click();
   await expect(page.getByRole("radio", { name: "Setup" })).toBeChecked();
