@@ -29,7 +29,7 @@ import type {
 } from "../kernel/native";
 import { type CalibrationRunner, useCalibrationRun } from "../state/calibrationRun";
 
-type Source = "exact" | "noisy" | "detected";
+export type Source = "exact" | "noisy" | "detected";
 
 const DEG = Math.PI / 180;
 
@@ -41,7 +41,7 @@ const WORKFLOW: Record<CalibrationReport["workflow"], string> = {
 };
 
 /** The noise form, in display units (degrees and millimetres for the robot). */
-interface NoiseForm {
+export interface NoiseForm {
   pixel: number;
   outliers: number;
   outlierSigma: number;
@@ -51,6 +51,12 @@ interface NoiseForm {
   robotMm: number;
   seed: number;
   trials: number;
+}
+
+/** What the panel calibrates from; the studio keeps it so the views can preview it. */
+export interface CalibrateForm {
+  source: Source;
+  noise: NoiseForm;
 }
 
 const NOISE: NoiseForm = {
@@ -65,7 +71,12 @@ const NOISE: NoiseForm = {
   trials: 1,
 };
 
-function noiseOf(f: NoiseForm): ObservationNoise {
+export const CALIBRATE_FORM: CalibrateForm = { source: "exact", noise: NOISE };
+
+/** How much the 3-D view exaggerates the estimate's offsets from the truth. */
+export const ESTIMATE_SCALES = [1, 10, 100, 1000] as const;
+
+export function noiseOf(f: NoiseForm): ObservationNoise {
   return {
     pixel_sigma_px: f.pixel,
     outlier_fraction: f.outliers / 100,
@@ -145,18 +156,27 @@ export function CalibratePanel({
   cameras,
   lasers,
   runner,
+  form,
+  onForm,
+  scale,
+  onScale,
 }: {
   dataset: Dataset;
   cameras: string[];
   lasers: boolean;
   runner: CalibrationRunner;
+  form: CalibrateForm;
+  onForm: (form: CalibrateForm) => void;
+  /** The 3-D view's exaggeration of the estimate. */
+  scale: number;
+  onScale: (scale: number) => void;
 }) {
-  const [source, setSource] = useState<Source>("exact");
-  const [noise, setNoise] = useState<NoiseForm>(NOISE);
+  const { source, noise } = form;
+  const setSource = (s: Source) => onForm({ ...form, source: s });
   const [camera, setCamera] = useState<string>("");
   const { running, result, failure } = useCalibrationRun(runner);
   const detectedAvailable = dataset.render !== null && dataset.detection.length > 0;
-  const set = (patch: Partial<NoiseForm>) => setNoise((n) => ({ ...n, ...patch }));
+  const set = (patch: Partial<NoiseForm>) => onForm({ ...form, noise: { ...noise, ...patch } });
 
   const options = (): CalibrateOptions => ({
     ...(source === "noisy" ? { noise: noiseOf(noise), trials: Math.max(1, Math.round(noise.trials)) } : {}),
@@ -172,7 +192,7 @@ export function CalibratePanel({
   );
 
   return (
-    <div className="flex min-w-0 flex-col gap-3" data-testid="calibrate-panel">
+    <div className="@container flex min-w-0 flex-col gap-3" data-testid="calibrate-panel">
       <div className="flex flex-wrap items-end gap-3">
         <Field label="Observations">
           <SegmentedControl
@@ -254,7 +274,18 @@ export function CalibratePanel({
             reprojection: mean {px(first.residuals.mean_px)} px · rms per axis {px(first.residuals.rms_axis_px)} px ·
             max {px(first.residuals.max_px)} px over {first.residuals.count} points
           </p>
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+          {first.estimate.offsets && (
+            <div className="flex flex-wrap items-center gap-2 text-xs text-fg-muted" data-testid="estimate-scale">
+              <span>The 3-D view draws the estimate over the truth in the warning colour, its errors times</span>
+              <SegmentedControl
+                aria-label="Exaggeration"
+                value={String(scale)}
+                options={ESTIMATE_SCALES.map((s) => ({ value: String(s), label: `×${s}` }))}
+                onValueChange={(v) => onScale(Number(v))}
+              />
+            </div>
+          )}
+          <div className="grid gap-4 @4xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
             <div className="min-w-0">
               {shown.row_stats ? (
                 <StatsTable stats={shown.row_stats} trials={shown.reports.length} />

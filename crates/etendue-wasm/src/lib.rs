@@ -30,8 +30,10 @@ use etendue_scene::{
     BakedScenario, CameraSpec, FrameGraph, GeneratorSpec, Issue, LaserSpec, MotionReport,
     RigLayout, RobotManifest, ScenarioSpec, SceneSpec, ValidationError, export,
 };
+use etendue_synth::dataset::{EmitOptions, emit_scene};
 use etendue_synth::gt::{BoardPoint, VisibilitySpec, project_points};
 use etendue_synth::laser::{StripeSurface, stripe};
+use etendue_synth::observe::{ObservationNoise, Observations, observe};
 use etendue_synth::poses::{Generated, generate};
 use etendue_synth::target_mesh::{TargetMesh, geometry_mesh};
 use etendue_synth::{CanonicalCamera, CanonicalSpec, PixelCentre, RemapLut, remap_lut};
@@ -142,6 +144,8 @@ pub struct Session {
     scene: SceneSpec,
     mech_se3_projection: BTreeMap<String, Isometry3<f64>>,
     robots: Vec<RobotModel>,
+    /// `robots[i]`'s manifest.
+    manifests: Vec<RobotManifest>,
     cameras: Vec<CameraModel>,
 }
 
@@ -167,6 +171,7 @@ impl Session {
         let mut sources: Vec<RobotSource> = parse("robots", robots_json)?;
 
         let mut robots = Vec::with_capacity(scene.robots.len());
+        let mut manifests = Vec::with_capacity(scene.robots.len());
         for spec in &scene.robots {
             let at = sources
                 .iter()
@@ -185,6 +190,7 @@ impl Session {
                 })?;
             }
             robots.push(model);
+            manifests.push(source.manifest);
         }
         if let Some(extra) = sources.first() {
             return Err(Error::Input(format!(
@@ -206,6 +212,7 @@ impl Session {
             scene,
             mech_se3_projection,
             robots,
+            manifests,
             cameras,
         })
     }
@@ -267,6 +274,10 @@ impl Session {
             .iter()
             .map(|&at| old[at].take().expect("robot ids are unique"))
             .collect();
+        self.manifests = robots
+            .iter()
+            .map(|&at| self.manifests[at].clone())
+            .collect();
         self.scene = scene;
         self.mech_se3_projection = mech_se3_projection;
         self.cameras = cameras;
@@ -316,6 +327,26 @@ impl Session {
             &self.robots,
             options,
         )?)
+    }
+
+    /// Observations of a scenario's ground truth with `noise_json` (an [`ObservationNoise`]): the
+    /// ground truth `etendue gt` writes ([`emit_scene`] with [`EmitOptions::STANDARD`]) observed
+    /// as `etendue calibrate --noise` observes it, so the same seed gives the same observations.
+    ///
+    /// # Errors
+    ///
+    /// As [`Session::bake`]; [`Error::Parse`] for malformed noise; [`Error::Input`] for noise out
+    /// of range, or a scene that poses no calibration problem (see `emit_scene`).
+    pub fn observe(&self, scenario_json: &str, noise_json: &str) -> Result<Observations> {
+        let noise: ObservationNoise = parse("noise", noise_json)?;
+        let problems = noise.problems();
+        if !problems.is_empty() {
+            return Err(Error::Input(problems.join("; ")));
+        }
+        let baked = self.bake(scenario_json)?;
+        let bundle = emit_scene(&self.scene, &baked, &self.manifests, &EmitOptions::STANDARD)
+            .map_err(|e| Error::Input(e.to_string()))?;
+        Ok(observe(&bundle.gt, &noise))
     }
 
     /// The motion report of a scenario: per step, limit use, joint margins,
@@ -1412,6 +1443,24 @@ impl EtendueScene {
             &self
                 .inner
                 .robot_tcp(robot_id, q)
+                .map_err(|e| js_error(&e))?,
+        )
+    }
+
+    /// See [`Session::observe`]; JSON text.
+    ///
+    /// # Errors
+    ///
+    /// Throws an `Error` with `kind`.
+    pub fn observe(
+        &self,
+        scenario_json: &str,
+        noise_json: &str,
+    ) -> std::result::Result<String, JsValue> {
+        json_text(
+            &self
+                .inner
+                .observe(scenario_json, noise_json)
                 .map_err(|e| js_error(&e))?,
         )
     }

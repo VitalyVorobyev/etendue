@@ -140,3 +140,99 @@ fn a_dataset_directory_runs_trials_and_keeps_the_run() {
             .is_some()
     );
 }
+
+fn row(report: &etendue_cli::calibrate::Report, label: &str) -> f64 {
+    report
+        .rows
+        .iter()
+        .find(|r| r.label == label)
+        .unwrap_or_else(|| panic!("no row `{label}`"))
+        .value
+}
+
+#[test]
+fn exact_offsets_are_identities_and_the_planes_agree() {
+    let gt = truth(&example("laser_ur5e"), "laser_ur5e", "offsets");
+    let report = calibrate(
+        &gt,
+        &observe(&gt, &ObservationNoise::default()),
+        &Options::default(),
+    )
+    .unwrap();
+    let offsets = report.estimate.offsets.expect("a hand-eye and a target");
+    assert_eq!(offsets.cameras.len(), report.cameras.len());
+    for o in offsets.cameras.iter().chain([&offsets.target]) {
+        assert!(o.rotation.angle() < 1e-6, "{o:?}");
+        assert!(o.translation.vector.norm() < 1e-6, "{o:?}");
+    }
+    assert_eq!(offsets.planes.len(), report.cameras.len());
+    for [t, e] in offsets
+        .planes
+        .iter()
+        .map(|p| p.expect("a laser per camera"))
+    {
+        let (nt, ne) = (
+            nalgebra::Vector3::from(t.normal),
+            nalgebra::Vector3::from(e.normal),
+        );
+        assert!((nt.norm() - 1.0).abs() < 1e-12 && nt.dot(&ne) > 1.0 - 1e-10);
+        assert!((t.distance - e.distance).abs() < 1e-6);
+    }
+}
+
+#[test]
+fn the_reference_cameras_offset_is_the_hand_eye_error() {
+    // Eye-in-hand: the reference camera's offset is gripper_se3_camera's error, in its own frame.
+    let gt = truth(
+        &example("closed_loop_ur5e"),
+        "closed_loop_ur5e",
+        "offsets_noisy",
+    );
+    let noise = ObservationNoise {
+        pixel_sigma_px: 0.5,
+        seed: 3,
+        ..ObservationNoise::default()
+    };
+    let report = calibrate(&gt, &observe(&gt, &noise), &Options::default()).unwrap();
+    let o = report.estimate.offsets.as_ref().unwrap().cameras[0];
+    let (deg, mm) = (
+        row(&report, "hand-eye rotation deg"),
+        row(&report, "hand-eye translation mm"),
+    );
+    assert!(deg > 1e-4, "noise moves the estimate: {deg}");
+    assert!((o.rotation.angle().to_degrees() - deg).abs() < 1e-9 * deg.max(1.0));
+    assert!((o.translation.vector.norm() * 1e3 - mm).abs() < 1e-9 * mm.max(1.0));
+}
+
+#[test]
+fn eye_to_hand_offsets_place_the_static_camera() {
+    // Eye-to-hand: the camera's offset is camera_se3_base's error moved into the camera frame,
+    // the same rotation; exact data gives identities.
+    let gt = truth(
+        &example("eye_to_hand_ur5e"),
+        "eye_to_hand_ur5e",
+        "offsets_eth",
+    );
+    let exact = calibrate(
+        &gt,
+        &observe(&gt, &ObservationNoise::default()),
+        &Options::default(),
+    )
+    .unwrap();
+    for o in &exact.estimate.offsets.as_ref().unwrap().cameras {
+        assert!(
+            o.rotation.angle() < 1e-6 && o.translation.vector.norm() < 1e-5,
+            "{o:?}"
+        );
+    }
+    let noise = ObservationNoise {
+        pixel_sigma_px: 0.5,
+        seed: 5,
+        ..ObservationNoise::default()
+    };
+    let report = calibrate(&gt, &observe(&gt, &noise), &Options::default()).unwrap();
+    let o = report.estimate.offsets.as_ref().unwrap().cameras[0];
+    let deg = row(&report, "hand-eye rotation deg");
+    assert!(deg > 1e-4);
+    assert!((o.rotation.angle().to_degrees() - deg).abs() < 1e-9 * deg.max(1.0));
+}

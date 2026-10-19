@@ -246,6 +246,48 @@ pub struct EmitOptions {
     pub laser_spacing_m: f64,
 }
 
+impl EmitOptions {
+    /// The options of `etendue gt`, which `etendue calibrate` and the studio's observation preview
+    /// share: the default visibility margin, integer pixel centres (the render backend's, ADR 0004)
+    /// and stripe points 1 mm apart.
+    pub const STANDARD: Self = Self {
+        visibility: VisibilitySpec { margin_px: 2.0 },
+        pixel_centre: PixelCentre::Integer,
+        laser_spacing_m: 1e-3,
+    };
+}
+
+/// [`emit`] for a scene's own target: the scene must have exactly one, a printed one
+/// (calib-targets), whose feature points [`crate::board::layout`] gives.
+///
+/// # Errors
+///
+/// [`Error::InvalidInput`] for another number of targets or one that is not printed, and as
+/// [`emit`].
+pub fn emit_scene(
+    scene: &SceneSpec,
+    baked: &BakedScenario,
+    manifests: &[RobotManifest],
+    options: &EmitOptions,
+) -> Result<Bundle> {
+    let [target] = scene.targets.as_slice() else {
+        return Err(Error::InvalidInput(format!(
+            "ground truth needs exactly one target; the scene has {}",
+            scene.targets.len()
+        )));
+    };
+    let points = crate::board::layout(&target.geometry)
+        .map_err(|e| Error::InvalidInput(format!("target `{}`: {e}", target.id)))?
+        .ok_or_else(|| {
+            Error::InvalidInput(format!(
+                "target `{}`: ground truth needs a printed target (calib-targets)",
+                target.id
+            ))
+        })?
+        .points;
+    emit(scene, baked, manifests, &points, options)
+}
+
 /// Where a frame is ultimately attached.
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum Anchor {

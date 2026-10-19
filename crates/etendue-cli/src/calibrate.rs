@@ -35,7 +35,7 @@ use vision_calibration_pipeline::{
 };
 
 /// Report version.
-pub const REPORT_VERSION: u32 = 1;
+pub const REPORT_VERSION: u32 = 2;
 
 /// G5.1's limits (noise-free analytic input), as `closed_loop.py` has them.
 pub mod gate {
@@ -111,6 +111,23 @@ pub struct Estimate {
     pub handeye: Option<Isometry3<f64>>,
     /// Laser planes in each camera's frame, `n·p + d = 0`.
     pub laser_planes: Vec<Option<Plane>>,
+    /// The estimate in the truth's frames, to draw beside it; `None` without a hand-eye or a
+    /// target pose.
+    pub offsets: Option<Offsets>,
+}
+
+/// Where the estimate is relative to the truth. A drawing places each true frame where the
+/// scene has it and the estimate at that frame times its offset, at any robot pose.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Offsets {
+    /// Per calibrated camera: the estimated camera in the true camera's frame
+    /// (`true_se3_estimate`, projection frames), through the hand-eye and the rig.
+    pub cameras: Vec<Isometry3<f64>>,
+    /// The estimated target in the true target's frame.
+    pub target: Isometry3<f64>,
+    /// Per calibrated camera, its laser plane: true, then estimated, both in the true camera's
+    /// frame with unit normals pointing the same way.
+    pub planes: Vec<Option<[Plane; 2]>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -740,6 +757,81 @@ struct Solved {
     counts: (usize, usize, usize),
     residuals: Residuals,
     estimate: Estimate,
+    /// The target pose the workflow reports (base frame eye-in-hand, gripper eye-to-hand).
+    target: Option<Isometry3<f64>>,
+}
+
+/// The estimated camera `j` (truth camera `i`) in the true camera's frame.
+fn camera_offset(
+    truth: &Truth,
+    estimate: &Estimate,
+    handeye: &Isometry3<f64>,
+    i: usize,
+    j: usize,
+) -> Option<Isometry3<f64>> {
+    let cam_se3_ref = estimate.cameras.get(j)?.cam_se3_ref;
+    let true_x = truth.handeye(&truth.cam_se3_rig[i]);
+    Some(match truth.gt.handeye.as_ref()? {
+        // gripper_se3_camera
+        GtHandeye::EyeInHand { .. } => true_x.inverse() * (handeye * cam_se3_ref.inverse()),
+        // camera_se3_base
+        GtHandeye::EyeToHand { .. } => true_x * (cam_se3_ref * handeye).inverse(),
+    })
+}
+
+/// A plane with a unit normal, `n·p + d = 0`.
+fn unit(p: &Plane) -> Plane {
+    let n = Vector3::from(p.normal);
+    let s = n.norm();
+    Plane {
+        normal: (n / s).into(),
+        distance: p.distance / s,
+    }
+}
+
+fn offsets(
+    truth: &Truth,
+    cameras: &[usize],
+    estimate: &Estimate,
+    target: Option<Isometry3<f64>>,
+) -> Option<Offsets> {
+    let handeye = estimate.handeye?;
+    let cams: Vec<Isometry3<f64>> = cameras
+        .iter()
+        .enumerate()
+        .map(|(j, &i)| camera_offset(truth, estimate, &handeye, i, j))
+        .collect::<Option<_>>()?;
+    let planes = cameras
+        .iter()
+        .enumerate()
+        .map(|(j, &i)| {
+            let e = estimate.laser_planes.get(j)?.as_ref()?;
+            let t = truth.plane(i)?;
+            let t = unit(&Plane {
+                normal: t.normal,
+                distance: t.distance,
+            });
+            // n·p_e + d = 0 with p_e = R⁻¹(p − t): (R n)·p + d − (R n)·t = 0.
+            let e = unit(e);
+            let n = cams[j].rotation * Vector3::from(e.normal);
+            let mut e = Plane {
+                normal: n.into(),
+                distance: e.distance - n.dot(&cams[j].translation.vector),
+            };
+            if n.dot(&Vector3::from(t.normal)) < 0.0 {
+                e = Plane {
+                    normal: (-n).into(),
+                    distance: -e.distance,
+                };
+            }
+            Some([t, e])
+        })
+        .collect();
+    Some(Offsets {
+        cameras: cams,
+        target: truth.target().1.inverse() * target?,
+        planes,
+    })
 }
 
 fn finish(truth: &Truth, obs: &Observations, gated: bool, solved: Solved) -> Report {
@@ -749,8 +841,10 @@ fn finish(truth: &Truth, obs: &Observations, gated: bool, solved: Solved) -> Rep
         rows,
         counts,
         residuals,
-        estimate,
+        mut estimate,
+        target,
     } = solved;
+    estimate.offsets = offsets(truth, &cameras, &estimate, target);
     let laser = !truth.gt.lasers.is_empty();
     let pass = rows.iter().all(Row::within);
     Report {
@@ -810,6 +904,7 @@ fn single(
         cameras: vec![camera],
         handeye: he,
         laser_planes: vec![],
+        offsets: None,
     };
     Ok(finish(
         truth,
@@ -822,6 +917,7 @@ fn single(
             counts: (views, points, 0),
             residuals: residuals(&export, 1),
             estimate,
+            target,
         },
     ))
 }
@@ -851,13 +947,16 @@ fn rig_estimate(truth: &Truth, export: &Value, tilts: &[[f64; 2]]) -> Result<Vec
         .collect())
 }
 
+/// The hand-eye and the target pose a workflow reports.
+type Reported = (Option<Isometry3<f64>>, Option<Isometry3<f64>>);
+
 fn rig_rows(
     truth: &Truth,
     export: &Value,
     cameras: &[EstimatedCamera],
     eye_in_hand: bool,
     mut per_camera: impl FnMut(usize) -> Vec<Row>,
-) -> Result<(Vec<Row>, Option<Isometry3<f64>>)> {
+) -> Result<(Vec<Row>, Reported)> {
     let ref_se3_rig = truth.cam_se3_rig[0];
     let rig_se3_ref = ref_se3_rig.inverse();
     let mut rows = vec![Row::new(
@@ -886,7 +985,7 @@ fn rig_rows(
         )
     };
     rows.extend(handeye_rows(truth, he, target, &ref_se3_rig)?);
-    Ok((rows, he))
+    Ok((rows, (he, target)))
 }
 
 fn rig(
@@ -924,12 +1023,13 @@ fn rig(
     rig_handeye::run_calibration(&mut session)?;
     let export = serde_json::to_value(session.export()?)?;
     let cameras = rig_estimate(truth, &export, &[])?;
-    let (rows, he) = rig_rows(truth, &export, &cameras, eye_in_hand, |_| vec![])?;
+    let (rows, (he, target)) = rig_rows(truth, &export, &cameras, eye_in_hand, |_| vec![])?;
     let all: Vec<usize> = (0..n).collect();
     let estimate = Estimate {
         cameras,
         handeye: he,
         laser_planes: vec![],
+        offsets: None,
     };
     Ok(finish(
         truth,
@@ -942,6 +1042,7 @@ fn rig(
             counts: (count, points, 0),
             residuals: residuals(&export, n),
             estimate,
+            target,
         },
     ))
 }
@@ -1015,7 +1116,7 @@ fn rig_laser(
     let planes: Vec<Option<Plane>> = (0..n)
         .map(|i| export["laser_planes_cam"].get(i).and_then(plane_of))
         .collect();
-    let (rows, he) = rig_rows(truth, &export, &cameras, eye_in_hand, |i| {
+    let (rows, (he, target)) = rig_rows(truth, &export, &cameras, eye_in_hand, |i| {
         let mut rows = if scheimpflug {
             tilt_rows(&cameras[i], &truth.gt.cameras[i])
         } else {
@@ -1030,6 +1131,7 @@ fn rig_laser(
         cameras,
         handeye: he,
         laser_planes: planes,
+        offsets: None,
     };
     Ok(finish(
         truth,
@@ -1042,6 +1144,7 @@ fn rig_laser(
             counts: (count, points, pixels),
             residuals: residuals(&export, n),
             estimate,
+            target,
         },
     ))
 }
@@ -1135,6 +1238,7 @@ fn head(
         cameras: vec![camera],
         handeye: he,
         laser_planes: vec![plane],
+        offsets: None,
     };
     Ok(finish(
         truth,
@@ -1147,6 +1251,7 @@ fn head(
             counts: (count, points, pixels),
             residuals: residuals(&device, 1),
             estimate,
+            target,
         },
     ))
 }

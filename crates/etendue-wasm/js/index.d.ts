@@ -330,6 +330,58 @@ export interface HeadMap {
   triangulation_rad: Float64Array;
 }
 
+/** The noise of synthesised observations (etendue-synth `ObservationNoise`); every field defaults to 0. */
+export interface ObservationNoise {
+  /** Target-point pixel noise per axis (px). */
+  pixel_sigma_px?: number;
+  /** Share of seen points that are outliers, in [0, 1]. */
+  outlier_fraction?: number;
+  /** An outlier's displacement per axis (px). */
+  outlier_sigma_px?: number;
+  /** Share of seen points the detector misses, in [0, 1]. */
+  dropout_fraction?: number;
+  /** Laser-stripe pixel noise per axis (px). */
+  laser_sigma_px?: number;
+  /** The robot's TCP rotation error per rotation-vector component (rad). */
+  robot_rot_sigma_rad?: number;
+  /** The robot's TCP translation error per axis (m). */
+  robot_trans_sigma_m?: number;
+  seed?: number;
+}
+
+/** One observed target point. */
+export interface ObservedPoint {
+  /** Index into the target's points. */
+  point: number;
+  target_xyz: [number, number, number];
+  pixel: [number, number];
+  /** Present (true) when it was made an outlier. */
+  outlier?: boolean;
+}
+
+/** One camera's observations in one capture. */
+export interface ObservedView {
+  camera: string;
+  /** None when fewer than four were seen. */
+  points: ObservedPoint[];
+  /** The laser stripe's pixels; none when fewer than two were seen. */
+  laser: [number, number][];
+}
+
+export interface ObservedCapture {
+  id: string;
+  /** The robot's reported TCP, if a robot carries the rig or the target. */
+  base_se3_tcp: Iso3Schema | null;
+  /** One per camera, in the scene's order. */
+  views: ObservedView[];
+}
+
+/** What a detector and a robot controller would report of a scenario (etendue-synth `Observations`). */
+export interface Observations {
+  noise: Required<ObservationNoise>;
+  captures: ObservedCapture[];
+}
+
 /** A robot's TCP and how far from singular it is. */
 export interface RobotTcp {
   base_se3_tcp: Iso3Schema;
@@ -519,6 +571,13 @@ export class EtendueScene {
    * @throws {@link EtendueError} for an unknown robot, or `q` of the wrong length or outside the limits.
    */
   robotLinkPoses(robotId: string, q: Float64Array | readonly number[]): Float64Array;
+
+  /**
+   * Observations of `scenario`'s ground truth with `noise`: the ground truth `etendue gt` writes,
+   * observed as `etendue calibrate --noise` observes it, so a seed gives the same observations in
+   * both. Throws for a scene that poses no calibration problem (one printed target, …).
+   */
+  observe(scenario: ScenarioSpec | string, noise: ObservationNoise): Observations;
 
   /** Robot `robotId`'s TCP in its base frame at `q`, and its manipulability (0 at a singularity). */
   robotTcp(robotId: string, q: Float64Array | readonly number[]): RobotTcp;

@@ -203,6 +203,30 @@ test("generates a dataset through the native pipeline", async ({ page }) => {
     () => (window as unknown as { __calibrations: Record<string, unknown>[] }).__calibrations,
   );
   expect(calibrations).toEqual([{ dir: "/repo/target/studio/closed_loop_ur5e", options: {} }]);
+
+  // The 3-D view draws the estimate (both cameras and the board) over the truth, exaggerated.
+  await expect(page.getByTestId("viewport")).toHaveAttribute("data-estimate", "2");
+  const scale = outcome.getByTestId("estimate-scale");
+  await expect(scale.getByRole("radio", { name: "×100", exact: true })).toBeChecked();
+  await scale.getByRole("radio", { name: "×1000" }).click();
+  await expect(scale.getByRole("radio", { name: "×1000" })).toBeChecked();
+
+  // At a capture, the camera view shows what the calibration observes: every corner exactly…
+  await page
+    .getByRole("button", { name: /capture/i })
+    .nth(2)
+    .click();
+  const view = page.getByTestId("observations").getByTestId("camera-view-cam_left");
+  await expect(view).toHaveAttribute("data-observed", /^[1-9]\d*$/);
+  const exact = Number(await view.getAttribute("data-observed"));
+  // …or, with noise, fewer of them once half are dropped.
+  await calibrate.getByRole("radio", { name: "With noise" }).click();
+  const dropouts = calibrate.getByTestId("noise-form").getByRole("spinbutton", { name: "Dropouts" });
+  await dropouts.fill("50");
+  await dropouts.press("Enter");
+  await expect
+    .poll(async () => Number(await view.getAttribute("data-observed")), { timeout: 10_000 })
+    .toBeLessThan(0.8 * exact);
 });
 
 test("a plain browser has no Dataset tab", async ({ page }) => {

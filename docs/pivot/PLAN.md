@@ -716,6 +716,17 @@ studio code, so no phase waits on a review.
       - a noise preview on the camera views (wasm `observe`);
       - runs kept in the project's `runs/` (a run goes to its dataset folder);
       - a browser preview of the source.
+  - *Status, P13c:* the first two deferred items are done.
+    - **Estimate in 3-D.** The report's `estimate.offsets` give each estimated camera and the
+      target in its true frame, and each laser plane, true and estimated, in the true camera's
+      frame. The Calibrate workspace draws them over the truth in the warning colour,
+      exaggerated ×1 to ×1000. They are tested against the hand-eye rows, eye-in-hand and
+      eye-to-hand.
+    - **Observations preview.** The wasm `observe` produces the observations, bit-identical to
+      native (G0.1). It shares `etendue-synth::dataset::emit_scene` and
+      `EmitOptions::STANDARD` with `etendue gt`. The workspace's camera view shows what a run
+      observes at each capture: dots, outliers and dropouts over the true corners.
+    - Still deferred: runs in `runs/`, and a browser preview.
 
 ### Deferred (not planned; do not scaffold)
 

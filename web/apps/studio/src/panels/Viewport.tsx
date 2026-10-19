@@ -22,6 +22,7 @@ import { cachedMeshLoader } from "../kernel/meshCache";
 import { type Bodies, type PoseOverride, type PoseSource, showOverrides } from "../kernel/posed";
 import { Gizmo, type GizmoOptions } from "../scene/Gizmo";
 import { CandidateGlyphs } from "../scene/CandidateGlyphs";
+import { type EstimateDrawing, Estimates } from "../scene/Estimates";
 import { TargetSurface } from "../scene/TargetSurface";
 import { TcpPath } from "../scene/TcpPath";
 
@@ -153,6 +154,7 @@ export function Viewport({
   poses = null,
   gizmo = null,
   paths,
+  estimate = null,
 }: {
   current: Baked;
   playhead: Playhead;
@@ -171,6 +173,8 @@ export function Viewport({
   gizmo?: GizmoTarget | null | undefined;
   /** Robot TCP paths to draw (the Motion workspace). */
   paths?: { path: Float32Array; captures: Float32Array }[] | undefined;
+  /** A calibration's estimate to draw beside the truth (the Calibrate workspace). */
+  estimate?: EstimateDrawing | null | undefined;
 }) {
   const [options, setOptions] = useState<GizmoOptions>({ mode: "translate", space: "local", snap: false });
   const { loaded, session, baked } = current;
@@ -234,6 +238,7 @@ export function Viewport({
               <CandidateGlyphs candidates={candidates} />
             </AtFrame>
           )}
+          {estimate && <Estimates drawing={estimate} rays={rays} />}
           {selectedFrame && (
             <AtFrame name={selectedFrame}>
               <FrameAxes size={0.1} />

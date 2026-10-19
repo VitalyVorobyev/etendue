@@ -6,7 +6,7 @@
  * `etendue_cli::{progress, gt, render, detect}`.
  */
 
-import type { ProjectManifest, ScenarioSpec, SceneSpec } from "@etendue/wasm";
+import type { Iso3Schema, ObservationNoise, ProjectManifest, ScenarioSpec, SceneSpec } from "@etendue/wasm";
 import { Channel, invoke } from "@tauri-apps/api/core";
 
 import { normalize } from "../io/tauri";
@@ -128,17 +128,7 @@ export function generateDataset(
   return invoke<Outcome>("generate_dataset", { runId, request, onProgress: channel });
 }
 
-/** Noise on synthesised observations (`etendue-synth::observe`); every field defaults to 0. */
-export interface ObservationNoise {
-  pixel_sigma_px?: number;
-  outlier_fraction?: number;
-  outlier_sigma_px?: number;
-  dropout_fraction?: number;
-  laser_sigma_px?: number;
-  robot_rot_sigma_rad?: number;
-  robot_trans_sigma_m?: number;
-  seed?: number;
-}
+export type { ObservationNoise };
 
 /** How a dataset is calibrated (`etendue-cli::calibrate::RunOptions`). */
 export interface CalibrateOptions {
@@ -178,6 +168,39 @@ export interface CalibrationReport {
     per_camera_mean_px: number[];
     errors_px: number[];
   };
+  estimate: CalibrationEstimate;
+}
+
+/** A plane `n·p + d = 0`. */
+export interface Plane {
+  normal: [number, number, number];
+  distance: number;
+}
+
+/** What a calibration found (`etendue-cli::calibrate::Estimate`). */
+export interface CalibrationEstimate {
+  cameras: {
+    id: string;
+    /** `[fx, fy, cx, cy]`. */
+    intrinsics: [number, number, number, number];
+    distortion: number[];
+    tilt: [number, number];
+    cam_se3_ref: Iso3Schema;
+  }[];
+  handeye: Iso3Schema | null;
+  laser_planes: (Plane | null)[];
+  /** The estimate in the truth's frames; `null` without a hand-eye or a target pose. */
+  offsets: CalibrationOffsets | null;
+}
+
+/** Where the estimate is relative to the truth (`etendue-cli::calibrate::Offsets`). */
+export interface CalibrationOffsets {
+  /** Per calibrated camera (the report's `cameras`): the estimated camera in the true camera's frame. */
+  cameras: Iso3Schema[];
+  /** The estimated target in the true target's frame. */
+  target: Iso3Schema;
+  /** Per calibrated camera, its laser plane: true, then estimated, in the true camera's frame. */
+  planes: ([Plane, Plane] | null)[];
 }
 
 /** A row's spread over trials. */

@@ -68,3 +68,27 @@ At this noise, the errors that matter downstream (mean over the 8 seeds):
 |---|---|
 | fx (relative) | 2.5e-3 (cam_left), 1.2e-3 (cam_right) |
 | hand-eye rotation | 0.21° |
+
+## P13c: the estimate beside the truth; observations in wasm
+
+Measured 2026-10-19 on branch `p13c/compare` (on `c812423`).
+
+- **Offsets** (`etendue-cli/tests/calibrate.rs`):
+  - On exact data, laser_ur5e's camera and target offsets are identities to 1e-6 rad and 1e-6 m,
+    and the true and estimated planes agree to 1e-10 in the normal and 1e-6 m in distance.
+  - With 0.5 px noise, the reference camera's offset reproduces the hand-eye rows to 1e-9.
+    Eye-in-hand (closed_loop_ur5e) matches both the angle and the translation. Eye-to-hand
+    (eye_to_hand_ur5e) matches the angle, since there the translation is measured in another
+    frame.
+- **Observations in wasm:** G0.1 extended (see `g0_1_wasm_parity.md`), with 0 mismatches.
+  Timed in Node with `pixel_sigma_px` 0.5:
+
+  | Example | `observe` | JSON |
+  |---|---|---|
+  | closed_loop_ur5e | 2.7 ms | 0.29 MB |
+  | laser_ur5e | 3.4 ms | 0.57 MB |
+  | rig3_laser_ur5e | 11.7 ms | 2.9 MB |
+
+  The studio recomputes 150 ms after the noise settles.
+- **G2.1:** `etendue_wasm_bg.wasm` is **768,001 B** gzipped (limit 1,572,864). It was 689,423 B;
+  ground-truth emission and the noise stream add 78,578 B.

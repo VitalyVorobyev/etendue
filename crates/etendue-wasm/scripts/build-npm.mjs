@@ -10,6 +10,9 @@
 //
 // The same package serves browsers (`await init()`) and Node (`initSync({ module: bytes })`,
 // as tests/node/g01_parity.mjs does).
+//
+// `ETENDUE_CARGO_CONFIG` (optional) is passed to cargo as `--config`: a `[patch.crates-io]` table
+// pointing calibration-rs at another checkout (CLAUDE.md: the locks follow the tag).
 
 import { execFileSync } from "node:child_process";
 import { cpSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -21,9 +24,21 @@ const pkg = join(crate, "pkg");
 const dev = process.argv.includes("--dev");
 
 rmSync(pkg, { recursive: true, force: true });
-execFileSync("wasm-pack", ["build", crate, "--target", "web", dev ? "--dev" : "--release", "--out-dir", "pkg"], {
-  stdio: "inherit",
-});
+const config = process.env.ETENDUE_CARGO_CONFIG;
+execFileSync(
+  "wasm-pack",
+  [
+    "build",
+    crate,
+    "--target",
+    "web",
+    dev ? "--dev" : "--release",
+    "--out-dir",
+    "pkg",
+    ...(config ? ["--", "--config", config] : []),
+  ],
+  { stdio: "inherit" },
+);
 // wasm-pack's own manifest and ignore file are replaced below.
 rmSync(join(pkg, ".gitignore"), { force: true });
 
