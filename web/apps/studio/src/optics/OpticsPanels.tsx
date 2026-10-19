@@ -35,18 +35,21 @@ function Pick({
   onPick: (ref: string) => void;
 }) {
   const items = project ? itemsOf(project, kind) : [];
+  // The design's part when it is not a library item by that name (a design's own sensor, say).
+  const CURRENT = "__current";
+  const match = items.find(([, i]) => i.name === current)?.[0];
   return (
     <>
       <RowLabel>{label}</RowLabel>
       <Select
         aria-label={label}
         className="min-w-0 [&>span]:truncate [&>span]:whitespace-nowrap"
-        value={items.find(([, i]) => i.name === current)?.[0] ?? ""}
+        value={match ?? CURRENT}
         options={[
-          ...(items.some(([, i]) => i.name === current) ? [] : [{ value: "", label: current }]),
+          ...(match ? [] : [{ value: CURRENT, label: current }]),
           ...items.map(([ref, i]) => ({ value: ref, label: i.name })),
         ]}
-        onValueChange={(ref) => ref !== "" && onPick(ref)}
+        onValueChange={(ref) => ref !== "" && ref !== CURRENT && onPick(ref)}
       />
     </>
   );
