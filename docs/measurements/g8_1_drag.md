@@ -3,7 +3,8 @@
 - **Gate G8.1** (`docs/pivot/PLAN.md` P8): during a 5 s slider drag on `rig3_laser_ur5e`:
   - 0 bakes;
   - JS work per frame p95 ≤ 4 ms;
-  - frame interval p95 ≤ 1.1× the display period.
+  - frame interval p95 ≤ 1.1× the idle interval p95 (revised 2026-10-19 with the user; the
+    first criterion, 1.1× the display period, was mis-set, see below).
 - **Gate G8.2:** a commit makes one undo entry and loads no mesh.
 - Measured 2026-10-19 on branch `p8b/gizmo` (on top of `7a1334f`, P8a). The host and browser
   are those of G2.2: Apple M4 Pro, Playwright Chromium 153 headed, WebGL on ANGLE Metal, here
@@ -45,6 +46,19 @@ The run writes `target/perf/g8_1.json`.
 
   The proposed criterion is drag interval p95 ≤ 1.1 × **idle** p95, which measures 9.3 ≤ 10.2
   ms. It is not applied until the user agrees; the spec still asserts the original.
+
+## G8.1 re-measured on the revised criterion: PASS
+
+Re-measured 2026-10-19 on `c812423` (main after P13b), same host and browser, 120 Hz.
+
+| | Frames | Bakes | Interval p50 | Interval p95 | Interval p99 | Work p50 | Work p95 | Work p99 |
+|---|---|---|---|---|---|---|---|---|
+| Idle | 240 | – | 8.3 ms | 9.3 ms | 9.4 ms | 0.6 ms | 1.0 ms | 2.0 ms |
+| Drag | 603 | **0** | 8.3 ms | **9.3 ms** | 9.4 ms | 0.7 ms | **1.0 ms** | 1.2 ms |
+
+- **Bakes:** 0 during the drag, 1 on release.
+- **Work:** p95 1.0 ms ≤ 4 ms. The 66 ms maximum is the commit's bake on release.
+- **Interval:** p95 9.3 ms ≤ 1.1 × 9.3 ms = 10.2 ms. `perf_drag.spec.ts` now asserts this.
 
 ## G8.2 result: PASS
 

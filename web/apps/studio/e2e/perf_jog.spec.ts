@@ -2,8 +2,7 @@
  * P12: the P8 frame-time criteria hold while a robot is jogged. A joint slider of the Jog panel
  * is dragged for 5 s on `rig3_laser_ur5e` (a three-camera rig on the flange): FK and the pose
  * overrides run on every move, never a bake, and the main thread's JS work per frame has p95
- * ≤ 4 ms (G8.1's work limit). The frame interval is recorded beside the idle one; G8.1's own
- * interval criterion is pending a decision (docs/measurements/g8_1_drag.md).
+ * ≤ 4 ms, and the frame interval has p95 ≤ 1.1× the idle one (G8.1's limits).
  */
 
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -60,4 +59,5 @@ test("P12: frame times while jogging a joint", async ({ page }) => {
   console.log(JSON.stringify(result, null, 2));
   expect(result.jog.bakes).toBe(0);
   expect(result.jog.work_ms.p95).toBeLessThanOrEqual(4);
+  expect(result.jog.interval_ms.p95).toBeLessThanOrEqual(1.1 * result.idle.interval_ms.p95);
 });

@@ -271,7 +271,7 @@ and ask; do not silently relax it.
   `three-react` 0.2, `workbench` 0.3 and `ui` 0.12, and `web/packages/` is gone.
 
 - **P2-7 — Studio desktop shell (Tauri).** D4's trigger fired: launching renders from the UI
-  ([ADR 0007](../adrs/0007-tauri-studio-shell.md), proposed). Tauri 2 around the studio, in its own
+  ([ADR 0007](../adrs/0007-tauri-studio-shell.md)). Tauri 2 around the studio, in its own
   cargo workspace (`web/apps/studio/src-tauri`), on the `etendue_cli` library. Native commands do
   dataset generation (ground truth → Blender → detection, with progress and cancel), Blender's
   status and scenarios from tool poses. `@etendue/wasm` stays the per-frame kernel. Done when the
@@ -565,7 +565,8 @@ studio code, so no phase waits on a review.
     and a slider-number row.
   - **Gates:**
     - **G8.1:** during a 5 s slider drag on rig3_laser_ur5e there are 0 bakes, JS work p95
-      ≤ 4 ms, and frame interval p95 ≤ 1.1× the display period (headed, as G2.2).
+      ≤ 4 ms, and frame interval p95 ≤ 1.1× the idle interval p95 (headed, as G2.2; revised
+      2026-10-19 with the user: the display period was mis-set, `g8_1_drag.md`).
     - **G8.2:** a commit makes one undo entry and loads no mesh.
 - **P9 — Optics model, library, project folder** (ADRs 0008, 0009).
   - **Scene and library:**

@@ -1,7 +1,8 @@
 /**
  * Gate G8.1 (docs/pivot/PLAN.md P8): during a 5 s slider drag on `rig3_laser_ur5e` there are no
  * bakes, the main thread's JS work per frame has p95 ≤ 4 ms, and the frame interval has p95
- * ≤ 1.1× the display period (the idle median interval, measured first).
+ * ≤ 1.1× the idle interval p95, measured first. (The display period, the idle median, was the
+ * first criterion; Chromium's rAF timestamps alternate around it, so idle alone failed it.)
  *
  * The work of a frame is everything the page's JS did since the previous frame: animation
  * callbacks (R3F's render), pointer and mouse listeners (the slider), and message-port tasks
@@ -70,5 +71,5 @@ test("G8.1: frame times during a slider drag", async ({ page, browserName }) => 
   console.log(JSON.stringify(result, null, 2));
   expect(result.drag.bakes).toBe(0);
   expect(result.drag.work_ms.p95).toBeLessThanOrEqual(4);
-  expect(result.drag.interval_ms.p95).toBeLessThanOrEqual(1.1 * period);
+  expect(result.drag.interval_ms.p95).toBeLessThanOrEqual(1.1 * result.idle.interval_ms.p95);
 });

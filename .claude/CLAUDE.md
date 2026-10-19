@@ -419,7 +419,7 @@ also run its gates (`cargo clippy/test --manifest-path web/apps/studio/src-tauri
 `docs/pivot/PLAN.md` is the roadmap, with phases and their gates. P0–P5 and P7 are done
 (gates in `docs/measurements/`); P6-1/P6-3 are absorbed by P10/P11. The current roadmap is
 P8–P13 (2026-10-19): interactive editing → optics model, library and project folder
-(ADRs 0008, 0009, proposed) → Optics workspace → Rigs workspace → Robot jogging →
+(ADRs 0008, 0009) → Optics workspace → Rigs workspace → Robot jogging →
 Calibration lab.
 
 Promoting `ThickLens` to `ApertureModel<S>` in calibration-rs is deferred (ADR 0008): no

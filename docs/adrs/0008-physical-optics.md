@@ -1,7 +1,7 @@
 # ADR 0008: Physical Optics in the Scene, and the Component Library
 
-- Status: Proposed (revised 2026-10-19 after review: mechanical camera frame, explicit
-  cardinal points and pupils, focus breathing)
+- Status: Accepted (2026-10-19; revised the same day after review: mechanical camera frame,
+  explicit cardinal points and pupils, focus breathing)
 - Date: 2026-10-19
 
 ## Context
