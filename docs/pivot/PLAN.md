@@ -569,8 +569,13 @@ studio code, so no phase waits on a review.
     - **G8.2:** a commit makes one undo entry and loads no mesh.
 - **P9 — Optics model, library, project folder** (ADRs 0008, 0009).
   - **Scene and library:**
-    - `CameraSpec.optics` (fx and fy derived and validated; origin at H);
-    - the intrinsics fix (`fx = v0 / pitch`);
+    - `CameraSpec.optics` (lens with principal gap, entrance pupil and unit focusing;
+      focus measured from the image plane; physical sensor tilt);
+    - the camera pose is the mechanical frame M (image-plane datum); `PhysicalCamera`
+      owns H, H′, E, E′ and the projection frame P at the entrance pupil, and every
+      consumer takes its pinhole pose from it;
+    - the stored fx, fy and tilt are the derived equivalent pinhole, validated; focus
+      breathing is modelled (this also fixes `fx = f / pitch`);
     - library documents in `etendue-scene`;
     - the bridge `etendue-core::from_scene`.
   - **Core physics:** `optics::budget` (DOF, diffraction, total blur, mm/px),
@@ -581,13 +586,18 @@ studio code, so no phase waits on a review.
   - **Reference project:** `examples/` becomes it, with the bank as its library. New
     entities come from project defaults.
   - **Gates:**
-    - **G9.1:** thin-lens limit at 1e-12 relative: fx, and near/far DOF.
+    - **G9.1:** thin-lens limit at 1e-12 relative: fx, `M_se3_P`, and near/far DOF.
     - **G9.2:** Nelder–Mead reproduces argmin's recorded optimum to 1e-6 rad / 1e-6 m.
     - **G9.3:** no `getrandom` in the wasm graph; bit parity for every new wasm function;
       G2.1 re-measured.
+    - **G9.4:** frame invariance (ADR 0008 §4): a physical camera at M equals the derived
+      pinhole at P through every consumer (1e-9 px); `project` and `coc` match an
+      independent paraxial chief- and marginal-ray trace (1e-9 px, 1e-12 relative) with
+      g ≠ 0, e ≠ 0 and tilt; moving the cell or re-parenting the camera changes no
+      pixel; refocusing keeps M fixed.
 - **P10 — Optics workspace.** A camera, or a camera + laser head, against a design volume.
   - **2-D cross-section** in the laser plane:
-    - the principal planes, the aperture, the tilted sensor;
+    - the image-plane datum, the principal points, the pupils, the tilted sensor;
     - paraxial ray fans, the plane of best focus, the DOF band, the field of view;
     - the laser line and the Scheimpflug hinge;
     - the working volume shaded by blur, mm/px or dZ/px;
@@ -597,7 +607,7 @@ studio code, so no phase waits on a review.
   - **Charts** against depth.
   - **Optimiser:**
     1. the hinge rule gives the start;
-    2. Nelder–Mead minimises worst-case blur over (τ, s_o, N) under coverage;
+    2. Nelder–Mead minimises worst-case blur over (τ, D, N) under coverage;
     3. a lens search runs over the library.
   - **Output:** save as a camera or head design; place it in a cell with provenance.
   - **Gates:**
