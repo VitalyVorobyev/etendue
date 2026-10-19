@@ -1,0 +1,54 @@
+{
+  "version": 1,
+  "id": "ring3_laser",
+  "name": "Ring of three cameras, a line laser beside each",
+  "description": "Converging 0.5 m ahead on a 60 mm radius, as in examples/rig3_laser_ur5e.",
+  "rig": {
+    "layout": {
+      "count": 3,
+      "radius_m": 0.06,
+      "phase_rad": 0,
+      "working_distance_m": 0.5,
+      "image_x": "tangential",
+      "camera": {
+        "params": {
+          "projection": {
+            "type": "pinhole"
+          },
+          "distortion": {
+            "type": "brown_conrady5",
+            "k1": -0.08,
+            "k2": 0.02,
+            "k3": 0,
+            "p1": 0,
+            "p2": 0,
+            "iters": 8
+          },
+          "sensor": {
+            "type": "identity"
+          },
+          "intrinsics": {
+            "type": "fx_fy_cx_cy_skew",
+            "fx": 2318.8,
+            "fy": 2318.8,
+            "cx": 640,
+            "cy": 512,
+            "skew": 0
+          }
+        },
+        "resolution": [
+          1280,
+          1024
+        ]
+      },
+      "lasers": {
+        "radius_m": 0.025,
+        "azimuth_rad": 1.0471975511965976,
+        "fan_half_angle": 0.4363323129985824,
+        "fan_length": 1,
+        "wavelength_nm": 660,
+        "beam_waist_m": 0.0005
+      }
+    }
+  }
+}

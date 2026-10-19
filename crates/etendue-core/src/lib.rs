@@ -41,7 +41,6 @@
 //!   working geometry.
 
 pub mod analysis;
-pub mod bank;
 pub mod error;
 pub mod from_scene;
 pub mod geom;

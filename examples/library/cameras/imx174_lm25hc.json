@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "id": "imx174_lm25hc",
+  "name": "IMX174 + Kowa LM25HC, f/4, focused at 0.5 m",
+  "description": "A physical camera: its focal lengths come from the optics (ADR 0008).",
+  "camera": {
+    "params": {
+      "projection": {
+        "type": "pinhole"
+      },
+      "distortion": {
+        "type": "none"
+      },
+      "sensor": {
+        "type": "identity"
+      },
+      "intrinsics": {
+        "type": "fx_fy_cx_cy_skew",
+        "fx": 4503.959428331235,
+        "fy": 4503.959428331235,
+        "cx": 968,
+        "cy": 608,
+        "skew": 0
+      }
+    },
+    "resolution": [
+      1936,
+      1216
+    ],
+    "optics": {
+      "sensor": {
+        "name": "Sony IMX174",
+        "pixel_pitch_m": 0.00000586
+      },
+      "lens": {
+        "name": "Kowa LM25HC",
+        "focal_length_m": 0.025,
+        "f_number": 4
+      },
+      "focus_distance_m": 0.5
+    }
+  }
+}

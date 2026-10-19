@@ -127,6 +127,16 @@ fn check_camera(
     Some(derived)
 }
 
+/// The problems with a camera design (or a scene camera) whose `params` must hold what its
+/// `optics` derive, reported under `path`: optics that are not physical, or stored focal
+/// lengths, skew or tilt beyond [`DERIVED_TOLERANCE`].
+#[must_use]
+pub fn check_derived(optics: &OpticsSpec, params: &CameraParams, path: &str) -> Vec<Issue> {
+    let mut issues = Vec::new();
+    check_camera(optics, params, path, &mut issues);
+    issues
+}
+
 /// A scene in projection frames, with where each moved camera's projection frame sits in its
 /// mechanical frame.
 #[derive(Clone, Debug)]

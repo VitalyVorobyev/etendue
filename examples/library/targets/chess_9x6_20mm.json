@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "id": "chess_9x6_20mm",
+  "name": "Chessboard 9 × 6, 20 mm squares",
+  "target": {
+    "geometry": {
+      "type": "board",
+      "board": {
+        "kind": "chessboard",
+        "rows": 6,
+        "cols": 9,
+        "square_size_m": 0.02
+      }
+    }
+  }
+}

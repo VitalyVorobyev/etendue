@@ -19,6 +19,7 @@
 
 # Optics
 
+- [Physical cameras](physical_cameras.md)
 - [The optics kernel's scene](scene_and_geometry.md)
 - [Thick lens and defocus](thick_lens.md)
 - [Scheimpflug plane of best focus](scheimpflug.md)
@@ -27,4 +28,4 @@
 - [Gaussian PSF](gaussian_psf.md)
 - [Scheimpflug solver](scheimpflug_solver.md)
 - [Symmetric rigs and N-view overlap](symmetric_rigs.md)
-- [Component bank](bank.md)
+- [Projects and the library](library.md)

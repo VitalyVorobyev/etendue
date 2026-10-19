@@ -48,6 +48,11 @@ enum Command {
         /// Scenario file.
         scenario: Option<PathBuf>,
     },
+    /// Project folders (ADR 0009).
+    Project {
+        #[command(subcommand)]
+        command: ProjectCommand,
+    },
     /// Compile a scenario and write the baked scenario (`world_se3_frame`
     /// for every frame at every sample).
     Bake {
@@ -258,6 +263,17 @@ enum Gate {
     P45,
 }
 
+/// `etendue project …`.
+#[derive(Subcommand)]
+enum ProjectCommand {
+    /// Check a project folder: its manifest, every cell (scene and scenario), every library
+    /// item, its defaults and its robots.
+    Check {
+        /// The project folder (holding `etendue-project.json`).
+        dir: PathBuf,
+    },
+}
+
 /// Render backends (Blender is the only one).
 #[derive(Clone, Copy, Debug, clap::ValueEnum)]
 enum Backend {
@@ -318,6 +334,28 @@ fn run(cli: Cli) -> Result<()> {
                     trajectory.dt
                 );
             }
+            Ok(())
+        }
+        Command::Project {
+            command: ProjectCommand::Check { dir },
+        } => {
+            let s = etendue_cli::project::check(&dir)?;
+            let library: Vec<String> = s
+                .library
+                .iter()
+                .map(|(folder, n)| format!("{n} {folder}"))
+                .collect();
+            println!(
+                "project ok: {}: {} cell(s), library {}, {} robot(s)",
+                s.name,
+                s.cells,
+                if library.is_empty() {
+                    "empty".to_owned()
+                } else {
+                    library.join(", ")
+                },
+                s.robots
+            );
             Ok(())
         }
         Command::Bake {

@@ -36,9 +36,11 @@ pub mod baked;
 pub mod entity;
 pub mod export;
 pub mod frame;
+pub mod library;
 pub mod light;
 pub mod optics;
 pub mod printed;
+pub mod project;
 pub mod report;
 pub mod rig;
 pub mod robot;
@@ -54,9 +56,16 @@ pub use baked::{BakedRobot, BakedSample, BakedScenario, CaptureEvent};
 pub use entity::{CameraSpec, LaserSpec, PartSpec, RigSpec, TargetGeometry, TargetSpec};
 pub use export::{CaptureExport, CaptureRow, ExportError};
 pub use frame::{FrameGraph, FrameRef, FrameSpec, ParsedFrameRef, WORLD, is_valid_id};
+pub use library::{
+    KINDS, LIBRARY_VERSION, LaserPart, LensMount, LensPart, LibraryItem, RigDesign, SensorPart,
+    TargetPart,
+};
 pub use light::{LightShape, LightSpec};
 pub use optics::{Focusing, LensOptics, OpticsSpec, SensorOptics};
 pub use printed::{CharucoLayout, MarkerCircle, Polarity, PrintedTarget};
+pub use project::{
+    PROJECT_FILE, PROJECT_VERSION, ProjectDefaults, ProjectManifest, is_project_path, library_file,
+};
 pub use report::{Binding, IkReport, JointPeak, MotionReport, MotionWarning, Quantity, StepReport};
 pub use rig::{CameraTemplate, ImageX, LaserLayout, RigLayout};
 pub use robot::{

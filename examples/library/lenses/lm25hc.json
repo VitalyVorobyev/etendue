@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "id": "lm25hc",
+  "name": "Kowa LM25HC (25 mm C-mount)",
+  "description": "Values are illustrative: check them against the datasheet before a real design. Principal-plane gap and pupil position unknown: a thin lens.",
+  "lens": {
+    "focal_length_m": 0.025,
+    "min_f_number": 1.4,
+    "mount": "c_mount",
+    "fov_diagonal_deg": 30.4,
+    "mtf50_lp_mm": 160
+  }
+}

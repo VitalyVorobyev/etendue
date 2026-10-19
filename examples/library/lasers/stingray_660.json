@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "id": "stingray_660",
+  "name": "Coherent StingRay 660-30 (red, 30 mW)",
+  "description": "Values are illustrative: check them against the datasheet before a real design.",
+  "laser": {
+    "wavelength_nm": 660,
+    "fan_half_angle": 0.2618,
+    "beam_waist_m": 0.00005,
+    "power_mw": 30
+  }
+}

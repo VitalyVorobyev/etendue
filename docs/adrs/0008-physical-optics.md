@@ -220,18 +220,23 @@ The simulated image must not depend on where the frames are drawn. The tests (ga
 
 ### 5. A component library of versioned documents
 
-`etendue-scene` gets `library.rs`. Each item is one JSON file:
+`etendue-scene` gets `library.rs`. Each item is one JSON file. It holds exactly one part, under
+the key that names its kind:
 
 ```json
-{ "version": 1, "kind": "camera", "id": "imx174_lm25hc", "name": "IMX174 + LM25HC @ 0.3 m", … }
+{ "version": 1, "id": "imx174_lm25hc", "name": "IMX174 + LM25HC, f/4 at 0.5 m", "camera": { … } }
 ```
+
+(The first draft had a flat `{version, kind, id, name, …fields}`. serde cannot reject unknown
+fields in a flattened document, so the part is nested.)
 
 - **Kinds:**
   - parts: `sensor`, `lens`, `laser`, `target`;
   - designs:
-    - `camera`: optics, resolution, distortion and tilt;
+    - `camera`: optics, resolution, distortion and tilt (a `CameraTemplate`);
     - `head`: a camera design, a laser and `camera_se3_laser` in the camera's mechanical
-      frame, plus its design volume;
+      frame, plus its design volume. It comes with the Optics workspace (P10), which is the
+      first thing to make one;
     - `rig`: a `RigLayout` whose unit is a camera or head design.
 - **The `etendue-core::bank` schema types move here as the part kinds.** A lens part
   gains `entrance_pupil_m` and `focusing`. The catalog loader and the seed files move to

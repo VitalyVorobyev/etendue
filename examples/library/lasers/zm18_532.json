@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "id": "zm18_532",
+  "name": "Z-LASER ZM18 532 nm (green, 10 mW)",
+  "description": "Values are illustrative: check them against the datasheet before a real design.",
+  "laser": {
+    "wavelength_nm": 532,
+    "fan_half_angle": 0.3491,
+    "beam_waist_m": 0.00006,
+    "power_mw": 10
+  }
+}

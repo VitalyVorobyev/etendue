@@ -33,7 +33,7 @@ little as possible) hard-coded in the app.
 ```
 <project>/
   etendue-project.json
-  library/{sensors,lenses,lasers,targets,cameras,heads,rigs}/<id>.json
+  library/{sensors,lenses,lasers,targets,cameras,rigs}/<id>.json   (heads: P10)
   robots/<id>/{robot.json, robot.urdf, meshes/}     (optional)
   cells/<name>/{scene.json, scenario.json}
   datasets/<name>/…                                 (gt, renders, features)
@@ -61,7 +61,9 @@ Its schema is emitted to `schemas/project.schema.json`.
 - **`defaults` names library items.** New entities in the studio are built from them,
   not from code. The code keeps one minimal fallback per kind, for a project without
   defaults.
-- **A library item's id is its file stem.** `validateLibrary` checks that they match.
+- **A library item's id is its file stem.** `etendue project check` checks that they match,
+  that each item's kind matches its folder, that the defaults name existing items, and that a
+  camera design's params match its optics.
 
 ### 2. Robots resolve in a fixed order
 
@@ -78,8 +80,12 @@ rule and adds the project's own robots in front of it.
 
 - `examples/etendue-project.json` lists the six example folders as cells.
 - `examples/library/` is seeded from today's bank: three sensors, three lenses and
-  three lasers. To these it adds the camera, head and target designs that the examples
-  use.
+  three lasers. To these it adds:
+  - the examples' two boards;
+  - the examples' pinhole camera;
+  - a physical camera (IMX174 behind a 25 mm lens at f/4, focused at 0.5 m), which is the
+    project's default camera;
+  - the three-camera laser ring.
 - `crates/etendue-core/assets/bank` is removed. Core tests keep small inline fixtures, so
   the published crate reads no file outside itself.
 - The app bundles this project read-only as the starter. **New project** creates a

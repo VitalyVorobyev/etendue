@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "id": "plt5_450b",
+  "name": "Osram PLT5 450B (blue, 1.6 W diode, narrow fan)",
+  "description": "Values are illustrative: check them against the datasheet before a real design.",
+  "laser": {
+    "wavelength_nm": 450,
+    "fan_half_angle": 0.1745,
+    "power_mw": 1600
+  }
+}

@@ -1,0 +1,1552 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LibraryItem",
+  "description": "One library item. Exactly one of the part fields is set: it names the item's kind.",
+  "type": "object",
+  "properties": {
+    "camera": {
+      "description": "A camera design: optics (when physical), the as-built model and the image size.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CameraTemplate"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "description": {
+      "description": "More about it.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "id": {
+      "description": "The item's id: its file stem.",
+      "type": "string"
+    },
+    "laser": {
+      "description": "A line laser.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/LaserPart"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "lens": {
+      "description": "A lens.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/LensPart"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "name": {
+      "description": "What it is, for people.",
+      "type": "string"
+    },
+    "rig": {
+      "description": "A rig design.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/RigDesign"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "sensor": {
+      "description": "A sensor.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SensorPart"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "target": {
+      "description": "A calibration target.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TargetPart"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "version": {
+      "description": "Format version, [`LIBRARY_VERSION`].",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "id",
+    "name"
+  ],
+  "$defs": {
+    "CameraParams": {
+      "description": "Serializable camera parameters for building a runtime model.",
+      "type": "object",
+      "properties": {
+        "distortion": {
+          "description": "Distortion model parameters.",
+          "$ref": "#/$defs/DistortionParams"
+        },
+        "intrinsics": {
+          "description": "Intrinsics model parameters.",
+          "$ref": "#/$defs/IntrinsicsParams"
+        },
+        "projection": {
+          "description": "Projection model parameters.",
+          "$ref": "#/$defs/ProjectionParams"
+        },
+        "sensor": {
+          "description": "Sensor model parameters.",
+          "$ref": "#/$defs/SensorParams"
+        }
+      },
+      "required": [
+        "projection",
+        "distortion",
+        "sensor",
+        "intrinsics"
+      ]
+    },
+    "CameraTemplate": {
+      "description": "The camera model of every position of a layout.",
+      "type": "object",
+      "properties": {
+        "optics": {
+          "description": "The cameras' physical optics, if they have them (ADR 0008).",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OpticsSpec"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "params": {
+          "description": "Projection, distortion, sensor and intrinsics.",
+          "$ref": "#/$defs/CameraParams"
+        },
+        "resolution": {
+          "description": "Image size in pixels, `[width, height]`.",
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0
+          },
+          "maxItems": 2,
+          "minItems": 2
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "params",
+        "resolution"
+      ]
+    },
+    "CharucoLayout": {
+      "description": "ChArUco marker placement.",
+      "oneOf": [
+        {
+          "description": "OpenCV's modern layout: markers on the white squares, numbered row by\nrow.",
+          "type": "string",
+          "const": "opencv_charuco"
+        }
+      ]
+    },
+    "DistortionParams": {
+      "description": "Serializable distortion model parameters.",
+      "oneOf": [
+        {
+          "description": "No distortion.",
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "none"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "description": "Brown-Conrady 5-parameter radial-tangential model.",
+          "type": "object",
+          "properties": {
+            "iters": {
+              "description": "Maximum Newton iterations of [`DistortionModel::undistort`] (0 → 20).",
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "k1": {
+              "description": "Radial coefficient k1.",
+              "type": "number",
+              "format": "double"
+            },
+            "k2": {
+              "description": "Radial coefficient k2.",
+              "type": "number",
+              "format": "double"
+            },
+            "k3": {
+              "description": "Radial coefficient k3.",
+              "type": "number",
+              "format": "double"
+            },
+            "p1": {
+              "description": "Tangential coefficient p1.",
+              "type": "number",
+              "format": "double"
+            },
+            "p2": {
+              "description": "Tangential coefficient p2.",
+              "type": "number",
+              "format": "double"
+            },
+            "type": {
+              "type": "string",
+              "const": "brown_conrady5"
+            }
+          },
+          "required": [
+            "type",
+            "k1",
+            "k2",
+            "k3",
+            "p1",
+            "p2",
+            "iters"
+          ]
+        },
+        {
+          "description": "OpenCV rational polynomial 8-parameter model.",
+          "type": "object",
+          "properties": {
+            "iters": {
+              "description": "Maximum Newton iterations of [`DistortionModel::undistort`] (0 → 20).",
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "k1": {
+              "description": "Numerator radial coefficient k1.",
+              "type": "number",
+              "format": "double"
+            },
+            "k2": {
+              "description": "Numerator radial coefficient k2.",
+              "type": "number",
+              "format": "double"
+            },
+            "k3": {
+              "description": "Numerator radial coefficient k3.",
+              "type": "number",
+              "format": "double"
+            },
+            "k4": {
+              "description": "Denominator radial coefficient k4.",
+              "type": "number",
+              "format": "double"
+            },
+            "k5": {
+              "description": "Denominator radial coefficient k5.",
+              "type": "number",
+              "format": "double"
+            },
+            "k6": {
+              "description": "Denominator radial coefficient k6.",
+              "type": "number",
+              "format": "double"
+            },
+            "p1": {
+              "description": "Tangential coefficient p1.",
+              "type": "number",
+              "format": "double"
+            },
+            "p2": {
+              "description": "Tangential coefficient p2.",
+              "type": "number",
+              "format": "double"
+            },
+            "type": {
+              "type": "string",
+              "const": "rational"
+            }
+          },
+          "required": [
+            "type",
+            "k1",
+            "k2",
+            "k3",
+            "k4",
+            "k5",
+            "k6",
+            "p1",
+            "p2",
+            "iters"
+          ]
+        },
+        {
+          "description": "Brown-Conrady + thin-prism 9-parameter model.",
+          "type": "object",
+          "properties": {
+            "iters": {
+              "description": "Maximum Newton iterations of [`DistortionModel::undistort`] (0 → 20).",
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "k1": {
+              "description": "Radial coefficient k1.",
+              "type": "number",
+              "format": "double"
+            },
+            "k2": {
+              "description": "Radial coefficient k2.",
+              "type": "number",
+              "format": "double"
+            },
+            "k3": {
+              "description": "Radial coefficient k3.",
+              "type": "number",
+              "format": "double"
+            },
+            "p1": {
+              "description": "Tangential coefficient p1.",
+              "type": "number",
+              "format": "double"
+            },
+            "p2": {
+              "description": "Tangential coefficient p2.",
+              "type": "number",
+              "format": "double"
+            },
+            "s1": {
+              "description": "Thin-prism coefficient s1 (x correction, r²).",
+              "type": "number",
+              "format": "double"
+            },
+            "s2": {
+              "description": "Thin-prism coefficient s2 (x correction, r⁴).",
+              "type": "number",
+              "format": "double"
+            },
+            "s3": {
+              "description": "Thin-prism coefficient s3 (y correction, r²).",
+              "type": "number",
+              "format": "double"
+            },
+            "s4": {
+              "description": "Thin-prism coefficient s4 (y correction, r⁴).",
+              "type": "number",
+              "format": "double"
+            },
+            "type": {
+              "type": "string",
+              "const": "thin_prism"
+            }
+          },
+          "required": [
+            "type",
+            "k1",
+            "k2",
+            "k3",
+            "p1",
+            "p2",
+            "s1",
+            "s2",
+            "s3",
+            "s4",
+            "iters"
+          ]
+        },
+        {
+          "description": "Fitzgibbon single-parameter division model.",
+          "type": "object",
+          "properties": {
+            "lambda": {
+              "description": "Division distortion coefficient.",
+              "type": "number",
+              "format": "double"
+            },
+            "type": {
+              "type": "string",
+              "const": "division"
+            }
+          },
+          "required": [
+            "type",
+            "lambda"
+          ]
+        }
+      ]
+    },
+    "Focusing": {
+      "description": "How a lens focuses.",
+      "oneOf": [
+        {
+          "description": "The whole lens moves along its axis; its focal length does not change.",
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "unit"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        }
+      ]
+    },
+    "ImageX": {
+      "description": "The direction of a ring camera's image +X.",
+      "oneOf": [
+        {
+          "description": "Along the ring (counter-clockwise seen from +Z).",
+          "type": "string",
+          "const": "tangential"
+        },
+        {
+          "description": "Away from the rig axis.",
+          "type": "string",
+          "const": "radial"
+        }
+      ]
+    },
+    "IntrinsicsParams": {
+      "description": "Serializable intrinsics parameters.",
+      "oneOf": [
+        {
+          "description": "Pinhole intrinsics with optional skew.",
+          "type": "object",
+          "properties": {
+            "cx": {
+              "description": "Principal point X coordinate in pixels.",
+              "type": "number",
+              "format": "double"
+            },
+            "cy": {
+              "description": "Principal point Y coordinate in pixels.",
+              "type": "number",
+              "format": "double"
+            },
+            "fx": {
+              "description": "Focal length in pixels along X.",
+              "type": "number",
+              "format": "double"
+            },
+            "fy": {
+              "description": "Focal length in pixels along Y.",
+              "type": "number",
+              "format": "double"
+            },
+            "skew": {
+              "description": "Skew term (typically 0).",
+              "type": "number",
+              "format": "double"
+            },
+            "type": {
+              "type": "string",
+              "const": "fx_fy_cx_cy_skew"
+            }
+          },
+          "required": [
+            "type",
+            "fx",
+            "fy",
+            "cx",
+            "cy",
+            "skew"
+          ]
+        }
+      ]
+    },
+    "LaserLayout": {
+      "description": "One line laser per camera.",
+      "type": "object",
+      "properties": {
+        "azimuth_rad": {
+          "description": "Azimuth of laser `i` relative to camera `i`, radians.",
+          "type": "number",
+          "format": "double",
+          "default": 0.0
+        },
+        "beam_waist_m": {
+          "description": "Beam-waist `1/e²` radius at the laser, metres.",
+          "type": "number",
+          "format": "double"
+        },
+        "fan_half_angle": {
+          "description": "Fan half-angle, radians, in `(0, π/2)`.",
+          "type": "number",
+          "format": "double"
+        },
+        "fan_length": {
+          "description": "Fan reach along its central ray, metres.",
+          "type": "number",
+          "format": "double"
+        },
+        "power_w": {
+          "description": "Optical power, watts (`LaserSpec::power_w`).",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "radius_m": {
+          "description": "Distance of each laser from the rig axis, metres.",
+          "type": "number",
+          "format": "double"
+        },
+        "wavelength_nm": {
+          "description": "Wavelength, nanometres.",
+          "type": "number",
+          "format": "double"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "radius_m",
+        "fan_half_angle",
+        "fan_length",
+        "wavelength_nm",
+        "beam_waist_m"
+      ]
+    },
+    "LaserPart": {
+      "description": "A line laser.",
+      "type": "object",
+      "properties": {
+        "beam_waist_m": {
+          "description": "Beam-waist `1/e²` radius across the line, metres, when known.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "fan_half_angle": {
+          "description": "Fan half-angle, radians.",
+          "type": "number",
+          "format": "double"
+        },
+        "power_mw": {
+          "description": "Optical power, milliwatts.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "wavelength_nm": {
+          "description": "Emission wavelength, nanometres.",
+          "type": "number",
+          "format": "double"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "wavelength_nm",
+        "fan_half_angle"
+      ]
+    },
+    "LensMount": {
+      "description": "A lens mount.",
+      "oneOf": [
+        {
+          "description": "C-mount: flange focal distance 17.526 mm.",
+          "type": "string",
+          "const": "c_mount"
+        },
+        {
+          "description": "CS-mount: 12.526 mm.",
+          "type": "string",
+          "const": "cs_mount"
+        },
+        {
+          "description": "Nikon F: 46.5 mm.",
+          "type": "string",
+          "const": "f_mount"
+        },
+        {
+          "description": "M12 (S-mount) board lens.",
+          "type": "string",
+          "const": "m12"
+        },
+        {
+          "description": "Anything else.",
+          "type": "string",
+          "const": "other"
+        }
+      ]
+    },
+    "LensOptics": {
+      "description": "An ideal thick lens with its entrance pupil.",
+      "type": "object",
+      "properties": {
+        "entrance_pupil_m": {
+          "description": "Signed distance from H to the entrance pupil, metres (positive toward the object).",
+          "type": "number",
+          "format": "double",
+          "default": 0.0
+        },
+        "f_number": {
+          "description": "f-number: the focal length over the entrance pupil diameter.",
+          "type": "number",
+          "format": "double"
+        },
+        "focal_length_m": {
+          "description": "Effective focal length, metres.",
+          "type": "number",
+          "format": "double"
+        },
+        "focusing": {
+          "description": "How the lens focuses.",
+          "$ref": "#/$defs/Focusing",
+          "default": {
+            "type": "unit"
+          }
+        },
+        "name": {
+          "description": "What the lens is, e.g. `Kowa LM25HC`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "principal_gap_m": {
+          "description": "Signed distance from the rear principal point H′ to the front one H, metres (positive\nwhen H lies on the object side).",
+          "type": "number",
+          "format": "double",
+          "default": 0.0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "focal_length_m",
+        "f_number"
+      ]
+    },
+    "LensPart": {
+      "description": "A lens: what a datasheet gives, and the thick-lens data the camera model needs.",
+      "type": "object",
+      "properties": {
+        "entrance_pupil_m": {
+          "description": "Signed distance from H to the entrance pupil, metres (`0` when unknown).",
+          "type": "number",
+          "format": "double",
+          "default": 0.0
+        },
+        "focal_length_m": {
+          "description": "Effective focal length, metres.",
+          "type": "number",
+          "format": "double"
+        },
+        "focusing": {
+          "description": "How the lens focuses.",
+          "$ref": "#/$defs/Focusing",
+          "default": {
+            "type": "unit"
+          }
+        },
+        "fov_diagonal_deg": {
+          "description": "Diagonal field of view on the sensor it was specified for, degrees.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "min_f_number": {
+          "description": "The widest aperture: the smallest f-number.",
+          "type": "number",
+          "format": "double"
+        },
+        "mount": {
+          "description": "The mount.",
+          "$ref": "#/$defs/LensMount"
+        },
+        "mtf50_lp_mm": {
+          "description": "Spatial frequency at 50 % MTF, line pairs per millimetre.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "principal_gap_m": {
+          "description": "Signed distance from H′ to H, metres (`0` when unknown: a thin lens).",
+          "type": "number",
+          "format": "double",
+          "default": 0.0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "focal_length_m",
+        "min_f_number",
+        "mount"
+      ]
+    },
+    "MarkerCircle": {
+      "description": "A marker board circle: on square `(i, j)` (column, row), white or black.",
+      "type": "object",
+      "properties": {
+        "i": {
+          "description": "Square column.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "j": {
+          "description": "Square row.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "polarity": {
+          "description": "Disk colour.",
+          "$ref": "#/$defs/Polarity"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "i",
+        "j",
+        "polarity"
+      ]
+    },
+    "OpticsSpec": {
+      "description": "A camera's physical optics.",
+      "type": "object",
+      "properties": {
+        "focus_distance_m": {
+          "description": "Distance from the image-plane datum to the plane in focus, metres, as a lens's focus scale\nreads it.",
+          "type": "number",
+          "format": "double"
+        },
+        "lens": {
+          "description": "The lens.",
+          "$ref": "#/$defs/LensOptics"
+        },
+        "sensor": {
+          "description": "The sensor.",
+          "$ref": "#/$defs/SensorOptics"
+        },
+        "tilt_rad": {
+          "description": "The sensor's tilt `[τx, τy]` about the image-plane datum, radians, in calibration-rs's\n(OpenCV's) convention.",
+          "type": "array",
+          "items": {
+            "type": "number",
+            "format": "double"
+          },
+          "maxItems": 2,
+          "minItems": 2
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "sensor",
+        "lens",
+        "focus_distance_m"
+      ]
+    },
+    "Polarity": {
+      "description": "A disk's colour.",
+      "oneOf": [
+        {
+          "description": "A white disk on a dark square.",
+          "type": "string",
+          "const": "white"
+        },
+        {
+          "description": "A black disk on a light square.",
+          "type": "string",
+          "const": "black"
+        }
+      ]
+    },
+    "PrintedTarget": {
+      "description": "A target as calib-targets prints it, tagged on `kind`. Sizes are in\nmillimetres, as on the print.\n\nPlanar targets lie in the target frame's `z = 0` plane, centred on its\norigin, facing +Z, the print's top edge at +Y. A PuzzlePole is a cylinder:\nits frame is calib-targets' pole object frame (axis +Z, origin on the axis\nin the plane of axial corner 0, the seam at +X).",
+      "oneOf": [
+        {
+          "description": "A chessboard.",
+          "type": "object",
+          "properties": {
+            "inner_cols": {
+              "description": "Inner corner columns.",
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "inner_rows": {
+              "description": "Inner corner rows.",
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "inner_square_rel": {
+              "description": "White inset in the black squares, as a fraction of the side.",
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "double"
+            },
+            "kind": {
+              "type": "string",
+              "const": "chessboard"
+            },
+            "square_size_mm": {
+              "description": "Square side, mm.",
+              "type": "number",
+              "format": "double"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "inner_rows",
+            "inner_cols",
+            "square_size_mm"
+          ]
+        },
+        {
+          "description": "A ChArUco board.",
+          "type": "object",
+          "properties": {
+            "border_bits": {
+              "description": "Marker border width in bits.",
+              "type": "integer",
+              "format": "uint",
+              "default": 1,
+              "minimum": 0
+            },
+            "cols": {
+              "description": "Square columns.",
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "dictionary": {
+              "description": "ArUco dictionary, e.g. `\"DICT_4X4_50\"`.",
+              "type": "string"
+            },
+            "inner_square_rel": {
+              "description": "White inset in the plain black squares, as a fraction of the side.",
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "double"
+            },
+            "kind": {
+              "type": "string",
+              "const": "charuco"
+            },
+            "marker_layout": {
+              "description": "Marker placement; `opencv_charuco` (OpenCV's modern layout).",
+              "$ref": "#/$defs/CharucoLayout",
+              "default": "opencv_charuco"
+            },
+            "marker_size_rel": {
+              "description": "Marker side as a fraction of the square side.",
+              "type": "number",
+              "format": "double"
+            },
+            "rows": {
+              "description": "Square rows.",
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "square_size_mm": {
+              "description": "Square side, mm.",
+              "type": "number",
+              "format": "double"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "rows",
+            "cols",
+            "square_size_mm",
+            "marker_size_rel",
+            "dictionary"
+          ]
+        },
+        {
+          "description": "A chessboard with three circles that fix its origin and orientation.",
+          "type": "object",
+          "properties": {
+            "circle_diameter_rel": {
+              "description": "Circle diameter as a fraction of the square side.",
+              "type": "number",
+              "format": "double",
+              "default": 0.5
+            },
+            "circles": {
+              "description": "The three circles.",
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/MarkerCircle"
+              },
+              "maxItems": 3,
+              "minItems": 3
+            },
+            "inner_cols": {
+              "description": "Inner corner columns.",
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "inner_rows": {
+              "description": "Inner corner rows.",
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "inner_square_rel": {
+              "description": "White inset in the black squares, as a fraction of the side.",
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "double"
+            },
+            "kind": {
+              "type": "string",
+              "const": "marker_board"
+            },
+            "square_size_mm": {
+              "description": "Square side, mm.",
+              "type": "number",
+              "format": "double"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "inner_rows",
+            "inner_cols",
+            "square_size_mm",
+            "circles"
+          ]
+        },
+        {
+          "description": "A PuzzleBoard: a chessboard whose edge dots make every corner\nself-identifying.",
+          "type": "object",
+          "properties": {
+            "cols": {
+              "description": "Square columns.",
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "dot_diameter_rel": {
+              "description": "Edge-dot diameter as a fraction of the square side.",
+              "type": "number",
+              "format": "double",
+              "default": 0.3333333333333333
+            },
+            "kind": {
+              "type": "string",
+              "const": "puzzle_board"
+            },
+            "origin_col": {
+              "description": "Master column of the board's first square.",
+              "type": "integer",
+              "format": "uint32",
+              "default": 0,
+              "minimum": 0
+            },
+            "origin_row": {
+              "description": "Master row of the board's first square.",
+              "type": "integer",
+              "format": "uint32",
+              "default": 0,
+              "minimum": 0
+            },
+            "rows": {
+              "description": "Square rows.",
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "square_size_mm": {
+              "description": "Square side, mm.",
+              "type": "number",
+              "format": "double"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "rows",
+            "cols",
+            "square_size_mm"
+          ]
+        },
+        {
+          "description": "A PuzzlePole: a PuzzleBoard strip wrapped around a cylinder of\ncircumference `circumference_squares × square_size_mm`.",
+          "type": "object",
+          "properties": {
+            "axial_squares": {
+              "description": "Squares along the cylinder axis.",
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "axial_start_col": {
+              "description": "Master column the strip is cut from.",
+              "type": "integer",
+              "format": "uint32",
+              "default": 0,
+              "minimum": 0
+            },
+            "circumference_squares": {
+              "description": "Squares around the circumference: a supported period (12, 18,\n24, 30, 36 or 42).",
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "dot_diameter_rel": {
+              "description": "Edge-dot diameter as a fraction of the square side.",
+              "type": "number",
+              "format": "double",
+              "default": 0.3333333333333333
+            },
+            "kind": {
+              "type": "string",
+              "const": "puzzlepole"
+            },
+            "square_size_mm": {
+              "description": "Square side, mm.",
+              "type": "number",
+              "format": "double"
+            },
+            "start_row": {
+              "description": "Master row the strip is cut from (the seam); must match the\nperiod (see calib-targets `PuzzlePolePeriod`).",
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "circumference_squares",
+            "start_row",
+            "axial_squares",
+            "square_size_mm"
+          ]
+        }
+      ]
+    },
+    "ProjectionParams": {
+      "description": "Serializable projection model parameters.",
+      "oneOf": [
+        {
+          "description": "Classic pinhole model.",
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "pinhole"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        }
+      ]
+    },
+    "RigDesign": {
+      "description": "A rig of identical units.",
+      "type": "object",
+      "properties": {
+        "layout": {
+          "description": "The layout, its camera (and lasers) included.",
+          "$ref": "#/$defs/RigLayout"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "layout"
+      ]
+    },
+    "RigLayout": {
+      "description": "How a rig's cameras (and lasers) are laid out.",
+      "type": "object",
+      "properties": {
+        "camera": {
+          "description": "The camera every position gets.",
+          "$ref": "#/$defs/CameraTemplate"
+        },
+        "count": {
+          "description": "Number of cameras: 1 (mono), 2 (stereo), 3, 6, …",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "image_x": {
+          "description": "Which way each camera's image +X points.",
+          "$ref": "#/$defs/ImageX",
+          "default": "tangential"
+        },
+        "lasers": {
+          "description": "One laser per camera, if any.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LaserLayout"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "phase_rad": {
+          "description": "Azimuth of camera 0 about the rig axis, radians.",
+          "type": "number",
+          "format": "double",
+          "default": 0.0
+        },
+        "radius_m": {
+          "description": "Distance of each camera from the rig axis, metres (`0` only for one\ncamera).",
+          "type": "number",
+          "format": "double"
+        },
+        "tilt_rad": {
+          "description": "Angle between each camera's axis and the rig axis, radians; default\n`atan(radius / working_distance)`.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "working_distance_m": {
+          "description": "Where the camera axes meet the rig axis (with the default tilt), and\nwhere the lasers aim: `(0, 0, working_distance_m)` in the rig frame.",
+          "type": "number",
+          "format": "double"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "count",
+        "radius_m",
+        "working_distance_m",
+        "camera"
+      ]
+    },
+    "SensorOptics": {
+      "description": "The image sensor.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "What the sensor is, e.g. `Sony IMX174`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "pixel_pitch_m": {
+          "description": "Pixel pitch, metres.",
+          "type": "number",
+          "format": "double"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "pixel_pitch_m"
+      ]
+    },
+    "SensorParams": {
+      "description": "Serializable sensor model parameters.",
+      "oneOf": [
+        {
+          "description": "Identity sensor model.",
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "identity"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "description": "Homography applied in the sensor plane.",
+          "type": "object",
+          "properties": {
+            "h": {
+              "description": "Row-major homography matrix mapping normalized to sensor coordinates.",
+              "type": "array",
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "number",
+                  "format": "double"
+                },
+                "maxItems": 3,
+                "minItems": 3
+              },
+              "maxItems": 3,
+              "minItems": 3
+            },
+            "type": {
+              "type": "string",
+              "const": "homography"
+            }
+          },
+          "required": [
+            "type",
+            "h"
+          ]
+        },
+        {
+          "description": "Scheimpflug/tilted sensor model.",
+          "type": "object",
+          "properties": {
+            "tilt_x": {
+              "description": "Tilt around X axis in radians (alias: tau_x).",
+              "type": "number",
+              "format": "double"
+            },
+            "tilt_y": {
+              "description": "Tilt around Y axis in radians (alias: tau_y).",
+              "type": "number",
+              "format": "double"
+            },
+            "type": {
+              "type": "string",
+              "const": "scheimpflug"
+            }
+          },
+          "required": [
+            "type",
+            "tilt_x",
+            "tilt_y"
+          ]
+        }
+      ]
+    },
+    "SensorPart": {
+      "description": "An image sensor.",
+      "type": "object",
+      "properties": {
+        "peak_qe": {
+          "description": "Peak quantum efficiency, in `[0, 1]`.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "pixel_pitch_m": {
+          "description": "Pixel pitch, metres.",
+          "type": "number",
+          "format": "double"
+        },
+        "read_noise_e": {
+          "description": "Read noise (RMS), electrons.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "resolution": {
+          "description": "Active pixels, `[width, height]`.",
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0
+          },
+          "maxItems": 2,
+          "minItems": 2
+        },
+        "well_depth_e": {
+          "description": "Full-well capacity, electrons.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "pixel_pitch_m",
+        "resolution"
+      ]
+    },
+    "TargetGeometry": {
+      "description": "Target geometry, tagged on `type`.",
+      "oneOf": [
+        {
+          "description": "A calibration board, described in the calibration-rs dataset\nvocabulary (the same `TargetSpec` a synthetic `DatasetSpec` emits).\nThe board is centred on the local origin in the `z = 0` plane, facing\n+Z. The in-plane mapping from board (feature) coordinates to the\ntarget frame is defined once, by `etendue-synth`: the printed board\nreads correctly from +Z, its top edge at +Y.",
+          "type": "object",
+          "properties": {
+            "board": {
+              "description": "Board layout (`kind`-tagged: chessboard, charuco, puzzleboard,\nringgrid).",
+              "$ref": "#/$defs/TargetSpec"
+            },
+            "type": {
+              "type": "string",
+              "const": "board"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "board"
+          ]
+        },
+        {
+          "description": "A target as calib-targets prints it — chessboard, ChArUco, marker\nboard, PuzzleBoard, or the PuzzlePole cylinder — with its print\nparameters (millimetres). Unlike `board`, every kind is drawn,\nground-truthed and detected; only those calibration-rs takes go into\na calibration dataset.",
+          "type": "object",
+          "properties": {
+            "target": {
+              "description": "The print.",
+              "$ref": "#/$defs/PrintedTarget"
+            },
+            "type": {
+              "type": "string",
+              "const": "printed"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "target"
+          ]
+        },
+        {
+          "description": "A plain rectangle centred on the local origin in the `z = 0` plane\n(the `etendue-core` `TargetEntity`).",
+          "type": "object",
+          "properties": {
+            "height": {
+              "description": "Extent along local Y, in metres.",
+              "type": "number",
+              "format": "double"
+            },
+            "type": {
+              "type": "string",
+              "const": "rectangle"
+            },
+            "width": {
+              "description": "Extent along local X, in metres.",
+              "type": "number",
+              "format": "double"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "width",
+            "height"
+          ]
+        }
+      ]
+    },
+    "TargetPart": {
+      "description": "A calibration target.",
+      "type": "object",
+      "properties": {
+        "geometry": {
+          "description": "What it is, as a scene target holds it.",
+          "$ref": "#/$defs/TargetGeometry"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "geometry"
+      ]
+    },
+    "TargetSpec": {
+      "description": "Calibration-target metadata. Tagged on `kind`.",
+      "oneOf": [
+        {
+          "description": "Standard checkerboard. Counts are interior corners\n(i.e. `9x6` ⇒ a 10×7 black-and-white square grid).",
+          "type": "object",
+          "properties": {
+            "cols": {
+              "description": "Number of interior corners along the cols axis.",
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "kind": {
+              "type": "string",
+              "const": "chessboard"
+            },
+            "rows": {
+              "description": "Number of interior corners along the rows axis.",
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "square_size_m": {
+              "description": "Edge length of one square in metres.",
+              "type": "number",
+              "format": "double"
+            }
+          },
+          "required": [
+            "kind",
+            "rows",
+            "cols",
+            "square_size_m"
+          ]
+        },
+        {
+          "description": "ChArUco board. Marker IDs and dictionary live here so detection\nis fully deterministic from the manifest.",
+          "type": "object",
+          "properties": {
+            "cols": {
+              "description": "Number of squares along the cols axis.",
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "dictionary": {
+              "description": "ArUco dictionary identifier (e.g. `\"DICT_4X4_50\"`). The\ndetector validates this against the supported set.",
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "charuco"
+            },
+            "marker_size_m": {
+              "description": "Edge length of an embedded marker in metres.",
+              "type": "number",
+              "format": "double"
+            },
+            "rows": {
+              "description": "Number of squares along the rows axis (full grid, not\ninterior corners).",
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "square_size_m": {
+              "description": "Edge length of one square in metres.",
+              "type": "number",
+              "format": "double"
+            }
+          },
+          "required": [
+            "kind",
+            "rows",
+            "cols",
+            "square_size_m",
+            "marker_size_m",
+            "dictionary"
+          ]
+        },
+        {
+          "description": "Puzzleboard target (calib-targets crate). Layout is fully\ndescribed by the named variant in calib-targets; the manifest\njust carries the discriminator.",
+          "type": "object",
+          "properties": {
+            "cell_size_m": {
+              "description": "Edge length of one cell in metres.",
+              "type": "number",
+              "format": "double"
+            },
+            "kind": {
+              "type": "string",
+              "const": "puzzleboard"
+            },
+            "layout": {
+              "description": "Named layout (e.g. `\"puzzle_130x130\"`).",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "layout",
+            "cell_size_m"
+          ]
+        },
+        {
+          "description": "Coded ring-grid target (the `ringgrid` crate). The board is a\nhex-lattice of self-identifying ring markers; its geometry mirrors\n`ringgrid::BoardLayout` so the manifest fully determines detection.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "ringgrid"
+            },
+            "long_row_cols": {
+              "description": "Number of columns in the longest (even-indexed) row. Shorter\nrows are derived by the hex-lattice layout.",
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "marker_inner_radius_m": {
+              "description": "Inner ring radius in metres.",
+              "type": "number",
+              "format": "double"
+            },
+            "marker_outer_radius_m": {
+              "description": "Outer ring radius in metres.",
+              "type": "number",
+              "format": "double"
+            },
+            "marker_ring_width_m": {
+              "description": "Width of each ring band in metres.",
+              "type": "number",
+              "format": "double"
+            },
+            "pitch_m": {
+              "description": "Center-to-center spacing between adjacent markers in metres.",
+              "type": "number",
+              "format": "double"
+            },
+            "rows": {
+              "description": "Number of marker rows.",
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "kind",
+            "pitch_m",
+            "rows",
+            "long_row_cols",
+            "marker_outer_radius_m",
+            "marker_inner_radius_m",
+            "marker_ring_width_m"
+          ]
+        }
+      ]
+    }
+  }
+}

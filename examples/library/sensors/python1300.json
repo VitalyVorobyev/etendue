@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "id": "python1300",
+  "name": "ON Semiconductor Python 1300 (global shutter)",
+  "description": "Values are illustrative: check them against the datasheet before a real design.",
+  "sensor": {
+    "pixel_pitch_m": 0.0000048,
+    "resolution": [
+      1280,
+      1024
+    ],
+    "well_depth_e": 10000,
+    "read_noise_e": 6,
+    "peak_qe": 0.55
+  }
+}

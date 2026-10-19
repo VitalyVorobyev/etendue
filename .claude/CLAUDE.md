@@ -34,6 +34,7 @@ cd apps/studio && bun run test:perf    # gate G2.2, headed Chromium on the GPU (
 # Scene tooling (etendue-cli binary is `etendue`)
 cargo run -p etendue-cli -- validate examples/eye_in_hand_ur5e/scene.json examples/eye_in_hand_ur5e/scenario.json
 cargo run -p etendue-cli -- bake <scene.json> <scenario.json> -o target/baked.json
+cargo run -p etendue-cli -- project check examples                                                   # ADR 0009: manifest, cells, library, defaults
 cargo run -p etendue-cli -- gt <scene.json> <scenario.json> -o target/gt                                   # dataset.json, robot_poses.json, gt.json
 cargo run -p etendue-cli -- scenario from-poses <poses.json> --robot ur5e --scene <scene.json> -o <scenario.json>  # stop-and-shoot from TCP poses
 cargo run -p etendue-cli -- scenario sphere <scene.json> --spec <gen.json|scenario.json> -o <scenario.json> [--candidates c.json]  # P7-6 sphere poses; a scenario regenerates from its own `generator`
@@ -122,8 +123,7 @@ xtask (emit-schemas, check-layering, app)
 - `optics::coc` — Scheimpflug plane-of-best-focus and off-axis CoC
 - `laser` — `LaserPlane`, `GaussianBeamWidth`, `stripe_on_target`, `project_stripe`
 - `analysis` — `defocus_map`, `working_volume`
-- `bank::schema` — `SensorSpec`, `LensSpec`, `LaserSpec` (seed JSON in
-  `crates/etendue-core/assets/bank/`)
+- `optics::camera` — `PhysicalCamera` (ADR 0008); `from_scene` — `resolve` (projection frames)
 
 **Physical cameras** (ADR 0008, P9) — `etendue-core::optics::camera::PhysicalCamera` is the camera
 model: a body (mechanical frame M, the image-plane datum) with a sensor and a thick lens with pupils,
@@ -373,7 +373,7 @@ also run its gates (`cargo clippy/test --manifest-path web/apps/studio/src-tauri
 | Scheimpflug CoC derivation | `docs/derivations/scheimpflug_pobf.md` |
 | User docs (mdBook: user guide, CLI, formats, optics) | `book/`; `README.md` is user-facing and links no dev material |
 | Developer guide (layout, build, checks, conventions, releases) | `CONTRIBUTING.md` |
-| Seed component bank | `crates/etendue-core/assets/bank/*.json` |
+| Project format, component library | `examples/etendue-project.json`, `examples/library/`; `etendue project check` (ADR 0009) |
 | calibration-rs source | `../calibration-rs/` |
 
 ## Roadmap

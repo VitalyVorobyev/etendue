@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "id": "lm16hc",
+  "name": "Kowa LM16HC (16 mm C-mount)",
+  "description": "Values are illustrative: check them against the datasheet before a real design. Principal-plane gap and pupil position unknown: a thin lens.",
+  "lens": {
+    "focal_length_m": 0.016,
+    "min_f_number": 1.4,
+    "mount": "c_mount",
+    "fov_diagonal_deg": 46.6,
+    "mtf50_lp_mm": 140
+  }
+}

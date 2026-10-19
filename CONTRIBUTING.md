@@ -11,7 +11,7 @@ https://vitalyvorobyev.github.io/etendue.
 | `crates/etendue-scene` | Versioned JSON documents: scene (frame tree of robots, rigs, cameras, lasers, lights, targets, parts), scenario, baked scenario, robot manifest. No I/O, no kinematics. |
 | `crates/etendue-kinematics` | URDF robots: FK, Jacobian, damped-least-squares IK, analytic OPW IK (feature `opw`); scenario compilation and baking. The only home of FK/IK. |
 | `crates/etendue-synth` | Synthetic data: canonical render camera and remap LUTs, board geometry (calib-targets' print), analytic ground truth and calibration-rs dataset emission, laser stripes, render jobs, sensor model, EXR/PNG I/O (feature `images`). |
-| `crates/etendue-core` | Optics kernel: thick lens, Scheimpflug circle of confusion, laser plane and beam width, defocus map, working volume, component bank; the Scheimpflug design solver behind `solver`. |
+| `crates/etendue-core` | Optics kernel: the physical camera model (mechanical frame, pupils, focus breathing) and its bridge from scenes, thick lens, Scheimpflug circle of confusion, laser plane and beam width, defocus map, working volume, the Scheimpflug design solver. |
 | `crates/etendue-cli` | The `etendue` binary and the `etendue_cli` pipeline library (load, gt, render, detect, poses). Embeds the Blender script (`blender/etendue_blender/`). |
 | `crates/etendue-wasm` | wasm-bindgen facade, published to npm as `@etendue/wasm`, with a typed TS layer in `js/`. |
 | `web/apps/studio` | The studio (React, three.js). `src-tauri/` is its Tauri desktop shell, its own cargo workspace. |
