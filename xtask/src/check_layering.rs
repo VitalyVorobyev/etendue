@@ -10,8 +10,11 @@
 //!   [`SCENE_EXTERNAL`].
 //! - No crate may depend on a binary-only workspace crate, or on a crate in
 //!   [`TOP`] (the top of the stack, even though it has a library).
-//! - The resolved graph contains exactly one `nalgebra` (the 0.34 hard pin)
-//!   and never the `k` crate (it requires nalgebra ^0.30).
+//! - The solvers' `nalgebra` (the one `vision-calibration-core` uses: the 0.34
+//!   hard pin) is the one every crate uses, but for calibration-rs's detector
+//!   stack ([`DETECTORS`]: calib-targets, its grid and ringgrid), which may use
+//!   a second one; their points cross into etendue as plain arrays (ADR 0001,
+//!   amendment of 2026-10-19). Never the `k` crate (it requires nalgebra ^0.30).
 //! - The calibration-rs version is the same everywhere it is spelled out:
 //!   the `vision-calibration-*` requirements in `Cargo.toml`, every
 //!   workflow's `CALIBRATION_RS_REF` tag, and the closed-loop wheel pin
@@ -75,35 +78,96 @@ fn metadata(root: &Path, manifest: Option<&Path>) -> Result<Value> {
     Ok(serde_json::from_slice(&output.stdout)?)
 }
 
-/// The single-nalgebra and no-`k` rules on `packages`.
-fn check_graph<'a>(packages: &'a [Value], errors: &mut Vec<String>) -> Vec<&'a str> {
-    let versions = |crate_name: &str| -> Vec<&str> {
-        packages
-            .iter()
-            .filter(|p| p["name"] == crate_name)
-            .filter_map(|p| p["version"].as_str())
-            .collect()
-    };
-    let nalgebra = versions("nalgebra");
-    if nalgebra.len() != 1 {
-        errors.push(format!(
-            "expected exactly one nalgebra in the graph (hard pin), found {nalgebra:?}"
-        ));
-    }
-    if !versions("k").is_empty() {
+/// Crates (by name prefix) that may use a nalgebra other than the solvers': calibration-rs's
+/// detectors, which convert to plain arrays at their boundary.
+const DETECTORS: &[&str] = &["calib-targets", "projective-grid", "ringgrid"];
+
+/// The nalgebra and no-`k` rules on a `cargo metadata` graph; returns the solvers' nalgebra.
+fn check_graph(meta: &Value, errors: &mut Vec<String>) -> String {
+    let packages = meta["packages"].as_array().map_or(&[][..], Vec::as_slice);
+    let version_of: BTreeMap<&str, (&str, &str)> = packages
+        .iter()
+        .filter_map(|p| {
+            Some((
+                p["id"].as_str()?,
+                (p["name"].as_str()?, p["version"].as_str()?),
+            ))
+        })
+        .collect();
+    if packages.iter().any(|p| p["name"] == "k") {
         errors.push("the `k` crate is banned (requires nalgebra ^0.30)".into());
     }
-    nalgebra
+    // Who uses which nalgebra (normal and build dependencies).
+    let mut users: BTreeMap<&str, BTreeSet<&str>> = BTreeMap::new();
+    for node in meta["resolve"]["nodes"].as_array().into_iter().flatten() {
+        let Some(&(name, _)) = node["id"].as_str().and_then(|id| version_of.get(id)) else {
+            continue;
+        };
+        for dep in node["deps"].as_array().into_iter().flatten() {
+            let only_dev = dep["dep_kinds"]
+                .as_array()
+                .is_some_and(|k| k.iter().all(|k| k["kind"].as_str() == Some("dev")));
+            let Some(&(dep_name, version)) = dep["pkg"].as_str().and_then(|id| version_of.get(id))
+            else {
+                continue;
+            };
+            if dep_name == "nalgebra" && !only_dev {
+                users.entry(version).or_default().insert(name);
+            }
+        }
+    }
+    let solvers = users
+        .iter()
+        .find(|(_, u)| u.contains("vision-calibration-core"))
+        .map(|(v, _)| (*v).to_owned());
+    let Some(solvers) = solvers else {
+        if users.len() > 1 {
+            errors.push(format!(
+                "expected one nalgebra in the graph, found {:?}",
+                users.keys().collect::<Vec<_>>()
+            ));
+        }
+        return users
+            .keys()
+            .next()
+            .map_or_else(String::new, |v| (*v).to_owned());
+    };
+    if !solvers.starts_with("0.34.") {
+        errors.push(format!(
+            "the solvers' nalgebra is {solvers}, the hard pin is 0.34"
+        ));
+    }
+    for (version, crates) in &users {
+        if *version == solvers {
+            continue;
+        }
+        let strays: Vec<&&str> = crates
+            .iter()
+            .filter(|c| !DETECTORS.iter().any(|d| c.starts_with(d)))
+            .collect();
+        if !strays.is_empty() {
+            errors.push(format!(
+                "nalgebra {version} is used by {strays:?}; only the detector stack {DETECTORS:?} may \
+                 differ from the solvers' {solvers}"
+            ));
+        }
+    }
+    if users.len() > 2 {
+        errors.push(format!(
+            "more than two nalgebras: {:?}",
+            users.keys().collect::<Vec<_>>()
+        ));
+    }
+    solvers
 }
 
 /// Check the graph of a crate outside the workspace.
 pub fn run_manifest(root: &Path, manifest: &Path) -> Result<()> {
     let meta = metadata(root, Some(manifest))?;
-    let packages = meta["packages"].as_array().context("packages")?;
     let mut errors = Vec::new();
-    let nalgebra = check_graph(packages, &mut errors);
+    let nalgebra = check_graph(&meta, &mut errors);
     if errors.is_empty() {
-        println!("{}: nalgebra {}", manifest.display(), nalgebra[0]);
+        println!("{}: nalgebra {nalgebra}", manifest.display());
         Ok(())
     } else {
         bail!("{}:\n  {}", manifest.display(), errors.join("\n  "))
@@ -174,14 +238,13 @@ pub fn run(root: &Path) -> Result<()> {
         }
     }
 
-    let nalgebra = check_graph(packages, &mut errors);
+    let nalgebra = check_graph(&meta, &mut errors);
     let calibration_rs = check_calibration_rs(root, &mut errors)?;
 
     if errors.is_empty() {
         println!(
-            "layering ok ({} workspace crates, nalgebra {}, calibration-rs {calibration_rs})",
-            workspace.len(),
-            nalgebra[0]
+            "layering ok ({} workspace crates, nalgebra {nalgebra}, calibration-rs {calibration_rs})",
+            workspace.len()
         );
         Ok(())
     } else {
@@ -241,4 +304,37 @@ fn check_calibration_rs(root: &Path, errors: &mut Vec<String>) -> Result<String>
         ));
     }
     Ok(version)
+}
+
+#[cfg(test)]
+mod nalgebra_tests {
+    use super::*;
+
+    /// A graph where `user` depends on nalgebra `v`, vision-calibration-core on 0.34.2.
+    fn graph(user: &str, v: &str) -> Value {
+        let pkg = |name: &str, version: &str| serde_json::json!({"id": format!("{name}@{version}"), "name": name, "version": version});
+        let dep = |name: &str, version: &str| serde_json::json!({"pkg": format!("{name}@{version}"), "dep_kinds": [{"kind": null}]});
+        serde_json::json!({
+            "packages": [pkg("nalgebra", "0.34.2"), pkg("nalgebra", v), pkg("vision-calibration-core", "0.9.0"), pkg(user, "1.0.0")],
+            "resolve": {"nodes": [
+                {"id": "vision-calibration-core@0.9.0", "deps": [dep("nalgebra", "0.34.2")]},
+                {"id": format!("{user}@1.0.0"), "deps": [dep("nalgebra", v)]},
+            ]}
+        })
+    }
+
+    #[test]
+    fn only_the_detector_stack_may_use_a_second_nalgebra() {
+        let mut errors = Vec::new();
+        assert_eq!(
+            check_graph(&graph("ringgrid", "0.35.0"), &mut errors),
+            "0.34.2"
+        );
+        assert!(errors.is_empty(), "{errors:?}");
+        check_graph(&graph("etendue-core", "0.35.0"), &mut errors);
+        assert_eq!(errors.len(), 1, "{errors:?}");
+        let mut errors = Vec::new();
+        check_graph(&graph("etendue-core", "0.34.2"), &mut errors);
+        assert!(errors.is_empty(), "{errors:?}");
+    }
 }

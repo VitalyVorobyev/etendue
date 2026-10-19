@@ -104,17 +104,26 @@ jobs:
       - name: Set up uv
         uses: astral-sh/setup-uv@v10.2.0
 
-      # P5-1 on analytic correspondences (docs/measurements/closed_loop.md): etendue's
-      # ground truth through calibration-rs's own solver recovers the true intrinsics and
-      # hand-eye. Guards every frame and pose convention between the two.
+      # P5-1 on analytic correspondences (docs/measurements/closed_loop.md), natively since P13
+      # (`etendue calibrate`, calibration-rs's workflows in Rust): etendue's ground truth
+      # recovers the true intrinsics and hand-eye. Guards every frame and pose convention
+      # between the two. G13.1 cross-checks the rows against the wheel's closed_loop.py.
       - name: Closed loop G5.1 (analytic correspondences)
         run: |
-          cargo run -q -p etendue-cli -- gt examples/closed_loop_ur5e/scene.json examples/closed_loop_ur5e/scenario.json -o target/closed_loop
-          uv run --locked --project tools/closed-loop tools/closed-loop/closed_loop.py target/closed_loop
-          uv run --locked --project tools/closed-loop tools/closed-loop/closed_loop.py target/closed_loop --camera cam_left
+          cargo build -q -p etendue-cli
+          etendue=target/debug/etendue
+          $etendue gt examples/closed_loop_ur5e/scene.json examples/closed_loop_ur5e/scenario.json -o target/closed_loop
+          $etendue calibrate target/closed_loop -o target/closed_loop/report.json
+          $etendue calibrate target/closed_loop --camera cam_left -o target/closed_loop/report_left.json
           # The camera square to the flange (calibration-rs#124, fixed in 0.8.3).
-          cargo run -q -p etendue-cli -- gt examples/eye_in_hand_ur5e/scene.json examples/eye_in_hand_ur5e/scenario.json -o target/closed_loop_eih
-          uv run --locked --project tools/closed-loop tools/closed-loop/closed_loop.py target/closed_loop_eih
+          $etendue gt examples/eye_in_hand_ur5e/scene.json examples/eye_in_hand_ur5e/scenario.json -o target/closed_loop_eih
+          $etendue calibrate target/closed_loop_eih
+          # Eye-to-hand (native only; the script handles eye-in-hand).
+          $etendue gt examples/eye_to_hand_ur5e/scene.json examples/eye_to_hand_ur5e/scenario.json -o target/closed_loop_eth
+          $etendue calibrate target/closed_loop_eth
+          # G13.1: the same rows as the wheel's closed loop.
+          uv run --locked --project tools/closed-loop tools/closed-loop/parity.py target/closed_loop/report.json target/closed_loop
+          uv run --locked --project tools/closed-loop tools/closed-loop/parity.py target/closed_loop/report_left.json target/closed_loop --camera cam_left
           uv run --locked --project tools/closed-loop python -m unittest discover -s tools/closed-loop -v
 
       # P5-3 on analytic correspondences (docs/measurements/g5_3_laser_closed_loop.md): the
@@ -123,11 +132,13 @@ jobs:
       # (it does not pass) and runs locally only.
       - name: Laser closed loop G5.3 (analytic correspondences)
         run: |
-          cargo run -q -p etendue-cli -- gt examples/laser_ur5e/scene.json examples/laser_ur5e/scenario.json -o target/laser_loop
-          uv run --locked --project tools/closed-loop tools/closed-loop/closed_loop.py target/laser_loop
+          etendue=target/debug/etendue
+          $etendue gt examples/laser_ur5e/scene.json examples/laser_ur5e/scenario.json -o target/laser_loop
+          $etendue calibrate target/laser_loop -o target/laser_loop/report.json
+          uv run --locked --project tools/closed-loop tools/closed-loop/parity.py target/laser_loop/report.json target/laser_loop
           # G5.3b (P7-3): a three-camera ring with one laser per camera; each camera's own plane.
-          cargo run -q -p etendue-cli -- gt examples/rig3_laser_ur5e/scene.json examples/rig3_laser_ur5e/scenario.json -o target/rig3_loop
-          uv run --locked --project tools/closed-loop tools/closed-loop/closed_loop.py target/rig3_loop
+          $etendue gt examples/rig3_laser_ur5e/scene.json examples/rig3_laser_ur5e/scenario.json -o target/rig3_loop
+          $etendue calibrate target/rig3_loop
 
   # etendue-wasm (npm `@etendue/wasm`): wasm32 build, gate G0.1 — the wasm
   # build of the projection chain must match the native build bit-for-bit

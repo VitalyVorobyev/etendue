@@ -55,10 +55,12 @@ impl MarkerBoard {
         match self.detector.detect_with_corners(image, corners) {
             Ok(found) => labelled(
                 &self.by_grid,
-                found
-                    .corners
-                    .iter()
-                    .map(|c| (c.id.map(|_| [c.grid.u, c.grid.v]), c.position)),
+                found.corners.iter().map(|c| {
+                    (
+                        c.id.map(|_| [c.grid.u, c.grid.v]),
+                        [c.position.x, c.position.y],
+                    )
+                }),
             ),
             Err(e) => {
                 let status = match e {

@@ -217,7 +217,9 @@ fn by_id(points: &[BoardPoint]) -> Result<HashMap<u32, usize>> {
 /// knows names its point; any other (`None` included) is off the board.
 fn labelled<K: Eq + Hash>(
     index: &HashMap<K, usize>,
-    corners: impl IntoIterator<Item = (Option<K>, nalgebra::Point2<f32>)>,
+    // Plain arrays: calib-targets' points are its own nalgebra's (the detector stack's, which
+    // may differ from the solvers'; ADR 0001 amendment).
+    corners: impl IntoIterator<Item = (Option<K>, [f32; 2])>,
 ) -> Detection {
     let mut points = Vec::new();
     let mut off_board = 0;
@@ -225,7 +227,7 @@ fn labelled<K: Eq + Hash>(
         match label.and_then(|k| index.get(&k)) {
             Some(&point) => points.push(Feature {
                 point,
-                pixel: [f64::from(p.x), f64::from(p.y)],
+                pixel: [f64::from(p[0]), f64::from(p[1])],
             }),
             None => off_board += 1,
         }
@@ -722,7 +724,7 @@ mod tests {
     #[test]
     fn labels_off_the_board_are_counted_not_kept() {
         let index: HashMap<u32, usize> = [(7, 0), (9, 1)].into();
-        let p = |x| nalgebra::Point2::new(x, 0.0_f32);
+        let p = |x| [x, 0.0_f32];
         let d = labelled(
             &index,
             [

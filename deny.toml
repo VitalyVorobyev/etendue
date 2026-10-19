@@ -33,11 +33,18 @@ allow = [
     "Unicode-3.0",
     "Zlib",
 ]
+# libfuzzer-sys bundles LLVM's libFuzzer (NCSA, OSI-approved, permissive). It
+# comes in through rav1e, image's AVIF encoder, under calibration-rs's detectors
+# (vision-calibration-pipeline, P13); etendue never encodes AVIF.
+exceptions = [
+    { allow = ["NCSA"], crate = "libfuzzer-sys" },
+]
 # Any license not listed in `allow` above is denied by default (cargo-deny ≥ 0.15).
 # This already covers copyleft licenses without needing the removed `copyleft` key.
 
 [bans]
-# Only one version of nalgebra is allowed — see Cargo.toml hard-pin comment.
+# One solvers' nalgebra; calibration-rs's detector stack may use a second
+# (ADR 0001 amendment of 2026-10-19). `cargo xtask check-layering` enforces it.
 multiple-versions = "warn"
 
 [sources]

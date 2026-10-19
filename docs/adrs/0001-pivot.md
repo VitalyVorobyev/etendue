@@ -76,6 +76,19 @@ first phase that has two library crates to check.
 - `etendue-core` may depend on `etendue-scene` (to build a `Scene` from a
   spec). The reverse is forbidden.
 - `etendue-wasm` may depend on any library crate and on no binary crate.
+- *Amended 2026-10-19 (P13, user decision):* `etendue-cli` may depend on
+  `vision-calibration-pipeline`, for native calibration. It is native only and
+  never reaches wasm.
+  - It pulls calibration-rs's detectors (`vision-calibration-detect`). Their
+    calib-targets (0.12 at calibration-rs 0.9.0), and the newer ringgrid, need
+    nalgebra 0.35.
+  - The graph may therefore hold a second nalgebra, used only by the detector
+    stack (calib-targets, projective-grid, ringgrid). Its points cross into
+    etendue as plain arrays (`etendue-cli::detect`), as they do in
+    calibration-rs itself.
+  - Every other crate, every etendue crate and every calibration-rs solver and
+    core crate uses the solvers' nalgebra: the 0.34 hard pin.
+  - The layering check enforces this.
 - `@vitavision/three-react` → `@vitavision/three` → `three`.
   - `@vitavision/three` never imports React.
   - Neither package depends on `@etendue/wasm`. Kernel calls (bake, LUT,
