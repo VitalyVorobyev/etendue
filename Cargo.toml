@@ -58,8 +58,6 @@ clap = { version = "4", features = ["derive"] }
 # objective without needing gradients (the cost is non-smooth at sample
 # visibility / depth-window boundaries). `default-features = false` drops
 # slog-logger and ndarray support we do not need.
-argmin = { version = "0.11", default-features = false }
-argmin-math = { version = "0.5", default-features = false, features = ["primitives", "vec"] }
 
 # --- WASM facade -----------------------------------------------------------
 wasm-bindgen = "0.2"

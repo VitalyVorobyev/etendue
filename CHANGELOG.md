@@ -107,7 +107,17 @@ calibration datasets with exact ground truth. The 0.1.0 desktop app is replaced 
 - calibration-rs 0.9.0.
 - calib-targets 0.15.5: ChArUco and marker boards turned past 45° in the image are labelled
   correctly (they were one square off).
-- `etendue-core`'s Scheimpflug design solver is behind the `solver` feature.
+- `etendue-core`'s Scheimpflug design solver runs on an in-tree, deterministic Nelder–Mead and
+  restarts until a restart stops helping. It is always built (the `solver` feature and the
+  `argmin` dependency are gone) and builds for WebAssembly.
+
+### Fixed
+
+- **The defocus model's sensor tilt about x had the wrong sign.** calibration-rs's `tilt_x` is the
+  negative of `etendue-core`'s defocus `tau_x`. The bridge passed it through, so for a camera tilted
+  about x, the plane of best focus, every blur value and the solver's proposal were mirrored.
+- Camera intrinsics derived from a lens use the image distance at the focus setting, not the focal
+  length (about 9 % for a 25 mm lens focused at 0.3 m).
 
 ### Removed
 

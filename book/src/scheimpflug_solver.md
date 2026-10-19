@@ -5,12 +5,10 @@ distance `s_o` that minimise the **worst-case circle of confusion** over a
 camera-frame depth window `[d_min, d_max]` around a working distance
 `d_opt`.
 
-The solver is behind the `solver` feature of `etendue-core`, which is off by
-default (it pulls in `argmin`):
-
-```toml
-etendue-core = { version = "0.1", features = ["solver"] }
-```
+The solver is part of `etendue-core` (`etendue_core::solver`). It minimises
+with a small deterministic Nelder–Mead simplex of its own, restarted from its
+best point until a restart stops helping, so it needs no random numbers and
+builds for WebAssembly.
 
 ## The design problem
 
@@ -78,17 +76,27 @@ numbers, an inverted or negative depth window, a grid smaller than 2 × 2),
 `InvalidCamera`, and `SolverFailure` (the optimiser could not make progress,
 typically because every trial lost the stripe).
 
-## The solver: `argmin` Nelder-Mead
+## The solver: Nelder-Mead
 
-The optimisation uses [`argmin`](https://argmin-rs.github.io/argmin/)'s
-**Nelder-Mead** simplex method. Nelder-Mead is derivative-free, the natural
-choice because the worst-case-CoC cost is non-smooth and cheap to evaluate,
-so a gradient method would have no smooth gradient to follow.
+The optimisation uses the **Nelder-Mead** simplex method (`solver::nelder_mead`,
+with the standard coefficients: reflection 1, expansion 2, contraction ½,
+shrink ½). Nelder-Mead is derivative-free, the natural choice because the
+worst-case-CoC cost is non-smooth and cheap to evaluate, so a gradient method
+would have no smooth gradient to follow.
 
 The initial simplex is anchored at the camera's current `(τ_x, τ_y, s_o)`
 with small per-variable perturbations: 1° in each tilt, and 5 % of `d_opt`
-(or 5 mm, whichever is larger) in focus. The solver runs with a
-standard-deviation tolerance of `1e-6` and an iteration cap of 500.
+(or 5 mm, whichever is larger) in focus. Each run stops when the standard
+deviation of the simplex's costs is at most `1e-6`, or after 500 iterations.
+
+The worst-case blur is steep in focus and in one tilt and nearly flat in the
+other, and a single run can collapse its simplex before the flat direction is
+explored. The solver therefore restarts from its best point with a fresh
+simplex until a restart stops improving the cost (at most 8 runs).
+
+The tilts are searched in the defocus physics' convention and returned in
+calibration-rs's, as `CameraParams` stores them: the two differ in the sign of
+`τ_x` (`optics::coc_tilt`).
 
 There are no hard solver bounds. Instead the cost returns `+∞` for a
 physically invalid trial (`s_o ≤ f`, or a tilt magnitude at or beyond

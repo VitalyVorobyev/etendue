@@ -43,13 +43,12 @@
 
 use std::f64::consts::FRAC_PI_2;
 
-use argmin::core::{CostFunction, Error as ArgminError, Executor, State};
-use argmin::solver::neldermead::NelderMead;
 use serde::{Deserialize, Serialize};
 
 use crate::laser::LaserPlane;
 use crate::optics::{coc_diameter_at_sensor, coc_tilt, coc_to_pixels, scheimpflug_tilt};
 use crate::scene::{CameraEntity, LaserEntity};
+use crate::solver::nelder_mead::{self, Options};
 
 /// Sampling resolution of the laser fan during cost evaluation.
 ///
@@ -204,21 +203,18 @@ pub fn solve_scheimpflug(
             vec![best[0], best[1], best[2] + d_s],
         ];
         let cost = ScheimpflugCost::new(camera, laser, spec)?;
-        let solver = NelderMead::new(simplex)
-            .with_sd_tolerance(1.0e-6)
-            .map_err(|e| SolverError::SolverFailure(format!("simplex tolerance: {e}")))?;
-        let executor = Executor::new(cost, solver).configure(|state| state.max_iters(500));
-        let outcome = executor
-            .run()
-            .map_err(|e| SolverError::SolverFailure(format!("Nelder-Mead: {e}")))?;
-        let state = outcome.state();
-        let found = state
-            .get_best_param()
-            .ok_or_else(|| SolverError::SolverFailure("no best parameter".to_string()))?
-            .clone();
-        let found_cost = state.get_best_cost();
-        iterations = iterations.saturating_add(u32::try_from(state.get_iter()).unwrap_or(u32::MAX));
-        converged = state.get_termination_status().terminated();
+        let found = nelder_mead::minimise(
+            |p| cost.evaluate(p[0], p[1], p[2]).max_coc_px,
+            simplex,
+            Options {
+                cost_tolerance: 1.0e-6,
+                max_iterations: 500,
+            },
+        );
+        iterations = iterations.saturating_add(found.iterations);
+        converged = found.converged;
+        let found_cost = found.cost;
+        let found = found.point;
         let improved =
             !max_coc_px.is_finite() || found_cost < max_coc_px - 1e-9 * max_coc_px.max(1.0);
         if found_cost <= max_coc_px {
@@ -230,8 +226,7 @@ pub fn solve_scheimpflug(
         }
     }
 
-    // Re-evaluate at the best point to get the valid-sample count (argmin
-    // doesn't surface custom auxiliary diagnostics from the cost function).
+    // Re-evaluate at the best point for the valid-sample count.
     let cost_for_diag = ScheimpflugCost::new(camera, laser, spec)?;
     let diag = cost_for_diag.evaluate(best[0], best[1], best[2]);
 
@@ -291,7 +286,7 @@ struct Evaluation {
     n_valid: usize,
 }
 
-/// The cost function exposed to argmin.
+/// The cost function the simplex minimises.
 ///
 /// Holds the fixed scene (camera + laser + spec) and pre-computes the world
 /// points of the sampled fan plane in camera-local coordinates, so the hot
@@ -424,21 +419,6 @@ impl ScheimpflugCost {
     }
 }
 
-impl CostFunction for ScheimpflugCost {
-    type Param = Vec<f64>;
-    type Output = f64;
-
-    fn cost(&self, param: &Self::Param) -> Result<f64, ArgminError> {
-        if param.len() != 3 {
-            return Err(ArgminError::msg(format!(
-                "ScheimpflugCost expects a 3-vector, got length {}",
-                param.len()
-            )));
-        }
-        Ok(self.evaluate(param[0], param[1], param[2]).max_coc_px)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -448,6 +428,22 @@ mod tests {
         CameraParams, DistortionParams, FxFyCxCySkew, IntrinsicsParams, ProjectionParams,
         ScheimpflugParams, SensorParams,
     };
+
+    /// Gate G9.2: the optimum argmin 0.11's Nelder-Mead (restarted) found on these tests,
+    /// recorded 2026-10-19 before the in-tree port, `(tau_x, tau_y, s_o)`. The port must
+    /// reproduce it to 1e-6 rad and 1e-6 m (docs/measurements/g9_2_solver.md).
+    fn assert_reproduces_argmin(res: &SolverResult, recorded: (f64, f64, f64)) {
+        let (tx, ty, so) = recorded;
+        assert!(
+            (res.tau_x - tx).abs() < 1e-6
+                && (res.tau_y - ty).abs() < 1e-6
+                && (res.s_o - so).abs() < 1e-6,
+            "({}, {}, {}) is not argmin's ({tx}, {ty}, {so})",
+            res.tau_x,
+            res.tau_y,
+            res.s_o
+        );
+    }
 
     // Standard test lens — same numbers as the working-volume tests.
     const F_M: f64 = 0.025;
@@ -599,6 +595,14 @@ mod tests {
             grid: SampleGrid { rows: 24, cols: 24 },
         };
         let res = solve_scheimpflug(&cam, &laser, &spec).expect("solver runs");
+        assert_reproduces_argmin(
+            &res,
+            (
+                2.011_131_938_580_849e-7,
+                3.943_333_270_699_213e-8,
+                0.599_999_969_702_421_2,
+            ),
+        );
 
         // The solver should reach the analytic optimum tightly: < 1° tilt,
         // < 1 % focus error. Nelder-Mead on a smooth quadratic-like cost
@@ -657,6 +661,14 @@ mod tests {
         );
 
         let res = solve_scheimpflug(&cam, &laser, &spec).expect("solver runs");
+        assert_reproduces_argmin(
+            &res,
+            (
+                -2.235_367_085_227_121_4e-8,
+                0.119_757_137_468_879_84,
+                0.492_444_476_914_650_8,
+            ),
+        );
         assert!(res.n_valid_samples > 0);
         assert!(res.max_coc_px.is_finite());
         assert!(
@@ -707,6 +719,14 @@ mod tests {
             grid: SampleGrid::DEFAULT,
         };
         let res = solve_scheimpflug(cam, laser, &spec).expect("default scene solves");
+        assert_reproduces_argmin(
+            &res,
+            (
+                -8.330_236_368_449_578e-9,
+                0.052_231_371_573_116,
+                0.617_170_948_348_329,
+            ),
+        );
         assert!(res.tau_x.is_finite());
         assert!(res.tau_y.is_finite());
         assert!(res.s_o.is_finite() && res.s_o > 0.0);

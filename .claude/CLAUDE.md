@@ -84,7 +84,7 @@ across the whole workspace.
 
 | Crate | Features | Notes |
 |---|---|---|
-| `etendue-core` | `solver` | `solver` = the Scheimpflug design solver on argmin (off by default: argmin pulls `getrandom`; no in-tree user since `etendue-ui` was deleted, CI tests it per crate) |
+| `etendue-core` | none | the Scheimpflug solver is always built: an in-tree deterministic Nelder–Mead (`solver::nelder_mead`), no `getrandom` (G9.3) |
 | `etendue-scene` | `schemars` | JSON Schema derives (xtask enables it to emit `schemas/`) |
 | `etendue-kinematics` | `opw` | analytic OPW IK via `rs-opw-kinematics` (`default-features = false`) |
 | `etendue-synth` | `images` | canonical camera, remap LUT, GT, dataset, render jobs, pose generator; `images` = EXR ingest + PNG + the laser-image compositor (native render path, off in wasm) |
