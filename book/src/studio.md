@@ -169,7 +169,18 @@ A rig without lasers can also be calibrated one camera at a time. The result sho
   the target, each as an error against the truth;
 - the mean and per-axis RMS reprojection error, and a histogram of every point's error.
 
-The run is also written to the dataset folder as `calibration.json`.
+**Kept runs.** Every run is kept as a folder:
+- `config.json`: the dataset and the options;
+- `report.json`: the report;
+- `result.json`: calibration-rs's own export of the first trial, to use downstream.
+
+With a project open for writing, runs go in the project's `runs/` folder, and new datasets
+default to its `datasets/<cell>`. Otherwise a dataset keeps its runs in its own `runs/` folder.
+
+The folder is named after the dataset, the time and the observations, for example
+`closed_loop_ur5e-20261019-181522-noise-s1x8`. Below the result, the dataset's kept runs are
+listed, newest first, with what each calibrated from and how it came out. **Show** puts one back
+in the result view, the 3-D estimate included.
 
 **Beside the truth.** The workspace keeps a 3-D view and a camera view next to the panel.
 - The 3-D view draws the estimate over the truth in the warning colour: each estimated

@@ -141,6 +141,12 @@ calibration datasets with exact ground truth. The 0.1.0 desktop app is replaced 
   target, exaggerated ×1 to ×1000. At each capture, a camera view shows what the calibration
   observes (noise, outliers and dropouts) over the true corners. The report's `estimate.offsets`
   carry the estimate in the truth's frames.
+
+  Every run is kept as a folder: `config.json`, `report.json`, and calibration-rs's own export as
+  `result.json`. It goes in the project's `runs/` (or the dataset's own `runs/`), and
+  `etendue calibrate --run <folder>` keeps one the same way. The workspace lists a dataset's
+  kept runs and shows any of them again. With a project open for writing, new datasets default
+  to its `datasets/<cell>`.
 - **Robot jogging** (Motion ▸ Jog): move a robot at the playhead by its joints or in Cartesian
   steps (tool or base axes), or drag its TCP with the gizmo (IK from the current joints). The TCP
   pose, its manipulability, joints near their limits and out-of-reach targets are shown. The pose

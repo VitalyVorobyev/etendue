@@ -222,16 +222,30 @@ export type CalibrationOutcome =
   | { kind: "cancelled" }
   | { kind: "failed"; message: string };
 
-/** Calibrate the dataset in `dir` as `runId` (also written to `dir/calibration.json`). */
+/** Calibrate the dataset in `dir` as `runId`, keeping the run in folder `keep` (config, report, result). */
 export function calibrateDataset(
   runId: string,
   dir: string,
   options: CalibrateOptions,
+  keep: string,
   onProgress: (p: Progress) => void,
 ): Promise<CalibrationOutcome> {
   const channel = new Channel<Progress>();
   channel.onmessage = onProgress;
-  return invoke<CalibrationOutcome>("calibrate_dataset", { runId, dir, options, onProgress: channel });
+  return invoke<CalibrationOutcome>("calibrate_dataset", { runId, dir, options, keep, onProgress: channel });
+}
+
+/** A calibration run kept in a folder (`etendue-cli::calibrate::StoredRun`). */
+export interface StoredRun {
+  /** Its folder's name. */
+  name: string;
+  config: { version: number; dataset: string; options: CalibrateOptions };
+  run: CalibrationRun;
+}
+
+/** The runs kept in `folder`, one subfolder each, by name. */
+export function calibrationRuns(folder: string): Promise<StoredRun[]> {
+  return invoke<StoredRun[]>("calibration_runs", { folder });
 }
 
 /** Ask run `runId` to stop; `true` if it was still running. */

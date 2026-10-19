@@ -727,6 +727,18 @@ studio code, so no phase waits on a review.
       `EmitOptions::STANDARD` with `etendue gt`. The workspace's camera view shows what a run
       observes at each capture: dots, outliers and dropouts over the true corners.
     - Still deferred: runs in `runs/`, and a browser preview.
+  - *Status, P13d:* runs are kept (ADR 0009).
+    - **Run folders.** A run is a folder holding:
+      - `config.json`: the dataset and the options;
+      - `report.json`: the report;
+      - `result.json`: calibration-rs's export of the first trial.
+    - **Where.** It is written by `etendue-cli::calibrate::write_run`, from the shell or from
+      `etendue calibrate --run`, and listed by `read_runs`. The project's `runs/` holds it when
+      a project is open for writing; otherwise the dataset's own `runs/`.
+    - **Datasets.** With such a project open, new datasets default to its `datasets/<cell>`.
+    - **Studio.** The Calibrate workspace lists a dataset's kept runs and shows any of them
+      again.
+    - Still deferred: a browser preview of the source.
 
 ### Deferred (not planned; do not scaffold)
 

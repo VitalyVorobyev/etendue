@@ -488,25 +488,33 @@ enum CalibrationOutcome {
 }
 
 /// Calibrate the dataset in `dir` natively (`etendue calibrate`) on a worker thread, one progress
-/// step per trial; `run_id` names the run for [`cancel_run`]. The run is also written to
-/// `dir/calibration.json`.
+/// step per trial; `run_id` names the run for [`cancel_run`]. The run is kept in folder `keep`
+/// (ADR 0009 `runs/<name>`: config, report, calibration-rs's result).
 #[tauri::command]
 async fn calibrate_dataset(
     run_id: String,
     dir: PathBuf,
     options: etendue_cli::calibrate::RunOptions,
+    keep: PathBuf,
     on_progress: Channel<Progress>,
     runs: State<'_, Runs>,
     access: State<'_, Access>,
 ) -> Result<CalibrationOutcome, String> {
-    let dir = access.writable(&dir)?;
+    // The run records the dataset as the studio names it, to find its runs again.
+    let dataset = dir.clone();
+    let dir = access.readable(&dir)?;
+    let keep = access.writable(&keep)?;
     let cancel = runs.start(&run_id);
     let result = tauri::async_runtime::spawn_blocking(move || {
         let report = move |p: Progress| {
             let _ = on_progress.send(p);
         };
         let control = Control::new(&report, Some(&cancel));
-        match etendue_cli::calibrate::run_dir(&dir, &options, &control) {
+        let run = etendue_cli::calibrate::run_dir(&dir, &options, &control).and_then(|run| {
+            etendue_cli::calibrate::write_run(&keep, &dataset, &options, &run)?;
+            Ok(run)
+        });
+        match run {
             Ok(run) => CalibrationOutcome::Ok { run },
             Err(e) if e.is::<etendue_cli::progress::Cancelled>() => CalibrationOutcome::Cancelled,
             Err(e) => CalibrationOutcome::Failed {
@@ -517,6 +525,16 @@ async fn calibrate_dataset(
     .await;
     runs.finish(&run_id);
     result.map_err(|e| format!("calibration run panicked: {e}"))
+}
+
+/// The calibration runs kept in `folder` (one subfolder each), by name.
+#[tauri::command]
+fn calibration_runs(
+    folder: PathBuf,
+    access: State<'_, Access>,
+) -> Result<Vec<etendue_cli::calibrate::StoredRun>, String> {
+    let folder = access.readable(&folder)?;
+    etendue_cli::calibrate::read_runs(&folder).map_err(|e| format!("{e:#}"))
 }
 
 /// Ask a run to stop. `true` if it was still running.
@@ -566,6 +584,7 @@ pub fn run() {
             scenario_from_poses,
             generate_dataset,
             calibrate_dataset,
+            calibration_runs,
             cancel_run,
         ])
         .run(tauri::generate_context!())

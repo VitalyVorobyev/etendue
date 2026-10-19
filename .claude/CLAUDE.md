@@ -54,7 +54,7 @@ cargo run --release -p etendue-cli -- measure p4-5 -o target/p4_5               
 cargo run --release -p etendue-cli -- measure g4-2 -o target/g4_2                                          # G4.2 corner bias (chess-corners)
 cd web/apps/studio && bun x vitest run --project browser src/probe/g4_3.browser.test.ts                   # G4.3 web vs Blender (after g4-2)
 cargo test -p etendue-synth --release --test ptc -- --nocapture                                           # P4-6 photon transfer
-cargo run -p etendue-cli -- calibrate target/gt [--camera ID] [--noise n.json --trials N] [--features f.json] -o report.json   # P13 native closed loop: G5.1 / G5.3 / G5.3b gated on exact input
+cargo run -p etendue-cli -- calibrate target/gt [--camera ID] [--noise n.json --trials N] [--features f.json] -o report.json [--run runs/<name>]   # P13 native closed loop: G5.1 / G5.3 / G5.3b gated on exact input
 uv run --locked --project tools/closed-loop tools/closed-loop/parity.py report.json target/gt [--camera ID]   # G13.1: native rows = the wheel's
 uv run --locked --project tools/closed-loop tools/closed-loop/closed_loop.py target/gt [--camera ID]     # the wheel's closed loop (cross-check since P13)
 # P5-1b image-level loop (Blender, local only): gt, then render linear at s = 4, detect, calibrate
@@ -217,8 +217,9 @@ calibration-rs 0.8.2); keep it that way. Never call entropy from kernel code.
 workspace (restates the calibration-rs patch and dev profile; `check-layering --manifest-path`
 guards its nalgebra). Native commands on the `etendue_cli` library: `generate_dataset` (gt →
 Blender → detect, progress over a channel, `cancel_run`), `blender_status`, `scenario_from_poses`,
-`calibrate_dataset` (P13: `etendue-cli::calibrate::run_dir` on a generated dataset, a progress step per
-trial, `cancel_run`), `pick` (file dialogs run in the shell), `read_text`/`path_exists` (only under allowed folders:
+`calibrate_dataset` (P13: `etendue-cli::calibrate::run_dir` on a generated dataset, kept by `write_run` in the
+folder the studio names (a project's `runs/<name>`, else the dataset's), a progress step per
+trial, `cancel_run`), `calibration_runs` (the runs kept in a folder), `pick` (file dialogs run in the shell), `read_text`/`path_exists` (only under allowed folders:
 the data root, the datasets folder, and what was picked; the same folders form the asset-protocol
 scope), `data_root`. The data root is the checkout in a debug build and the bundle's resources
 (examples, robot library, `etendue.toml`) in a release build, which writes datasets under

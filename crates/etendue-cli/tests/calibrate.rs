@@ -104,7 +104,7 @@ fn g13_2_the_same_seed_gives_the_same_report() {
 
 #[test]
 fn a_dataset_directory_runs_trials_and_keeps_the_run() {
-    use etendue_cli::calibrate::{CALIBRATION, Run, RunOptions, run_dir};
+    use etendue_cli::calibrate::{RUN_RESULT, RunOptions, read_runs, run_dir, write_run};
     use etendue_cli::progress::Control;
     use std::sync::atomic::AtomicBool;
 
@@ -125,9 +125,32 @@ fn a_dataset_directory_runs_trials_and_keeps_the_run() {
     assert_eq!(run.reports.len(), 3);
     let stats = run.row_stats.as_ref().unwrap();
     assert_eq!(stats.len(), run.reports[0].rows.len());
-    let written: Run =
-        serde_json::from_str(&std::fs::read_to_string(dir.join(CALIBRATION)).unwrap()).unwrap();
-    assert_eq!(written.reports.len(), 3);
+    // Kept as a run folder, and read back with its config.
+    let runs = root().join("target/calibrate_test/trials/runs");
+    let _ = std::fs::remove_dir_all(&runs);
+    write_run(&runs.join("noisy"), &dir, &options, &run).unwrap();
+    std::fs::create_dir_all(runs.join("not-a-run")).unwrap();
+    let kept = read_runs(&runs).unwrap();
+    assert_eq!(kept.len(), 1);
+    assert_eq!(kept[0].name, "noisy");
+    assert_eq!(kept[0].config.options, options);
+    assert_eq!(
+        kept[0].run.reports,
+        run.reports
+            .iter()
+            .map(|r| etendue_cli::calibrate::Report {
+                export: serde_json::Value::Null,
+                ..r.clone()
+            })
+            .collect::<Vec<_>>()
+    );
+    // result.json is calibration-rs's export of the first trial (a rig hand-eye here).
+    let result: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(runs.join("noisy").join(RUN_RESULT)).unwrap(),
+    )
+    .unwrap();
+    assert!(result["gripper_se3_rig"].is_object(), "{result}");
+    assert!(read_runs(&runs.join("missing")).unwrap().is_empty());
     assert!(
         steps.lock().unwrap().len() >= 4,
         "a step per trial and the end"

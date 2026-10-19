@@ -142,6 +142,10 @@ enum Command {
         /// Write the report (JSON) here.
         #[arg(short, long)]
         output: Option<PathBuf>,
+        /// Keep the run in this folder: config.json, report.json, and calibration-rs's own
+        /// export as result.json (a project's `runs/<name>`).
+        #[arg(long)]
+        run: Option<PathBuf>,
     },
     /// Build scenarios.
     Scenario {
@@ -471,14 +475,14 @@ fn run(cli: Cli) -> Result<()> {
             features,
             laser_features,
             output,
+            run,
         } => run_calibrate(
             &dir,
             noise.as_deref(),
             trials,
             camera,
-            features.as_deref(),
-            laser_features.as_deref(),
-            output.as_deref(),
+            (features.as_deref(), laser_features.as_deref()),
+            (output.as_deref(), run.as_deref()),
         ),
         Command::Scenario {
             command:
@@ -638,9 +642,8 @@ fn run_calibrate(
     noise: Option<&Path>,
     trials: u32,
     camera: Option<String>,
-    features: Option<&Path>,
-    laser_features: Option<&Path>,
-    output: Option<&Path>,
+    (features, laser_features): (Option<&Path>, Option<&Path>),
+    (output, run): (Option<&Path>, Option<&Path>),
 ) -> Result<()> {
     use etendue_synth::dataset::GroundTruth;
     use etendue_synth::observe::{ObservationNoise, observe};
@@ -659,7 +662,7 @@ fn run_calibrate(
         ));
     }
     let options = calibrate::Options {
-        camera,
+        camera: camera.clone(),
         detected: features.is_some(),
     };
     let mut reports = Vec::new();
@@ -720,14 +723,31 @@ fn run_calibrate(
             );
         }
     }
+    let failed = reports
+        .iter()
+        .any(|r| r.gated && !r.pass)
+        .then(|| reports[0].gate.clone());
+    let doc = calibrate::Run {
+        reports,
+        row_stats: stats,
+    };
     if let Some(out) = output {
-        let doc = serde_json::json!({"reports": reports, "row_stats": stats});
         std::fs::write(out, serde_json::to_string_pretty(&doc)? + "\n")
             .with_context(|| format!("writing {}", out.display()))?;
         println!("report → {}", out.display());
     }
-    if reports.iter().any(|r| r.gated && !r.pass) {
-        return Err(anyhow!("{} failed", reports[0].gate));
+    if let Some(folder) = run {
+        let options = calibrate::RunOptions {
+            noise,
+            trials: trials.max(1),
+            camera,
+            detected: features.is_some(),
+        };
+        calibrate::write_run(folder, dir, &options, &doc)?;
+        println!("run → {}", folder.display());
+    }
+    if let Some(gate) = failed {
+        return Err(anyhow!("{gate} failed"));
     }
     Ok(())
 }

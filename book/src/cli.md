@@ -115,7 +115,8 @@ ChArUco and marker boards are labelled correctly at any in-plane rotation since 
 
 ```bash
 etendue calibrate <dataset_dir> [--noise noise.json] [--trials N] [--camera ID] \
-  [--features features.json] [--laser-features laser_features.json] [-o report.json]
+  [--features features.json] [--laser-features laser_features.json] [-o report.json] \
+  [--run runs/<name>]
 ```
 
 Calibrates a dataset (`gt`'s directory) with calibration-rs's own workflows, natively, and
@@ -161,6 +162,11 @@ estimate. The estimate's `offsets` place it beside the truth:
 - each laser plane, true and estimated, in the true camera's frame.
 
 The studio draws them this way.
+
+`--run <folder>` keeps the run there, as the studio does:
+- `config.json`: the dataset and the options;
+- `report.json`: the report;
+- `result.json`: calibration-rs's own export of the first trial.
 
 ## `scenario from-poses`
 
