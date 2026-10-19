@@ -202,6 +202,52 @@ fn main() -> ExitCode {
         "  head               map {} values, section, Scheimpflug, optimum",
         native_map.len()
     );
+    // G12.1: the UR5e's forward kinematics, a TCP and an IK answer (P12).
+    let robot = &probe["robot"];
+    let q = decode(&robot["q"]);
+    let wasm_poses = decode(&robot["link_poses"]);
+    let mut native_poses = Vec::with_capacity(wasm_poses.len());
+    for joints in q.chunks_exact(6) {
+        native_poses.extend(session.robot_link_poses("ur5e", joints).expect("native FK"));
+    }
+    let fk_differ = native_poses
+        .iter()
+        .zip(&wasm_poses)
+        .filter(|(a, b)| a.to_bits() != b.to_bits())
+        .count()
+        + native_poses.len().abs_diff(wasm_poses.len());
+    if fk_differ > 0 {
+        eprintln!("robot FK: {fk_differ} values differ");
+    }
+    mismatches += fk_differ;
+    total += native_poses.len();
+    let tcp = session
+        .robot_tcp("ur5e", &[0.3, -1.0, 1.2, -1.6, -1.4, 0.5])
+        .expect("native TCP");
+    let tcp_text = serde_json::to_string(&tcp).expect("TCP JSON");
+    let ik = session
+        .robot_ik(
+            "ur5e",
+            &serde_json::to_string(&tcp.base_se3_tcp).expect("pose JSON"),
+            &decode(&robot["ik_seed"]),
+            r#"{"restarts":0}"#,
+        )
+        .expect("native IK");
+    let ik_text = serde_json::to_string(&ik).expect("IK JSON");
+    for (name, native) in [("tcp", tcp_text), ("ik", ik_text)] {
+        if native != robot[name].as_str().expect("robot probe text") {
+            eprintln!(
+                "robot {name} differs:\n  native {native}\n  wasm   {}",
+                robot[name]
+            );
+            mismatches += 1;
+        }
+    }
+    println!(
+        "  robot              FK {} values at {} joint vectors, TCP, IK",
+        native_poses.len(),
+        q.len() / 6
+    );
     // A ring of heads' coverage (P11).
     let rig = &probe["rig"];
     let text = |key: &str| rig[key].as_str().expect("rig probe text");

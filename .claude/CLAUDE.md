@@ -44,6 +44,7 @@ node crates/etendue-wasm/tests/node/g2_3_generator.mjs                          
 node crates/etendue-wasm/tests/node/g10_1_head.mjs                                                      # G10.1 head map ≤ 30 ms (after build-npm.mjs)
 node crates/etendue-wasm/tests/node/g11_3_coverage.mjs                                                  # G11.3 rig coverage 64³ ≤ 100 ms (after build-npm.mjs)
 cargo test -p etendue-core --release --test rig_coverage -- --nocapture                                  # G11.2 stereo overlap
+node crates/etendue-wasm/tests/node/g12_2_jog.mjs                                                       # G12.2 IK drag (after build-npm.mjs); G12.1 is in the G0.1 probe
 cargo test -p etendue-synth --test g3_2 -- --nocapture                                                  # G3.2 target meshes
 cargo run --release -p etendue-cli -- render <scene.json> <scenario.json> -o target/render --samples 16   # Blender, local only; <capture>_laser.png per laser camera (P7-7)
 python3 -m unittest discover -s crates/etendue-cli/blender/tests                                          # Blender conventions
@@ -347,8 +348,10 @@ nodal point; the camera's pose is its **mechanical frame** (the image-plane datu
 **Gotcha 6**: kernel math that crosses into wasm must be bit-identical (G0.1). `+ − × ÷` and `sqrt`
 are exactly rounded everywhere, but `sin`, `cos`, `atan2`, `asin`, `acos` and `hypot` are not:
 native builds call the system libm, wasm Rust's port. Use the `libm` crate for every transcendental
-in kernel code (`optics::camera`, `optics::paraxial`, `head`), and build rotations from `libm`
-sines rather than nalgebra's `from_axis_angle`.
+in kernel code (`optics::camera`, `optics::paraxial`, `head`, `etendue-kinematics::rot`), and build
+rotations from `libm` sines rather than nalgebra's `from_axis_angle`/`from_euler_angles`. Dynamic
+matrix products (`DMatrix * DMatrix`) go to `matrixmultiply`, whose native kernels fuse multiply-adds
+and whose wasm path does not: sum small products in order (`etendue-kinematics::fk::jjt`).
 
 ## Quality gates — verify before every report
 

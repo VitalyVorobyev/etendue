@@ -71,7 +71,6 @@ const cameras = ["cam_left", "cam_right"];
 const uv = cameras.map((id) =>
   Array.from(session.projectPoints(id, new Float64Array(worldSe3Camera), new Float64Array(xyz)), hex),
 );
-session.free();
 
 // ADR 0008: cam_left with physical optics (a tilted sensor, a thick lens with its pupil off H).
 // deriveOptics gives its params; the session works in its projection frame.
@@ -104,6 +103,34 @@ const headScheimpflug = wasm.headScheimpflug(headDesign);
 const headSearch = JSON.stringify({ grid: [9, 9], f_number_range: [2, 16], tilt_free: false });
 const headOptimum = wasm.headOptimise(headDesign, headSearch);
 
+// Gate G12.1 (P12): the UR5e's link poses at 1000 seeded joint vectors within ±0.9 of each
+// joint's range, and its TCP and an IK answer from a nearby seed.
+const lcg = (() => {
+  let state = 0x2545f491n;
+  return () => {
+    state = (state * 6364136223846793005n + 1442695040888963407n) & 0xffffffffffffffffn;
+    return Number(state >> 11n) / 2 ** 53;
+  };
+})();
+const limits = JSON.parse(read("assets/robots/ur5e/robot.json")).joints.map((j) => [j.lower, j.upper]);
+const fkQ = [];
+const fkPoses = [];
+for (let i = 0; i < 1000; i++) {
+  const q = limits.map(([lo, hi]) => 0.9 * (lo + (hi - lo) * lcg()) + 0.05 * (lo + hi));
+  fkQ.push(...q);
+  fkPoses.push(...session.robotLinkPoses("ur5e", new Float64Array(q)));
+}
+const ikSeed = [0.1, -1.2, 1.4, -1.8, -1.5, 0.3];
+const ikTcp = session.robotTcp("ur5e", new Float64Array([0.3, -1.0, 1.2, -1.6, -1.4, 0.5]));
+const ikAnswer = session.robotIk(
+  "ur5e",
+  JSON.stringify(JSON.parse(ikTcp).base_se3_tcp),
+  new Float64Array(ikSeed),
+  JSON.stringify({ restarts: 0 }),
+);
+
+session.free();
+
 // A ring of heads (P11): its coverage counts.
 const ring = ringFixture(root);
 const rigLayout = JSON.stringify(ring.layout);
@@ -135,5 +162,12 @@ process.stdout.write(
       optimum: headOptimum,
     },
     rig: { layout: rigLayout, grid: rigGrid, criteria: rigCriteria, coverage: rigCoverage },
+    robot: {
+      q: fkQ.map(hex),
+      link_poses: fkPoses.map(hex),
+      ik_seed: ikSeed.map(hex),
+      tcp: ikTcp,
+      ik: ikAnswer,
+    },
   }) + "\n",
 );

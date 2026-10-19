@@ -37,6 +37,23 @@ export class EtendueScene {
     return w === undefined ? undefined : { rotation: [w[0], w[1], w[2], w[3]], translation: [w[4], w[5], w[6]] };
   }
 
+  robotLinks(robotId) {
+    return this.#raw.robotLinks(robotId);
+  }
+
+  robotLinkPoses(robotId, q) {
+    return this.#raw.robotLinkPoses(robotId, q instanceof Float64Array ? q : Float64Array.from(q));
+  }
+
+  robotTcp(robotId, q) {
+    return JSON.parse(this.#raw.robotTcp(robotId, q instanceof Float64Array ? q : Float64Array.from(q)));
+  }
+
+  robotIk(robotId, baseSe3Tcp, seed, options = {}) {
+    const s = seed instanceof Float64Array ? seed : Float64Array.from(seed);
+    return JSON.parse(this.#raw.robotIk(robotId, text(baseSe3Tcp), s, text(options)));
+  }
+
   bake(scenario, options = {}) {
     return JSON.parse(this.#raw.bake(text(scenario), options.derivatives === true));
   }

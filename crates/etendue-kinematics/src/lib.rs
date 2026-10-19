@@ -4,8 +4,9 @@
 //! - [`RobotModel`] — a URDF kinematic tree (via `urdf-rs`) bound to its
 //!   `robot.json` manifest ([`etendue_scene::RobotManifest`]).
 //! - Forward kinematics: [`RobotModel::link_poses`], [`RobotModel::tcp_pose`],
-//!   [`RobotModel::tcp_jacobian`] — custom serial-chain code on nalgebra 0.34
-//!   (the `k` crate is excluded by the nalgebra hard pin).
+//!   [`RobotModel::tcp_jacobian`], [`RobotModel::manipulability`] — custom serial-chain code on
+//!   nalgebra 0.34 (the `k` crate is excluded by the nalgebra hard pin), bit-identical natively
+//!   and in wasm (`libm` transcendentals, in-order Jacobian products).
 //! - Inverse kinematics: [`RobotModel::ik`], damped least squares with
 //!   deterministic restarts; with the `opw` feature also analytic OPW IK
 //!   (`RobotModel::ik_opw`, via `rs-opw-kinematics`).
@@ -24,6 +25,7 @@ pub mod ik;
 #[cfg(feature = "opw")]
 pub mod opw;
 pub mod report;
+mod rot;
 pub mod scenario;
 mod trajectory;
 pub mod urdf;

@@ -23,6 +23,7 @@ import { type Bodies, type PoseOverride, type PoseSource, showOverrides } from "
 import { Gizmo, type GizmoOptions } from "../scene/Gizmo";
 import { CandidateGlyphs } from "../scene/CandidateGlyphs";
 import { TargetSurface } from "../scene/TargetSurface";
+import { TcpPath } from "../scene/TcpPath";
 
 /** Per kernel session: each camera's border rays and the model they were computed for. */
 const rayCache = new WeakMap<EtendueScene, Map<string, { key: string; rays: Float64Array }>>();
@@ -151,6 +152,7 @@ export function Viewport({
   bodies = NO_BODIES,
   poses = null,
   gizmo = null,
+  paths,
 }: {
   current: Baked;
   playhead: Playhead;
@@ -167,6 +169,8 @@ export function Viewport({
   poses?: PoseSource | null | undefined;
   /** The selection's handle, when it can be moved. */
   gizmo?: GizmoTarget | null | undefined;
+  /** Robot TCP paths to draw (the Motion workspace). */
+  paths?: { path: Float32Array; captures: Float32Array }[] | undefined;
 }) {
   const [options, setOptions] = useState<GizmoOptions>({ mode: "translate", space: "local", snap: false });
   const { loaded, session, baked } = current;
@@ -236,6 +240,11 @@ export function Viewport({
             </AtFrame>
           )}
         </FrameTree>
+        {paths?.map((p, i) => (
+          // A path per robot, in scene order.
+          // eslint-disable-next-line react/no-array-index-key
+          <TcpPath key={i} path={p.path} captures={p.captures} />
+        ))}
         {gizmo && poses && (
           <Gizmo
             frame={gizmo.frame}

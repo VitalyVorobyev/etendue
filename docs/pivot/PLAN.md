@@ -659,6 +659,19 @@ studio code, so no phase waits on a review.
     - **G12.1:** FK bit parity on 1000 seeded q.
     - **G12.2:** UR5e IK p95 ≤ 2 ms in wasm, and ≥ 99 % success on a 1000-step drag path
       at 1e-6 m / 1e-6 rad.
+  - *Status (2026-10-19):* both gates pass (`docs/measurements/g12_robot.md`). G12.1 is bit
+    parity at 1000 joint vectors, after `libm` and in-order Jacobian products. G12.2 is p95
+    0.012 ms with 1000/1000 converged.
+    - **Built:** the Jog panel in Motion, with:
+      - joint sliders, a TCP readout and manipulability;
+      - Cartesian steps in tool or base axes;
+      - the TCP gizmo (IK, *Out of reach*);
+      - teaching a PTP move (joints stored) with or without a capture;
+      - a step list with moves and deletes;
+      - the TCP path with capture dots.
+    - The jog shows on the bake through pose overrides: 0 bakes, work p95 2.9 ms.
+    - **Deferred:** re-teaching a step in place, colouring the path by step or binding limit,
+      hover-to-seek on the path, a robot library preview.
 - **P13 — Calibration lab.**
   - **Observations:** `etendue-synth::observe`, noise from a seed:
     - pixel σ;

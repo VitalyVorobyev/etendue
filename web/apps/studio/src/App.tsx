@@ -20,6 +20,7 @@ import { describeFailure, expandRig } from "./kernel/etendue";
 import { type Bodies, type PoseOverride, bodyPoses, posed } from "./kernel/posed";
 import type { GeneratedPoses } from "@etendue/wasm";
 import { scenarioFromPoses } from "./kernel/native";
+import { useThrottledPlayhead } from "./kernel/useThrottled";
 import { analyse } from "./optics/analysis";
 import { type HeadParams, initialHead, placement, toItem } from "./optics/design";
 import { OpticsForm, OpticsReadouts } from "./optics/OpticsPanels";
@@ -29,6 +30,9 @@ import { analyse as analyseRig } from "./rigs/analysis";
 import { type RigParams, initialRig, toItem as toRigItem, toLayout } from "./rigs/design";
 import { RigForm, RigReadouts, TiltChart } from "./rigs/RigPanels";
 import { RigView, type VoxelShow } from "./rigs/RigView";
+import { type Jog, bakedQ, jogOverrides, robotFrames, teach } from "./robot/jog";
+import { JogPanel } from "./robot/JogPanel";
+import { tcpPath } from "./scene/TcpPath";
 import { CoverageLegend, SliceMaps } from "./rigs/SliceMaps";
 import { CameraGrid } from "./panels/CameraGrid";
 import { CellDialog } from "./panels/CellDialog";
@@ -130,7 +134,10 @@ export function App() {
   const [chartOpen, setChartOpen] = useState(true);
   const [quantity, setQuantity] = useState<JointQuantity>("position");
   const [insetOpen, setInsetOpen] = useState(true);
-  const [motionPanel, setMotionPanel] = useState<"program" | "generate">("program");
+  const [motionPanel, setMotionPanel] = useState<"program" | "generate" | "jog">("program");
+  // A robot jogged at the playhead (P12); it lapses when the playhead moves or the program bakes.
+  const [jogState, setJog] = useState<(Jog & { baked: unknown }) | null>(null);
+  const [jogRobot, setJogRobot] = useState<string | null>(null);
   const [preview, setPreview] = useState<GeneratedPoses | null>(null);
   const [chartRobot, setChartRobot] = useState<string | null>(null);
   const [speed, setSpeed] = useState(1);
@@ -157,8 +164,34 @@ export function App() {
   const setSelected = (id: string | null) => setSelection({ opened, value: id });
   // The frame tree's runtime: a new one for every bake.
   const onRuntime = useCallback((r: FrameTreeRuntime) => setRuntime(r), []);
-  // World poses with the edit in progress drawn over the bake.
-  const overrides = editing?.overrides ?? NO_OVERRIDES;
+  const jogK = useThrottledPlayhead(playhead, 50);
+  const jogging = current !== null && mode === "motion" && motionPanel === "jog" && !playing;
+  const jogFrames = useMemo(() => {
+    const robot = jogRobot ?? current?.loaded.scene.robots?.[0]?.id;
+    return robot && current ? { robot, frames: robotFrames(current.loaded.robots, robot) } : null;
+  }, [current, jogRobot]);
+  const jog = useMemo<Jog | null>(() => {
+    if (!jogging || !current || !jogFrames) return null;
+    if (jogState && jogState.baked === current.baked && jogState.k === jogK && jogState.robot === jogFrames.robot) {
+      return jogState;
+    }
+    const q = bakedQ(current.baked, jogFrames.robot, jogK);
+    return q ? { robot: jogFrames.robot, q, k: jogK } : null;
+  }, [jogging, current, jogFrames, jogState, jogK]);
+  const updateJog = (j: Jog) => current && setJog({ ...j, baked: current.baked });
+  const jogOverridesNow = useMemo(
+    () =>
+      jog && runtime && current && jogFrames?.frames
+        ? jogOverrides(current.session, runtime, current.loaded.scene, current.baked.frames, jogFrames.frames.base, jog)
+        : NO_OVERRIDES,
+    [jog, runtime, current, jogFrames],
+  );
+  // World poses with the edit in progress (or the jogged robot) drawn over the bake.
+  const editOverrides = editing?.overrides ?? NO_OVERRIDES;
+  const overrides = useMemo(
+    () => (jogOverridesNow.length === 0 ? editOverrides : [...editOverrides, ...jogOverridesNow]),
+    [editOverrides, jogOverridesNow],
+  );
   // Cameras with physical optics are baked at their entrance pupil; the document places them by
   // their bodies (ADR 0008).
   const bodies = useMemo<Bodies>(() => {
@@ -381,8 +414,23 @@ export function App() {
     handled && isRobot(selected)
       ? `${selected}/${current?.loaded.robots.find((r) => r.id === selected)?.manifest.base_link}`
       : selected;
+  const jogGizmo: GizmoTarget | null =
+    jog && current && jogFrames?.frames
+      ? {
+          frame: jogFrames.frames.tcp,
+          parent: jogFrames.frames.base,
+          placement: current.session.robotTcp(jog.robot, jog.q).base_se3_tcp,
+          onPreview: (pose) => {
+            const answer = current.session.robotIk(jog.robot, pose, jog.q, { restarts: 0 });
+            updateJog({ ...jog, q: answer.converged ? answer.q : jog.q, unreachable: !answer.converged });
+          },
+          onCommit: () => {},
+          onCancel: () => {},
+        }
+      : null;
   const gizmo: GizmoTarget | null =
-    handled && handleFrame !== null && selected !== null
+    jogGizmo ??
+    (handled && handleFrame !== null && selected !== null
       ? {
           frame: handleFrame,
           parent: handled.parent,
@@ -402,7 +450,31 @@ export function App() {
           onCommit: studio.commit,
           onCancel: studio.cancel,
         }
-      : null;
+      : null);
+
+  // Each robot's TCP over the program (the Motion workspace).
+  const tcpPaths = useMemo(
+    () =>
+      current
+        ? (current.loaded.scene.robots ?? []).flatMap((r) => {
+            const frames = robotFrames(current.loaded.robots, r.id);
+            const path = frames && tcpPath(current.baked, frames.tcp);
+            return path ? [path] : [];
+          })
+        : [],
+    [current],
+  );
+
+  // The jogged pose as a program step (and a capture), the playhead at its end.
+  const teachJog = (capture: boolean) => {
+    if (!jog || !current) return;
+    const tcp = current.session.robotTcp(jog.robot, jog.q).base_se3_tcp;
+    const scenario = teach(current.loaded.scenario, jog.robot, jog.q, tcp, capture);
+    if (studio.setScenario(scenario, capture ? "teach a capture" : "teach a pose")) {
+      const baked = studio.get().current?.baked;
+      if (baked) playhead.set(baked.samples.length - 1);
+    }
+  };
 
   const viewport = current ? (
     <Viewport
@@ -416,6 +488,7 @@ export function App() {
       bodies={bodies}
       poses={bodyPose}
       gizmo={gizmo}
+      paths={mode === "motion" ? tcpPaths : undefined}
     />
   ) : null;
 
@@ -707,14 +780,34 @@ export function App() {
             value={motionPanel}
             options={[
               { value: "program", label: "Program" },
+              { value: "jog", label: "Jog" },
               { value: "generate", label: "Generate poses" },
             ]}
-            onValueChange={(v) => (v === "program" || v === "generate") && setMotionPanel(v)}
+            onValueChange={(v) => {
+              if (v === "program" || v === "generate" || v === "jog") setMotionPanel(v);
+              if (v === "jog") studio.setPlaying(false);
+            }}
             aria-label="Motion panel"
           />
         </div>
         <div className="min-h-0 flex-1 overflow-auto">
-          {motionPanel === "generate" ? (
+          {motionPanel === "jog" ? (
+            jog ? (
+              <JogPanel
+                session={current.session}
+                robots={current.loaded.robots}
+                jog={jog}
+                onJog={updateJog}
+                onReset={(robot) => {
+                  setJog(null);
+                  setJogRobot(robot);
+                }}
+                onTeach={teachJog}
+              />
+            ) : (
+              <Empty>{playing ? "Pause to jog." : "The cell has no robot to jog."}</Empty>
+            )
+          ) : motionPanel === "generate" ? (
             <GeneratorPanel
               key={opened}
               session={current.session}
@@ -755,7 +848,15 @@ export function App() {
                   {report.steps.reduce((n, s) => n + (s.warnings?.length ?? 0), 0)} warnings
                 </div>
               )}
-              <StepList scenario={current.loaded.scenario} baked={current.baked} report={report} playhead={playhead} />
+              <StepList
+                scenario={current.loaded.scenario}
+                baked={current.baked}
+                report={report}
+                playhead={playhead}
+                onSteps={(steps, label) =>
+                  current.loaded.scenario && studio.setScenario({ ...current.loaded.scenario, steps }, label)
+                }
+              />
             </Panel>
           )}
         </div>

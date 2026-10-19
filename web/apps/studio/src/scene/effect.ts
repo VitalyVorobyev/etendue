@@ -117,3 +117,15 @@ export function followers(scene: SceneSpec, frames: readonly string[], id: strin
   }
   return new Set(frames.filter((f) => owners.has(ownerOf(f))));
 }
+
+/**
+ * The baked frames of whatever is attached to `frame` (a robot link, say), and everything below
+ * it, at any depth; `frame` itself is not included.
+ */
+export function hangingOn(scene: SceneSpec, frames: readonly string[], frame: string): Set<string> {
+  const out = new Set<string>();
+  for (const { entity } of placed(scene)) {
+    if (entity.parent === frame) for (const f of followers(scene, frames, entity.id)) out.add(f);
+  }
+  return out;
+}

@@ -3,7 +3,7 @@
 //! All poses are relative to the robot's **base link** (`base_se3_x`), not
 //! the URDF root, so a `world` dummy root in the URDF has no effect.
 
-use nalgebra::{DMatrix, Isometry3, Vector3};
+use nalgebra::{DMatrix, Isometry3, Matrix6, Vector3};
 
 use crate::urdf::{JointKind, RobotModel};
 
@@ -92,5 +92,35 @@ impl RobotModel {
             }
         }
         (acc, jac)
+    }
+}
+
+/// `J·Jᵀ` of a 6 × n Jacobian, summed in order. nalgebra hands dynamic products to
+/// `matrixmultiply`, whose native kernels fuse multiply-adds that its wasm path does not, so IK
+/// would differ by an ulp between the two (gate G12.1).
+pub(crate) fn jjt(jac: &DMatrix<f64>) -> Matrix6<f64> {
+    Matrix6::from_fn(|r, c| (0..jac.ncols()).fold(0.0, |acc, k| acc + jac[(r, k)] * jac[(c, k)]))
+}
+
+impl RobotModel {
+    /// Yoshikawa's manipulability at `q`: `√det(J Jᵀ)` (`√det(JᵀJ)` with fewer than six
+    /// joints), zero at a singularity.
+    ///
+    /// # Panics
+    ///
+    /// If `q.len() != self.dof()`.
+    #[must_use]
+    pub fn manipulability(&self, q: &[f64]) -> f64 {
+        let (_, jac) = self.tcp_jacobian(q);
+        let det = if jac.ncols() >= 6 {
+            jjt(&jac).determinant()
+        } else {
+            let n = jac.ncols();
+            DMatrix::from_fn(n, n, |r, c| {
+                (0..6).fold(0.0, |acc, k| acc + jac[(k, r)] * jac[(k, c)])
+            })
+            .determinant()
+        };
+        det.max(0.0).sqrt()
     }
 }

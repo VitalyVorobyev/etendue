@@ -40,6 +40,7 @@ export function SliderRow({
   precision = 1,
   live,
   testId,
+  title,
 }: {
   label: string;
   /** In stored units. */
@@ -56,11 +57,13 @@ export function SliderRow({
   /** `null`: read only. */
   live: Live<number> | null;
   testId?: string | undefined;
+  /** What the label stands for, on hover (a full name the label shortens). */
+  title?: string | undefined;
 }) {
   const shown = value * scale;
   return (
     <>
-      <RowLabel>{label}</RowLabel>
+      <RowLabel title={title}>{label}</RowLabel>
       <div className="min-w-0" data-testid={testId}>
         <Slider
           aria-label={label}
