@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "id": "imx174",
+  "name": "Sony IMX174 (global shutter, 1/1.2\")",
+  "description": "Values are illustrative: check them against the datasheet before a real design.",
+  "sensor": {
+    "pixel_pitch_m": 0.00000586,
+    "resolution": [
+      1936,
+      1216
+    ],
+    "well_depth_e": 32000,
+    "read_noise_e": 6,
+    "peak_qe": 0.78
+  }
+}

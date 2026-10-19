@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ProjectManifest",
+  "description": "`etendue-project.json`.",
+  "type": "object",
+  "properties": {
+    "cells": {
+      "description": "The cell folders, each holding `scene.json` and usually `scenario.json`.",
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "string"
+      }
+    },
+    "defaults": {
+      "description": "What new things are made from.",
+      "$ref": "#/$defs/ProjectDefaults",
+      "default": {}
+    },
+    "name": {
+      "description": "What the project is.",
+      "type": "string"
+    },
+    "robots": {
+      "description": "Robots that come with the project: folders holding `robot.json`.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "version": {
+      "description": "Format version, [`PROJECT_VERSION`].",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "name"
+  ],
+  "$defs": {
+    "ProjectDefaults": {
+      "description": "What new things in the studio are made from: library references.",
+      "type": "object",
+      "properties": {
+        "camera": {
+          "description": "A camera design (`cameras/<id>`).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "laser": {
+          "description": "A laser part (`lasers/<id>`).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "target": {
+          "description": "A target part (`targets/<id>`).",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

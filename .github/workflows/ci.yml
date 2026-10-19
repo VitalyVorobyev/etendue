@@ -98,6 +98,8 @@ jobs:
             cargo run -q -p etendue-cli -- validate examples/$ex/scene.json examples/$ex/scenario.json
             cargo run -q -p etendue-cli -- bake examples/$ex/scene.json examples/$ex/scenario.json -o target/$ex.baked.json
           done
+          # The examples as a project (ADR 0009): manifest, cells, library, defaults.
+          cargo run -q -p etendue-cli -- project check examples
 
       - name: Set up uv
         uses: astral-sh/setup-uv@v10.2.0

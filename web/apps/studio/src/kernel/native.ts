@@ -6,7 +6,7 @@
  * `etendue_cli::{progress, gt, render, detect}`.
  */
 
-import type { ScenarioSpec, SceneSpec } from "@etendue/wasm";
+import type { ProjectManifest, ScenarioSpec, SceneSpec } from "@etendue/wasm";
 import { Channel, invoke } from "@tauri-apps/api/core";
 
 import { normalize } from "../io/tauri";
@@ -186,4 +186,12 @@ export function saveScene(args: {
   from: string | null;
 }): Promise<SceneSpec> {
   return invoke<SceneSpec>("save_scene", args);
+}
+
+/**
+ * Open the project folder `dir` (ADR 0009): the shell checks its `etendue-project.json` and makes
+ * the folder readable and writable. Rejects for a folder without a valid manifest.
+ */
+export function openProjectDir(dir: string): Promise<ProjectManifest> {
+  return invoke<ProjectManifest>("open_project", { dir });
 }

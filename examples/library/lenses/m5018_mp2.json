@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "id": "m5018_mp2",
+  "name": "Computar M5018-MP2 (50 mm C-mount)",
+  "description": "Values are illustrative: check them against the datasheet before a real design. Principal-plane gap and pupil position unknown: a thin lens.",
+  "lens": {
+    "focal_length_m": 0.05,
+    "min_f_number": 1.8,
+    "mount": "c_mount",
+    "fov_diagonal_deg": 15.3
+  }
+}

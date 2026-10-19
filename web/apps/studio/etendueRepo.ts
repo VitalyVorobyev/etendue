@@ -1,7 +1,7 @@
 /**
- * Serves the repository's example scenes and robot assets to the studio under `/repo/`, and
- * lists the examples as the virtual module `virtual:etendue-examples` and the robot library as
- * `virtual:etendue-robots`.
+ * Serves the repository's examples project (ADR 0009) and robot assets to the studio under
+ * `/repo/`, with a listing (`.index.json`) in every folder of the project, and lists the robot
+ * library as the virtual module `virtual:etendue-robots`.
  *
  * - dev: a middleware reads `examples/**`, `assets/robots/**` and the local-only
  *   `assets/robots-local/**` from the checkout;
@@ -13,7 +13,7 @@
  */
 
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { extname, join, relative, resolve, sep } from "node:path";
+import { dirname, extname, join, relative, resolve, sep } from "node:path";
 
 import type { Plugin } from "vite";
 
@@ -21,7 +21,6 @@ const ROOT = resolve(import.meta.dirname, "../../..");
 const SERVED = ["examples", "assets/robots"];
 /** Served in development only: robots without a redistribution licence. */
 const LOCAL = "assets/robots-local";
-const VIRTUAL = "virtual:etendue-examples";
 const ROBOTS = "virtual:etendue-robots";
 const TYPES: Record<string, string> = {
   ".json": "application/json",
@@ -38,18 +37,15 @@ function* walk(dir: string): Generator<string> {
   }
 }
 
-/** Every example: a directory of `examples/` with a `scene.json`. */
-function examples() {
-  return readdirSync(join(ROOT, "examples"))
-    .filter((id) => existsSync(join(ROOT, "examples", id, "scene.json")))
-    .sort()
-    .map((id) => {
-      const scene = JSON.parse(readFileSync(join(ROOT, "examples", id, "scene.json"), "utf8")) as {
-        description?: string;
-      };
-      const scenario = existsSync(join(ROOT, "examples", id, "scenario.json")) ? `examples/${id}/scenario.json` : null;
-      return { id, description: scene.description ?? "", scene: `examples/${id}/scene.json`, scenario };
-    });
+/** Folders whose listing the studio reads (a project's library): `<dir>/.index.json`. */
+const LISTED = "examples";
+const INDEX = ".index.json";
+
+/** The names of the files in `dir`, sorted. */
+function listing(dir: string): string[] {
+  return readdirSync(dir)
+    .filter((name) => statSync(join(dir, name)).isFile())
+    .sort();
 }
 
 /** The robot library: every `robot.json` of `assets/robots/` (and, with `local`, `assets/robots-local/`). */
@@ -78,10 +74,9 @@ export function etendueRepo(): Plugin {
       serving = env.command === "serve";
     },
     resolveId(id) {
-      return id === VIRTUAL || id === ROBOTS ? `\0${id}` : null;
+      return id === ROBOTS ? `\0${id}` : null;
     },
     load(id) {
-      if (id === `\0${VIRTUAL}`) return `export default ${JSON.stringify(examples())};`;
       if (id === `\0${ROBOTS}`) return `export default ${JSON.stringify(robots(serving))};`;
       return null;
     },
@@ -89,6 +84,13 @@ export function etendueRepo(): Plugin {
       server.middlewares.use("/repo", (req, res, next) => {
         const path = decodeURIComponent((req.url ?? "/").split("?")[0]!).replace(/^\/+/, "");
         const file = resolve(ROOT, path);
+        if (path.endsWith(`/${INDEX}`)) {
+          const dir = dirname(file);
+          if (!dir.startsWith(join(ROOT, LISTED)) || !existsSync(dir) || !statSync(dir).isDirectory()) return next();
+          res.setHeader("Content-Type", "application/json");
+          res.end(JSON.stringify(listing(dir)));
+          return;
+        }
         const allowed = [...SERVED, LOCAL].some((dir) => file.startsWith(join(ROOT, dir) + sep));
         if (!allowed || !existsSync(file) || !statSync(file).isFile()) return next();
         res.setHeader("Content-Type", TYPES[extname(file)] ?? "application/octet-stream");
@@ -99,6 +101,7 @@ export function etendueRepo(): Plugin {
       // A Tauri build reads the examples and the robot library from its bundled resources (and
       // the checkout in development), never from dist/repo: do not ship them twice.
       if (process.env.TAURI_ENV_PLATFORM !== undefined) return;
+      const folders = new Set<string>();
       for (const dir of SERVED) {
         for (const file of walk(join(ROOT, dir))) {
           this.emitFile({
@@ -106,7 +109,16 @@ export function etendueRepo(): Plugin {
             fileName: `repo/${relative(ROOT, file).split(sep).join("/")}`,
             source: readFileSync(file),
           });
+          if (dir === LISTED) folders.add(dirname(file));
         }
+      }
+      // A served folder cannot be listed over HTTP: each project folder carries its listing.
+      for (const dir of folders) {
+        this.emitFile({
+          type: "asset",
+          fileName: `repo/${relative(ROOT, dir).split(sep).join("/")}/${INDEX}`,
+          source: JSON.stringify(listing(dir)),
+        });
       }
     },
   };

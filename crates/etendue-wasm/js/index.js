@@ -8,6 +8,7 @@ import init, {
   expandRig as rawExpandRig,
   initSync,
   poleCircumferences as rawPoleCircumferences,
+  validateLibraryItem as rawValidateLibraryItem,
 } from "./etendue_wasm.js";
 
 export { init as default, initSync };
@@ -116,6 +117,10 @@ export function poleCircumferences() {
 
 export function deriveOptics(optics, params) {
   return JSON.parse(rawDeriveOptics(text(optics), text(params)));
+}
+
+export function validateLibraryItem(text) {
+  return JSON.parse(rawValidateLibraryItem(typeof text === "string" ? text : JSON.stringify(text)));
 }
 
 export function expandRig(layout, rigId) {

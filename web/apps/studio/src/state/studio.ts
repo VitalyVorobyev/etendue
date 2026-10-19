@@ -7,14 +7,23 @@
 import type { ScenarioSpec, SceneSpec } from "@etendue/wasm";
 import { type Playhead, toast } from "@vitavision/workbench";
 import { useSyncExternalStore } from "react";
-import examples from "virtual:etendue-examples";
 
 import { download, jsonText } from "../io/export";
 import { type LoadedRobot, type LoadedScene, documentKind, loadRobot, loadScene } from "../io/load";
+import { PROJECT_FILE, type Project, type ProjectWriter, addCell, createProject, loadProject } from "../io/project";
+import { canOpenFolders, folderSource, pickFolder, regrant, rememberFolder, rememberedFolder } from "../io/folder";
 import { type FileSource, filePath, filesSource, urlSource } from "../io/source";
-import { fsSource, isTauri, normalize, parentDir, splitAbsolute } from "../io/tauri";
-import { type Baked, type KernelFailure, bakeScene, describeFailure, rebake } from "../kernel/etendue";
-import { type Dataset, dataRoot, saveDialog, saveScene } from "../kernel/native";
+import { absolute, fsSource, isTauri, normalize, parentDir, splitAbsolute } from "../io/tauri";
+import { type Baked, type KernelFailure, bakeScene, describeFailure, initKernel, rebake } from "../kernel/etendue";
+import {
+  type Dataset,
+  dataRoot,
+  openProjectDir,
+  pickDirectory,
+  saveDialog,
+  saveScene,
+  writeText,
+} from "../kernel/native";
 import { type PoseOverride, overridesOf } from "../kernel/posed";
 import { followers, sceneEffect } from "../scene/effect";
 
@@ -63,6 +72,10 @@ export interface StudioState {
   opened: number;
   /** The edit in progress, if any. */
   preview: Preview | null;
+  /** The open project: its cells, its library, its defaults (ADR 0009). */
+  project: Project | null;
+  /** A project folder opened in an earlier session that the browser must be allowed again. */
+  reopenable: string | null;
 }
 
 /** One entry of the undo or redo stack: the document before (or after) an edit. */
@@ -172,6 +185,8 @@ export class Studio {
     saveTo: null,
     opened: 0,
     preview: null,
+    project: null,
+    reopenable: null,
   };
   readonly #listeners = new Set<() => void>();
   #generation = 0;
@@ -179,6 +194,11 @@ export class Studio {
   #redo: Step[] = [];
   /** The document as opened or last saved. */
   #saved: Doc | null = null;
+  #starting = false;
+  /** The reference project (the bundled examples): what new projects start from. */
+  #starter: Project | null = null;
+  /** The browser folder to ask for again (`reopenable`). */
+  #remembered: Parameters<typeof regrant>[0] | null = null;
   /** The open transaction: its label and the document before it. */
   #tx: { label: string; before: Doc } | null = null;
   /** A previewed document waiting for its bake (at most one bake per animation frame). */
@@ -203,16 +223,19 @@ export class Studio {
   /** Start or stop playback. */
   readonly setPlaying = (playing: boolean): void => this.#set({ playing });
 
-  /** Open the example `id` (see `virtual:etendue-examples`). */
+  /** Open cell `id` of the open project (one of `project.cells`). */
   readonly openExample = (id: string): void => {
-    const ex = examples.find((e) => e.id === id);
-    if (!ex) return;
-    this.#set({ example: id });
-    void this.#open(ex.id, async () => {
-      const repo = await repository();
-      return loadScene(repo, ex.scene, ex.scenario, repo);
-    });
+    const project = this.#state.project;
+    if (project) this.#openCell(project, id);
   };
+
+  /** Open cell `id` of `project`; it is the open project's cell only if `project` is open. */
+  #openCell(project: Project, id: string): void {
+    const cell = project.cells.find((c) => c.id === id);
+    if (!cell) return;
+    this.#set({ example: project === this.#state.project ? id : "" });
+    void this.#open(cell.id, async () => loadScene(project.source, cell.scene, cell.scenario, await repository()));
+  }
 
   /** Open files picked by absolute path (the Tauri shell's file dialog). */
   readonly openPaths = (paths: string[]): void => {
@@ -449,6 +472,27 @@ export class Studio {
     const current = this.#state.current;
     if (!current) return false;
     const doc = docOf(current);
+    // A cell of a project opened for writing is saved where it is.
+    const project = this.#state.project;
+    const cell = project?.cells.find((c) => c.id === this.#state.example);
+    if (!as && project?.write && cell) {
+      try {
+        await project.write(`${cell.id}/scene.json`, jsonText(doc.scene));
+        if (doc.scenario) await project.write(`${cell.id}/scenario.json`, jsonText(doc.scenario));
+        this.#saved = doc;
+        this.#publishHistory();
+        toast({
+          title: "Saved",
+          description: `${project.manifest.name} / ${cell.id}`,
+          tone: "success",
+          duration: 2500,
+        });
+        return true;
+      } catch (e) {
+        toast({ title: "Could not save", description: e instanceof Error ? e.message : String(e), tone: "error" });
+        return false;
+      }
+    }
     if (!isTauri()) {
       download({ name: "scene.json", text: jsonText(doc.scene), type: "application/json" });
       if (doc.scenario) download({ name: "scenario.json", text: jsonText(doc.scenario), type: "application/json" });
@@ -530,10 +574,130 @@ export class Studio {
     void this.#open(`${files.length} file(s)`, () => loadDropped(files));
   };
 
-  /** Open `id` unless something is loaded or loading already (safe to call on every mount). */
+  /**
+   * Open the reference project (the repository's `examples/`), then its cell `id` (or its first),
+   * unless something is loaded or loading already (safe to call on every mount).
+   */
   start(id: string): void {
-    if (this.#state.current === null && !this.#state.loading && this.#generation === 0) this.openExample(id);
+    if (this.#state.current !== null || this.#state.loading || this.#generation !== 0 || this.#starting) return;
+    this.#starting = true;
+    this.#set({ loading: true });
+    // Library items are checked by the kernel.
+    void Promise.all([repository(), initKernel()])
+      .then(([repo]) => loadProject(repo, "examples"))
+      .then(async (starter) => {
+        this.#starter = starter;
+        // An example asked for by name wins; otherwise the project last opened, if it still opens.
+        const project = (id === "" ? await this.#reopen() : null) ?? starter;
+        for (const p of project.problems) console.warn(`project: ${p.path}: ${p.message}`);
+        this.#set({ project, loading: false });
+        if (this.#state.current === null && this.#generation === 0) {
+          // A project without cells yet starts from an example, to save into it as a cell.
+          const from = project.cells.length > 0 ? project : starter;
+          this.#openCell(from, from.cells.some((c) => c.id === id) ? id : (from.cells[0]?.id ?? ""));
+        }
+      })
+      .catch((e: unknown) => {
+        const failure = describeFailure(e);
+        this.#set({ failure: { ...failure, title: "The examples project did not open" }, loading: false });
+      });
   }
+
+  /** The project of the last session, if it opens without asking (else `reopenable` is set). */
+  async #reopen(): Promise<Project | null> {
+    try {
+      if (isTauri()) {
+        const dir = localStorage.getItem(PROJECT_KEY);
+        return dir ? await tauriProject(dir) : null;
+      }
+      const remembered = canOpenFolders() ? await rememberedFolder() : null;
+      if (!remembered) return null;
+      if (remembered.granted) return await browserProject(remembered.handle);
+      this.#remembered = remembered.handle;
+      this.#set({ reopenable: remembered.handle.name });
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Whether this studio can open and create project folders here. */
+  readonly canOpenProjects = (): boolean => isTauri() || canOpenFolders();
+
+  /** Ask for a project folder and open it, or (`create`) make a new project there first. */
+  readonly openProject = async (create = false): Promise<void> => {
+    try {
+      let project: Project | null;
+      if (isTauri()) {
+        const dir = await pickDirectory(create ? "Choose a folder for the new project" : "Open a project folder");
+        if (dir === null) return;
+        if (create) await this.#create((path, text) => writeText(absolute(dir, path), text), folderName(dir), dir);
+        project = await tauriProject(dir);
+      } else {
+        const handle = await pickFolder();
+        if (handle === null) return;
+        const source = folderSource(handle);
+        if (create) await this.#create(source.write, handle.name, handle.name, await source.has(PROJECT_FILE));
+        project = await browserProject(handle);
+      }
+      this.#use(project);
+    } catch (e) {
+      toast({
+        title: create ? "Could not create the project" : "Could not open the project",
+        description: e instanceof Error ? e.message : String(e),
+        tone: "error",
+      });
+    }
+  };
+
+  /** Allow the remembered browser folder again (a click) and open it. */
+  readonly reopenProject = async (): Promise<void> => {
+    const handle = this.#remembered;
+    if (!handle || !(await regrant(handle))) return;
+    this.#remembered = null;
+    this.#set({ reopenable: null });
+    this.#use(await browserProject(handle));
+  };
+
+  async #create(write: ProjectWriter, name: string, where: string, exists = false): Promise<void> {
+    if (!this.#starter) throw new Error("the examples project has not loaded");
+    if (exists || (isTauri() && (await pathExistsAbs(absolute(where, PROJECT_FILE))))) {
+      throw new Error(`${where} is already a project: open it instead`);
+    }
+    await createProject(write, name, this.#starter);
+  }
+
+  #use(project: Project): void {
+    this.commit();
+    for (const p of project.problems) console.warn(`project: ${p.path}: ${p.message}`);
+    this.#set({ project });
+    if (project.cells[0]) this.openExample(project.cells[0].id);
+    else this.#set({ example: "" });
+    toast({ title: `Opened ${project.manifest.name}`, description: project.location, tone: "success", duration: 2500 });
+  }
+
+  /** Save the open scene and scenario as a new cell `id` of the open project. */
+  readonly saveAsCell = async (id: string): Promise<boolean> => {
+    this.commit();
+    const current = this.#state.current;
+    const project = this.#state.project;
+    if (!current || !project) return false;
+    try {
+      const next = await addCell(project, id, current.loaded.scene, current.loaded.scenario);
+      this.#saved = docOf(current);
+      this.#set({ project: next, example: id });
+      this.#publishHistory();
+      toast({ title: `Saved as ${id}`, description: project.location, tone: "success", duration: 2500 });
+      return true;
+    } catch (e) {
+      toast({
+        title: "Could not save the cell",
+        description: e instanceof Error ? e.message : String(e),
+        tone: "error",
+      });
+      return false;
+    }
+  };
 
   /** Free the kernel session. */
   dispose(): void {
@@ -575,6 +739,37 @@ export class Studio {
   }
 }
 
+/** Where the desktop app remembers the last project folder. */
+const PROJECT_KEY = "etendue-studio:project";
+
+function folderName(dir: string): string {
+  return normalize(dir).replace(/\/+$/, "").split("/").at(-1) ?? dir;
+}
+
+/** A project folder on disk, through the shell (which checks it and allows it). */
+async function tauriProject(dir: string): Promise<Project> {
+  await openProjectDir(dir);
+  try {
+    localStorage.setItem(PROJECT_KEY, dir);
+  } catch {
+    // Remembering the project is a convenience.
+  }
+  return loadProject(fsSource(dir, folderName(dir)), "", (path, text) => writeText(absolute(dir, path), text), dir);
+}
+
+/** A project folder opened in the browser. */
+async function browserProject(handle: Parameters<typeof folderSource>[0]): Promise<Project> {
+  const source = folderSource(handle);
+  const project = await loadProject(source, "", source.write, handle.name);
+  await rememberFolder(handle);
+  return project;
+}
+
+async function pathExistsAbs(path: string): Promise<boolean> {
+  const { root, relative } = splitAbsolute(path);
+  return fsSource(root).has(relative);
+}
+
 function docOf(baked: Baked): Doc {
   return { scene: baked.loaded.scene, scenario: baked.loaded.scenario, robots: baked.loaded.robots };
 }
@@ -588,8 +783,7 @@ export function useStudio(studio: Studio): StudioState {
   return useSyncExternalStore(studio.subscribe, studio.get, studio.get);
 }
 
-/** The example named by `?example=`, else the first. */
+/** The cell named by `?example=`, if any (the project's first otherwise). */
 export function initialExample(): string {
-  const wanted = new URLSearchParams(window.location.search).get("example");
-  return examples.find((e) => e.id === wanted)?.id ?? examples[0]?.id ?? "";
+  return new URLSearchParams(window.location.search).get("example") ?? "";
 }

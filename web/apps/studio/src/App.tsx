@@ -14,12 +14,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import library, { type LibraryRobot } from "virtual:etendue-robots";
 
 import { exportFile, jsonText } from "./io/export";
+import { type Cell, defaultOf } from "./io/project";
 import { fileUrl, isTauri, parentDir } from "./io/tauri";
 import { describeFailure } from "./kernel/etendue";
 import { type Bodies, type PoseOverride, bodyPoses, posed } from "./kernel/posed";
 import type { GeneratedPoses } from "@etendue/wasm";
 import { scenarioFromPoses } from "./kernel/native";
 import { CameraGrid } from "./panels/CameraGrid";
+import { CellDialog } from "./panels/CellDialog";
 import { DatasetPanel } from "./panels/DatasetPanel";
 import { GeneratorPanel } from "./panels/GeneratorPanel";
 import { type ExportItem, Header, type Mode } from "./panels/Header";
@@ -51,6 +53,7 @@ interface Scoped<T> {
 
 const MODE_KEY = "etendue-studio:mode";
 const NO_OVERRIDES: readonly PoseOverride[] = [];
+const NO_CELLS: readonly Cell[] = [];
 
 function storedMode(modes: Mode[]): Mode {
   try {
@@ -83,7 +86,10 @@ export function App() {
     dirty,
     opened,
     preview: editing,
+    project,
+    reopenable,
   } = useStudio(studio);
+  const [cellDialog, setCellDialog] = useState(false);
   const { playhead } = studio;
   const modes = useMemo<Mode[]>(() => ["setup", "motion", "images", ...(isTauri() ? ["dataset" as const] : [])], []);
   const [mode, setModeState] = useState<Mode>(() => storedMode(modes));
@@ -285,7 +291,11 @@ export function App() {
     if (!current) return;
     // Attach to the selected frame (a link, an entity), else to the world.
     const parent = selected !== null && current.baked.frames.includes(selected) ? selected : "world";
-    const entity = newEntity(current.loaded.scene, list, parent);
+    const entity = newEntity(current.loaded.scene, list, parent, {
+      camera: defaultOf(project, "camera"),
+      laser: defaultOf(project, "laser"),
+      target: defaultOf(project, "target"),
+    });
     if (studio.edit(`add ${entity.id}`, (d) => ({ ...d, scene: addEntity(d.scene, list, entity) }))) {
       setSelected(entity.id);
     }
@@ -602,7 +612,13 @@ export function App() {
             onUndo={studio.undo}
             onRedo={studio.redo}
             example={example}
+            project={project ? { name: project.manifest.name, writable: project.write !== null } : null}
+            cells={project?.cells ?? NO_CELLS}
             onExample={studio.openExample}
+            onProject={studio.canOpenProjects() ? (create) => void studio.openProject(create) : null}
+            reopenable={reopenable}
+            onReopen={() => void studio.reopenProject()}
+            onSaveAsCell={current && project?.write ? () => setCellDialog(true) : null}
             onFiles={studio.openFiles}
             onPaths={studio.openPaths}
             onPoses={current ? importPoses : null}
@@ -632,6 +648,15 @@ export function App() {
           )
         }
       />
+      {project && (
+        <CellDialog
+          open={cellDialog}
+          onOpenChange={setCellDialog}
+          project={project.manifest.name}
+          taken={project.manifest.cells ?? []}
+          onSave={studio.saveAsCell}
+        />
+      )}
       <Toaster />
     </>
   );

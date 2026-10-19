@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "id": "imx249",
+  "name": "Sony IMX249 (global shutter, 1/1.2\")",
+  "description": "Values are illustrative: check them against the datasheet before a real design.",
+  "sensor": {
+    "pixel_pitch_m": 0.00000586,
+    "resolution": [
+      1920,
+      1200
+    ],
+    "well_depth_e": 33000,
+    "read_noise_e": 7,
+    "peak_qe": 0.72
+  }
+}

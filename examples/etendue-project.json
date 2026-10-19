@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "name": "etendue examples",
+  "cells": [
+    "closed_loop_ur5e",
+    "eye_in_hand_ur5e",
+    "eye_to_hand_ur5e",
+    "laser_scheimpflug_ur5e",
+    "laser_ur5e",
+    "rig3_laser_ur5e"
+  ],
+  "defaults": {
+    "camera": "cameras/imx174_lm25hc",
+    "laser": "lasers/stingray_660",
+    "target": "targets/chess_9x6_20mm"
+  }
+}

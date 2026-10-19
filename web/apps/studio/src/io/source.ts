@@ -15,7 +15,12 @@ export interface FileSource {
   url(path: string): string;
   /** The file's absolute filesystem path, when the source knows it (the Tauri shell). */
   absolute?(path: string): string;
+  /** The names of the files in folder `dir`, sorted; empty for a missing folder. Not every source lists. */
+  list?(dir: string): Promise<string[]>;
 }
+
+/** The listing a served folder carries (the studio's repo plugin writes one per folder of a project). */
+export const INDEX = ".index.json";
 
 /** Files served over HTTP under `base` (e.g. `/repo/`). */
 export function urlSource(base: string, name = base): FileSource {
@@ -31,6 +36,10 @@ export function urlSource(base: string, name = base): FileSource {
       const res = await fetch(url(path));
       if (!res.ok) throw new Error(`${name}: ${path}: HTTP ${res.status}`);
       return res.text();
+    },
+    async list(dir) {
+      const res = await fetch(url(`${dir.replace(/\/$/, "")}/${INDEX}`));
+      return res.ok ? ((await res.json()) as string[]) : [];
     },
   };
 }

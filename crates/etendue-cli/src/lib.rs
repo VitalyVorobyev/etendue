@@ -13,6 +13,7 @@ pub mod gt;
 pub mod load;
 pub mod poses;
 pub mod progress;
+pub mod project;
 pub mod render;
 
 pub use load::{Loaded, bake_file, load, read_json};

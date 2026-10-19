@@ -7,6 +7,7 @@
 
 import type {
   CameraSpec,
+  LibraryItem,
   ScenarioSpec,
   FrameSpec,
   Iso3Schema,
@@ -144,15 +145,37 @@ export function renameEntity(scene: SceneSpec, from: string, to: string): SceneS
   return next;
 }
 
+/**
+ * What new cameras, lasers and targets are made from: the project's default library items
+ * (ADR 0009). Without one, a minimal built-in value is used.
+ */
+export interface EntityDefaults {
+  camera?: LibraryItem | undefined;
+  laser?: LibraryItem | undefined;
+  target?: LibraryItem | undefined;
+}
+
 /** A new entity of `list` with defaults, attached to `parent`, with a fresh id. */
-export function newEntity(scene: SceneSpec, list: EntityList, parent: string): Entity {
+export function newEntity(scene: SceneSpec, list: EntityList, parent: string, defaults: EntityDefaults = {}): Entity {
   const base = { parent, parent_se3_self: IDENTITY };
+  const camera = defaults.camera?.camera;
+  const laser = defaults.laser?.laser;
+  const target = defaults.target?.target;
   switch (list) {
     case "frames":
       return { id: uniqueId(scene, "frame"), ...base };
     case "rigs":
       return { id: uniqueId(scene, "rig"), ...base };
     case "cameras":
+      if (camera) {
+        return {
+          id: uniqueId(scene, "cam"),
+          ...base,
+          params: camera.params,
+          resolution: camera.resolution,
+          ...(camera.optics ? { optics: camera.optics } : {}),
+        };
+      }
       return {
         id: uniqueId(scene, "cam"),
         ...base,
@@ -168,10 +191,10 @@ export function newEntity(scene: SceneSpec, list: EntityList, parent: string): E
       return {
         id: uniqueId(scene, "laser"),
         ...base,
-        fan_half_angle: (20 * Math.PI) / 180,
+        fan_half_angle: laser?.fan_half_angle ?? (20 * Math.PI) / 180,
         fan_length: 1,
-        wavelength_nm: 660,
-        beam_waist_m: 0.0005,
+        wavelength_nm: laser?.wavelength_nm ?? 660,
+        beam_waist_m: laser?.beam_waist_m ?? 0.0005,
       };
     case "lights":
       return {
@@ -185,7 +208,10 @@ export function newEntity(scene: SceneSpec, list: EntityList, parent: string): E
       return {
         id: uniqueId(scene, "board"),
         ...base,
-        geometry: { type: "printed", target: { kind: "chessboard", inner_rows: 6, inner_cols: 9, square_size_mm: 25 } },
+        geometry: target?.geometry ?? {
+          type: "printed",
+          target: { kind: "chessboard", inner_rows: 6, inner_cols: 9, square_size_mm: 25 },
+        },
       };
   }
 }
