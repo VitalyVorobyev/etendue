@@ -88,6 +88,32 @@ test("a pose slider moves the camera live, bakes once on release, and undoes as 
   await expect(world).toHaveText(moved!);
 });
 
+test("the gizmo drags the selection live, keeps it selected, and commits one step", async ({ page }) => {
+  await loaded(page);
+  await page.getByRole("treeitem", { name: /board/ }).click();
+  const world = page.getByTestId("world-pose").locator("summary");
+  const before = await world.textContent();
+  const bakes = () => page.evaluate(() => performance.getEntriesByName("etendue:bake").length);
+  const baked = await bakes();
+
+  const host = page.locator("[data-gizmo-at]");
+  await expect(host).toHaveCount(1);
+  const [gx, gy] = (await host.getAttribute("data-gizmo-at"))!.split(",").map(Number);
+  const box = (await page.getByRole("group", { name: "Scene viewport" }).locator("canvas").boundingBox())!;
+  // The centre handle moves in the view plane.
+  await page.mouse.move(box.x + gx!, box.y + gy!);
+  await page.mouse.down();
+  for (let d = 5; d <= 40; d += 5) await page.mouse.move(box.x + gx! + d, box.y + gy! - d / 2);
+  await expect(world).not.toHaveText(before!);
+  expect(await bakes()).toBe(baked);
+  await page.mouse.up();
+
+  await expect(page.getByRole("button", { name: "Undo move board" })).toBeEnabled();
+  expect(await bakes()).toBe(baked + 1);
+  // The release was not a click on empty space: the board is still selected.
+  await expect(page.getByRole("textbox", { name: "Id" })).toHaveValue("board");
+});
+
 test("an invalid scene reports its issues and keeps the loaded one", async ({ page }) => {
   await loaded(page);
   const scene = JSON.parse(readFileSync(`${ROOT}examples/eye_in_hand_ur5e/scene.json`, "utf8")) as { version: number };

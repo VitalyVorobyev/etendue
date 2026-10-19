@@ -27,7 +27,7 @@ import { Inspector } from "./panels/Inspector";
 import { JointChart, type JointQuantity } from "./panels/JointChart";
 import { Navigator } from "./panels/Navigator";
 import { StepList } from "./panels/StepList";
-import { Viewport } from "./panels/Viewport";
+import { type GizmoTarget, Viewport } from "./panels/Viewport";
 import {
   type EntityList,
   IDENTITY,
@@ -37,6 +37,7 @@ import {
   removeEntity,
   removeRobot,
   uniqueId,
+  updateEntity,
 } from "./scene/edit";
 import { sceneTree } from "./scene/model";
 import { DatasetRunner } from "./state/datasetRun";
@@ -317,6 +318,39 @@ export function App() {
     if (ok) setSelected(null);
   };
 
+  // The selection's handle in the Setup workspace: an entity on its frame, a robot on its base.
+  const shownScene = editing?.doc.scene ?? current?.loaded.scene;
+  const handled =
+    mode === "setup" && shownScene && selected !== null
+      ? (entityOf(shownScene, selected) ?? shownScene.robots?.find((r) => r.id === selected) ?? null)
+      : null;
+  const handleFrame =
+    handled && isRobot(selected)
+      ? `${selected}/${current?.loaded.robots.find((r) => r.id === selected)?.manifest.base_link}`
+      : selected;
+  const gizmo: GizmoTarget | null =
+    handled && handleFrame !== null && selected !== null
+      ? {
+          frame: handleFrame,
+          parent: handled.parent,
+          placement: handled.parent_se3_self,
+          onPreview: (pose) =>
+            studio.preview(`move ${selected}`, (d) => ({
+              ...d,
+              scene: isRobot(selected)
+                ? {
+                    ...d.scene,
+                    robots: (d.scene.robots ?? []).map((r) =>
+                      r.id === selected ? { ...r, parent_se3_self: pose } : r,
+                    ),
+                  }
+                : updateEntity(d.scene, selected, (e) => ({ ...e, parent_se3_self: pose })),
+            })),
+          onCommit: studio.commit,
+          onCancel: studio.cancel,
+        }
+      : null;
+
   const viewport = current ? (
     <Viewport
       current={current}
@@ -326,6 +360,8 @@ export function App() {
       onRuntime={onRuntime}
       candidates={mode === "motion" && motionPanel === "generate" ? preview?.candidates : null}
       overrides={overrides}
+      poses={poses}
+      gizmo={gizmo}
     />
   ) : null;
 
