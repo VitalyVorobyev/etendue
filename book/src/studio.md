@@ -89,8 +89,12 @@ surface; the panels around it hold only what that workspace needs.
     and the voxels seen by at least 1, 2 or all cameras, or measured by a laser and its own
     camera.
   - **Slices** (centre, bottom): the coverage through the rig axis (side) and across it at the
-    working distance (top), and the volumes seen by two cameras and measured against the tilt φ,
-    the current tilt marked.
+    working distance (top), to scale, with the cameras and their axes (dimmed when out of the
+    slice). On the side, a band on each camera's axis is where it is sharp: its depth of field
+    for the blur limit, with its Airy disc, the depths the coverage counts. Handles drag the
+    working distance, ρ, φ (when the axes do not converge) and the box's near, far and width; on
+    the top, ρ and the ring's phase. Beside them, the volumes seen by two cameras and measured
+    against the tilt φ, the current tilt marked.
   - **Figures** (right): the baseline or neighbour distance, the tilt, the angle between the
     axes, where they meet, and the volumes.
 - **Setup**: the cell.

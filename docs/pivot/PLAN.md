@@ -656,7 +656,10 @@ studio code, so no phase waits on a review.
     - The workspace draws the rig in 3-D with its coverage voxels, side and top slices, and a
       chart against φ.
     - Camera units can be refocused on the working distance.
-    - Deferred: drag handles in the slices, and depth-of-field bands.
+    - Deferred: drag handles in the slices, and depth-of-field bands. *Done in P11b:* the slices
+      are drawn to scale with handles (working distance, ρ, φ, phase, box), and each camera's
+      sharp range along its axis (`rig::sharpness`, judged as the coverage judges it) is a band
+      on its axis.
 - **P12 — Robot workspace (in Motion).**
   - **wasm:**
     - `robotLinkPoses(robot, q)`;

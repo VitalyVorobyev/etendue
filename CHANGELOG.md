@@ -122,6 +122,9 @@ calibration datasets with exact ground truth. The 0.1.0 desktop app is replaced 
   width and resolution against range, one-click
   Scheimpflug, an optimiser over tilt, focus and f-number, saving to the library and placing in a
   cell.
+- **Rigs workspace slices**: to scale, with each camera's sharp range along its axis
+  (`etendue-core::rig::sharpness`, `rigSharpness` in `@etendue/wasm`) and handles for the working
+  distance, ρ, φ, the phase and the box.
 - **Focused lasers**: a laser's `waist_distance_m` (scene, rig and library) says where it is
   focused; the beam is narrowest there (`GaussianBeamWidth::with_waist_distance`), for the stripe
   in ground truth, laser images and the Optics workspace. Absent, a scene laser's waist is at the

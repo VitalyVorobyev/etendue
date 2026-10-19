@@ -13,8 +13,10 @@ import {
   type RigCoverage,
   type RigLayout,
   type SceneSpec,
+  type Sharpness,
   expandRig,
   rigCoverage,
+  rigSharpness,
 } from "@etendue/wasm";
 import { imageBorderPixels } from "@vitavision/three";
 import { Matrix4, Quaternion, Vector3 } from "three";
@@ -55,6 +57,8 @@ export interface RigAnalysis {
   fans: RigFan[];
   grid: CoverageGrid;
   coverage: RigCoverage;
+  /** Where each camera is sharp along its axis, as the coverage judges it. */
+  sharp: Sharpness[];
   volumes: RigVolumes;
   /** The angle between camera 0's axis and camera 1's (rad); 0 for one camera. */
   axisAngle: number;
@@ -103,6 +107,7 @@ export function analyse(p: RigParams): RigAnalysis | string {
     const { cameras, lasers } = expandRig(layout, "rig");
     const grid = gridOf(p);
     const coverage = rigCoverage(layout, grid, { max_blur_px: p.max_blur_px });
+    const sharp = rigSharpness(layout, { max_blur_px: p.max_blur_px });
     const scene: SceneSpec = {
       version: 1,
       frames: [{ id: "rig", parent: "world", parent_se3_self: IDENTITY }],
@@ -147,6 +152,7 @@ export function analyse(p: RigParams): RigAnalysis | string {
       fans,
       grid,
       coverage,
+      sharp,
       volumes: volumesOf(coverage, cameras.length),
       axisAngle: c0 && c1 ? axis(c0).angleTo(axis(c1)) : 0,
       neighbour_m: c0 && c1 ? at(c0).distanceTo(at(c1)) : 0,

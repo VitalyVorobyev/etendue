@@ -14,6 +14,7 @@ import init, {
   initSync,
   poleCircumferences as rawPoleCircumferences,
   rigCoverage as rawRigCoverage,
+  rigSharpness as rawRigSharpness,
   validateLibraryItem as rawValidateLibraryItem,
 } from "./etendue_wasm.js";
 
@@ -180,6 +181,10 @@ export function rigCoverage(layout, grid, criteria = {}) {
   const raw = rawRigCoverage(text(layout), text(grid), text(criteria));
   const n = grid.n[0] * grid.n[1] * grid.n[2];
   return { grid, views: raw.subarray(0, n), lit: raw.subarray(n, 2 * n) };
+}
+
+export function rigSharpness(layout, criteria = {}) {
+  return JSON.parse(rawRigSharpness(text(layout), text(criteria)));
 }
 
 export function headSection(design, options = {}) {

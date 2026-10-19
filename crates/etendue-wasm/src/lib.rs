@@ -1041,6 +1041,35 @@ pub fn rig_coverage_js(
     rig_coverage(layout_json, grid_json, criteria_json).map_err(|e| js_error(&e))
 }
 
+/// Where each of `layout_json`'s cameras is sharp along its axis by `criteria_json`, as
+/// coverage judges it (`etendue_core::rig::sharpness`).
+///
+/// # Errors
+///
+/// [`Error::Parse`] for malformed documents; [`Error::Input`] for a bad layout.
+pub fn rig_sharpness(
+    layout_json: &str,
+    criteria_json: &str,
+) -> Result<Vec<etendue_core::rig::Sharpness>> {
+    let layout: etendue_scene::RigLayout = parse("rig layout", layout_json)?;
+    let criteria: etendue_core::rig::Criteria = parse("coverage criteria", criteria_json)?;
+    etendue_core::rig::sharpness(&layout, &criteria).map_err(|e| Error::Input(e.to_string()))
+}
+
+/// See [`rig_sharpness`]; JSON text.
+///
+/// # Errors
+///
+/// Throws an `Error` with `kind`.
+#[wasm_bindgen(js_name = rigSharpness)]
+pub fn rig_sharpness_js(
+    layout_json: &str,
+    criteria_json: &str,
+) -> std::result::Result<String, JsValue> {
+    let ranges = rig_sharpness(layout_json, criteria_json).map_err(|e| js_error(&e))?;
+    serde_json::to_string(&ranges).map_err(|e| js_error(&Error::Input(e.to_string())))
+}
+
 /// How far outside its limits a jogged joint may be (rad or m): a slider at its end.
 const JOG_LIMIT_TOLERANCE: f64 = 1e-9;
 

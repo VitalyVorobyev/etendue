@@ -406,6 +406,16 @@ test("the Rigs workspace lays out a stereo pair and a ring of heads, and places 
   await baseline.press("Enter");
   await expect(figures).toContainText("200 mm");
 
+  // The side slice draws each camera's sharp range along its axis; its ρ handle widens the pair.
+  const side = page.getByTestId("rig-slice-side");
+  await expect(side.locator("[data-sharp]")).toHaveCount(2);
+  const knob = (await side.locator('[data-handle="radius"]').boundingBox())!;
+  await page.mouse.move(knob.x + knob.width / 2, knob.y + knob.height / 2);
+  await page.mouse.down();
+  for (let dx = 5; dx <= 40; dx += 5) await page.mouse.move(knob.x + knob.width / 2 + dx, knob.y + knob.height / 2);
+  await page.mouse.up();
+  await expect(page.getByTestId("baseline").getByRole("spinbutton")).not.toHaveValue(/^200/);
+
   // A ring of the Optics workspace's head: every camera has its laser, and the rig measures.
   await page.getByRole("combobox", { name: "unit" }).click();
   await page.getByRole("option", { name: /\(Optics\)/ }).click();

@@ -137,6 +137,7 @@ const rigLayout = JSON.stringify(ring.layout);
 const rigGrid = JSON.stringify({ ...ring.box, n: [20, 20, 16] });
 const rigCriteria = JSON.stringify({ max_blur_px: 3 });
 const rigCoverage = Array.from(wasm.rigCoverage(rigLayout, rigGrid, rigCriteria));
+const rigSharpness = wasm.rigSharpness(rigLayout, rigCriteria);
 
 // P13: noisy observations of a three-camera laser rig's ground truth (every noise term on).
 const observeScene = read("examples/rig3_laser_ur5e/scene.json");
@@ -176,7 +177,7 @@ process.stdout.write(
       search: headSearch,
       optimum: headOptimum,
     },
-    rig: { layout: rigLayout, grid: rigGrid, criteria: rigCriteria, coverage: rigCoverage },
+    rig: { layout: rigLayout, grid: rigGrid, criteria: rigCriteria, coverage: rigCoverage, sharpness: rigSharpness },
     robot: {
       q: fkQ.map(hex),
       link_poses: fkPoses.map(hex),
