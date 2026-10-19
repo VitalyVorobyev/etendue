@@ -15,13 +15,6 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 vision-calibration-core = { workspace = true }
-argmin = { workspace = true, optional = true }
-argmin-math = { workspace = true, optional = true }
-
-[features]
-# The design-space solvers (`solver`), on argmin. Off by default: argmin pulls
-# `rand` and OS entropy (`getrandom`), which the wasm graph keeps out.
-solver = ["dep:argmin", "dep:argmin-math"]
 
 [dev-dependencies]
 approx = { workspace = true }

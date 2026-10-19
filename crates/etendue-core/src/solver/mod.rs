@@ -14,13 +14,16 @@
 //!   sensor resolution, camera pose, laser plane geometry.
 //! - **Objective**: minimise `max(CoC_px)` over the visible samples of the
 //!   laser plane that fall within the depth window.
-//! - **Solver**: Nelder-Mead (no gradient — the cost is non-smooth at
-//!   visibility / depth-window boundaries).
+//! - **Solver**: Nelder-Mead ([`nelder_mead`], in-tree and deterministic, so it
+//!   builds for wasm; no gradient — the cost is non-smooth at visibility /
+//!   depth-window boundaries), restarted from its best point until a restart
+//!   stops helping.
 //!
 //! Larger design spaces (varying baseline or f-number) and smoother objectives
 //! (mean CoC, in-focus volume) are explicit out-of-scope deferrals — see
 //! `docs/handoff.md` and the project roadmap.
 
+pub mod nelder_mead;
 pub mod scheimpflug;
 
 pub use scheimpflug::{SampleGrid, SolverError, SolverResult, SolverSpec, solve_scheimpflug};
