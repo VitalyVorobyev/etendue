@@ -18,6 +18,7 @@ export const LIBRARY_FOLDERS = {
   laser: "lasers",
   target: "targets",
   camera: "cameras",
+  head: "heads",
   rig: "rigs",
 } as const;
 
@@ -91,7 +92,13 @@ export async function loadProject(
   if (source.list) {
     for (const folder of Object.values(LIBRARY_FOLDERS)) {
       const dir = join(root, `library/${folder}`);
-      const names = (await source.list(dir)).filter((n) => n.endsWith(".json"));
+      let names: string[];
+      try {
+        names = (await source.list(dir)).filter((n) => n.endsWith(".json"));
+      } catch (e) {
+        problems.push({ path: dir, message: e instanceof Error ? e.message : String(e) });
+        continue;
+      }
       const items = await Promise.all(
         names.map(async (name) => {
           const path = `${dir}/${name}`;

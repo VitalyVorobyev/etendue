@@ -1,8 +1,9 @@
-# G10.1 (kernel), G10.2, G10.3: the triangulation head
+# G10.1, G10.2, G10.3: the triangulation head and the Optics workspace
 
-- **Gate G10.1** (`docs/pivot/PLAN.md` P10), kernel side: a head's working-volume map on 64 × 64
-  takes ≤ 30 ms in wasm, so the Optics workspace can redraw it as a slider moves. The studio's
-  redraw time (slider to paint, p95 ≤ 16 ms) is measured with the workspace (P10b).
+- **Gate G10.1** (`docs/pivot/PLAN.md` P10):
+  - kernel: a head's working-volume map on 64 × 64 takes ≤ 30 ms in wasm;
+  - studio: a slider of the Optics workspace redraws the section and the map with JS work per
+    frame p95 ≤ 16 ms.
 - **Gate G10.2:** the Scheimpflug setting puts the plane of best focus on the laser plane, and
   the section's drawing shows it: the traces coincide and the hinge rule holds.
 - **Gate G10.3:** on a thin window the optimiser reproduces the analytic Scheimpflug tilt within
@@ -48,3 +49,25 @@ The Rust tests also use a thick lens with its pupil off H.
 - **With the sensor square to the axis,** on the 120 mm deep window, focus and f-number balance
   defocus against diffraction. The optimum is f/15.3 at a focus of 0.340 m, with a 6.4 px worst
   blur, against 20.4 px at f/4 focused on the aim point.
+
+## G10.1, studio side: PASS
+
+Measured 2026-10-19 on branch `p10b/optics-workspace`, headed Chromium 153 on ANGLE Metal (Apple
+M4 Pro, 120 Hz):
+
+```bash
+cd web/apps/studio && bun x playwright test --config playwright.perf.config.ts perf_optics
+```
+
+The test drags the Optics workspace's focus slider back and forth for 4 s. Every move redraws:
+- the kernel's section, map and Scheimpflug setting;
+- the React panels;
+- the SVG section;
+- the 64 × 48 canvas map.
+
+| | Frames | Interval p50 | Interval p95 | Work p50 | Work p95 | Work max |
+|---|---|---|---|---|---|---|
+| Drag | 482 | 8.3 ms | 10.0 ms | 3.1 ms | **3.7 ms** | 6.8 ms |
+
+The work limit is 16 ms. The frame probe now runs a heartbeat of its own, because a 2-D
+workspace has no animation loop to count frames by.

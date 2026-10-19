@@ -4,13 +4,21 @@
  * or on mount) never set React state from an effect.
  */
 
-import type { ScenarioSpec, SceneSpec } from "@etendue/wasm";
+import type { LibraryItem, ScenarioSpec, SceneSpec } from "@etendue/wasm";
 import { type Playhead, toast } from "@vitavision/workbench";
 import { useSyncExternalStore } from "react";
 
 import { download, jsonText } from "../io/export";
 import { type LoadedRobot, type LoadedScene, documentKind, loadRobot, loadScene } from "../io/load";
-import { PROJECT_FILE, type Project, type ProjectWriter, addCell, createProject, loadProject } from "../io/project";
+import {
+  PROJECT_FILE,
+  type Project,
+  type ProjectWriter,
+  addCell,
+  createProject,
+  loadProject,
+  saveLibraryItem as writeLibraryItem,
+} from "../io/project";
 import { canOpenFolders, folderSource, pickFolder, regrant, rememberFolder, rememberedFolder } from "../io/folder";
 import { type FileSource, filePath, filesSource, urlSource } from "../io/source";
 import { absolute, fsSource, isTauri, normalize, parentDir, splitAbsolute } from "../io/tauri";
@@ -675,6 +683,30 @@ export class Studio {
     else this.#set({ example: "" });
     toast({ title: `Opened ${project.manifest.name}`, description: project.location, tone: "success", duration: 2500 });
   }
+
+  /** Save `item` into the open project's library (a design from the Optics workspace). */
+  readonly saveLibraryItem = async (item: LibraryItem): Promise<boolean> => {
+    const project = this.#state.project;
+    if (!project) return false;
+    try {
+      const next = await writeLibraryItem(project, item);
+      this.#set({ project: next });
+      toast({
+        title: `Saved ${item.name}`,
+        description: `${project.manifest.name} library`,
+        tone: "success",
+        duration: 2500,
+      });
+      return true;
+    } catch (e) {
+      toast({
+        title: "Could not save to the library",
+        description: e instanceof Error ? e.message : String(e),
+        tone: "error",
+      });
+      return false;
+    }
+  };
 
   /** Save the open scene and scenario as a new cell `id` of the open project. */
   readonly saveAsCell = async (id: string): Promise<boolean> => {

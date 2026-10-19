@@ -324,3 +324,36 @@ test("each camera of a laser ring shows its own laser's stripe", async ({ page }
     await expect(page.getByTestId(`camera-view-${camera}`)).toHaveAttribute("data-stripes", "1");
   }
 });
+
+test("the Optics workspace designs a laser head: Scheimpflug, handles, optimiser", async ({ page }) => {
+  await loaded(page);
+  await page.getByRole("radio", { name: "Optics" }).click();
+  const section = page.getByTestId("section-view");
+  await expect(section).toBeVisible();
+  const figures = page.getByTestId("optics-readouts");
+  await expect(figures).toContainText("100 % seen");
+
+  // The Scheimpflug setting puts the laser plane in focus: the window is left with diffraction.
+  await page.getByRole("button", { name: "Scheimpflug" }).click();
+  await expect(figures).toContainText("laser plane in focus");
+
+  // Dragging the focus handle along the axis refocuses.
+  const focus = page.getByTestId("focus").getByRole("spinbutton");
+  const before = await focus.inputValue();
+  const handle = section.locator('[data-handle="focus"]');
+  const box = (await handle.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + 60, box.y + box.height / 2, { steps: 5 });
+  await page.mouse.up();
+  await expect(focus).not.toHaveValue(before);
+  await expect(figures).not.toContainText("laser plane in focus");
+
+  // With the sensor kept square, the optimiser trades defocus against diffraction.
+  await page.getByText("Tilt the sensor").click();
+  await page.getByRole("button", { name: "Optimise" }).click();
+  const optimum = page.getByTestId("optimum");
+  await expect(optimum).toContainText("0.00°, 0.00°");
+  await optimum.getByRole("button", { name: "Apply" }).click();
+  await expect(page.getByRole("spinbutton", { name: "tilt x value" })).toHaveValue(/^-?0[.,]00$/);
+});
