@@ -96,6 +96,68 @@ const sci = (v: number) => (Number.isFinite(v) ? v.toExponential(3) : "—");
 const px = (v: number) =>
   !Number.isFinite(v) ? "—" : v !== 0 && Math.abs(v) < 1e-3 ? v.toExponential(2) : v.toFixed(4);
 
+/** Where the observations come from: exact, with noise, or (after a render) the detector's. */
+export function SourceControl({
+  value,
+  onChange,
+  detected,
+}: {
+  value: Source;
+  onChange: (source: Source) => void;
+  /** Offer the detector's observations. */
+  detected: boolean;
+}) {
+  return (
+    <Field label="Observations">
+      <SegmentedControl
+        aria-label="Observations"
+        value={value}
+        options={[
+          { value: "exact", label: "Exact" },
+          { value: "noisy", label: "With noise" },
+          ...(detected ? [{ value: "detected", label: "Detected" }] : []),
+        ]}
+        onValueChange={(v) => (v === "exact" || v === "noisy" || v === "detected") && onChange(v)}
+      />
+    </Field>
+  );
+}
+
+/** The noise form; `trials` adds the number of trials. */
+export function NoiseFields({
+  noise,
+  onChange,
+  lasers,
+  trials,
+  disabled = false,
+}: {
+  noise: NoiseForm;
+  onChange: (noise: NoiseForm) => void;
+  lasers: boolean;
+  trials: boolean;
+  disabled?: boolean;
+}) {
+  const set = (patch: Partial<NoiseForm>) => onChange({ ...noise, ...patch });
+  const num = (label: string, value: number, change: (v: number) => void, unit: string, step = 0.1, min = 0) => (
+    <Field label={label} annotation={unit}>
+      <NumberInput value={value} min={min} step={step} onValueChange={change} disabled={disabled} />
+    </Field>
+  );
+  return (
+    <div className="grid grid-cols-[repeat(auto-fill,minmax(9rem,1fr))] gap-3" data-testid="noise-form">
+      {num("Pixel σ", noise.pixel, (v) => set({ pixel: v }), "px")}
+      {num("Outliers", noise.outliers, (v) => set({ outliers: Math.min(100, v) }), "%", 1)}
+      {num("Outlier σ", noise.outlierSigma, (v) => set({ outlierSigma: v }), "px", 1)}
+      {num("Dropouts", noise.dropouts, (v) => set({ dropouts: Math.min(100, v) }), "%", 1)}
+      {lasers && num("Laser σ", noise.laser, (v) => set({ laser: v }), "px")}
+      {num("Robot rotation σ", noise.robotDeg, (v) => set({ robotDeg: v }), "°", 0.01)}
+      {num("Robot translation σ", noise.robotMm, (v) => set({ robotMm: v }), "mm", 0.01)}
+      {num("Seed", noise.seed, (v) => set({ seed: Math.round(v) }), "", 1)}
+      {trials && num("Trials", noise.trials, (v) => set({ trials: Math.max(1, Math.round(v)) }), "", 1, 1)}
+    </div>
+  );
+}
+
 function verdict(row: CalibrationRow, gated: boolean): { text: string; tone: "normal" | "defect" | "warning" } | null {
   if (row.limit === undefined) return null;
   const within = row.value <= row.limit;
@@ -181,7 +243,6 @@ export function CalibratePanel({
   const [camera, setCamera] = useState<string>("");
   const { running, result, failure, kept } = useCalibrationRun(runner);
   const detectedAvailable = dataset.render !== null && dataset.detection.length > 0;
-  const set = (patch: Partial<NoiseForm>) => onForm({ ...form, noise: { ...noise, ...patch } });
 
   const options = (): CalibrateOptions => ({
     ...(source === "noisy"
@@ -196,27 +257,11 @@ export function CalibratePanel({
   });
   const shown = result?.dir === dataset.output ? result.run : null;
   const first = shown?.reports[0] ?? null;
-  const num = (label: string, value: number, onChange: (v: number) => void, unit: string, step = 0.1, min = 0) => (
-    <Field label={label} annotation={unit}>
-      <NumberInput value={value} min={min} step={step} onValueChange={onChange} disabled={running !== null} />
-    </Field>
-  );
 
   return (
     <div className="@container flex min-w-0 flex-col gap-3" data-testid="calibrate-panel">
       <div className="flex flex-wrap items-end gap-3">
-        <Field label="Observations">
-          <SegmentedControl
-            aria-label="Observations"
-            value={source}
-            options={[
-              { value: "exact", label: "Exact" },
-              { value: "noisy", label: "With noise" },
-              ...(detectedAvailable ? [{ value: "detected", label: "Detected" }] : []),
-            ]}
-            onValueChange={(v) => (v === "exact" || v === "noisy" || v === "detected") && setSource(v)}
-          />
-        </Field>
+        <SourceControl value={source} onChange={setSource} detected={detectedAvailable} />
         {!lasers && cameras.length > 1 && (
           <Field label="Cameras">
             <Select
@@ -247,17 +292,13 @@ export function CalibratePanel({
         )}
       </div>
       {source === "noisy" && (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(9rem,1fr))] gap-3" data-testid="noise-form">
-          {num("Pixel σ", noise.pixel, (v) => set({ pixel: v }), "px")}
-          {num("Outliers", noise.outliers, (v) => set({ outliers: Math.min(100, v) }), "%", 1)}
-          {num("Outlier σ", noise.outlierSigma, (v) => set({ outlierSigma: v }), "px", 1)}
-          {num("Dropouts", noise.dropouts, (v) => set({ dropouts: Math.min(100, v) }), "%", 1)}
-          {lasers && num("Laser σ", noise.laser, (v) => set({ laser: v }), "px")}
-          {num("Robot rotation σ", noise.robotDeg, (v) => set({ robotDeg: v }), "°", 0.01)}
-          {num("Robot translation σ", noise.robotMm, (v) => set({ robotMm: v }), "mm", 0.01)}
-          {num("Seed", noise.seed, (v) => set({ seed: Math.round(v) }), "", 1)}
-          {num("Trials", noise.trials, (v) => set({ trials: Math.max(1, Math.round(v)) }), "", 1, 1)}
-        </div>
+        <NoiseFields
+          noise={noise}
+          onChange={(n) => onForm({ ...form, noise: n })}
+          lasers={lasers}
+          trials
+          disabled={running !== null}
+        />
       )}
       {running && (
         <ProgressBar

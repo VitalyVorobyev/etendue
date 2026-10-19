@@ -264,13 +264,33 @@ test("generates a dataset through the native pipeline", async ({ page }) => {
   await expect(outcome).toContainText(/closed_loop_ur5e-\d{8}-\d{6}-exact/);
 });
 
-test("a plain browser has no Dataset tab", async ({ page }) => {
+test("a plain browser previews what a calibration observes", async ({ page }) => {
   await page.goto("/?example=closed_loop_ur5e");
   await expect(page.getByRole("treeitem", { name: /cam_left/ })).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByRole("radio", { name: "Calibrate" })).toHaveCount(0);
   await page.getByRole("button", { name: "File" }).click();
   await expect(page.getByRole("menuitem", { name: "Open scene…" })).toHaveCount(0);
   await expect(page.getByRole("menuitem", { name: "Open files…" })).toBeVisible();
+  await page.keyboard.press("Escape");
+
+  // No dataset generation or calibration here: the observations of the open scene.
+  await page.getByRole("radio", { name: "Calibrate" }).click();
+  const preview = page.getByTestId("observation-preview");
+  await expect(preview).toContainText("desktop app");
+  await expect(page.getByTestId("dataset-panel")).toHaveCount(0);
+  // closed_loop_ur5e: 24 captures of 2 cameras, and the 2592 points `etendue calibrate` reports.
+  await expect(preview.getByTestId("observation-totals")).toHaveText("24 captures · 48 views · 2592 points");
+  await page
+    .getByRole("button", { name: /capture/i })
+    .nth(2)
+    .click();
+  const view = page.getByTestId("observations").getByTestId("camera-view-cam_left");
+  await expect(view).toHaveAttribute("data-observed", /^[1-9]\d*$/);
+  // With noise: outliers are counted, and the totals follow the form.
+  await preview.getByRole("radio", { name: "With noise" }).click();
+  const outliers = preview.getByTestId("noise-form").getByRole("spinbutton", { name: "Outliers" });
+  await outliers.fill("10");
+  await outliers.press("Enter");
+  await expect(preview.getByTestId("observation-totals")).toContainText(/2592 points \(\d+ outliers\)/);
 });
 
 test("a new project gets the starter library, takes a cell, and reopens", async ({ page }) => {

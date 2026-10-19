@@ -123,7 +123,7 @@ The scene goes into the output folder as `scene.json`, with the scenario:
 
 | Setting | Meaning |
 |---|---|
-| Output folder | Where the dataset goes. For a built-in example, or a scene that is not a file, it defaults to `Documents/etendue/<name>`; for your own scene, `dataset/` next to it. |
+| Output folder | Where the dataset goes. For a cell of a project you can write to, it defaults to the project's `datasets/<cell>`. For a built-in example, or a scene that is not a file, it defaults to `Documents/etendue/<name>`. For your own scene, it defaults to `dataset/` next to it. |
 | Render with Blender | Off: the analytic ground truth only. |
 | Samples | Cycles samples per canonical pixel. |
 | Supersampling | Canonical render pixels per camera pixel (4 is converged for corner accuracy). |
@@ -194,3 +194,8 @@ in the result view, the 3-D estimate included.
 The observations are computed in the browser kernel from the open scene, with the same
 ground truth and noise stream as the run, so a seed shows the very points it calibrates from.
 Step through the captures on the timeline.
+
+**In a browser,** generating a dataset and calibrating it need the desktop app, but the
+Calibrate workspace still previews the observations. Choose **Exact** or **With noise**, set
+the noise, and step through the captures. The panel totals the captures, views, points,
+outliers and stripe pixels a calibration of that seed would use.

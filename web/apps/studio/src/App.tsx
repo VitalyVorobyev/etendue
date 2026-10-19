@@ -61,6 +61,7 @@ import {
 import { sceneTree } from "./scene/model";
 import { CalibrationRunner, useCalibrationRun } from "./state/calibrationRun";
 import { estimateDrawing, observedAt as observedIn } from "./calibrate/compare";
+import { ObservationPreview } from "./calibrate/ObservationPreview";
 import { useObservations } from "./calibrate/observations";
 import { DatasetRunner } from "./state/datasetRun";
 import { Studio, initialExample, useStudio } from "./state/studio";
@@ -74,6 +75,9 @@ interface Scoped<T> {
 const MODE_KEY = "etendue-studio:mode";
 const NO_OVERRIDES: readonly PoseOverride[] = [];
 const NO_CELLS: readonly Cell[] = [];
+
+/** The workspaces. Calibrate is in a browser too, as a preview of what a calibration observes. */
+const MODES: Mode[] = ["optics", "rigs", "setup", "motion", "images", "dataset"];
 
 function storedMode(modes: Mode[]): Mode {
   try {
@@ -129,11 +133,7 @@ export function App() {
   const rigParams = rig ?? startRig;
   const rigAnalysis = useMemo(() => (rigParams ? analyseRig(rigParams) : null), [rigParams]);
   const { playhead } = studio;
-  const modes = useMemo<Mode[]>(
-    () => ["optics", "rigs", "setup", "motion", "images", ...(isTauri() ? ["dataset" as const] : [])],
-    [],
-  );
-  const [mode, setModeState] = useState<Mode>(() => storedMode(modes));
+  const [mode, setModeState] = useState<Mode>(() => storedMode(MODES));
   const [selection, setSelection] = useState<Scoped<string | null>>({ opened: 0, value: null });
   const [runtime, setRuntime] = useState<FrameTreeRuntime | null>(null);
   const [focusCamera, setFocusCamera] = useState<string | null>(null);
@@ -570,7 +570,16 @@ export function App() {
       )}
       {mode === "dataset" && (
         <div className="row-span-2 min-h-0 overflow-auto border-r border-line p-4">
-          <DatasetPanel current={current} dataset={dataset} runner={runner} projectFolder={projectDatasets} />
+          {isTauri() ? (
+            <DatasetPanel current={current} dataset={dataset} runner={runner} projectFolder={projectDatasets} />
+          ) : (
+            <ObservationPreview
+              form={calibrateForm}
+              onForm={setCalibrateForm}
+              lasers={(scene?.lasers ?? []).length > 0}
+              observations={observations}
+            />
+          )}
           {dataset && (
             <section className="mt-6 border-t border-line pt-4" aria-label="Calibrate">
               <h2 className="mb-3 text-sm font-medium">Calibrate and compare</h2>
@@ -988,7 +997,7 @@ export function App() {
             description={current?.loaded.scene.description ?? null}
             dirty={dirty}
             mode={mode}
-            modes={modes}
+            modes={MODES}
             onMode={setMode}
             undo={undo}
             redo={redo}
