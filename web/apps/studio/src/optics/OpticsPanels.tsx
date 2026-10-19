@@ -447,6 +447,11 @@ export function OpticsReadouts({ params, analysis }: { params: HeadParams; analy
           <Row label="lateral / px">
             {um(stats.lateralPerPx[0])} – {um(stats.lateralPerPx[1])}
           </Row>
+          <Row label="stripe width">
+            {stats.stripePx
+              ? `${stats.stripePx[0].toFixed(1)} – ${stats.stripePx[1].toFixed(1)} px`
+              : "beam waist unknown"}
+          </Row>
           <Row label="triangulation">
             {(stats.triangulationRad[0] * DEG).toFixed(1)}° – {(stats.triangulationRad[1] * DEG).toFixed(1)}°
           </Row>

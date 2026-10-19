@@ -332,6 +332,11 @@ test("the Optics workspace designs a laser head: Scheimpflug, handles, optimiser
   await expect(section).toBeVisible();
   const figures = page.getByTestId("optics-readouts");
   await expect(figures).toContainText("100 % seen");
+  // The laser line on the sensor at seven ranges, and its width (the StingRay's waist is known).
+  await expect(page.getByTestId("sensor-stripes").locator("[data-range-mm]")).toHaveCount(7);
+  await expect(figures).toContainText(/stripe width\s*[\d.]+ – [\d.]+ px/);
+  await page.getByTestId("plane-map").getByRole("radio", { name: "Stripe" }).click();
+  await expect(page.getByRole("img", { name: "Stripe over the window" })).toBeVisible();
 
   // The Scheimpflug setting puts the laser plane in focus: the window is left with diffraction.
   await page.getByRole("button", { name: "Scheimpflug" }).click();

@@ -964,7 +964,7 @@ fn head_of(
 }
 
 /// The values [`head_map`] gives per sample, in order.
-pub const HEAD_MAP_FIELDS: [&str; 7] = [
+pub const HEAD_MAP_FIELDS: [&str; 10] = [
     "visible",
     "coc_px",
     "airy_px",
@@ -972,6 +972,9 @@ pub const HEAD_MAP_FIELDS: [&str; 7] = [
     "lateral_m_per_px",
     "depth_m_per_px",
     "triangulation_rad",
+    "beam_px",
+    "pixel_u",
+    "pixel_v",
 ];
 
 /// A head's samples over a window (the design's, or `window_json`'s): [`HEAD_MAP_FIELDS`] per
@@ -998,6 +1001,9 @@ pub fn head_map(
             s.lateral_m_per_px,
             s.depth_m_per_px,
             s.triangulation_rad,
+            s.beam_px,
+            s.pixel.map_or(f64::NAN, |p| p[0]),
+            s.pixel.map_or(f64::NAN, |p| p[1]),
         ]);
     }
     Ok(out)

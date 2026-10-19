@@ -43,6 +43,8 @@ pub struct Beam {
     pub length: f64,
     /// Wavelength (m).
     pub wavelength: f64,
+    /// The beam's `1/e²` waist radius across the line, at the laser (m), when known.
+    pub waist: Option<f64>,
 }
 
 /// Where a head must work, in its laser plane (m from the laser's origin).
@@ -89,6 +91,10 @@ pub struct Sample {
     pub depth_m_per_px: f64,
     /// Between the laser's ray and the camera's view of the point (rad).
     pub triangulation_rad: f64,
+    /// The beam's `1/e²` thickness across the laser plane, imaged across the stripe (px): the
+    /// stripe's own width before blur, on a target that contains the plane's normal. `NaN` when
+    /// the waist is unknown or the point is not in front of the camera.
+    pub beam_px: f64,
 }
 
 /// A 2-D point or direction in the section, `(s, z)`.
@@ -238,6 +244,7 @@ impl Head {
             half_angle: design.laser.fan_half_angle,
             length: design.fan_length_m,
             wavelength: design.laser.wavelength_nm * 1e-9,
+            waist: design.laser.beam_waist_m,
         };
         Ok(Self::new(
             camera,
@@ -341,13 +348,21 @@ impl Head {
             let minus = cam.project(&(p - h * dir))?;
             Some((plus - minus) / (2.0 * h))
         };
-        let (lateral_m_per_px, depth_m_per_px) = match (d(self.line), d(self.central)) {
-            (Some(ja), Some(jb)) if ja.norm() > 0.0 => {
-                let along = ja / ja.norm();
-                let across = Vector2::new(-along.y, along.x);
-                (1.0 / ja.norm(), 1.0 / across.dot(&jb).abs())
-            }
+        // Across the imaged line: perpendicular to the line's image.
+        let ja = d(self.line).filter(|ja| ja.norm() > 0.0);
+        let across = ja.map(|ja| Vector2::new(-ja.y, ja.x) / ja.norm());
+        let (lateral_m_per_px, depth_m_per_px) = match (ja, across, d(self.central)) {
+            (Some(ja), Some(across), Some(jb)) => (1.0 / ja.norm(), 1.0 / across.dot(&jb).abs()),
             _ => (f64::INFINITY, f64::INFINITY),
+        };
+        // A Gaussian beam: w(r) = w₀·√(1 + (r/z_R)²), z_R = π·w₀²/λ, at the distance travelled.
+        let beam_px = match (self.beam.waist, across, d(self.normal)) {
+            (Some(w0), Some(across), Some(jn)) => {
+                let rayleigh = std::f64::consts::PI * w0 * w0 / self.beam.wavelength;
+                let r = (p - self.origin).norm() / rayleigh;
+                2.0 * w0 * (1.0 + r * r).sqrt() * across.dot(&jn).abs()
+            }
+            _ => f64::NAN,
         };
         let pupil = Point3::new(0.0, 0.0, cam.cardinal_points().entrance_pupil);
         let laser_ray = (p - self.origin).normalize();
@@ -361,6 +376,7 @@ impl Head {
             lateral_m_per_px,
             depth_m_per_px,
             triangulation_rad: libm::acos((-laser_ray).dot(&view).clamp(-1.0, 1.0)),
+            beam_px,
         }
     }
 

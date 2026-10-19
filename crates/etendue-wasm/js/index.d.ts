@@ -328,6 +328,11 @@ export interface HeadMap {
   /** Depth per pixel of stripe displacement across the line. */
   depth_m_per_px: Float64Array;
   triangulation_rad: Float64Array;
+  /** The beam's 1/e² thickness imaged across the stripe (NaN without a known waist). */
+  beam_px: Float64Array;
+  /** Where each sample images (px; NaN behind the camera). */
+  pixel_u: Float64Array;
+  pixel_v: Float64Array;
 }
 
 /** The noise of synthesised observations (etendue-synth `ObservationNoise`); every field defaults to 0. */
