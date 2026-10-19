@@ -117,9 +117,15 @@ calibration datasets with exact ground truth. The 0.1.0 desktop app is replaced 
 - **The Optics workspace**: design a laser-triangulation head from the library's parts against
   the window it must measure in. A Scheimpflug section (sensor, principal planes, pupils, traced
   rays, the plane of best focus and its depth of field, draggable focus, aim, laser and window), a
-  map of the laser plane (blur, depth and lateral resolution, triangulation angle), one-click
+  map of the laser plane (blur, depth and lateral resolution, triangulation angle, stripe width),
+  the laser line on the sensor at several ranges with its width in pixels, one-click
   Scheimpflug, an optimiser over tilt, focus and f-number, saving to the library and placing in a
-  cell. `@etendue/wasm` has `headMap`, `headSection`, `headScheimpflug`, `headOptimise` and
+  cell.
+- **Focused lasers**: a laser's `waist_distance_m` (scene, rig and library) says where it is
+  focused; the beam is narrowest there (`GaussianBeamWidth::with_waist_distance`), for the stripe
+  in ground truth, laser images and the Optics workspace. Absent, a scene laser's waist is at the
+  laser, as before, and a library laser is focusable: the Optics workspace focuses it at the
+  head's aim point. `@etendue/wasm` has `headMap`, `headSection`, `headScheimpflug`, `headOptimise` and
   `headApply` (`etendue-core::head`).
 - **Native calibration** (`etendue calibrate`): a dataset is calibrated with calibration-rs's
   own workflows in Rust and compared with its ground truth, row for row as the closed-loop script

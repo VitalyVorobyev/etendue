@@ -74,16 +74,18 @@ pub trait WidthModel {
     fn width_at(&self, distance_m: f64) -> f64;   // full diameter, metres
 }
 
-pub struct GaussianBeamWidth { /* w0, zR */ }
+pub struct GaussianBeamWidth { /* w0, zR, d0 */ }
 
 impl GaussianBeamWidth {
     pub fn new        (waist_radius_m: f64, wavelength_m: f64) -> Result<Self>;
     pub fn from_laser (laser: &LaserEntity)                    -> Result<Self>;
+    pub fn with_waist_distance(self, d0: f64)                  -> Result<Self>;
     pub fn waist_radius_m  (&self) -> f64;
     pub fn rayleigh_range_m(&self) -> f64;
+    pub fn waist_distance_m(&self) -> f64;
 }
 
-impl WidthModel for GaussianBeamWidth { /* w(d) = w0 sqrt(1 + (d/zR)^2), returns 2 w */ }
+impl WidthModel for GaussianBeamWidth { /* w(d) = w0 sqrt(1 + ((d − d0)/zR)^2), returns 2 w */ }
 ```
 
 A focused Gaussian beam has a waist (its narrowest cross-section) and
@@ -100,9 +102,13 @@ $$
 z_{R} \;=\; \pi \, w_{0}^{2} \,/\, \lambda.
 $$
 
-The model places the waist at the **laser origin** (`z = 0`), so the
-distance `d` from the laser origin used by the intersection layer is exactly
-the axial coordinate `z`. `width_at` returns the full **diameter** `2·w(d)`,
+The waist lies at a distance `d0` from the laser origin along each ray of
+the fan: the laser's `waist_distance_m`, where it is focused (0, the default,
+puts it at the laser itself). A point at distance `d` from the origin is at
+`z = d − d0` from the waist. A line laser is focused where it is used: a
+50 µm waist at 660 nm has `zR ≈ 12 mm`, so focused at the laser it is a
+2.7 mm thick sheet 0.32 m out, and focused there it is 0.1 mm thick.
+`width_at` returns the full **diameter** `2·w(d)`,
 the natural pairing for the circle-of-confusion *diameter* it is combined
 with in quadrature. Only the across-stripe width is modelled; the along-fan
 intensity profile is not.

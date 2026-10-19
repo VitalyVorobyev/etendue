@@ -71,3 +71,32 @@ The test drags the Optics workspace's focus slider back and forth for 4 s. Every
 
 The work limit is 16 ms. The frame probe now runs a heartbeat of its own, because a 2-D
 workspace has no animation loop to count frames by.
+
+## P10c: the sensor view, the stripe width and the laser's focus
+
+Re-measured 2026-10-19 on `64639cb` (branch `p10c/stripe`), Apple M4 Pro, Node 24.20.0, headed
+Chromium 153 on ANGLE Metal (120 Hz). P10c adds three things:
+- **Kernel:** the map's samples carry the beam's imaged thickness (`beam_px`) and their pixel.
+- **Studio:** the Sensor panel, which draws the laser line at seven ranges.
+- **Laser model:** a laser's `waist_distance_m`. The head fixture is now focused at its aim.
+
+| Gate | Limit | Measured |
+|---|---|---|
+| G10.1 kernel: `headMap` 64 × 64 | ≤ 30 ms | **0.90 ms** |
+| G10.1 studio: focus-slider drag, work p95 | ≤ 16 ms | **3.6 ms** (482 frames; interval p95 9.2 ms) |
+| G10.2, G10.3 (`cargo test -p etendue-core --test head`) | as above | pass (7 tests) |
+| G0.1: wasm against native, bits | 0 mismatches | **0** of 216,624 values |
+| G2.1: `etendue_wasm_bg.wasm`, gzip -9 | ≤ 1,572,864 B | **770,328 B** |
+
+The stripe width is the imaged beam and the camera's blur, root sum of squares. On the default
+StingRay head, over its 120 mm deep window:
+
+| Laser focused | Camera | Stripe width |
+|---|---|---|
+| at the laser (the old model) | as built, f/4 | 36.0–39.8 px |
+| at the laser | Scheimpflug | 37.1–37.4 px |
+| at the aim point | as built, f/4 | 1.8–20.9 px (the widest is the camera's defocus at the window's ends) |
+| at the aim point | Scheimpflug | 1.8–8.9 px |
+
+The 50 µm waist has a Rayleigh range of 12 mm at 660 nm. Focused at the laser, the beam is
+2.7 mm thick at the aim point; focused at the aim point, it is 0.1 mm thick there.

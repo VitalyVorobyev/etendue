@@ -598,7 +598,7 @@
           "default": 0.0
         },
         "beam_waist_m": {
-          "description": "Beam-waist `1/e²` radius at the laser, metres.",
+          "description": "Beam-waist `1/e²` radius, metres.",
           "type": "number",
           "format": "double"
         },
@@ -637,6 +637,14 @@
           "format": "double",
           "default": 0.0
         },
+        "waist_distance_m": {
+          "description": "Distance from the laser origin to the waist along each ray, metres:\nwhere a focusable laser is focused. Absent, the waist is at the laser.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
         "wavelength_nm": {
           "description": "Wavelength, nanometres.",
           "type": "number",
@@ -656,7 +664,7 @@
       "type": "object",
       "properties": {
         "beam_waist_m": {
-          "description": "Beam-waist `1/e²` radius at the laser origin, in metres.",
+          "description": "Beam-waist `1/e²` radius, in metres.",
           "type": "number",
           "format": "double"
         },
@@ -691,6 +699,14 @@
         },
         "power_w": {
           "description": "Optical power in watts, as the camera responds to it (its spectral\nresponse at the wavelength folded in), spread evenly over the fan's\nangle. Only laser images use it; absent, they take etendue-synth's\ndefault (0.5 mW).",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "waist_distance_m": {
+          "description": "Distance from the laser origin to the waist along each ray, metres:\nwhere a focusable laser is focused. Absent, the waist is at the laser.",
           "type": [
             "number",
             "null"

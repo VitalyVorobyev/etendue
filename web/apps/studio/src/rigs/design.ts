@@ -102,6 +102,7 @@ export function unitOfHead(head: HeadParams): RigUnit {
       fan_length: design.fan_length_m,
       wavelength_nm: design.laser.wavelength_nm,
       beam_waist_m: design.laser.beam_waist_m ?? 5e-4,
+      ...(design.laser.waist_distance_m != null ? { waist_distance_m: design.laser.waist_distance_m } : {}),
     },
   };
 }
@@ -121,6 +122,7 @@ export function unitOfItem(item: LibraryItem): RigUnit | null {
       fan_length: head.fan_length_m,
       wavelength_nm: head.laser.wavelength_nm,
       beam_waist_m: head.laser.beam_waist_m ?? 5e-4,
+      ...(head.laser.waist_distance_m != null ? { waist_distance_m: head.laser.waist_distance_m } : {}),
     },
   };
 }

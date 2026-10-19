@@ -195,3 +195,6 @@ G0.1 wasm/native projection parity
   `observe`: noisy observations of rig3_laser_ur5e's ground truth with every noise term on
   (70 captures, 106,524 pixel values), compared as JSON text. Result: 216,048 values,
   **0 mismatches**.
+- Re-run 2026-10-19 on `64639cb` (branch `p10c/stripe`). The head map carries three more fields
+  (the imaged beam thickness and the pixel, 576 values), and the probe's laser is focused at its
+  aim (`waist_distance_m`). Result: 216,624 values, **0 mismatches**.

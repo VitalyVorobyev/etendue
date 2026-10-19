@@ -2,11 +2,14 @@ import type { HeadMap } from "@etendue/wasm";
 import { SegmentedControl } from "@vitavision/ui";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { stripeWidth } from "./analysis";
+
 /** What the map shows. */
-export type Metric = "blur" | "depth" | "lateral" | "triangulation";
+export type Metric = "blur" | "stripe" | "depth" | "lateral" | "triangulation";
 
 const METRICS: { value: Metric; label: string; unit: string; of: (m: HeadMap, i: number) => number }[] = [
   { value: "blur", label: "Blur", unit: "px", of: (m, i) => m.blur_px[i]! },
+  { value: "stripe", label: "Stripe", unit: "px", of: stripeWidth },
   { value: "depth", label: "dZ/px", unit: "µm", of: (m, i) => m.depth_m_per_px[i]! * 1e6 },
   { value: "lateral", label: "mm/px", unit: "µm", of: (m, i) => m.lateral_m_per_px[i]! * 1e6 },
   { value: "triangulation", label: "Angle", unit: "°", of: (m, i) => (m.triangulation_rad[i]! * 180) / Math.PI },
@@ -57,7 +60,12 @@ export function PlaneMap({
   const [metric, setMetric] = useState<Metric>("blur");
   const [hover, setHover] = useState<{ a: number; b: number; value: number | null } | null>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
-  const spec = METRICS.find((m) => m.value === metric)!;
+  // The stripe's width needs the beam's waist.
+  const metrics = useMemo(
+    () => (map.beam_px.some(Number.isFinite) ? METRICS : METRICS.filter((m) => m.value !== "stripe")),
+    [map],
+  );
+  const spec = metrics.find((m) => m.value === metric) ?? METRICS[0]!;
   const { across, along } = map;
   const [lo, hi] = useMemo(() => {
     let [min, max] = [Infinity, -Infinity];
@@ -119,8 +127,8 @@ export function PlaneMap({
       <div className="flex items-center gap-3">
         <SegmentedControl
           aria-label="Map metric"
-          value={metric}
-          options={METRICS.map((m) => ({ value: m.value, label: m.label }))}
+          value={spec.value}
+          options={metrics.map((m) => ({ value: m.value, label: m.label }))}
           onValueChange={(v) => {
             const m = METRICS.find((x) => x.value === v);
             if (m) setMetric(m.value);

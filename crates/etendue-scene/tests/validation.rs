@@ -92,12 +92,14 @@ fn bad_entity_parameters_are_rejected() {
     let mut v = eye_in_hand();
     v["cameras"][0]["resolution"] = json!([0, 1024]);
     v["lasers"] = json!([{"id": "l", "parent": "world", "parent_se3_self": iso([0.0, 0.0, 0.0]),
-        "fan_half_angle": 2.0, "fan_length": 1.0, "wavelength_nm": 660.0, "beam_waist_m": 0.0}]);
+        "fan_half_angle": 2.0, "fan_length": 1.0, "wavelength_nm": 660.0, "beam_waist_m": 0.0,
+        "waist_distance_m": -0.1}]);
     let err = scene(v).validate().unwrap_err();
     let m = messages(&err);
     assert!(m.contains("cameras[0].resolution"), "{m}");
     assert!(m.contains("lasers[0].fan_half_angle"), "{m}");
     assert!(m.contains("lasers[0].beam_waist_m"), "{m}");
+    assert!(m.contains("lasers[0].waist_distance_m"), "{m}");
 }
 
 #[test]

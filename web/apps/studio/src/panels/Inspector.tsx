@@ -210,6 +210,18 @@ function LaserDetails({ laser, field }: { laser: LaserSpec; field: FieldLive }) 
           step={5}
           live={field<number>((beam_waist_m) => ({ ...laser, beam_waist_m }))}
         />
+        <SliderRow
+          label="focus"
+          title="Where the laser is focused: its waist's distance from the laser, along each ray"
+          value={laser.waist_distance_m ?? 0}
+          scale={1000}
+          unit="mm"
+          precision={0}
+          range={[0, 2000]}
+          limits={[0, 100_000]}
+          step={1}
+          live={field<number>((waist_distance_m) => ({ ...laser, waist_distance_m: Math.max(0, waist_distance_m) }))}
+        />
       </Rows>
     </Fold>
   );

@@ -617,7 +617,7 @@
           "default": 0.0
         },
         "beam_waist_m": {
-          "description": "Beam-waist `1/e²` radius at the laser, metres.",
+          "description": "Beam-waist `1/e²` radius, metres.",
           "type": "number",
           "format": "double"
         },
@@ -656,6 +656,14 @@
           "format": "double",
           "default": 0.0
         },
+        "waist_distance_m": {
+          "description": "Distance from the laser origin to the waist along each ray, metres:\nwhere a focusable laser is focused. Absent, the waist is at the laser.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
         "wavelength_nm": {
           "description": "Wavelength, nanometres.",
           "type": "number",
@@ -689,6 +697,14 @@
         },
         "power_mw": {
           "description": "Optical power, milliwatts.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "waist_distance_m": {
+          "description": "Distance from the laser origin to the waist along each ray, metres,\nfor a laser focused at a fixed distance. Absent, the laser is focusable:\na head design focuses it (the studio, at the head's aim point).",
           "type": [
             "number",
             "null"

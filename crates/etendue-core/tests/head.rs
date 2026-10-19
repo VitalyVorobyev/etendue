@@ -36,6 +36,10 @@ fn as_built() -> CameraParams {
 /// A 25 mm camera at f/4 and a laser 100 mm off its axis (camera −y), aimed at the axis 0.35 m
 /// out; the laser line runs along camera x.
 fn head(g: f64, e: f64) -> Head {
+    head_with(g, e, None, 0.0)
+}
+
+fn head_with(g: f64, e: f64, waist: Option<f64>, waist_distance: f64) -> Head {
     let lens = Lens {
         focal_length_m: 0.025,
         f_number: 4.0,
@@ -62,6 +66,8 @@ fn head(g: f64, e: f64) -> Head {
             half_angle: 0.4,
             length: 1.0,
             wavelength: 660e-9,
+            waist,
+            waist_distance,
         },
         &pose,
     )
@@ -264,4 +270,39 @@ fn the_depth_of_field_lines_are_where_the_blur_reaches_the_limit() {
         let blur = cam.coc_px(&point).unwrap().hypot(airy);
         assert!((blur - 3.0).abs() < 1e-6, "blur {blur} px at {p:?}");
     }
+}
+
+#[test]
+fn the_beam_images_as_a_gaussian_beam_across_the_stripe() {
+    // The window's centre, 0.32 m from the laser.
+    let w = window(0.1);
+    let at = |waist: Option<f64>| head_with(0.004, 0.003, waist, 0.0).map(&w, [3, 3])[4];
+    assert!(at(None).beam_px.is_nan());
+    // Near field (z_R = πw₀²/λ ≈ 4.8 m ≫ 0.32 m): the waist's own thickness, doubling with it.
+    let (a, b) = (at(Some(1e-3)).beam_px, at(Some(2e-3)).beam_px);
+    assert!(a > 1.0 && (b / a - 2.0).abs() < 1e-2, "{a} {b}");
+    // Far field (z_R ≈ 1.9 mm ≪ 0.32 m): w ≈ λr/(πw₀), so halving the waist doubles it.
+    let (c, d) = (at(Some(20e-6)).beam_px, at(Some(10e-6)).beam_px);
+    assert!((d / c - 2.0).abs() < 1e-3, "{c} {d}");
+    // The thinnest stripe at this range is between: w₀ = √(λr/π) minimises w(r).
+    let best = (660e-9 * 0.32 / std::f64::consts::PI).sqrt();
+    assert!(at(Some(best)).beam_px < at(Some(best * 2.0)).beam_px);
+    assert!(at(Some(best)).beam_px < at(Some(best / 2.0)).beam_px);
+}
+
+#[test]
+fn a_focused_beam_is_its_waist_where_it_is_focused() {
+    let w = window(0.1);
+    let r = (Point3::new(0.0, 0.0, 0.35) - Point3::new(0.0, -0.1, 0.05)).norm();
+    let w0 = 20e-6;
+    let at = |d: f64| head_with(0.004, 0.003, Some(w0), d).map(&w, [3, 3]);
+    // Focused at the centre's range, the stripe there is the waist, w(r)/w₀ thinner than with
+    // the waist at the laser: the same imaging, a different thickness.
+    let rayleigh = std::f64::consts::PI * w0 * w0 / 660e-9;
+    let ratio = at(r)[4].beam_px / at(0.0)[4].beam_px;
+    let expected = 1.0 / (1.0 + (r / rayleigh).powi(2)).sqrt();
+    assert!((ratio / expected - 1.0).abs() < 1e-9, "{ratio} {expected}");
+    // Away from the focus it widens on both sides: the near and far rows are thicker.
+    let focused = at(r);
+    assert!(focused[1].beam_px > focused[4].beam_px && focused[7].beam_px > focused[4].beam_px);
 }

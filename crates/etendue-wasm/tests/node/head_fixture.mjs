@@ -1,6 +1,7 @@
 // A triangulation head for the wasm probes (G0.1, G10.1): the library's IMX174 + LM25HC camera
 // and StingRay laser, the laser 100 mm off the camera axis aimed at it 0.35 m out, the laser line
-// along camera x, with a 120 mm deep, 40 mm wide window around the aim point.
+// along camera x and focused at the aim point (as the studio focuses a focusable laser), with a
+// 120 mm deep, 40 mm wide window around the aim point.
 
 import { readFileSync } from "node:fs";
 
@@ -25,7 +26,7 @@ export function headFixture(root) {
   const rotation = [(m[2][1] - m[1][2]) / (4 * qw), (m[0][2] - m[2][0]) / (4 * qw), (m[1][0] - m[0][1]) / (4 * qw), qw];
   return {
     camera,
-    laser,
+    laser: { ...laser, waist_distance_m: n },
     fan_length_m: 1,
     camera_se3_laser: { rotation, translation: origin },
     window: { near_m: n - 0.06, far_m: n + 0.06, width_m: 0.04 },

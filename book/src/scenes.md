@@ -28,7 +28,7 @@ is `"world"`, another entity's id (a rig, say), or a robot link, `"<robot>/<link
 | `robots` | `manifest` (path to the robot's `robot.json`, relative to the scene), `initial_q` (joint positions the scenario starts from). |
 | `rigs` | A frame that groups cameras and lasers, e.g. a stereo rig on a robot flange. An optional `layout` lays it out (below). |
 | `cameras` | `params`: a calibration-rs camera model (projection, distortion — Brown–Conrady, rational, thin prism, division — sensor — identity, Scheimpflug tilt, homography — and intrinsics `fx, fy, cx, cy, skew`); `resolution` `[width, height]`. |
-| `lasers` | A line laser: `fan_half_angle`, `fan_length`, `wavelength_nm`, `beam_waist_m`, and optionally `power_w` (laser images; default 0.5 mW) and `camera` (the one camera that images it). The fan lies in the laser's local `x = 0` plane and opens symmetrically about local +Z. |
+| `lasers` | A line laser: `fan_half_angle`, `fan_length`, `wavelength_nm`, `beam_waist_m`, and optionally `waist_distance_m` (where it is focused: the waist's distance from the laser along each ray; default 0, at the laser), `power_w` (laser images; default 0.5 mW) and `camera` (the one camera that images it). The fan lies in the laser's local `x = 0` plane and opens symmetrically about local +Z. |
 | `lights` | `power_w`, linear RGB `color`, and a `shape`: `point` (with a radius), `spot` (cone angle, soft edge) or `area` (a rectangle). |
 | `targets` | `geometry`: a `printed` target — any target calib-targets prints, with its print parameters in millimetres (below) — a calibration `board` in calibration-rs's dataset vocabulary, or a plain `rectangle`. A planar target is centred on the local origin, facing +Z, its top edge at +Y. |
 | `parts` | Static meshes (glTF binary, relative to the scene) for context: tables, fixtures, stands. |
@@ -86,7 +86,7 @@ around the rig's +Z axis, all with the same camera model.
 | `tilt_rad` | Angle of each camera's axis to the rig axis; by default `atan(radius / working distance)`, so the axes converge on the working point. |
 | `image_x` | `tangential` (the default: image +X along the ring) or `radial` (away from the axis). |
 | `camera` | `params` and `resolution` of every camera. |
-| `lasers` | One line laser per camera: `radius_m` from the axis at `azimuth_rad` from its camera, aimed at the working point, its fan across its camera's image; `fan_half_angle`, `fan_length`, `wavelength_nm`, `beam_waist_m` (and `power_w`) as for a laser. |
+| `lasers` | One line laser per camera: `radius_m` from the axis at `azimuth_rad` from its camera, aimed at the working point, its fan across its camera's image; `fan_half_angle`, `fan_length`, `wavelength_nm`, `beam_waist_m` (and `waist_distance_m`, `power_w`) as for a laser. |
 
 The cameras are `<rig>_cam<i>` and the lasers `<rig>_laser<i>`; each laser names its camera
 (`camera`), so a dataset gives every camera its own laser plane to calibrate. In the studio,

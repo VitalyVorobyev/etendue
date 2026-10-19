@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 // The kernel derives the params; here only the design's geometry is under test.
 vi.mock("@etendue/wasm", () => ({ deriveOptics: (_: unknown, params: unknown) => ({ params }) }));
 
-const { fromItem, initialHead, laserPose, toItem, windowRange } = await import("./design");
+const { aimDistance, fromItem, initialHead, laserParams, laserPose, toItem, windowRange } = await import("./design");
 
 describe("head designs", () => {
   it("place the laser off the axis, aimed at it, its line along camera x", () => {
@@ -44,5 +44,15 @@ describe("head designs", () => {
       expect(back[key]).toBeCloseTo(p[key], 12);
     }
     expect(back.tilt).toEqual(p.tilt);
+    expect(back.laser.waist_distance_m).toBe(p.laser.waist_distance_m);
+  });
+
+  it("focus a laser part at the aim point unless it says where it is focused", () => {
+    const head = initialHead(null);
+    expect(head.laser.waist_distance_m).toBeCloseTo(aimDistance(head), 12);
+    const part = { wavelength_nm: 660, fan_half_angle: 0.3, beam_waist_m: 5e-5 };
+    const place = { baseline_m: 0.2, height_m: 0, aim_m: 0.5 };
+    expect(laserParams({ name: "l", laser: part }, place).waist_distance_m).toBeCloseTo(Math.hypot(0.2, 0.5), 12);
+    expect(laserParams({ name: "l", laser: { ...part, waist_distance_m: 0 } }, place).waist_distance_m).toBe(0);
   });
 });

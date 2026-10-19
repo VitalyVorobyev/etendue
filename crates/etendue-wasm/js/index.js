@@ -150,7 +150,7 @@ export function validateLibraryItem(text) {
   return JSON.parse(rawValidateLibraryItem(typeof text === "string" ? text : JSON.stringify(text)));
 }
 
-const HEAD_MAP_FIELDS = 7;
+const HEAD_MAP_FIELDS = 10;
 
 export function headMap(design, window, across, along) {
   const raw = rawHeadMap(text(design), window == null ? undefined : text(window), across, along);
@@ -170,6 +170,9 @@ export function headMap(design, window, across, along) {
     lateral_m_per_px: field(4),
     depth_m_per_px: field(5),
     triangulation_rad: field(6),
+    beam_px: field(7),
+    pixel_u: field(8),
+    pixel_v: field(9),
   };
 }
 

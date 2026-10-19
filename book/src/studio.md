@@ -45,7 +45,8 @@ surface; the panels around it hold only what that workspace needs.
   the window it must measure in. It works on the project's library, not on the cell.
   - **Design** (left): the parts (sensor, lens, laser, or a saved head), the camera's f-number,
     focus and sensor tilt, where the laser sits (baseline off the camera axis, height, the point
-    on the axis it aims at), the window (depth along the laser, width along its line, the blur it
+    on the axis it aims at) and where it is focused (a laser part that does not say is focusable,
+    and is focused at the aim point; **Focus at the aim** puts it back there), the window (depth along the laser, width along its line, the blur it
     must stay under), and the optimiser. **Scheimpflug** tilts the sensor and focuses so the plane
     of best focus is the laser plane; **Optimise** searches tilt (or keeps the sensor square),
     focus and f-number for the smallest worst blur over the window, from that start, and offers
@@ -54,13 +55,20 @@ surface; the panels around it hold only what that workspace needs.
   - **Section** (centre, top): the plane through the camera axis across the laser plane, to
     scale — the sensor, the principal planes H and H′, the pupils, the field, chief and marginal
     rays from the window's near, middle and far points, the laser and its window, the plane of
-    best focus with the depth of field for the blur limit, and the Scheimpflug hinge points.
+    best focus with the depth of field for the blur limit, the Scheimpflug hinge points, and the
+    laser's waist.
     Drag the handles to move the focus, the aim, the laser and the window's depth. **Lens**
     zooms onto the camera; the wheel zooms, a drag pans.
-  - **Map** (centre, bottom): the laser plane over the window, face on, coloured by total blur
-    (defocus and diffraction), depth per pixel, millimetres per pixel along the line, or the
-    triangulation angle. Hatched samples are out of view; a white contour marks the blur limit.
-  - **Figures** (right): the window's coverage and worst figures, the Scheimpflug setting, and
+  - **Map** (centre, bottom left): the laser plane over the window, face on, coloured by total
+    blur (defocus and diffraction), depth per pixel, millimetres per pixel along the line, the
+    triangulation angle, or the stripe's width. Hatched samples are out of view; a white contour
+    marks the blur limit.
+  - **Sensor** (centre, bottom right): the camera's image, with the laser line where it falls at
+    seven ranges across the window, near to far. Triangulation is the line moving across the
+    image as the range changes. Each is labelled with its range and its width at the line's
+    centre: the beam's thickness (a Gaussian beam focused where the laser is focused) imaged
+    across the stripe, with the camera's blur, root sum of squares. It needs the laser's waist.
+  - **Figures** (right): the window's coverage and worst figures, the stripe's width, the Scheimpflug setting, and
     the camera's derived optics (fx and its breathing, magnification, working f-number, Airy
     disc, pupils).
 - **Rigs**: repeat one unit — a camera from the library, or a head (from the library or the
@@ -90,7 +98,7 @@ surface; the panels around it hold only what that workspace needs.
     and `−` zoom and `0` resets the view. Click an item to select it.
   - **Inspector** (right): the selected item's id, parent frame and pose (translation in mm,
     roll/pitch/yaw in degrees), and its parameters — a camera's resolution, intrinsics and
-    distortion, a laser's fan, reach, wavelength and waist, a target's layout, a light's power
+    distortion, a laser's fan, reach, wavelength, waist and focus (where the waist is), a target's layout, a light's power
     and colour, a robot's rest pose. All of them are editable.
 - **Motion**: the robot program.
   - **Program** (right): the scenario's steps. Click a capture to move the playhead to it. Hover

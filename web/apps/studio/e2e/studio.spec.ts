@@ -332,6 +332,23 @@ test("the Optics workspace designs a laser head: Scheimpflug, handles, optimiser
   await expect(section).toBeVisible();
   const figures = page.getByTestId("optics-readouts");
   await expect(figures).toContainText("100 % seen");
+  // The laser line on the sensor at seven ranges, and its width (the StingRay's waist is known).
+  await expect(page.getByTestId("sensor-stripes").locator("[data-range-mm]")).toHaveCount(7);
+  await expect(figures).toContainText(/stripe width\s*[\d.]+ – [\d.]+ px/);
+  await page.getByTestId("plane-map").getByRole("radio", { name: "Stripe" }).click();
+  await expect(page.getByRole("img", { name: "Stripe over the window" })).toBeVisible();
+  // The StingRay is focusable, so it is focused at the aim point; focused at the laser itself, its
+  // thinnest stripe is many times wider (the widest is the camera's own blur, at the window's ends).
+  await expect(page.getByTestId("laser-waist")).toBeVisible();
+  const thinnest = async () =>
+    Number(/stripe width\s*([\d.]+) – [\d.]+ px/.exec((await figures.textContent()) ?? "")?.[1] ?? NaN);
+  const focused = await thinnest();
+  const laserFocus = page.getByTestId("laser-focus").getByRole("spinbutton");
+  await laserFocus.fill("0");
+  await laserFocus.press("Enter");
+  await expect.poll(thinnest).toBeGreaterThan(3 * focused);
+  await page.getByRole("button", { name: "Focus at the aim" }).click();
+  await expect.poll(thinnest).toBeCloseTo(focused, 1);
 
   // The Scheimpflug setting puts the laser plane in focus: the window is left with diffraction.
   await page.getByRole("button", { name: "Scheimpflug" }).click();

@@ -5,7 +5,14 @@
  * library's `HeadDesign`, with the camera's params derived by the kernel (ADR 0008).
  */
 
-import { type CameraSpec, type HeadDesign, type LaserSpec, type LibraryItem, deriveOptics } from "@etendue/wasm";
+import {
+  type CameraSpec,
+  type HeadDesign,
+  type LaserPart,
+  type LaserSpec,
+  type LibraryItem,
+  deriveOptics,
+} from "@etendue/wasm";
 import { Matrix4, Quaternion, Vector3 } from "three";
 
 import { type Project, itemsOf } from "../io/project";
@@ -27,7 +34,14 @@ export interface HeadParams {
   focus_distance_m: number;
   /** Physical sensor tilt `[τx, τy]` (rad). */
   tilt: [number, number];
-  laser: { name: string; wavelength_nm: number; fan_half_angle: number; beam_waist_m: number | null };
+  /** The laser part; the waist is `waist_distance_m` from the laser along each ray (0: at it). */
+  laser: {
+    name: string;
+    wavelength_nm: number;
+    fan_half_angle: number;
+    beam_waist_m: number | null;
+    waist_distance_m: number;
+  };
   fan_length_m: number;
   /** The laser's origin: `baseline` off the camera axis (toward camera −y), `height` along it (m). */
   baseline_m: number;
@@ -54,9 +68,14 @@ export function laserPose(p: HeadParams): {
   return { rotation: [q.x, q.y, q.z, q.w], translation: [origin.x, origin.y, origin.z] };
 }
 
+/** The distance from the laser's origin to its aim point (m): the window's centre. */
+export function aimDistance(p: Pick<HeadParams, "baseline_m" | "height_m" | "aim_m">): number {
+  return Math.hypot(p.baseline_m, p.aim_m - p.height_m);
+}
+
 /** The window's range along the laser's central ray, from its origin (m). */
 export function windowRange(p: HeadParams): [number, number] {
-  const centre = Math.hypot(p.baseline_m, p.aim_m - p.height_m);
+  const centre = aimDistance(p);
   return [Math.max(1e-3, centre - p.depth_m / 2), centre + p.depth_m / 2];
 }
 
@@ -89,6 +108,7 @@ export function toDesign(p: HeadParams): HeadDesign {
       wavelength_nm: p.laser.wavelength_nm,
       fan_half_angle: p.laser.fan_half_angle,
       ...(p.laser.beam_waist_m !== null ? { beam_waist_m: p.laser.beam_waist_m } : {}),
+      ...(p.laser.waist_distance_m > 0 ? { waist_distance_m: p.laser.waist_distance_m } : {}),
     },
     fan_length_m: p.fan_length_m,
     camera_se3_laser: laserPose(p),
@@ -102,6 +122,30 @@ export function withSetting(
   s: { tilt: [number, number]; focus_distance_m: number; f_number: number },
 ): HeadParams {
   return { ...p, tilt: s.tilt, focus_distance_m: s.focus_distance_m, f_number: s.f_number };
+}
+
+/** Where a new head's laser sits. */
+const PLACE = { baseline_m: 0.1, height_m: 0.05, aim_m: 0.35 };
+
+/**
+ * The laser of a library part, for a head placed as `place`. A part that does not say where it is
+ * focused is focused at the aim point: a line laser focuses where it is used, and a waist at the
+ * laser itself would make a thin beam a thick stripe.
+ */
+export function laserParams(
+  part: {
+    name: string;
+    laser: Pick<LaserPart, "wavelength_nm" | "fan_half_angle" | "beam_waist_m" | "waist_distance_m">;
+  },
+  place: Pick<HeadParams, "baseline_m" | "height_m" | "aim_m">,
+): HeadParams["laser"] {
+  return {
+    name: part.name,
+    wavelength_nm: part.laser.wavelength_nm,
+    fan_half_angle: part.laser.fan_half_angle,
+    beam_waist_m: part.laser.beam_waist_m ?? null,
+    waist_distance_m: part.laser.waist_distance_m ?? aimDistance(place),
+  };
 }
 
 /**
@@ -157,18 +201,14 @@ function startingParts(project: Project | null): HeadParams {
     f_number: 4,
     focus_distance_m: 0.35,
     tilt: [0, 0],
-    laser: laser?.laser
-      ? {
-          name: laser.name,
-          wavelength_nm: laser.laser.wavelength_nm,
-          fan_half_angle: laser.laser.fan_half_angle,
-          beam_waist_m: laser.laser.beam_waist_m ?? null,
-        }
-      : { name: "660 nm line laser", wavelength_nm: 660, fan_half_angle: 0.26, beam_waist_m: 5e-5 },
+    laser: laserParams(
+      laser?.laser
+        ? { name: laser.name, laser: laser.laser }
+        : { name: "660 nm line laser", laser: { wavelength_nm: 660, fan_half_angle: 0.26, beam_waist_m: 5e-5 } },
+      PLACE,
+    ),
     fan_length_m: 1,
-    baseline_m: 0.1,
-    height_m: 0.05,
-    aim_m: 0.35,
+    ...PLACE,
     depth_m: 0.12,
     width_m: 0.04,
     max_blur_px: 2,
@@ -231,6 +271,7 @@ export function fromItem(item: LibraryItem): HeadParams | null {
       wavelength_nm: head.laser.wavelength_nm,
       fan_half_angle: head.laser.fan_half_angle,
       beam_waist_m: head.laser.beam_waist_m ?? null,
+      waist_distance_m: head.laser.waist_distance_m ?? 0,
     },
     fan_length_m: head.fan_length_m,
     baseline_m: -oy,
@@ -274,6 +315,7 @@ export function placement(
       wavelength_nm: p.laser.wavelength_nm,
       // The scene's beam model needs a waist; a laser part without one gets 0.5 mm.
       beam_waist_m: p.laser.beam_waist_m ?? 5e-4,
+      ...(p.laser.waist_distance_m > 0 ? { waist_distance_m: p.laser.waist_distance_m } : {}),
       camera: cameraId,
     },
   };

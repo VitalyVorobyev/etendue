@@ -8,7 +8,7 @@ import { Fold, RowLabel, Rows } from "../panels/controls/Fold";
 import { Pick, Row, SaveButton } from "../panels/controls/Library";
 import { type Live, NumberRow, SliderRow } from "../panels/controls/SliderRow";
 import type { HeadAnalysis } from "./analysis";
-import { type HeadParams, fromItem, toDesign, withSetting } from "./design";
+import { type HeadParams, aimDistance, fromItem, laserParams, toDesign, withSetting } from "./design";
 
 const DEG = 180 / Math.PI;
 
@@ -134,17 +134,8 @@ export function OpticsForm({
             kind="laser"
             current={p.laser.name}
             onPick={(ref) => {
-              const l = lib(ref)?.laser;
-              if (l)
-                onChange({
-                  ...p,
-                  laser: {
-                    name: lib(ref)!.name,
-                    wavelength_nm: l.wavelength_nm,
-                    fan_half_angle: l.fan_half_angle,
-                    beam_waist_m: l.beam_waist_m ?? null,
-                  },
-                });
+              const item = lib(ref);
+              if (item?.laser) onChange({ ...p, laser: laserParams({ name: item.name, laser: item.laser }, p) });
             }}
           />
         </Rows>
@@ -251,7 +242,9 @@ export function OpticsForm({
       </Fold>
       <Fold
         title="Laser"
-        summary={`${(p.baseline_m * 1000).toFixed(0)} mm off axis · aimed at ${(p.aim_m * 1000).toFixed(0)} mm`}
+        summary={`${(p.baseline_m * 1000).toFixed(0)} mm off axis · aimed at ${(p.aim_m * 1000).toFixed(0)} mm${
+          p.laser.beam_waist_m !== null ? ` · focused at ${(p.laser.waist_distance_m * 1000).toFixed(0)} mm` : ""
+        }`}
       >
         <Rows>
           <SliderRow
@@ -285,7 +278,34 @@ export function OpticsForm({
             step={1}
             live={live(p, onChange, (q, v) => ({ ...q, aim_m: Math.max(v, q.height_m + 0.01) }))}
           />
+          {p.laser.beam_waist_m !== null && (
+            <SliderRow
+              label="focus"
+              title="Where the laser is focused: its waist's distance from the laser, along each ray"
+              value={p.laser.waist_distance_m}
+              scale={1000}
+              unit="mm"
+              precision={0}
+              range={[0, 2000]}
+              limits={[0, 10000]}
+              step={1}
+              live={live(p, onChange, (q, v) => ({ ...q, laser: { ...q.laser, waist_distance_m: Math.max(0, v) } }))}
+              testId="laser-focus"
+            />
+          )}
         </Rows>
+        {p.laser.beam_waist_m !== null && (
+          <div className="flex flex-wrap gap-1.5">
+            <Button
+              size="sm"
+              icon={<Crosshair className="size-3.5" />}
+              onClick={() => onChange({ ...p, laser: { ...p.laser, waist_distance_m: aimDistance(p) } })}
+              title="Focus the laser at its aim point, the window's centre"
+            >
+              Focus at the aim
+            </Button>
+          </div>
+        )}
       </Fold>
       <Fold
         title="Window"
@@ -446,6 +466,11 @@ export function OpticsReadouts({ params, analysis }: { params: HeadParams; analy
           </Row>
           <Row label="lateral / px">
             {um(stats.lateralPerPx[0])} – {um(stats.lateralPerPx[1])}
+          </Row>
+          <Row label="stripe width">
+            {stats.stripePx
+              ? `${stats.stripePx[0].toFixed(1)} – ${stats.stripePx[1].toFixed(1)} px`
+              : "beam waist unknown"}
           </Row>
           <Row label="triangulation">
             {(stats.triangulationRad[0] * DEG).toFixed(1)}° – {(stats.triangulationRad[1] * DEG).toFixed(1)}°

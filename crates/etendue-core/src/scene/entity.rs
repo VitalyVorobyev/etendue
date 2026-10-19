@@ -374,11 +374,16 @@ pub struct LaserEntity {
     /// Beam-waist radius `w0`, in **metres** — the `1/e²` radius of the laser
     /// beam's cross-section at its narrowest point. The
     /// [`GaussianBeamWidth`](crate::laser::GaussianBeamWidth) model places the
-    /// waist at the laser origin and grows the cross-section away from it via
-    /// `w(d) = w0·sqrt(1 + (d/zR)²)`, `zR = π·w0²/λ`. A typical machine-vision
-    /// line laser focuses to a waist of a few hundred micrometres (e.g.
-    /// `2.5e-4` m for a 0.25 mm waist).
+    /// waist at [`waist_distance_m`](Self::waist_distance_m) and grows the
+    /// cross-section away from it via `w(d) = w0·sqrt(1 + ((d − d0)/zR)²)`,
+    /// `zR = π·w0²/λ`. A typical machine-vision line laser focuses to a waist
+    /// of a few hundred micrometres (e.g. `2.5e-4` m for a 0.25 mm waist).
     pub beam_waist_m: f64,
+    /// Distance `d0` from the laser origin to the waist along each ray, in
+    /// metres: where a focusable laser is focused. 0 (the default) puts the
+    /// waist at the laser itself.
+    #[serde(default)]
+    pub waist_distance_m: f64,
 }
 
 impl LaserEntity {
@@ -434,6 +439,27 @@ impl LaserEntity {
             fan_length,
             wavelength_nm,
             beam_waist_m,
+            waist_distance_m: 0.0,
+        })
+    }
+
+    /// The same laser focused at `waist_distance_m` from its origin.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::InvalidInput`](crate::Error::InvalidInput) if the
+    /// distance is not finite and non-negative.
+    pub fn with_waist_distance(self, waist_distance_m: f64) -> crate::Result<Self> {
+        if !(waist_distance_m.is_finite() && waist_distance_m >= 0.0) {
+            return Err(crate::Error::InvalidInput {
+                reason: format!(
+                    "laser beam-waist distance must be finite and non-negative, got {waist_distance_m}"
+                ),
+            });
+        }
+        Ok(Self {
+            waist_distance_m,
+            ..self
         })
     }
 }
