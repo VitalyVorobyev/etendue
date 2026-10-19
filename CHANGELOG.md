@@ -116,7 +116,8 @@ calibration datasets with exact ground truth. The 0.1.0 desktop app is replaced 
   desktop, or through the browser's folder access).
 - **The Optics workspace**: design a laser-triangulation head from the library's parts against
   the window it must measure in. A Scheimpflug section (sensor, principal planes, pupils, traced
-  rays, the plane of best focus and its depth of field, draggable focus, aim, laser and window), a
+  rays, the plane of best focus and its depth of field, draggable focus, aim, laser and window,
+  or the head in 3-D), a
   map of the laser plane (blur, depth and lateral resolution, triangulation angle, stripe width),
   the laser line on the sensor at several ranges with its width in pixels, charts of blur, stripe
   width and resolution against range, one-click Scheimpflug, an optimiser over tilt, focus and

@@ -309,7 +309,21 @@ export interface HeadSection {
   rays: SectionRay[];
   /** Near and far polylines where the blur reaches the limit. */
   depth_of_field: [SectionPoint[], SectionPoint[]] | null;
+  /** The same camera in 3-D, in its body frame (m). */
+  solid: HeadSolid;
 }
+
+/** A head's camera in 3-D, in its body frame (m), for an anatomy view. */
+export interface HeadSolid {
+  /** The sensor's corners, at pixels (0, 0), (w, 0), (w, h) and (0, h). */
+  sensor: [Vec3, Vec3, Vec3, Vec3];
+  /** The field's edge rays from the entrance pupil, through those corners. */
+  field: { point: Vec3; direction: Vec3 }[];
+  /** The plane of best focus: a point on it and its unit normal. */
+  focus: { point: Vec3; normal: Vec3 };
+}
+
+type Vec3 = [number, number, number];
 
 /** A head's samples over its window: one value per sample, `across` × `along`, row by row from the nearest range. */
 export interface HeadMap {

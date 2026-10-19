@@ -630,7 +630,12 @@ studio code, so no phase waits on a review.
     - **P10e:** the lens search: every library lens optimised on the head the same way, ranked
       by the window seen, then the worst blur, with the depth resolution beside it.
 
-    Not built yet: the 3-D anatomy view.
+    - **P10f:** the 3-D anatomy view: the sensor, principal planes, pupils, field, fan, plane of
+      best focus and the window coloured by blur. The head's section carries the camera in 3-D
+      (`Section.solid`: the sensor's corners, the field's corner rays and the plane of best
+      focus, in the body frame).
+
+    Every P10 item is built.
 - **P11 — Rigs workspace.**
   - **Schema:**
     - `ImageX::Common` makes k = 2 a classical stereo pair (baseline 2ρ, convergence

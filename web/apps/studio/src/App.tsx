@@ -25,7 +25,7 @@ import { analyse } from "./optics/analysis";
 import { type HeadParams, initialHead, placement, toItem } from "./optics/design";
 import { OpticsForm, OpticsReadouts } from "./optics/OpticsPanels";
 import { PlaneMap } from "./optics/PlaneMap";
-import { SectionView } from "./optics/SectionView";
+import { HeadView } from "./optics/HeadView";
 import { RangeViews } from "./optics/RangeViews";
 import { analyse as analyseRig } from "./rigs/analysis";
 import { type RigParams, initialRig, toItem as toRigItem, toLayout } from "./rigs/design";
@@ -906,7 +906,7 @@ export function App() {
         </div>
       ) : (
         <div className="grid h-full min-h-0 grid-rows-[3fr_2fr] divide-y divide-line">
-          <SectionView section={headAnalysis.section} params={headParams} onChange={setHead} />
+          <HeadView analysis={headAnalysis} params={headParams} onChange={setHead} />
           <div className="grid min-h-0 grid-cols-[minmax(0,3fr)_minmax(0,2fr)] divide-x divide-line">
             <PlaneMap
               map={headAnalysis.map}

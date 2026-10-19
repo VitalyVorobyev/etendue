@@ -122,6 +122,31 @@ pub struct Line2 {
     pub direction: P2,
 }
 
+/// A ray in 3-D: a point on it and a unit direction.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
+pub struct Ray3 {
+    pub point: [f64; 3],
+    pub direction: [f64; 3],
+}
+
+/// A plane in 3-D: a point on it and its unit normal.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
+pub struct Plane3 {
+    pub point: [f64; 3],
+    pub normal: [f64; 3],
+}
+
+/// The camera in 3-D, in its body frame (m), for an anatomy view.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
+pub struct Solid {
+    /// The sensor's corners, at pixels `(0, 0)`, `(w, 0)`, `(w, h)` and `(0, h)`.
+    pub sensor: [[f64; 3]; 4],
+    /// The field's edge rays from the entrance pupil, through those corners.
+    pub field: [Ray3; 4],
+    /// The plane of best focus.
+    pub focus: Plane3,
+}
+
 /// Everything the Scheimpflug drawing needs, in the section's `(s, z)` (m).
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct Section {
@@ -153,6 +178,8 @@ pub struct Section {
     /// Where the blur reaches the limit, near and far of the plane of best focus, along the
     /// section's field (polylines; a far side that never reaches it is left out).
     pub depth_of_field: Option<[Vec<P2>; 2]>,
+    /// The same camera in 3-D.
+    pub solid: Solid,
 }
 
 /// A camera setting a head can be built with.
@@ -669,6 +696,25 @@ impl Head {
         }
         let depth_of_field =
             blur_limit_px.map(|limit| self.depth_of_field(&field, limit, &to2, &s));
+        // The sensor's corners: a pixel is `c − (P·axis)/pitch` along each of its axes.
+        let corners = [[0.0, 0.0], [w, 0.0], [w, h], [0.0, h]];
+        let at =
+            |[u, v]: [f64; 2]| (cx - u) * pitch * plane.x_axis + (cy - v) * pitch * plane.y_axis;
+        let ray3 = |[u, v]: [f64; 2]| {
+            let (point, direction) = cam.backproject(&Point2::new(u, v));
+            Ray3 {
+                point: point.coords.into(),
+                direction: direction.into(),
+            }
+        };
+        let solid = Solid {
+            sensor: corners.map(|c| at(c).into()),
+            field: corners.map(ray3),
+            focus: Plane3 {
+                point: focus_point.coords.into(),
+                normal: focus_normal.into(),
+            },
+        };
         Ok(Section {
             s_axis: [s.x, s.y, s.z],
             cardinal_points: cp,
@@ -685,6 +731,7 @@ impl Head {
             field,
             rays,
             depth_of_field,
+            solid,
         })
     }
 
