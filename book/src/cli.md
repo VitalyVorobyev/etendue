@@ -155,7 +155,12 @@ alone.
 On exact observations the gate applies: G5.1, or G5.3 with lasers. The command then fails if a
 gated row is outside its limit. On noisy or detected observations the limits are shown for
 reference. `-o` writes the report as JSON: the rows, the residuals (every point's error) and the
-estimate.
+estimate. The estimate's `offsets` place it beside the truth:
+- each camera, as the estimated camera in the true camera's frame;
+- the target, as the estimated target in the true target's frame;
+- each laser plane, true and estimated, in the true camera's frame.
+
+The studio draws them this way.
 
 ## `scenario from-poses`
 

@@ -36,7 +36,8 @@ import { tcpPath } from "./scene/TcpPath";
 import { CoverageLegend, SliceMaps } from "./rigs/SliceMaps";
 import { CameraGrid } from "./panels/CameraGrid";
 import { CellDialog } from "./panels/CellDialog";
-import { CalibratePanel } from "./panels/CalibratePanel";
+import { CALIBRATE_FORM, type CalibrateForm, CalibratePanel, noiseOf } from "./panels/CalibratePanel";
+import { CameraView } from "./panels/CameraView";
 import { DatasetPanel } from "./panels/DatasetPanel";
 import { GeneratorPanel } from "./panels/GeneratorPanel";
 import { type ExportItem, Header, type Mode } from "./panels/Header";
@@ -58,7 +59,9 @@ import {
   updateEntity,
 } from "./scene/edit";
 import { sceneTree } from "./scene/model";
-import { CalibrationRunner } from "./state/calibrationRun";
+import { CalibrationRunner, useCalibrationRun } from "./state/calibrationRun";
+import { estimateDrawing, observedAt as observedIn } from "./calibrate/compare";
+import { useObservations } from "./calibrate/observations";
 import { DatasetRunner } from "./state/datasetRun";
 import { Studio, initialExample, useStudio } from "./state/studio";
 
@@ -145,6 +148,12 @@ export function App() {
   const [chartRobot, setChartRobot] = useState<string | null>(null);
   const [speed, setSpeed] = useState(1);
   const [loop, setLoop] = useState(false);
+  // The Calibrate workspace: what it calibrates from, how much the 3-D view exaggerates the
+  // estimate, and the camera whose observations it shows.
+  const [calibrateForm, setCalibrateForm] = useState<CalibrateForm>(CALIBRATE_FORM);
+  const [estimateScale, setEstimateScale] = useState(100);
+  const [observedCamera, setObservedCamera] = useState<string | null>(null);
+  const calibrationRun = useCalibrationRun(calibration);
 
   const setMode = (m: Mode) => {
     setModeState(m);
@@ -258,6 +267,39 @@ export function App() {
     },
     [current, dataset],
   );
+  // What a calibration of the open scene observes (the Calibrate workspace): exact, or with the
+  // form's noise; a detector's observations are not previewed.
+  const observeNoise = useMemo(
+    () =>
+      mode !== "dataset"
+        ? null
+        : calibrateForm.source === "noisy"
+          ? noiseOf(calibrateForm.noise)
+          : calibrateForm.source === "exact"
+            ? {}
+            : null,
+    [mode, calibrateForm],
+  );
+  const { observations, error: observeError } = useObservations(current, observeNoise);
+  const observedAt = useCallback(
+    (camera: string, k: number) => (current ? observedIn(observations, current.baked, camera, k) : null),
+    [current, observations],
+  );
+  const shownCamera = cameras.find((c) => c.id === observedCamera) ?? cameras[0] ?? null;
+  // The last calibration of this dataset (its first trial), drawn over the truth in 3-D.
+  const calibrated =
+    dataset && calibrationRun.result?.dir === dataset.output ? (calibrationRun.result.run.reports[0] ?? null) : null;
+  const estimate = useMemo(() => {
+    if (mode !== "dataset" || !calibrated || !current) return null;
+    const extent = (id: string) => {
+      try {
+        return current.session.targetExtent(id) ?? null;
+      } catch {
+        return null;
+      }
+    };
+    return estimateDrawing(calibrated, estimateScale, current.loaded.scene, current.baked, extent);
+  }, [mode, calibrated, current, estimateScale]);
   const importPoses = (path: string) => {
     const ids = scene?.robots?.map((r) => r.id) ?? [];
     const robot = ids.length === 1 ? ids[0] : selectedRobot?.id;
@@ -492,11 +534,18 @@ export function App() {
       poses={bodyPose}
       gizmo={gizmo}
       paths={mode === "motion" ? tcpPaths : undefined}
+      estimate={estimate}
     />
   ) : null;
 
   const main = current ? (
-    <div className="relative flex h-full min-h-0 flex-col">
+    <div
+      className={
+        mode === "dataset"
+          ? "grid h-full min-h-0 grid-cols-[minmax(0,2fr)_minmax(0,3fr)] grid-rows-[minmax(0,3fr)_minmax(0,2fr)]"
+          : "relative flex h-full min-h-0 flex-col"
+      }
+    >
       {mode === "images" && (
         <div className="min-h-0 flex-1">
           <CameraGrid
@@ -514,7 +563,7 @@ export function App() {
         </div>
       )}
       {mode === "dataset" && (
-        <div className="min-h-0 flex-1 overflow-auto p-4">
+        <div className="row-span-2 min-h-0 overflow-auto border-r border-line p-4">
           <DatasetPanel current={current} dataset={dataset} runner={runner} />
           {dataset && (
             <section className="mt-6 border-t border-line pt-4" aria-label="Calibrate">
@@ -524,6 +573,10 @@ export function App() {
                 cameras={(current.loaded.scene.cameras ?? []).map((c) => c.id)}
                 lasers={(current.loaded.scene.lasers ?? []).length > 0}
                 runner={calibration}
+                form={calibrateForm}
+                onForm={setCalibrateForm}
+                scale={estimateScale}
+                onScale={setEstimateScale}
               />
             </section>
           )}
@@ -537,10 +590,11 @@ export function App() {
               ? "absolute right-3 bottom-3 z-10 h-52 w-72 overflow-hidden rounded-md border border-line-strong bg-canvas shadow-lg"
               : "hidden"
             : mode === "dataset"
-              ? "hidden"
+              ? "relative min-h-0 min-w-0"
               : "relative min-h-0 flex-1"
         }
         data-testid="viewport"
+        data-estimate={estimate ? estimate.cameras.length : undefined}
       >
         {viewport}
         {loading && <div className="absolute top-2 left-2 text-xs text-fg-muted">Loading…</div>}
@@ -555,6 +609,46 @@ export function App() {
           />
         )}
       </div>
+      {mode === "dataset" && (
+        <section
+          className="flex min-h-0 min-w-0 flex-col border-t border-line"
+          aria-label="Observations"
+          data-testid="observations"
+        >
+          <div className="flex shrink-0 flex-wrap items-center gap-2 px-2 py-1 text-xs">
+            <span className="font-medium">Observations</span>
+            {cameras.length > 1 && shownCamera && (
+              <Select
+                aria-label="Observed camera"
+                value={shownCamera.id}
+                options={cameras.map((c) => ({ value: c.id, label: c.id }))}
+                onValueChange={setObservedCamera}
+              />
+            )}
+            <span className="text-fg-muted">
+              {calibrateForm.source === "detected"
+                ? "The detector's observations are in the dataset's images."
+                : (observeError ??
+                  "At a capture, a dot is what the calibration observes (an outlier larger, in red) and a cross the truth; a cross without a dot was dropped.")}
+            </span>
+          </div>
+          {shownCamera && runtime && (
+            <div className="min-h-0 flex-1">
+              <CameraView
+                session={current.session}
+                runtime={runtime}
+                poses={poses ?? undefined}
+                camera={shownCamera}
+                targets={scene?.targets ?? []}
+                lasers={scene?.lasers ?? []}
+                playhead={playhead}
+                renderedAt={renderedAt}
+                observedAt={observedAt}
+              />
+            </div>
+          )}
+        </section>
+      )}
       {mode === "images" && !insetOpen && (
         <Button
           size="sm"
@@ -916,7 +1010,6 @@ export function App() {
         rightSize={{ defaultSize: 380, minSize: 260, maxSize: "50%" }}
         bottom={
           current &&
-          mode !== "dataset" &&
           mode !== "optics" &&
           mode !== "rigs" && (
             <PlaybackBar

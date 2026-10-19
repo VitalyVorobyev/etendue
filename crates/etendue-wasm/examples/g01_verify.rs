@@ -274,6 +274,29 @@ fn main() -> ExitCode {
             .filter(|&&v| v > 0)
             .count()
     );
+    // Noisy observations of a laser rig's ground truth (P13): the JSON text, so every value.
+    let observe = &probe["observe"];
+    let text = |key: &str| observe[key].as_str().expect("observe probe text");
+    let rig3 = Session::load(text("scene"), &robots.to_string()).expect("rig3 scene loads");
+    let native = rig3
+        .observe(text("scenario"), text("noise"))
+        .expect("native observe");
+    let native_text = serde_json::to_string(&native).expect("observations JSON");
+    if native_text != text("observations") {
+        eprintln!("observe differs");
+        mismatches += 1;
+    }
+    let pixels: usize = native
+        .captures
+        .iter()
+        .flat_map(|c| &c.views)
+        .map(|v| 2 * (v.points.len() + v.laser.len()))
+        .sum();
+    total += pixels;
+    println!(
+        "  observe            {} captures, {pixels} pixel values",
+        native.captures.len()
+    );
     println!("  output values:     {total}");
     println!("  bit mismatches:    {mismatches}");
     println!("  max |Δ| (px):      {max_abs_diff:e}");

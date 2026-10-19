@@ -170,3 +170,16 @@ A rig without lasers can also be calibrated one camera at a time. The result sho
 - the mean and per-axis RMS reprojection error, and a histogram of every point's error.
 
 The run is also written to the dataset folder as `calibration.json`.
+
+**Beside the truth.** The workspace keeps a 3-D view and a camera view next to the panel.
+- The 3-D view draws the estimate over the truth in the warning colour: each estimated
+  camera's frustum, its laser plane over the true fan, and the target's outline. A
+  calibration's errors are far too small to see, so they are exaggerated ×1, ×10, ×100 or
+  ×1000: every offset's rotation angle and translation, and every plane's tilt and shift.
+- The camera view shows, at each capture, what the calibration observes. With exact
+  observations or with noise, a dot marks each observed corner; an outlier is larger and red.
+  The crosses are the truth, so a cross without a dot was dropped.
+
+The observations are computed in the browser kernel from the open scene, with the same
+ground truth and noise stream as the run, so a seed shows the very points it calibrates from.
+Step through the captures on the timeline.

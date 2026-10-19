@@ -138,6 +138,21 @@ const rigGrid = JSON.stringify({ ...ring.box, n: [20, 20, 16] });
 const rigCriteria = JSON.stringify({ max_blur_px: 3 });
 const rigCoverage = Array.from(wasm.rigCoverage(rigLayout, rigGrid, rigCriteria));
 
+// P13: noisy observations of a three-camera laser rig's ground truth (every noise term on).
+const observeScene = read("examples/rig3_laser_ur5e/scene.json");
+const observeScenario = read("examples/rig3_laser_ur5e/scenario.json");
+const observeNoise = JSON.stringify({
+  pixel_sigma_px: 0.5,
+  outlier_fraction: 0.02,
+  outlier_sigma_px: 20,
+  dropout_fraction: 0.05,
+  laser_sigma_px: 0.3,
+  robot_rot_sigma_rad: 1e-4,
+  robot_trans_sigma_m: 1e-4,
+  seed: 7,
+});
+const observations = new wasm.EtendueScene(observeScene, robots).observe(observeScenario, observeNoise);
+
 process.stdout.write(
   JSON.stringify({
     gate: "G0.1",
@@ -169,5 +184,6 @@ process.stdout.write(
       tcp: ikTcp,
       ik: ikAnswer,
     },
+    observe: { scene: observeScene, scenario: observeScenario, noise: observeNoise, observations },
   }) + "\n",
 );

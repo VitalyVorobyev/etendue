@@ -617,6 +617,14 @@ mod tests {
     }
 
     #[test]
+    fn the_ground_truth_uses_the_renders_pixel_centres() {
+        assert_eq!(
+            etendue_synth::dataset::EmitOptions::STANDARD.pixel_centre,
+            PIXEL_CENTRE
+        );
+    }
+
+    #[test]
     fn a_series_pin_takes_its_patch_releases() {
         assert_eq!(blender("5.2.2", Some("5.2")).check(false).unwrap(), None);
         assert_eq!(blender("5.2.0", Some("5.2")).check(false).unwrap(), None);

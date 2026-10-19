@@ -204,7 +204,9 @@ locally, never in CI.
 
 **`etendue-wasm`** — wasm-bindgen facade (P2-1). `Session` (JS `EtendueScene`) loads a
 scene plus robot sources `{id, manifest, urdf}` (the host reads files; the crate does no
-I/O), then `bake`, `project_points`, `backproject_pixels`, `target_extent`, `remap`. Documents cross
+I/O), then `bake`, `project_points`, `backproject_pixels`, `target_extent`, `remap`, and
+`observe` (P13: `etendue gt`'s ground truth via `etendue-synth::dataset::emit_scene` with
+`EmitOptions::STANDARD`, observed with noise exactly as `etendue calibrate` does). Documents cross
 as JSON text (bit-exact with `float_roundtrip`). `scripts/build-npm.mjs` wraps the
 wasm-pack output with the typed layer in `js/` (types generated from `schemas/` by
 `web/scripts/generate-wasm-types.ts`). The wasm graph has no `getrandom` at all (since
@@ -281,6 +283,9 @@ match calibration-rs exactly.
   A sibling checkout on another branch resolves differently. Build against a clean clone of the tag
   with `cargo … --config <file>`, where the file holds a `[patch.crates-io]` table with the seven
   calibration-rs paths. Config patches override the manifest's.
+  - `build-npm.mjs` and the e2e setup take the same file as `ETENDUE_CARGO_CONFIG`.
+  - `cargo xtask check-layering` runs `cargo metadata` without the override, so it re-locks
+    against the sibling. Restore `Cargo.lock` after it (`git checkout Cargo.lock`).
 
 ## Conventions
 

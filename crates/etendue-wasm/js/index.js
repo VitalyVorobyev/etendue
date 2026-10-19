@@ -45,6 +45,10 @@ export class EtendueScene {
     return this.#raw.robotLinkPoses(robotId, q instanceof Float64Array ? q : Float64Array.from(q));
   }
 
+  observe(scenario, noise) {
+    return JSON.parse(this.#raw.observe(text(scenario), text(noise)));
+  }
+
   robotTcp(robotId, q) {
     return JSON.parse(this.#raw.robotTcp(robotId, q instanceof Float64Array ? q : Float64Array.from(q)));
   }

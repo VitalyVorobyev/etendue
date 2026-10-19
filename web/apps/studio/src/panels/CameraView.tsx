@@ -1,4 +1,4 @@
-import type { CameraSpec, EtendueScene, LaserSpec, TargetSpec } from "@etendue/wasm";
+import type { CameraSpec, EtendueScene, LaserSpec, ObservedView, TargetSpec } from "@etendue/wasm";
 import {
   ImageStage,
   MeasureOverlay,
@@ -105,6 +105,21 @@ function project(
   return { primitives, visible, stripes };
 }
 
+/**
+ * What the calibration sees of a view: each observed point as a dot (an outlier larger, in the
+ * defect colour) and the observed stripe's pixels. A true corner without a dot was dropped.
+ */
+function observedMarks(view: ObservedView): MeasurePrimitive[] {
+  const marks: MeasurePrimitive[] = view.laser.map(([x, y]) => ({ kind: "point", x, y, radius: 1.5, tone: "warn" }));
+  for (const p of view.points) {
+    const [x, y] = p.pixel;
+    marks.push(
+      p.outlier ? { kind: "point", x, y, radius: 6, tone: "defect" } : { kind: "point", x, y, radius: 4, tone: "warn" },
+    );
+  }
+  return marks;
+}
+
 function Overlay({ width, height, primitives }: { width: number; height: number; primitives: MeasurePrimitive[] }) {
   const stage = useStage();
   return (
@@ -138,6 +153,7 @@ export function CameraView({
   lasers = [],
   playhead,
   renderedAt,
+  observedAt,
 }: {
   session: EtendueScene;
   runtime: FrameTreeRuntime;
@@ -150,6 +166,8 @@ export function CameraView({
   playhead: Playhead;
   /** The dataset image of `camera` at sample `k`, if one was rendered there. */
   renderedAt?: ((camera: string, k: number) => string | null) | undefined;
+  /** What the calibration observes of `camera` at sample `k`, if `k` is a capture (P13). */
+  observedAt?: ((camera: string, k: number) => ObservedView | null) | undefined;
 }) {
   const k = usePlayhead(playhead);
   const [view, setView] = useState<StageView | null>(null);
@@ -170,6 +188,11 @@ export function CameraView({
     () => project(session, poses, camera, targets, lasers, k),
     [session, poses, camera, targets, lasers, k],
   );
+  const observed = observedAt?.(camera.id, k) ?? null;
+  const marks = useMemo(
+    () => (observed ? [...primitives, ...observedMarks(observed)] : primitives),
+    [primitives, observed],
+  );
   const [w, h] = [camera.resolution[0], camera.resolution[1]];
   return (
     <div
@@ -177,6 +200,7 @@ export function CameraView({
       data-testid={`camera-view-${camera.id}`}
       data-visible={visible}
       data-stripes={stripes}
+      data-observed={observed ? observed.points.length : undefined}
     >
       <ImageStage
         image={{ width: w, height: h }}
@@ -226,7 +250,7 @@ export function CameraView({
         {/* Only what lands on the sensor is drawn. */}
         {overlay && (
           <div className="absolute inset-0 overflow-hidden">
-            <Overlay width={w} height={h} primitives={primitives} />
+            <Overlay width={w} height={h} primitives={marks} />
           </div>
         )}
       </ImageStage>

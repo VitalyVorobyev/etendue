@@ -191,3 +191,7 @@ G0.1 wasm/native projection parity
   - **Matrix products.** IK's and the manipulability's `J·Jᵀ` and `Jᵀ·y` were `DMatrix` products.
     nalgebra hands those to `matrixmultiply`, whose native kernels fuse multiply-adds and whose
     wasm path does not. They are now summed in order (`fk::jjt`).
+- Re-run 2026-10-19 on branch `p13c/compare` (on `c812423`). The probe now also covers
+  `observe`: noisy observations of rig3_laser_ur5e's ground truth with every noise term on
+  (70 captures, 106,524 pixel values), compared as JSON text. Result: 216,048 values,
+  **0 mismatches**.

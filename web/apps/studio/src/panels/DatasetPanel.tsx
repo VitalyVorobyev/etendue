@@ -175,8 +175,8 @@ export function DatasetPanel({
   const set = (patch: Partial<Form>) => setForm((f) => ({ ...f, ...patch }));
 
   return (
-    <div className="flex h-full min-h-0 gap-4 overflow-auto" data-testid="dataset-panel">
-      <div className="flex w-96 shrink-0 flex-col gap-3">
+    <div className="flex h-full min-h-0 flex-wrap gap-4 overflow-auto" data-testid="dataset-panel">
+      <div className="flex w-96 max-w-full shrink-0 flex-col gap-3">
         <div className="flex items-center gap-2 text-xs" data-testid="blender-status">
           {blender === null ? (
             <StatusDot tone="neutral">Looking for Blender…</StatusDot>
@@ -291,7 +291,7 @@ export function DatasetPanel({
           )}
         </div>
       </div>
-      <div className="flex min-w-0 flex-1 flex-col gap-3">
+      <div className="flex min-w-72 flex-1 flex-col gap-3">
         {running && (
           <ProgressBar
             fraction={step && step.total > 0 ? step.done / step.total : 0}
