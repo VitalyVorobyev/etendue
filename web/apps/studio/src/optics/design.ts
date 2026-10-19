@@ -10,6 +10,7 @@ import {
   type HeadDesign,
   type LaserPart,
   type LaserSpec,
+  type LensPart,
   type LibraryItem,
   deriveOptics,
 } from "@etendue/wasm";
@@ -122,6 +123,21 @@ export function withSetting(
   s: { tilt: [number, number]; focus_distance_m: number; f_number: number },
 ): HeadParams {
   return { ...p, tilt: s.tilt, focus_distance_m: s.focus_distance_m, f_number: s.f_number };
+}
+
+/** `p` with the library lens `lens` (named `name`), its f-number kept within the lens's. */
+export function withLens(p: HeadParams, name: string, lens: LensPart): HeadParams {
+  return {
+    ...p,
+    lens: {
+      name,
+      focal_length_m: lens.focal_length_m,
+      min_f_number: lens.min_f_number,
+      principal_gap_m: lens.principal_gap_m ?? 0,
+      entrance_pupil_m: lens.entrance_pupil_m ?? 0,
+    },
+    f_number: Math.max(p.f_number, lens.min_f_number),
+  };
 }
 
 /** Where a new head's laser sits. */

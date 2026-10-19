@@ -50,7 +50,10 @@ surface; the panels around it hold only what that workspace needs.
     must stay under), and the optimiser. **Scheimpflug** tilts the sensor and focuses so the plane
     of best focus is the laser plane; **Optimise** searches tilt (or keeps the sensor square),
     focus and f-number for the smallest worst blur over the window, from that start, and offers
-    Apply or Discard. **Save to library** writes `library/heads/<id>.json`; **Place in cell**
+    Apply or Discard. **Search lenses** does the same with every lens of the library and ranks
+    them: the most of the window seen first, then the smallest worst blur. Each row also shows
+    the coarsest depth per pixel, since a shorter lens blurs less but resolves depth more
+    coarsely. **Apply** takes that lens with its setting. **Save to library** writes `library/heads/<id>.json`; **Place in cell**
     adds the camera and its laser to the open cell.
   - **Section** (centre, top): the plane through the camera axis across the laser plane, to
     scale — the sensor, the principal planes H and H′, the pupils, the field, chief and marginal

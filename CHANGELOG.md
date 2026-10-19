@@ -119,9 +119,8 @@ calibration datasets with exact ground truth. The 0.1.0 desktop app is replaced 
   rays, the plane of best focus and its depth of field, draggable focus, aim, laser and window), a
   map of the laser plane (blur, depth and lateral resolution, triangulation angle, stripe width),
   the laser line on the sensor at several ranges with its width in pixels, charts of blur, stripe
-  width and resolution against range, one-click
-  Scheimpflug, an optimiser over tilt, focus and f-number, saving to the library and placing in a
-  cell.
+  width and resolution against range, one-click Scheimpflug, an optimiser over tilt, focus and
+  f-number with a search over the library's lenses, saving to the library and placing in a cell.
 - **Robot library**: compare the studio's robots (axes, joint ranges and speeds, how far the TCP
   gets from the base) and add one to the cell or replace the selected robot.
 - **Rigs workspace slices**: to scale, with each camera's sharp range along its axis

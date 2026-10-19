@@ -8,7 +8,8 @@ import { Fold, RowLabel, Rows } from "../panels/controls/Fold";
 import { Pick, Row, SaveButton } from "../panels/controls/Library";
 import { type Live, NumberRow, SliderRow } from "../panels/controls/SliderRow";
 import type { HeadAnalysis } from "./analysis";
-import { type HeadParams, aimDistance, fromItem, laserParams, toDesign, withSetting } from "./design";
+import { type HeadParams, aimDistance, fromItem, laserParams, toDesign, withLens, withSetting } from "./design";
+import { LensSearch } from "./LensSearch";
 
 const DEG = 180 / Math.PI;
 
@@ -112,20 +113,8 @@ export function OpticsForm({
             kind="lens"
             current={p.lens.name}
             onPick={(ref) => {
-              const l = lib(ref)?.lens;
-              if (l) {
-                onChange({
-                  ...p,
-                  lens: {
-                    name: lib(ref)!.name,
-                    focal_length_m: l.focal_length_m,
-                    min_f_number: l.min_f_number,
-                    principal_gap_m: l.principal_gap_m ?? 0,
-                    entrance_pupil_m: l.entrance_pupil_m ?? 0,
-                  },
-                  f_number: Math.max(p.f_number, l.min_f_number),
-                });
-              }
+              const item = lib(ref);
+              if (item?.lens) onChange(withLens(p, item.name, item.lens));
             }}
           />
           <Pick
@@ -397,6 +386,7 @@ export function OpticsForm({
           </div>
         )}
         {error && <p className="text-xs text-defect">{error}</p>}
+        <LensSearch params={p} project={project} tiltFree={tiltFree} onApply={onChange} />
       </Fold>
       <Fold title="Library" summary={project?.manifest.name ?? ""}>
         <Rows>

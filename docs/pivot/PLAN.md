@@ -628,7 +628,10 @@ studio code, so no phase waits on a review.
     - **P10d:** charts against range along the laser: the blur and the stripe width, and the
       depth and lateral resolution, on the line's centre and the worst across it.
 
-    Not built yet: the 3-D anatomy view and the lens search over the library.
+    - **P10e:** the lens search: every library lens optimised on the head the same way, ranked
+      by the window seen, then the worst blur, with the depth resolution beside it.
+
+    Not built yet: the 3-D anatomy view.
 - **P11 — Rigs workspace.**
   - **Schema:**
     - `ImageX::Common` makes k = 2 a classical stereo pair (baseline 2ρ, convergence

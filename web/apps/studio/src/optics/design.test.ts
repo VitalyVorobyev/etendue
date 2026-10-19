@@ -3,7 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 // The kernel derives the params; here only the design's geometry is under test.
 vi.mock("@etendue/wasm", () => ({ deriveOptics: (_: unknown, params: unknown) => ({ params }) }));
 
-const { aimDistance, fromItem, initialHead, laserParams, laserPose, toItem, windowRange } = await import("./design");
+const { aimDistance, fromItem, initialHead, laserParams, laserPose, toItem, windowRange, withLens } =
+  await import("./design");
 
 describe("head designs", () => {
   it("place the laser off the axis, aimed at it, its line along camera x", () => {
@@ -45,6 +46,28 @@ describe("head designs", () => {
     }
     expect(back.tilt).toEqual(p.tilt);
     expect(back.laser.waist_distance_m).toBe(p.laser.waist_distance_m);
+  });
+
+  it("take a library lens, keeping the f-number within it", () => {
+    const head = { ...initialHead(null), f_number: 2 };
+    const q = withLens(head, "50 mm", {
+      mount: "c_mount",
+      focal_length_m: 0.05,
+      min_f_number: 2.8,
+      principal_gap_m: 0.004,
+    });
+    expect(q.lens).toEqual({
+      name: "50 mm",
+      focal_length_m: 0.05,
+      min_f_number: 2.8,
+      principal_gap_m: 0.004,
+      entrance_pupil_m: 0,
+    });
+    expect(q.f_number).toBe(2.8);
+    expect(
+      withLens({ ...head, f_number: 8 }, "50 mm", { mount: "c_mount", focal_length_m: 0.05, min_f_number: 2.8 })
+        .f_number,
+    ).toBe(8);
   });
 
   it("focus a laser part at the aim point unless it says where it is focused", () => {
