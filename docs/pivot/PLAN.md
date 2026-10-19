@@ -615,6 +615,18 @@ studio code, so no phase waits on a review.
     - **G10.2:** the cross-section's PoBF matches `plane_of_best_focus` to 1e-9.
     - **G10.3:** on a thin depth window the optimiser reproduces the analytic Scheimpflug
       tilt within 0.05°, never worse than its start.
+  - *Status (2026-10-19):* the gates pass (`docs/measurements/g10_head_kernel.md`). Built in
+    three steps:
+    - **P10a:** the head kernel, `etendue-core::head`.
+    - **P10b:** the workspace: the section, the map, the optimiser, the library and placing a
+      head in a cell.
+    - **P10c:** the sensor view (the laser line at seven ranges) and the stripe's width in pixels.
+      A laser now has a `waist_distance_m`, where it is focused. Before, the waist was at the
+      laser, so a focusable laser's thin waist made a 36–40 px stripe; focused at the aim point
+      it is 1.8–8.9 px.
+
+    Not built yet: the 3-D anatomy view, the charts against depth, and the lens search over the
+    library.
 - **P11 — Rigs workspace.**
   - **Schema:**
     - `ImageX::Common` makes k = 2 a classical stereo pair (baseline 2ρ, convergence

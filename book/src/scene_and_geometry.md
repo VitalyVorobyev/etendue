@@ -91,7 +91,8 @@ pub struct LaserEntity {
     pub fan_half_angle: f64,    // radians, in (0, π/2)
     pub fan_length: f64,        // metres, along the central ray
     pub wavelength_nm: f64,     // nanometres — laser-industry convention
-    pub beam_waist_m: f64,      // 1/e² radius w₀ at the waist (origin)
+    pub beam_waist_m: f64,      // 1/e² radius w₀ at the waist
+    pub waist_distance_m: f64,  // metres from the origin to the waist, along each ray (0: at it)
 }
 ```
 

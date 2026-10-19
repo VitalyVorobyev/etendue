@@ -17,6 +17,9 @@
   - P7-7: the laser stripe overlay, through `etendue-core::laser`.
 
   G0.1 still has 0 bit mismatches. The wasm graph has no `getrandom`.
+- Later re-runs are recorded with each phase's gates: P9 `g9_1_g9_4_camera_model.md`, P11
+  `g11_rigs.md`, P13 `g13_calibration.md`. Latest: 2026-10-19 on `64639cb` (P10c): **PASS**,
+  770,328 B gzip -9 (49 % of the budget) (`g10_head_kernel.md`).
 
 ## Environment
 

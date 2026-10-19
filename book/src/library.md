@@ -60,7 +60,7 @@ that names its kind:
 |---|---|---|
 | `sensor` | `sensors` | pixel pitch, resolution; full well, read noise and quantum efficiency when known |
 | `lens` | `lenses` | focal length, widest aperture, principal-plane gap and entrance pupil (0 for a thin lens), focusing, mount |
-| `laser` | `lasers` | wavelength, fan half-angle, beam waist, power |
+| `laser` | `lasers` | wavelength, fan half-angle, beam waist (and where it is focused; absent, the laser is focusable and a head design focuses it), power |
 | `target` | `targets` | a target's geometry, as a scene holds it |
 | `camera` | `cameras` | a camera design: its model, image size and, when physical, its optics ([Physical cameras](physical_cameras.md)) |
 | `rig` | `rigs` | a rig layout, its camera (and lasers) included |
