@@ -7,10 +7,24 @@ use anyhow::{Result, anyhow, bail};
 use etendue_core::from_scene::check_derived;
 use etendue_kinematics::compile;
 use etendue_scene::{
-    KINDS, LibraryItem, PROJECT_FILE, ProjectManifest, RobotManifest, ScenarioSpec, library_file,
+    KINDS, LibraryItem, PROJECT_FILE, ProjectManifest, RobotManifest, ScenarioSpec, Versioned,
+    library_file,
 };
 
 use crate::load::{load, read_json};
+
+/// A library file: its version first (ADR 0009), then the item.
+fn read_item(text: &str) -> Result<LibraryItem, etendue_scene::ValidationError> {
+    let parse_error = |e: serde_json::Error| etendue_scene::ValidationError {
+        issues: vec![etendue_scene::Issue {
+            path: String::new(),
+            message: e.to_string(),
+        }],
+    };
+    let v: Versioned = serde_json::from_str(text).map_err(parse_error)?;
+    LibraryItem::check_version(v.version)?;
+    serde_json::from_str(text).map_err(parse_error)
+}
 
 /// What a project holds, once checked.
 #[derive(Clone, Debug, Default)]
@@ -94,7 +108,7 @@ pub fn check(dir: &Path) -> Result<ProjectSummary> {
                     continue;
                 }
             };
-            let item = match LibraryItem::from_json(&text) {
+            let item = match read_item(&text) {
                 Ok(i) => i,
                 Err(e) => {
                     problems.extend(

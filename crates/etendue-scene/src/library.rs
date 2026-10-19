@@ -16,6 +16,13 @@ use crate::optics::Focusing;
 use crate::rig::{CameraTemplate, RigLayout};
 use crate::validate::{Issue, Issues, ValidationError};
 
+/// A library file's version alone: what to read first (the rest of the file is ignored).
+#[derive(Clone, Copy, Debug, Deserialize)]
+pub struct Versioned {
+    /// The file's format version.
+    pub version: u32,
+}
+
 /// The library item format this build reads and writes.
 pub const LIBRARY_VERSION: u32 = 1;
 
@@ -164,34 +171,25 @@ pub const KINDS: [(&str, &str); 6] = [
 ];
 
 impl LibraryItem {
-    /// Parse a library file: its `version` is checked before anything else, so a file from a
-    /// newer etendue is refused as such rather than for a field this build does not know.
+    /// Check a library file's version before parsing the rest of it (read the version alone
+    /// with [`Versioned`]), so a file from a newer etendue is refused as such rather than for a
+    /// field this build does not know.
     ///
     /// # Errors
     ///
-    /// A [`ValidationError`] for a file that is not JSON, has another version, or does not parse.
-    pub fn from_json(text: &str) -> Result<Self, ValidationError> {
-        let one = |path: &str, message: String| ValidationError {
-            issues: vec![Issue {
-                path: path.to_owned(),
-                message,
-            }],
-        };
-        let value: serde_json::Value =
-            serde_json::from_str(text).map_err(|e| one("", format!("not JSON: {e}")))?;
-        match value.get("version").and_then(serde_json::Value::as_u64) {
-            Some(v) if v == u64::from(LIBRARY_VERSION) => {}
-            Some(v) => {
-                return Err(one(
-                    "version",
-                    format!(
-                        "library item version {v}; this etendue reads version {LIBRARY_VERSION}"
-                    ),
-                ));
-            }
-            None => return Err(one("version", "missing or not a number".into())),
+    /// A [`ValidationError`] at `version` for any version but [`LIBRARY_VERSION`].
+    pub fn check_version(version: u32) -> Result<(), ValidationError> {
+        if version == LIBRARY_VERSION {
+            return Ok(());
         }
-        serde_json::from_value(value).map_err(|e| one("", e.to_string()))
+        Err(ValidationError {
+            issues: vec![Issue {
+                path: "version".to_owned(),
+                message: format!(
+                    "library item version {version}; this etendue reads version {LIBRARY_VERSION}"
+                ),
+            }],
+        })
     }
 
     /// The item's kind: the one part it holds, or `None` when it holds none or several.
@@ -290,9 +288,26 @@ mod tests {
         r#"{ "version": 1, "id": "imx174", "name": "Sony IMX174", "sensor": { "pixel_pitch_m": 5.86e-6, "resolution": [1936, 1216] } }"#
     }
 
+    /// What a reader does: the version first, then the item.
+    fn read(text: &str) -> Result<LibraryItem, ValidationError> {
+        let v: Versioned = serde_json::from_str(text).map_err(|e| ValidationError {
+            issues: vec![Issue {
+                path: String::new(),
+                message: e.to_string(),
+            }],
+        })?;
+        LibraryItem::check_version(v.version)?;
+        serde_json::from_str(text).map_err(|e| ValidationError {
+            issues: vec![Issue {
+                path: String::new(),
+                message: e.to_string(),
+            }],
+        })
+    }
+
     #[test]
     fn an_item_holds_exactly_one_part() {
-        let item = LibraryItem::from_json(sensor()).unwrap();
+        let item = read(sensor()).unwrap();
         assert_eq!(item.kind(), Some("sensor"));
         item.validate().unwrap();
         let mut two = item.clone();
@@ -309,9 +324,9 @@ mod tests {
     #[test]
     fn unknown_fields_are_refused_and_the_version_comes_first() {
         let extra = sensor().replace(r#""name""#, r#""colour": "red", "name""#);
-        assert!(LibraryItem::from_json(&extra).is_err());
+        assert!(read(&extra).is_err());
         let newer = extra.replace(r#""version": 1"#, r#""version": 7"#);
-        let err = LibraryItem::from_json(&newer).unwrap_err();
+        let err = read(&newer).unwrap_err();
         assert_eq!(err.issues[0].path, "version");
         assert!(err.issues[0].message.contains("version 7"), "{err}");
     }

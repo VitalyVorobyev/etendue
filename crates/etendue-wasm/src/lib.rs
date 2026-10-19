@@ -804,8 +804,10 @@ pub fn expand_rig_js(layout_json: &str, rig: &str) -> std::result::Result<String
 ///
 /// [`Error::Invalid`] with every problem found.
 pub fn validate_library_item(text: &str) -> Result<etendue_scene::LibraryItem> {
-    let item = etendue_scene::LibraryItem::from_json(text)
+    let version: etendue_scene::Versioned = parse("library item", text)?;
+    etendue_scene::LibraryItem::check_version(version.version)
         .map_err(|e| Error::invalid("library item", e))?;
+    let item: etendue_scene::LibraryItem = parse("library item", text)?;
     let mut issues = item.validate().err().map(|e| e.issues).unwrap_or_default();
     if let Some(c) = &item.camera
         && let Some(o) = &c.optics
