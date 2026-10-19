@@ -195,6 +195,7 @@ export function newEntity(scene: SceneSpec, list: EntityList, parent: string, de
         fan_length: 1,
         wavelength_nm: laser?.wavelength_nm ?? 660,
         beam_waist_m: laser?.beam_waist_m ?? 0.0005,
+        ...(laser?.waist_distance_m != null ? { waist_distance_m: laser.waist_distance_m } : {}),
       };
     case "lights":
       return {

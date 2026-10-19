@@ -183,7 +183,7 @@ pub fn stripe(
 }
 
 /// The beam's `1/e²` diameter at each stripe point ([`GaussianBeamWidth`],
-/// the waist at the laser's origin), metres. `points` are in the target
+/// the waist at the laser's `waist_distance_m`), metres. `points` are in the target
 /// frame, as [`stripe`] gives them.
 ///
 /// # Errors
@@ -206,7 +206,7 @@ pub fn beam_widths(
 }
 
 /// The core laser entity of `laser` at `world_se3_laser`.
-fn entity(laser: &LaserSpec, world_se3_laser: &Isometry3<f64>) -> Result<LaserEntity> {
+pub(crate) fn entity(laser: &LaserSpec, world_se3_laser: &Isometry3<f64>) -> Result<LaserEntity> {
     LaserEntity::new(
         *world_se3_laser,
         laser.fan_half_angle,
@@ -214,6 +214,7 @@ fn entity(laser: &LaserSpec, world_se3_laser: &Isometry3<f64>) -> Result<LaserEn
         laser.wavelength_nm,
         laser.beam_waist_m,
     )
+    .and_then(|e| e.with_waist_distance(laser.waist_distance_m.unwrap_or(0.0)))
     .map_err(|e| Error::InvalidInput(format!("laser `{}`: {e}", laser.id)))
 }
 
@@ -235,6 +236,7 @@ mod tests {
             fan_length: 2.0,
             wavelength_nm: 660.0,
             beam_waist_m: 5e-4,
+            waist_distance_m: None,
             power_w: None,
             camera: None,
         }

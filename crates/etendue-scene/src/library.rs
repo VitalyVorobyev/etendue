@@ -103,6 +103,11 @@ pub struct LaserPart {
     /// Beam-waist `1/e²` radius across the line, metres, when known.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub beam_waist_m: Option<f64>,
+    /// Distance from the laser origin to the waist along each ray, metres,
+    /// for a laser focused at a fixed distance. Absent, the laser is focusable:
+    /// a head design focuses it (the studio, at the head's aim point).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub waist_distance_m: Option<f64>,
     /// Optical power, milliwatts.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub power_mw: Option<f64>,
@@ -305,6 +310,9 @@ impl LibraryItem {
             if let Some(w) = l.beam_waist_m {
                 issues.check_positive("laser.beam_waist_m", w);
             }
+            if let Some(d) = l.waist_distance_m {
+                issues.check_non_negative("laser.waist_distance_m", d);
+            }
         }
         if let Some(c) = &self.camera {
             if c.resolution[0] == 0 || c.resolution[1] == 0 {
@@ -391,6 +399,7 @@ mod tests {
             wavelength_nm: 660.0,
             fan_half_angle: 0.3,
             beam_waist_m: None,
+            waist_distance_m: None,
             power_mw: None,
         });
         assert_eq!(two.kind(), None);

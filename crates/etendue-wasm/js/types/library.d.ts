@@ -375,6 +375,12 @@ export interface LaserPart {
    */
   power_mw?: number | null;
   /**
+   * Distance from the laser origin to the waist along each ray, metres,
+   * for a laser focused at a fixed distance. Absent, the laser is focusable:
+   * a head design focuses it (the studio, at the head's aim point).
+   */
+  waist_distance_m?: number | null;
+  /**
    * Emission wavelength, nanometres.
    */
   wavelength_nm: number;
@@ -491,7 +497,7 @@ export interface LaserLayout {
    */
   azimuth_rad?: number;
   /**
-   * Beam-waist `1/e²` radius at the laser, metres.
+   * Beam-waist `1/e²` radius, metres.
    */
   beam_waist_m: number;
   /**
@@ -515,6 +521,11 @@ export interface LaserLayout {
    * Distance of each laser from the rig axis, metres (unused with `camera_se3_laser`).
    */
   radius_m?: number;
+  /**
+   * Distance from the laser origin to the waist along each ray, metres:
+   * where a focusable laser is focused. Absent, the waist is at the laser.
+   */
+  waist_distance_m?: number | null;
   /**
    * Wavelength, nanometres.
    */

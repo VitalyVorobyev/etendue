@@ -39,7 +39,6 @@
 
 use std::f64::consts::{FRAC_PI_2, PI};
 
-use etendue_core::LaserEntity;
 use etendue_core::laser::{GaussianBeamWidth, LaserPlane, WidthModel};
 use etendue_scene::LaserSpec;
 use nalgebra::{Isometry3, Point2, Point3, Translation3, UnitQuaternion, Vector3};
@@ -181,14 +180,7 @@ impl Beam {
     ) -> Result<Self> {
         let core =
             |e: etendue_core::Error| Error::InvalidInput(format!("laser `{}`: {e}", laser.id));
-        let entity = LaserEntity::new(
-            *world_se3_laser,
-            laser.fan_half_angle,
-            laser.fan_length,
-            laser.wavelength_nm,
-            laser.beam_waist_m,
-        )
-        .map_err(core)?;
+        let entity = crate::laser::entity(laser, world_se3_laser)?;
         let power_w = laser.power_w.unwrap_or(DEFAULT_POWER_W);
         if !(power_w.is_finite() && power_w > 0.0) {
             return Err(Error::InvalidInput(format!(
@@ -319,6 +311,7 @@ pub fn laser_image(render: &LinearImage, laser: &LinearImage, ambient: f32) -> L
 #[cfg(test)]
 mod tests {
     use super::*;
+    use etendue_core::LaserEntity;
 
     fn laser(fan_half_angle: f64) -> LaserSpec {
         serde_json::from_value(serde_json::json!({

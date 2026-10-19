@@ -90,8 +90,12 @@ pub struct LaserSpec {
     pub fan_length: f64,
     /// Emission wavelength in nanometres.
     pub wavelength_nm: f64,
-    /// Beam-waist `1/e²` radius at the laser origin, in metres.
+    /// Beam-waist `1/e²` radius, in metres.
     pub beam_waist_m: f64,
+    /// Distance from the laser origin to the waist along each ray, metres:
+    /// where a focusable laser is focused. Absent, the waist is at the laser.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub waist_distance_m: Option<f64>,
     /// Optical power in watts, as the camera responds to it (its spectral
     /// response at the wavelength folded in), spread evenly over the fan's
     /// angle. Only laser images use it; absent, they take etendue-synth's

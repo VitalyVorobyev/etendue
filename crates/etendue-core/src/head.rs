@@ -43,8 +43,10 @@ pub struct Beam {
     pub length: f64,
     /// Wavelength (m).
     pub wavelength: f64,
-    /// The beam's `1/e²` waist radius across the line, at the laser (m), when known.
+    /// The beam's `1/e²` waist radius across the line (m), when known.
     pub waist: Option<f64>,
+    /// How far from the laser the waist is, along each ray (m): where it is focused.
+    pub waist_distance: f64,
 }
 
 /// Where a head must work, in its laser plane (m from the laser's origin).
@@ -245,6 +247,7 @@ impl Head {
             length: design.fan_length_m,
             wavelength: design.laser.wavelength_nm * 1e-9,
             waist: design.laser.beam_waist_m,
+            waist_distance: design.laser.waist_distance_m.unwrap_or(0.0),
         };
         Ok(Self::new(
             camera,
@@ -355,11 +358,12 @@ impl Head {
             (Some(ja), Some(across), Some(jb)) => (1.0 / ja.norm(), 1.0 / across.dot(&jb).abs()),
             _ => (f64::INFINITY, f64::INFINITY),
         };
-        // A Gaussian beam: w(r) = w₀·√(1 + (r/z_R)²), z_R = π·w₀²/λ, at the distance travelled.
+        // A Gaussian beam: w(r) = w₀·√(1 + ((r − r₀)/z_R)²), z_R = π·w₀²/λ, r the distance
+        // travelled and r₀ the waist's.
         let beam_px = match (self.beam.waist, across, d(self.normal)) {
             (Some(w0), Some(across), Some(jn)) => {
                 let rayleigh = std::f64::consts::PI * w0 * w0 / self.beam.wavelength;
-                let r = (p - self.origin).norm() / rayleigh;
+                let r = ((p - self.origin).norm() - self.beam.waist_distance) / rayleigh;
                 2.0 * w0 * (1.0 + r * r).sqrt() * across.dot(&jn).abs()
             }
             _ => f64::NAN,

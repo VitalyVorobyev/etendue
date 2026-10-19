@@ -371,7 +371,7 @@ export interface FrameSpec {
  */
 export interface LaserSpec {
   /**
-   * Beam-waist `1/e²` radius at the laser origin, in metres.
+   * Beam-waist `1/e²` radius, in metres.
    */
   beam_waist_m: number;
   /**
@@ -404,6 +404,11 @@ export interface LaserSpec {
    * default (0.5 mW).
    */
   power_w?: number | null;
+  /**
+   * Distance from the laser origin to the waist along each ray, metres:
+   * where a focusable laser is focused. Absent, the waist is at the laser.
+   */
+  waist_distance_m?: number | null;
   /**
    * Emission wavelength in nanometres.
    */
@@ -570,7 +575,7 @@ export interface LaserLayout {
    */
   azimuth_rad?: number;
   /**
-   * Beam-waist `1/e²` radius at the laser, metres.
+   * Beam-waist `1/e²` radius, metres.
    */
   beam_waist_m: number;
   /**
@@ -594,6 +599,11 @@ export interface LaserLayout {
    * Distance of each laser from the rig axis, metres (unused with `camera_se3_laser`).
    */
   radius_m?: number;
+  /**
+   * Distance from the laser origin to the waist along each ray, metres:
+   * where a focusable laser is focused. Absent, the waist is at the laser.
+   */
+  waist_distance_m?: number | null;
   /**
    * Wavelength, nanometres.
    */

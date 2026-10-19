@@ -104,6 +104,12 @@ impl Issues {
             self.push(path, format!("must be finite and > 0, got {value}"));
         }
     }
+
+    pub(crate) fn check_non_negative(&mut self, path: &str, value: f64) {
+        if !(value.is_finite() && value >= 0.0) {
+            self.push(path, format!("must be finite and ≥ 0, got {value}"));
+        }
+    }
 }
 
 /// Maximum allowed deviation of a pose quaternion's norm from 1.

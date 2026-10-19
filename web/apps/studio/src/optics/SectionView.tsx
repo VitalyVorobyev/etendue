@@ -166,6 +166,19 @@ export function SectionView({
   };
 
   const thin = { vectorEffect: "non-scaling-stroke" as const, strokeWidth: 1 };
+  // The laser's waist on its central ray, where it is focused (with a known waist).
+  const waist = ((): [SectionPoint, SectionPoint, SectionPoint] | null => {
+    if (params.laser.beam_waist_m === null) return null;
+    const o = section.laser_origin;
+    const [dy, dz] = [-o[0], params.aim_m - o[1]];
+    const n = Math.hypot(dy, dz);
+    if (!(n > 0)) return null;
+    const [uy, uz] = [dy / n, dz / n];
+    const d = params.laser.waist_distance_m;
+    const at: SectionPoint = [o[0] + d * uy, o[1] + d * uz];
+    const h = k * 0.012;
+    return [at, [at[0] - h * uz, at[1] + h * uy], [at[0] + h * uz, at[1] - h * uy]];
+  })();
   const label = (at: SectionPoint, text: string, tone = "var(--color-fg-muted)", dy = 0) => (
     <text x={at[1]} y={at[0] + dy} fontSize={k * 0.016} fill={tone} textAnchor="middle" className="select-none">
       {text}
@@ -254,6 +267,12 @@ export function SectionView({
         />
         {/* The laser: its plane's trace, and the window on it. */}
         <line {...seg(...through(section.laser_trace))} stroke="var(--color-defect)" strokeOpacity={0.5} {...thin} />
+        {waist && (
+          <g data-testid="laser-waist">
+            <line {...seg(waist[1], waist[2])} stroke="var(--color-defect)" {...thin} strokeWidth={2} />
+            {label(waist[0], "waist", "var(--color-defect)", -k * 0.02)}
+          </g>
+        )}
         {section.window && (
           <line
             {...seg(...section.window)}

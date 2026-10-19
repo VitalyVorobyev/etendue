@@ -117,8 +117,12 @@ pub struct LaserLayout {
     pub fan_length: f64,
     /// Wavelength, nanometres.
     pub wavelength_nm: f64,
-    /// Beam-waist `1/e²` radius at the laser, metres.
+    /// Beam-waist `1/e²` radius, metres.
     pub beam_waist_m: f64,
+    /// Distance from the laser origin to the waist along each ray, metres:
+    /// where a focusable laser is focused. Absent, the waist is at the laser.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub waist_distance_m: Option<f64>,
     /// Optical power, watts (`LaserSpec::power_w`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub power_w: Option<f64>,
@@ -245,6 +249,7 @@ impl RigLayout {
                     fan_length: l.fan_length,
                     wavelength_nm: l.wavelength_nm,
                     beam_waist_m: l.beam_waist_m,
+                    waist_distance_m: l.waist_distance_m,
                     power_w: l.power_w,
                     camera: Some(camera),
                 });
@@ -265,6 +270,7 @@ impl RigLayout {
                     fan_length: l.fan_length,
                     wavelength_nm: l.wavelength_nm,
                     beam_waist_m: l.beam_waist_m,
+                    waist_distance_m: l.waist_distance_m,
                     power_w: l.power_w,
                     camera: Some(camera),
                 });

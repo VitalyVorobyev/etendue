@@ -316,6 +316,9 @@ impl SceneSpec {
             issues.check_positive(&format!("{path}.fan_length"), l.fan_length);
             issues.check_positive(&format!("{path}.wavelength_nm"), l.wavelength_nm);
             issues.check_positive(&format!("{path}.beam_waist_m"), l.beam_waist_m);
+            if let Some(d) = l.waist_distance_m {
+                issues.check_non_negative(&format!("{path}.waist_distance_m"), d);
+            }
             if let Some(p) = l.power_w {
                 issues.check_positive(&format!("{path}.power_w"), p);
             }

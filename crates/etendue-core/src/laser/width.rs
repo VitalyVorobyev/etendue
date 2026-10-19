@@ -25,9 +25,10 @@
 //!
 //! with `λ` the wavelength (in the same length unit as `w0`). For a line laser
 //! the relevant cross-section is the *across-stripe* thickness; this model
-//! treats that thickness with the standard Gaussian-beam law, the waist placed
-//! **at the laser origin** (`z = 0`), so the distance `d` from the laser
-//! origin used by the intersection layer is exactly the axial coordinate `z`.
+//! treats that thickness with the standard Gaussian-beam law. The waist lies
+//! at a distance `d0` from the laser origin along each ray of the fan (a
+//! focusable laser's focus; `d0 = 0` puts it at the laser itself), so a point
+//! at distance `d` from the origin is at `z = d − d0` from the waist.
 //!
 //! The width reported by [`WidthModel::width_at`] is the full cross-section
 //! **diameter** `2·w(d)` — the figure the projection layer needs to draw a
@@ -71,8 +72,9 @@ pub trait WidthModel {
 
 /// The default Gaussian-beam cross-section width model.
 ///
-/// Implements `w(d) = w0 · sqrt(1 + (d / zR)²)` with the Rayleigh range
-/// `zR = π · w0² / λ`, the waist at the laser origin. See the module
+/// Implements `w(d) = w0 · sqrt(1 + ((d − d0) / zR)²)` with the Rayleigh range
+/// `zR = π · w0² / λ` and the waist at `d0` from the laser origin (0 unless set
+/// with [`GaussianBeamWidth::with_waist_distance`]). See the module
 /// doc-comment for the physics. [`GaussianBeamWidth::width_at`] returns the
 /// full **diameter** `2·w(d)`.
 ///
@@ -87,6 +89,8 @@ pub struct GaussianBeamWidth {
     /// Rayleigh range `zR`, in metres — the axial distance over which the
     /// beam cross-section area doubles.
     rayleigh_range_m: f64,
+    /// Distance `d0` from the laser origin to the waist along a ray, in metres.
+    waist_distance_m: f64,
 }
 
 impl GaussianBeamWidth {
@@ -118,13 +122,35 @@ impl GaussianBeamWidth {
         Ok(Self {
             waist_radius_m,
             rayleigh_range_m,
+            waist_distance_m: 0.0,
+        })
+    }
+
+    /// The same beam focused at `waist_distance_m` from the laser origin.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::InvalidInput`](crate::Error::InvalidInput) if the
+    /// distance is not finite and non-negative.
+    pub fn with_waist_distance(self, waist_distance_m: f64) -> crate::Result<Self> {
+        if !(waist_distance_m.is_finite() && waist_distance_m >= 0.0) {
+            return Err(crate::Error::InvalidInput {
+                reason: format!(
+                    "beam-waist distance must be finite and non-negative, got {waist_distance_m}"
+                ),
+            });
+        }
+        Ok(Self {
+            waist_distance_m,
+            ..self
         })
     }
 
     /// Build a Gaussian-beam width model from a [`LaserEntity`](crate::scene::LaserEntity).
     ///
     /// Reads the entity's [`beam_waist_m`](crate::scene::LaserEntity::beam_waist_m)
-    /// as the waist radius `w0` and converts its
+    /// as the waist radius `w0`, its
+    /// [`waist_distance_m`](crate::scene::LaserEntity::waist_distance_m) as `d0`, and converts its
     /// [`wavelength_nm`](crate::scene::LaserEntity::wavelength_nm) to metres.
     ///
     /// # Errors
@@ -134,7 +160,8 @@ impl GaussianBeamWidth {
     /// [`LaserEntity::new`](crate::scene::LaserEntity::new) — the same
     /// quantities are validated there.
     pub fn from_laser(laser: &crate::scene::LaserEntity) -> crate::Result<Self> {
-        Self::new(laser.beam_waist_m, laser.wavelength_nm / NM_PER_M)
+        Self::new(laser.beam_waist_m, laser.wavelength_nm / NM_PER_M)?
+            .with_waist_distance(laser.waist_distance_m)
     }
 
     /// The beam-waist radius `w0`, in metres.
@@ -148,18 +175,21 @@ impl GaussianBeamWidth {
     pub fn rayleigh_range_m(&self) -> f64 {
         self.rayleigh_range_m
     }
+
+    /// The distance `d0` from the laser origin to the waist, in metres.
+    #[must_use]
+    pub fn waist_distance_m(&self) -> f64 {
+        self.waist_distance_m
+    }
 }
 
 impl WidthModel for GaussianBeamWidth {
     /// The full cross-section **diameter** `2·w(d)`, in metres, at distance
-    /// `distance_m` from the laser origin (the waist).
+    /// `distance_m` from the laser origin.
     ///
-    /// `w(d) = w0 · sqrt(1 + (d / zR)²)`. A negative distance is treated as
-    /// its absolute value — the Gaussian-beam law is symmetric about the
-    /// waist, and the intersection layer never produces one anyway.
+    /// `w(d) = w0 · sqrt(1 + ((d − d0) / zR)²)`, symmetric about the waist.
     fn width_at(&self, distance_m: f64) -> f64 {
-        let d = distance_m.abs();
-        let ratio = d / self.rayleigh_range_m;
+        let ratio = (distance_m - self.waist_distance_m) / self.rayleigh_range_m;
         let radius = self.waist_radius_m * (1.0 + ratio * ratio).sqrt();
         2.0 * radius
     }
@@ -229,6 +259,23 @@ mod tests {
         let asymptote = 2.0 * W0_M * d / zr;
         // Within 0.01% at 100 Rayleigh ranges.
         assert_relative_eq!(model.width_at(d), asymptote, max_relative = 1e-4);
+    }
+
+    #[test]
+    fn a_focused_beam_is_narrowest_at_its_waist_distance() {
+        let at_origin = GaussianBeamWidth::new(W0_M, LAMBDA_M).unwrap();
+        let focused = at_origin.with_waist_distance(0.3).unwrap();
+        assert_relative_eq!(focused.width_at(0.3), 2.0 * W0_M, epsilon = 1e-15);
+        // The law moves with the waist: d0 + z here is z at the origin.
+        for z in [-0.2, 0.05, 0.4] {
+            assert_relative_eq!(
+                focused.width_at(0.3 + z),
+                at_origin.width_at(z),
+                max_relative = 1e-12
+            );
+        }
+        assert!(at_origin.with_waist_distance(-0.1).is_err());
+        assert!(at_origin.with_waist_distance(f64::INFINITY).is_err());
     }
 
     #[test]

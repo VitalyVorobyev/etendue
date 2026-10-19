@@ -170,6 +170,7 @@ prop_compose! {
                 camera: (p[0] > 0.5).then(|| id.clone()),
                 id, parent, parent_se3_self,
                 fan_half_angle: p[0], fan_length: p[1], wavelength_nm: p[2], beam_waist_m: p[3],
+                waist_distance_m: (p[0] > 0.5).then_some(p[1] * 0.25),
                 power_w: (p[1] > 1.0).then_some(p[1] * 1e-3),
             }).collect(),
             lights: lights.into_iter().map(|(id, parent, parent_se3_self, power_w, color, shape, s)| LightSpec {
