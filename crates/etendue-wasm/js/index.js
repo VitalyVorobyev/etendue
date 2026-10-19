@@ -13,6 +13,7 @@ import init, {
   headSection as rawHeadSection,
   initSync,
   poleCircumferences as rawPoleCircumferences,
+  rigCoverage as rawRigCoverage,
   validateLibraryItem as rawValidateLibraryItem,
 } from "./etendue_wasm.js";
 
@@ -149,6 +150,12 @@ export function headMap(design, window, across, along) {
     depth_m_per_px: field(5),
     triangulation_rad: field(6),
   };
+}
+
+export function rigCoverage(layout, grid, criteria = {}) {
+  const raw = rawRigCoverage(text(layout), text(grid), text(criteria));
+  const n = grid.n[0] * grid.n[1] * grid.n[2];
+  return { grid, views: raw.subarray(0, n), lit: raw.subarray(n, 2 * n) };
 }
 
 export function headSection(design, options = {}) {

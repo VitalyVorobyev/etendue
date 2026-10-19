@@ -1,10 +1,11 @@
 import { type HeadOptimum, headOptimise } from "@etendue/wasm";
-import { Button, Callout, Input, Select, Switch } from "@vitavision/ui";
-import { Crosshair, PackagePlus, Save, Sparkles } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { Button, Callout, Input, Switch } from "@vitavision/ui";
+import { Crosshair, PackagePlus, Sparkles } from "lucide-react";
+import { useState } from "react";
 
-import { type Project, itemsOf } from "../io/project";
+import type { Project } from "../io/project";
 import { Fold, RowLabel, Rows } from "../panels/controls/Fold";
+import { Pick, Row, SaveButton } from "../panels/controls/Library";
 import { type Live, NumberRow, SliderRow } from "../panels/controls/SliderRow";
 import type { HeadAnalysis } from "./analysis";
 import { type HeadParams, fromItem, toDesign, withSetting } from "./design";
@@ -18,41 +19,6 @@ function live(
   set: (p: HeadParams, v: number) => HeadParams,
 ): Live<number> {
   return { preview: (v) => onChange(set(params, v)), commit: () => {}, cancel: () => {} };
-}
-
-/** A library picker: the items of one kind, by name. */
-function Pick({
-  label,
-  project,
-  kind,
-  current,
-  onPick,
-}: {
-  label: string;
-  project: Project | null;
-  kind: "sensor" | "lens" | "laser" | "head";
-  current: string;
-  onPick: (ref: string) => void;
-}) {
-  const items = project ? itemsOf(project, kind) : [];
-  // The design's part when it is not a library item by that name (a design's own sensor, say).
-  const CURRENT = "__current";
-  const match = items.find(([, i]) => i.name === current)?.[0];
-  return (
-    <>
-      <RowLabel>{label}</RowLabel>
-      <Select
-        aria-label={label}
-        className="min-w-0 [&>span]:truncate [&>span]:whitespace-nowrap"
-        value={match ?? CURRENT}
-        options={[
-          ...(match ? [] : [{ value: CURRENT, label: current }]),
-          ...items.map(([ref, i]) => ({ value: ref, label: i.name })),
-        ]}
-        onValueChange={(ref) => ref !== "" && ref !== CURRENT && onPick(ref)}
-      />
-    </>
-  );
 }
 
 /**
@@ -423,7 +389,7 @@ export function OpticsForm({
           />
         </Rows>
         <div className="flex flex-wrap gap-1.5">
-          <SaveButton params={p} onSave={onSave} disabled={typeof analysis === "string"} />
+          <SaveButton onSave={onSave && (() => onSave(p))} disabled={typeof analysis === "string" || p.id === ""} />
           {onPlace && (
             <Button
               size="sm"
@@ -439,48 +405,6 @@ export function OpticsForm({
         </div>
       </Fold>
     </div>
-  );
-}
-
-function SaveButton({
-  params,
-  onSave,
-  disabled,
-}: {
-  params: HeadParams;
-  onSave: ((p: HeadParams) => Promise<boolean>) | null;
-  disabled: boolean;
-}) {
-  const [busy, setBusy] = useState(false);
-  if (!onSave) {
-    return (
-      <p className="text-xs text-fg-muted">
-        The examples are read-only: open or create a project (File menu) to save designs.
-      </p>
-    );
-  }
-  return (
-    <Button
-      size="sm"
-      icon={<Save className="size-3.5" />}
-      loading={busy}
-      disabled={disabled || params.id === ""}
-      onClick={() => {
-        setBusy(true);
-        void onSave(params).finally(() => setBusy(false));
-      }}
-    >
-      Save to library
-    </Button>
-  );
-}
-
-function Row({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <>
-      <RowLabel title={label}>{label}</RowLabel>
-      <span className="text-right font-mono text-xs tabular-nums">{children}</span>
-    </>
   );
 }
 

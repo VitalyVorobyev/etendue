@@ -13,7 +13,7 @@
 import { readFileSync } from "node:fs";
 
 import * as wasm from "../../pkg/etendue_wasm.js";
-import { headFixture } from "./head_fixture.mjs";
+import { headFixture, ringFixture } from "./head_fixture.mjs";
 
 wasm.initSync({ module: readFileSync(new URL("../../pkg/etendue_wasm_bg.wasm", import.meta.url)) });
 const root = new URL("../../../../", import.meta.url);
@@ -104,6 +104,13 @@ const headScheimpflug = wasm.headScheimpflug(headDesign);
 const headSearch = JSON.stringify({ grid: [9, 9], f_number_range: [2, 16], tilt_free: false });
 const headOptimum = wasm.headOptimise(headDesign, headSearch);
 
+// A ring of heads (P11): its coverage counts.
+const ring = ringFixture(root);
+const rigLayout = JSON.stringify(ring.layout);
+const rigGrid = JSON.stringify({ ...ring.box, n: [20, 20, 16] });
+const rigCriteria = JSON.stringify({ max_blur_px: 3 });
+const rigCoverage = Array.from(wasm.rigCoverage(rigLayout, rigGrid, rigCriteria));
+
 process.stdout.write(
   JSON.stringify({
     gate: "G0.1",
@@ -127,5 +134,6 @@ process.stdout.write(
       search: headSearch,
       optimum: headOptimum,
     },
+    rig: { layout: rigLayout, grid: rigGrid, criteria: rigCriteria, coverage: rigCoverage },
   }) + "\n",
 );

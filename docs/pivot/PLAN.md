@@ -633,6 +633,16 @@ studio code, so no phase waits on a review.
     - **G11.1:** k = 2 `Common`: parallel image +X to 1e-12, baseline 2ρ.
     - **G11.2:** two-frustum overlap within 2 % of the analytic volume at 128³.
     - **G11.3:** 64³ ≤ 100 ms in wasm.
+  - *Status (2026-10-19):* the gates pass (`docs/measurements/g11_rigs.md`): 0.68 % and 12.7 ms.
+    Built differently from the plan:
+    - The coverage is one kernel, `etendue-core::rig::coverage`, over a `RigLayout` in the rig's
+      frame. It counts camera views (sharp, with physical optics) and the pairs linked by
+      `LaserSpec.camera`.
+    - The legacy `voxelized_overlap` (index pairing, the optics kernel's own scene) stays as it was.
+    - The workspace draws the rig in 3-D with its coverage voxels, side and top slices, and a
+      chart against φ.
+    - Camera units can be refocused on the working distance.
+    - Deferred: drag handles in the slices, and depth-of-field bands.
 - **P12 — Robot workspace (in Motion).**
   - **wasm:**
     - `robotLinkPoses(robot, q)`;

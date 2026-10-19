@@ -29,10 +29,11 @@ import { isTauri } from "../io/tauri";
 import { pickJsonFiles } from "../kernel/native";
 
 /** The studio's workspaces. Each keeps the 3D view or the camera images as its main surface. */
-export type Mode = "optics" | "setup" | "motion" | "images" | "dataset";
+export type Mode = "optics" | "rigs" | "setup" | "motion" | "images" | "dataset";
 
 export const MODES: { value: Mode; label: string }[] = [
   { value: "optics", label: "Optics" },
+  { value: "rigs", label: "Rigs" },
   { value: "setup", label: "Setup" },
   { value: "motion", label: "Motion" },
   { value: "images", label: "Images" },

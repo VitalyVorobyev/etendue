@@ -202,6 +202,32 @@ fn main() -> ExitCode {
         "  head               map {} values, section, Scheimpflug, optimum",
         native_map.len()
     );
+    // A ring of heads' coverage (P11).
+    let rig = &probe["rig"];
+    let text = |key: &str| rig[key].as_str().expect("rig probe text");
+    let native = etendue_wasm::rig_coverage(text("layout"), text("grid"), text("criteria"))
+        .expect("native rig coverage");
+    let wasm: Vec<u8> = rig["coverage"]
+        .as_array()
+        .expect("rig coverage")
+        .iter()
+        .map(|v| u8::try_from(v.as_u64().expect("a count")).expect("a count"))
+        .collect();
+    let differ = native.iter().zip(&wasm).filter(|(a, b)| a != b).count()
+        + native.len().abs_diff(wasm.len());
+    if differ > 0 {
+        eprintln!("rig coverage: {differ} counts differ");
+    }
+    mismatches += differ;
+    total += native.len();
+    println!(
+        "  rig                coverage {} counts ({} seen)",
+        native.len(),
+        native[..native.len() / 2]
+            .iter()
+            .filter(|&&v| v > 0)
+            .count()
+    );
     println!("  output values:     {total}");
     println!("  bit mismatches:    {mismatches}");
     println!("  max |Δ| (px):      {max_abs_diff:e}");

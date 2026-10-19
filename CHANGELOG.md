@@ -121,6 +121,17 @@ calibration datasets with exact ground truth. The 0.1.0 desktop app is replaced 
   Scheimpflug, an optimiser over tilt, focus and f-number, saving to the library and placing in a
   cell. `@etendue/wasm` has `headMap`, `headSection`, `headScheimpflug`, `headOptimise` and
   `headApply` (`etendue-core::head`).
+- **The Rigs workspace**: repeat a camera or a head (its laser fixed on the camera's body,
+  `LaserLayout.camera_se3_laser`) as a stereo pair (baseline, convergence) or a ring (k cameras,
+  radius ρ, tilt φ, phase), and see what it covers.
+  - The rig in 3D with its coverage voxels (seen by 1, 2 or all cameras, or measured by a
+    laser–camera pair).
+  - Side and top slices, and the volumes against φ.
+  - Camera units can be refocused on the working distance.
+  - Save to the library (`rigs/`), and place in a cell.
+
+  Stereo is `image_x: "common"`: the image rows line up. `@etendue/wasm` has `rigCoverage`
+  (`etendue-core::rig::coverage`).
 
 ### Changed
 

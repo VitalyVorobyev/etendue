@@ -216,6 +216,16 @@ test("a new project gets the starter library, takes a cell, and reopens", async 
     head: { camera: { optics: unknown } };
   };
   expect(head.head.camera.optics).toBeDefined();
+
+  // And a stereo pair from the Rigs workspace, its layout's cameras physical.
+  await page.getByRole("radio", { name: "Rigs" }).click();
+  await page.getByRole("button", { name: "Save to library" }).click();
+  await expect(page.getByText("Saved Stereo pair")).toBeVisible();
+  const rig = JSON.parse((await disk())["/proj/library/rigs/stereo_pair.json"]!) as {
+    rig: { layout: { count: number; image_x: string; camera: { optics: unknown } } };
+  };
+  expect(rig.rig.layout).toMatchObject({ count: 2, image_x: "common" });
+  expect(rig.rig.layout.camera.optics).toBeDefined();
   await page.getByRole("radio", { name: "Setup" }).click();
 
   // The next session opens the project and its cell.

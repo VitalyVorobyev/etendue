@@ -889,6 +889,38 @@ pub fn head_map(
     Ok(out)
 }
 
+/// What `layout_json`'s rig covers over `grid_json` (`etendue_core::rig::Grid`), by
+/// `criteria_json` (`etendue_core::rig::Criteria`, `{}` for the defaults): per voxel, x fastest,
+/// how many cameras see it, then (after every voxel) how many pairs see their laser line in it.
+///
+/// # Errors
+///
+/// [`Error::Parse`] for malformed documents; [`Error::Input`] for a bad grid or layout.
+pub fn rig_coverage(layout_json: &str, grid_json: &str, criteria_json: &str) -> Result<Vec<u8>> {
+    let layout: etendue_scene::RigLayout = parse("rig layout", layout_json)?;
+    let grid: etendue_core::rig::Grid = parse("coverage grid", grid_json)?;
+    let criteria: etendue_core::rig::Criteria = parse("coverage criteria", criteria_json)?;
+    let cov = etendue_core::rig::coverage(&layout, &grid, &criteria)
+        .map_err(|e| Error::Input(e.to_string()))?;
+    let mut out = cov.views;
+    out.extend(cov.lit);
+    Ok(out)
+}
+
+/// See [`rig_coverage`].
+///
+/// # Errors
+///
+/// Throws an `Error` with `kind`.
+#[wasm_bindgen(js_name = rigCoverage)]
+pub fn rig_coverage_js(
+    layout_json: &str,
+    grid_json: &str,
+    criteria_json: &str,
+) -> std::result::Result<Vec<u8>, JsValue> {
+    rig_coverage(layout_json, grid_json, criteria_json).map_err(|e| js_error(&e))
+}
+
 /// Options of [`head_section`].
 #[derive(Clone, Debug, Default, Deserialize)]
 #[serde(deny_unknown_fields)]
