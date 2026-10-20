@@ -73,6 +73,33 @@ The web toolchain is TypeScript 7, oxlint (type-aware, `web/.oxlintrc.json`) and
 Gates that need Blender run locally (the pinned version is in `etendue.toml`). Their commands are
 in each `docs/measurements/` record.
 
+## Adding a robot to the library
+
+The user-facing recipe (the `robots.toml` entry and the build) is in the book's
+[Robots](https://vitalyvorobyev.github.io/etendue/robots.html#adding-a-robot) chapter. A robot
+contributed to `assets/robots/` also passes the robot gates, and their results go to
+`docs/measurements/`:
+
+1. **Meshes (G1.3)**: every mesh vertex within 1e-6 m of the upstream source. Build with the
+   report:
+
+   ```bash
+   uv run --locked --project tools/robot-assets tools/robot-assets/build.py --robot my_arm \
+       [--include-local] --report docs/measurements/g1_3_robot_assets.md
+   ```
+
+2. **Forward kinematics (G1.1)** against Pinocchio fixtures, and **inverse kinematics (G1.2)**:
+
+   ```bash
+   uv run tools/fixtures/fk_fixture.py --robot my_arm [--include-local]
+   cargo test -p etendue-kinematics --all-features --test gates -- --nocapture
+   ```
+
+   If the arm has an OPW geometry (spherical wrist), set `opw_preset` in `robots.toml` so the
+   analytic solver is checked too.
+
+3. **Motion limits (G1.4)**: `cargo test -p etendue-kinematics --test motion -- --nocapture`.
+
 ## Conventions
 
 - **Frames**: world +Z up, right-handed, metres. Cameras follow calibration-rs/OpenCV (+Z

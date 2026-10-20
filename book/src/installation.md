@@ -1,63 +1,124 @@
 # Installation
 
-## Desktop app and command line
+etendue comes as two downloads: **etendue studio**, the desktop app, and **`etendue`**, the
+command line. Both are on the
+[latest release](https://github.com/VitalyVorobyev/etendue/releases/latest). To render images you
+also need [Blender 5.2](#blender).
 
-Download them from the [releases page](https://github.com/VitalyVorobyev/etendue/releases) (once a
-version is released; until then, build from source):
+## Downloads
+
+The files of version 0.2.0:
 
 | Platform | Desktop app | Command line |
 |---|---|---|
-| macOS (Apple silicon) | `.dmg` | `etendue-cli-<version>-aarch64-apple-darwin.tar.gz` |
-| Windows (x64) | `.msi`, or the `-setup.exe` installer | `etendue-cli-<version>-x86_64-pc-windows-msvc.zip` |
-| Linux (x64) | `.AppImage`, or the `.deb` package | `etendue-cli-<version>-x86_64-unknown-linux-gnu.tar.gz` |
+| macOS (Apple silicon) | `etendue-studio-0.2.0-aarch64-apple-darwin.dmg` | `etendue-cli-0.2.0-aarch64-apple-darwin.tar.gz` |
+| Windows (x64) | `etendue-studio-0.2.0-x86_64-pc-windows-msvc.msi`, or the installer `etendue-studio-0.2.0-x86_64-pc-windows-msvc-setup.exe` | `etendue-cli-0.2.0-x86_64-pc-windows-msvc.zip` |
+| Linux (x64) | `etendue-studio-0.2.0-x86_64-unknown-linux-gnu.AppImage`, or the Debian package `etendue-studio-0.2.0-x86_64-unknown-linux-gnu.deb` | `etendue-cli-0.2.0-x86_64-unknown-linux-gnu.tar.gz` |
 
-The command-line archive holds the `etendue` binary (put it on your `PATH`) and `etendue.toml`.
-It has no robot library: to render the examples' robots, use the desktop app or a source checkout
-with the robot meshes built (below).
+Intel Macs and Linux on ARM have no prebuilt files: [build from source](#from-source).
 
-The builds are not signed yet:
-- **macOS**: the first time, right-click the app and choose Open, or run
+### Check the download
+
+The release also has `SHA256SUMS.txt`, the SHA-256 checksum of every file. In the folder you
+downloaded to:
+
+```bash
+shasum -a 256 -c --ignore-missing SHA256SUMS.txt     # macOS
+sha256sum -c --ignore-missing SHA256SUMS.txt         # Linux
+```
+
+Each file you downloaded should print `OK`. On Windows, in PowerShell, compare the output of
+
+```powershell
+Get-FileHash .\etendue-studio-0.2.0-x86_64-pc-windows-msvc.msi -Algorithm SHA256
+```
+
+with the file's line in `SHA256SUMS.txt`.
+
+### The desktop app
+
+- **macOS**: open the `.dmg` and drag **etendue studio** to Applications.
+- **Windows**: run the `.msi` or the `-setup.exe`.
+- **Linux**: make the AppImage executable and run it
+  (`chmod +x etendue-studio-0.2.0-x86_64-unknown-linux-gnu.AppImage`), or install the package
+  (`sudo apt install ./etendue-studio-0.2.0-x86_64-unknown-linux-gnu.deb`).
+
+The app carries the examples, the robot library and the Blender version pin. It writes datasets
+under `Documents/etendue` unless you open a project, whose datasets go in its own `datasets/`
+folder (see [Projects and the library](library.md)).
+
+**The builds are not signed yet,** so the system warns the first time:
+- **macOS** (Gatekeeper): right-click the app in Applications and choose **Open**, then **Open**
+  again. Or remove the quarantine flag in a terminal:
   `xattr -dr com.apple.quarantine "/Applications/etendue studio.app"`.
-- **Windows**: SmartScreen warns about an unknown publisher; choose "More info", then "Run anyway".
+- **Windows** (SmartScreen): choose **More info**, then **Run anyway**.
 
-The desktop app carries its examples and robot library. It writes datasets under
-`Documents/etendue` by default.
+### The command line
+
+Unpack the archive. It holds the `etendue` binary (`etendue.exe` on Windows), the licence and
+`etendue.toml`, which pins the Blender version. Put the binary on your `PATH`, and keep
+`etendue.toml` in or above the folders you render from (see [Blender](#blender)).
+
+```bash
+tar -xzf etendue-cli-0.2.0-aarch64-apple-darwin.tar.gz
+sudo cp etendue-cli-0.2.0-aarch64-apple-darwin/etendue /usr/local/bin/
+etendue --help
+```
+
+The archive has no robot library and no examples. A scene names its robot by a path to the
+robot's `robot.json`, so the examples need the
+[repository](https://github.com/VitalyVorobyev/etendue) beside them: clone it and run the
+commands from its folder. Rendering a robot also needs its meshes, which the repository does not
+hold; see [Robots](robots.md).
 
 ## Blender
 
-Rendering needs [Blender](https://www.blender.org/download/) **5.2** (any 5.2.x; validated with
-5.2.2), the series etendue's renders are validated with. etendue looks for it, in order, in:
-
-1. `--blender <path>` (command line);
-2. the `ETENDUE_BLENDER` environment variable;
-3. `/Applications/Blender.app/Contents/MacOS/Blender` on macOS, `blender` on the `PATH`
-   elsewhere.
-
-The expected version is pinned in an `etendue.toml`: the desktop app carries one, the command-line
-archive has one next to the binary, and for your own scenes etendue uses the nearest
-`etendue.toml` above the scene, then above the working directory. With a pin, another Blender
-version is refused unless you pass `--allow-blender-version`; with no `etendue.toml` found,
-etendue renders with whatever Blender it finds and warns that it is unpinned. Keep the archive's
-`etendue.toml` in your project folder (or above it) to stay pinned.
-
-Everything except rendering — the studio, validation, baking, ground truth — works without
+Rendering needs [Blender](https://www.blender.org/download/) **5.2** (any 5.2.x). etendue's
+renders are validated with this series; 5.2.2 is the version tested. Everything else — the
+studio, validation, ground truth, detection on existing images, calibration — works without
 Blender.
+
+etendue looks for Blender, in order:
+
+1. the path given with `--blender <path>` (command line only);
+2. the `ETENDUE_BLENDER` environment variable;
+3. `/Applications/Blender.app/Contents/MacOS/Blender` on macOS, `blender` on the `PATH` on
+   Windows and Linux.
+
+The studio uses the same search without the first step. On Windows, add Blender's folder (for
+example `C:\Program Files\Blender Foundation\Blender 5.2`) to the `PATH`, or set
+`ETENDUE_BLENDER` to `blender.exe`.
+
+**The version pin.** An `etendue.toml` file pins the Blender version:
+
+```toml
+[blender]
+version = "5.2"     # "5.2" accepts every 5.2.x; "5.2.2" accepts only that one
+```
+
+The desktop app carries one, and the command-line archive has one next to the binary. For your
+own scenes, etendue uses the nearest `etendue.toml` in or above the scene's folder, then in or
+above the working directory. With a pin, another Blender version is refused unless you pass
+`--allow-blender-version`. With no `etendue.toml` found, etendue renders with whatever Blender it
+finds and warns that the version is unpinned. See [Troubleshooting](troubleshooting.md#blender).
 
 ## From source
 
+Build from source for an unsupported platform, or to work on etendue itself.
+
 ### Prerequisites
 
-- [Rust](https://rustup.rs): `rustup` installs the pinned toolchain (`rust-toolchain.toml`,
-  with the wasm32 target) on the first build.
+- [Rust](https://rustup.rs). `rustup` installs the toolchain the repository pins (with the
+  WebAssembly target) on the first build.
 - For the studio: [Node.js](https://nodejs.org), [bun](https://bun.sh) and
   [wasm-pack](https://rustwasm.github.io/wasm-pack/).
-- For the robot meshes: [uv](https://docs.astral.sh/uv/) ≥ 0.13.
+- For the robot meshes: [uv](https://docs.astral.sh/uv/) 0.13 or later.
 - On Linux, the desktop app's system libraries:
   `sudo apt-get install libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf`.
   macOS needs the Xcode command-line tools; Windows needs WebView2 (preinstalled on Windows 11).
 
-etendue builds against [calibration-rs](https://github.com/VitalyVorobyev/calibration-rs) checked
-out **next to it** (same parent folder):
+etendue builds against [calibration-rs](https://github.com/VitalyVorobyev/calibration-rs), checked
+out **next to it** (in the same parent folder):
 
 ```bash
 git clone https://github.com/VitalyVorobyev/calibration-rs
@@ -66,34 +127,42 @@ git clone https://github.com/VitalyVorobyev/etendue
 cd etendue
 ```
 
-All commands below run from the `etendue` folder.
+All the commands below run from the `etendue` folder.
 
 ### The command line
 
 ```bash
-cargo install --locked --path crates/etendue-cli   # the `etendue` command, on your PATH
+cargo install --locked --path crates/etendue-cli   # installs `etendue` on your PATH
 ```
+
+### The robot meshes
+
+The meshes are not in the repository. They are rebuilt from each robot's upstream description:
+
+```bash
+uv run --locked --project tools/robot-assets tools/robot-assets/build.py
+```
+
+`cargo app` and `cargo app-release` (below) do this for you when the meshes are missing.
 
 ### The desktop app
 
 ```bash
-cargo app                          # build and run the debug app from the checkout
+cargo app                          # build and run the app from the checkout
 cargo app-release                  # build the release app and its installers
 cargo app-release --bundles app    # macOS: the .app alone
 ```
 
-Both first prepare what the app needs: the robot meshes if they are missing (with uv), the
-studio's wasm kernel (`crates/etendue-wasm`, with node and wasm-pack) and the web packages
-(`bun install`). Any other argument goes to the Tauri CLI.
+Both first prepare what the app needs: the robot meshes if they are missing, the app's
+WebAssembly kernel, and its web packages. Any other argument goes to the Tauri command line.
 
-- **`cargo app`** compiles the shell (the first time takes a few minutes), starts the frontend on
-  `http://localhost:5178` and opens the window; edits to the frontend reload it. It reads the
-  examples and robots from the checkout and writes datasets under `Documents/etendue`. Close
-  the window or press Ctrl-C to stop.
+- **`cargo app`** compiles the app (the first time takes a few minutes), serves its interface on
+  `http://localhost:5178` and opens the window. It reads the examples and robots from the
+  checkout and writes datasets under `Documents/etendue`. Close the window or press Ctrl-C to
+  stop.
 - **`cargo app-release`** writes to `web/apps/studio/src-tauri/target/release/bundle/`: on macOS
   `macos/etendue studio.app` (copy it to `/Applications`) and a `.dmg`; on Windows an `.msi` and
-  a `-setup.exe`; on Linux an `.AppImage` and a `.deb`. The app carries the examples, the robot
-  library and `etendue.toml`.
+  a `-setup.exe`; on Linux an `.AppImage` and a `.deb`.
 
 ### In a browser
 
@@ -103,8 +172,6 @@ After `cargo app` or `cargo app-release` has prepared the checkout once:
 (cd web && bun run dev)            # http://localhost:5178
 ```
 
-In a browser the studio opens, edits and plays scenes, but cannot generate datasets: that needs
-the desktop app or the command line.
-
-The robot meshes are not in the repository (they are rebuilt from the robots' upstream sources);
-the studio's 3D view and rendering a scene with a robot need them.
+In a browser the studio opens, edits and plays scenes, designs heads and rigs, and previews what
+a calibration observes. It cannot render, detect or calibrate: those need the desktop app or the
+command line. Opening a project folder needs a browser that can open folders (Chrome or Edge).
