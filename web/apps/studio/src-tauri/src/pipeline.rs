@@ -134,19 +134,20 @@ fn run(request: &DatasetRequest, ctl: &Control) -> Result<Dataset> {
     };
     ctl.check()?;
 
-    // A previous run's images and features belong to its ground truth: a
-    // camera this run does not render must not keep them, or detection
-    // would check old images against the new truth.
+    // A previous run's images and features (laser stripes included) belong
+    // to its ground truth: a camera this run does not render must not keep
+    // them, or detection would check old images against the new truth.
     for stale in ["images", "exr"] {
         let dir = out.join(stale);
         if dir.is_dir() {
             std::fs::remove_dir_all(&dir).with_context(|| format!("removing {}", dir.display()))?;
         }
     }
-    let features = out.join("features.json");
-    if features.is_file() {
-        std::fs::remove_file(&features)
-            .with_context(|| format!("removing {}", features.display()))?;
+    for stale in ["features.json", detect::LASER_FEATURES] {
+        let file = out.join(stale);
+        if file.is_file() {
+            std::fs::remove_file(&file).with_context(|| format!("removing {}", file.display()))?;
+        }
     }
 
     ctl.step(Stage::GroundTruth, 0, 1);
@@ -285,6 +286,7 @@ mod tests {
         std::fs::create_dir_all(old.parent().unwrap()).unwrap();
         std::fs::write(&old, b"old").unwrap();
         std::fs::write(dir.path().join("features.json"), b"{}").unwrap();
+        std::fs::write(dir.path().join(detect::LASER_FEATURES), b"{}").unwrap();
         let events = Mutex::new(Vec::new());
         let report = |p| events.lock().unwrap().push(p);
         let outcome = generate(
@@ -307,6 +309,7 @@ mod tests {
         }
         assert!(!dir.path().join("images").exists());
         assert!(!dir.path().join("features.json").exists());
+        assert!(!dir.path().join(detect::LASER_FEATURES).exists());
         let events = events.into_inner().unwrap();
         assert!(events.contains(&etendue_cli::progress::Progress::Step {
             stage: Stage::GroundTruth,

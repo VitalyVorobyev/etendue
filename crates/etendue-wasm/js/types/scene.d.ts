@@ -385,7 +385,8 @@ export interface LaserSpec {
    */
   fan_half_angle: number;
   /**
-   * Fan reach along its central ray, in metres.
+   * Fan radius, in metres: how far the fan reaches from the laser, the
+   * same along every ray.
    */
   fan_length: number;
   /**
@@ -588,7 +589,8 @@ export interface LaserLayout {
    */
   fan_half_angle: number;
   /**
-   * Fan reach along its central ray, metres.
+   * Fan radius, metres: how far the fan reaches from the laser, the same
+   * along every ray.
    */
   fan_length: number;
   /**

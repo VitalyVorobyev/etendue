@@ -18,10 +18,12 @@
 //! # Pixel-centre convention
 //!
 //! Which image coordinate names the centre of pixel `i` — `i`, or `i + ½` —
-//! is decided empirically by probe P4-2 and recorded in ADR 0004. Until then
-//! it is a [`PixelCentre`] argument, never a default: it fixes where the
-//! image edges lie (for the canonical camera's coverage and principal point)
-//! and which coordinate each LUT entry is evaluated at.
+//! is an explicit [`PixelCentre`] argument: it fixes where the image edges
+//! lie (for the canonical camera's coverage and principal point) and which
+//! coordinate each LUT entry is evaluated at. The convention etendue uses
+//! everywhere is [`PixelCentre::Integer`] (pixel `i` at `i`; `etendue-cli`'s
+//! `render::PIXEL_CENTRE`), as gate G4.1 measured it and G4.2 confirmed
+//! against chess-corners (ADR 0004).
 
 use nalgebra::Point2;
 use serde::{Deserialize, Serialize};

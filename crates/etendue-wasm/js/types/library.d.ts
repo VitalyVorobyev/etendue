@@ -329,7 +329,8 @@ export interface HeadDesign {
   camera: CameraTemplate;
   camera_se3_laser: Iso3Schema;
   /**
-   * How far the fan reaches along its edge rays, metres.
+   * Fan radius, metres: how far the fan reaches from the laser, the same
+   * along every ray.
    */
   fan_length_m: number;
   laser: LaserPart;
@@ -510,7 +511,8 @@ export interface LaserLayout {
    */
   fan_half_angle: number;
   /**
-   * Fan reach along its central ray, metres.
+   * Fan radius, metres: how far the fan reaches from the laser, the same
+   * along every ray.
    */
   fan_length: number;
   /**
