@@ -1,0 +1,19 @@
+{
+  "name": "@etendue/book-demos",
+  "private": true,
+  "description": "The book's interactive widgets: small live views of the etendue kernel (@etendue/wasm), built into book/src/demos. Not published to npm.",
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@etendue/wasm": "workspace:*"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@types/node": "^26.6.3"
+  }
+}

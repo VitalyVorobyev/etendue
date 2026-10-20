@@ -4,6 +4,10 @@ language = "en"
 src = "src"
 title = "etendue Book"
 
+[build]
+# A page listed in SUMMARY.md but missing is an error, not an empty page.
+create-missing = false
+
 [preprocessor.katex]
 
 [output.html]
@@ -11,3 +15,14 @@ default-theme = "light"
 preferred-dark-theme = "navy"
 git-repository-url = "https://github.com/VitalyVorobyev/etendue"
 mathjax-support = false
+# The interactive widgets (web/apps/book-demos, built into src/demos).
+additional-js = ["js/demos-loader.js"]
+
+# Pages folded into others in 0.2.0: old links land on their new home.
+[output.html.redirect]
+"/thick_lens.html" = "physical_cameras.html"
+"/gaussian_psf.html" = "models/blur.html"
+"/scheimpflug_solver.html" = "models/heads.html"
+"/symmetric_rigs.html" = "models/coverage.html"
+"/working_volume.html" = "models/coverage.html"
+"/scene_and_geometry.html" = "models/frames.html"

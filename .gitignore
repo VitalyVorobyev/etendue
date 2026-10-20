@@ -7,8 +7,10 @@ crates/etendue-wasm/pkg/
 # This workspace ships binaries (the `etendue` CLI, the studio), so Cargo.lock IS committed.
 # Do not add Cargo.lock here.
 
-# mdBook build output (book/ sources are committed; book/book/ is generated)
+# mdBook build output (book/ sources are committed; book/book/ is generated), and the
+# book's widgets (web/apps/book-demos builds them into book/src/demos)
 book/book/
+book/src/demos/
 
 # Editor / OS noise
 *.swp

@@ -4,28 +4,49 @@
 
 ---
 
-# User guide
+# Getting started
 
 - [Installation](installation.md)
+- [Concepts and workflow](concepts.md)
+
+# Tutorials
+
+- [Your first synthetic dataset](tutorials/first_dataset.md)
+- [Design a laser-triangulation head](tutorials/head_design.md)
+- [Lay out a multi-camera rig](tutorials/rig_layout.md)
+- [Program and jog a robot](tutorials/robot_program.md)
+- [The command-line pipeline](tutorials/cli_pipeline.md)
+
+# User guide
+
 - [The studio](studio.md)
+- [Projects and the library](library.md)
 - [Scenes and scenarios](scenes.md)
 - [Robots](robots.md)
 - [Command line](cli.md)
 - [Rendering](rendering.md)
 - [Datasets](datasets.md)
+- [Calibration](calibration.md)
 - [Examples](examples.md)
+- [File formats](formats.md)
 
----
+# Models and algorithms
 
-# Optics
-
-- [Physical cameras](physical_cameras.md)
-- [The optics kernel's scene](scene_and_geometry.md)
-- [Thick lens and defocus](thick_lens.md)
+- [Frames and poses](models/frames.md)
+- [Camera models](models/camera_models.md)
+- [Physical cameras and the thick lens](physical_cameras.md)
+- [Defocus and the blur budget](models/blur.md)
 - [Scheimpflug plane of best focus](scheimpflug.md)
-- [Laser line projection](laser.md)
-- [Working volume](working_volume.md)
-- [Gaussian PSF](gaussian_psf.md)
-- [Scheimpflug solver](scheimpflug_solver.md)
-- [Symmetric rigs and N-view overlap](symmetric_rigs.md)
-- [Projects and the library](library.md)
+- [Laser line and stripe](laser.md)
+- [Triangulation heads](models/heads.md)
+- [Working volume and rig coverage](models/coverage.md)
+- [Robot kinematics](models/kinematics.md)
+- [Motion](models/motion.md)
+- [Pose generation](models/poses.md)
+- [Synthetic images](models/synthetic_images.md)
+- [Ground truth and closed-loop calibration](models/closed_loop.md)
+
+# Reference
+
+- [Glossary](glossary.md)
+- [Troubleshooting](troubleshooting.md)
