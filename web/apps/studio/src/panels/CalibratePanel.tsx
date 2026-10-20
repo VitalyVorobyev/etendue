@@ -322,11 +322,9 @@ export function CalibratePanel({
             </span>
             {result && <span className="font-mono text-xs text-fg-muted">{result.name}</span>}
             {first.gated ? (
-              <Badge tone={first.pass ? "normal" : "defect"}>
-                {first.gate} {first.pass ? "PASS" : "FAIL"}
-              </Badge>
+              <Badge tone={first.pass ? "normal" : "defect"}>Closed-loop check: {first.pass ? "PASS" : "FAIL"}</Badge>
             ) : (
-              <Badge tone="neutral">{first.gate} limits for reference</Badge>
+              <Badge tone="neutral">Closed-loop limits for reference</Badge>
             )}
           </div>
           <p className="font-mono text-xs text-fg-muted" data-testid="calibration-residuals">
@@ -371,8 +369,8 @@ export function CalibratePanel({
       {!first && !running && !failure && (
         <p className="text-xs text-fg-muted">
           Calibrates this dataset with calibration-rs, natively, and compares every intrinsic, rig transform, hand-eye
-          and laser plane with the ground truth. On exact observations the closed-loop gate applies (G5.1, G5.3 with
-          lasers).
+          and laser plane with the ground truth. On exact observations this is the closed-loop check: every quantity
+          must match the truth within its tolerance.
         </p>
       )}
       <KeptRuns

@@ -14,7 +14,8 @@
 //! (`phi = 0` is the central ray, `phi > 0` toward local `+y`) has the
 //! local direction `(0, sin phi, cos phi)`. The fan spans
 //! `phi ∈ [-fan_half_angle, +fan_half_angle]`, and the rendered/illuminated
-//! extent reaches `fan_length` along each edge ray.
+//! extent reaches `fan_length` along every ray (the fan is a circular
+//! sector of that radius).
 //!
 //! # What `LaserPlane` exposes
 //!

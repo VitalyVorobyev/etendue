@@ -113,7 +113,8 @@ pub struct LaserLayout {
     pub camera_se3_laser: Option<Isometry3<f64>>,
     /// Fan half-angle, radians, in `(0, π/2)`.
     pub fan_half_angle: f64,
-    /// Fan reach along its central ray, metres.
+    /// Fan radius, metres: how far the fan reaches from the laser, the same
+    /// along every ray.
     pub fan_length: f64,
     /// Wavelength, nanometres.
     pub wavelength_nm: f64,

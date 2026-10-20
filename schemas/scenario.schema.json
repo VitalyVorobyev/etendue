@@ -239,7 +239,7 @@
       "description": "One scenario step, tagged on `type`.",
       "oneOf": [
         {
-          "description": "Point-to-point move to a joint configuration: synchronised\ntrapezoidal profiles, straight in joint space.",
+          "description": "Point-to-point move to a joint configuration: straight in joint space,\nevery joint on one synchronised jerk-limited profile (Ruckig;\ntrapezoidal when no moving joint has a jerk limit).",
           "type": "object",
           "properties": {
             "q": {
