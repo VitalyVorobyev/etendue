@@ -55,21 +55,20 @@ folder (see [Projects and the library](library.md)).
 
 ### The command line
 
-Unpack the archive. It holds the `etendue` binary (`etendue.exe` on Windows), the licence and
-`etendue.toml`, which pins the Blender version. Put the binary on your `PATH`, and keep
-`etendue.toml` in or above the folders you render from (see [Blender](#blender)).
+Unpack the archive. It holds the `etendue` binary (`etendue.exe` on Windows), the licence,
+`etendue.toml` (which pins the Blender version), the `examples/` and the robot library
+(`assets/robots/`, meshes included). Put the binary on your `PATH`, and keep `etendue.toml` in or
+above the folders you render from (see [Blender](#blender)).
 
 ```bash
 tar -xzf etendue-cli-0.2.0-aarch64-apple-darwin.tar.gz
-sudo cp etendue-cli-0.2.0-aarch64-apple-darwin/etendue /usr/local/bin/
-etendue --help
+cd etendue-cli-0.2.0-aarch64-apple-darwin
+./etendue validate examples/eye_in_hand_ur5e/scene.json examples/eye_in_hand_ur5e/scenario.json
 ```
 
-The archive has no robot library and no examples. A scene names its robot by a path to the
-robot's `robot.json`, so the examples need the
-[repository](https://github.com/VitalyVorobyev/etendue) beside them: clone it and run the
-commands from its folder. Rendering a robot also needs its meshes, which the repository does not
-hold; see [Robots](robots.md).
+A scene names its robot by a path to the robot's `robot.json`, relative to the scene, so the
+examples work from the unpacked folder as they are. Your own scenes can point at the same
+`assets/robots/` (see [Robots](robots.md)).
 
 ## Blender
 

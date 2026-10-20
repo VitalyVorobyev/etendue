@@ -19,7 +19,7 @@ The kinematics — forward and inverse, the Jacobian and manipulability — are 
 | igus ReBeL 6DOF | `igus_rebel_6dof` | CommonplaceRobotics/iRC_ROS | Apache-2.0 |
 | FAIRINO FR5 | `fairino_fr5` | FAIR-INNOVATION/frcobot_ros2 | none: **local only** |
 
-The desktop app carries the first three, with their meshes. In the repository, `robot.json` and
+The desktop app and the command-line archives carry the first three, with their meshes. In the repository, `robot.json` and
 `robot.urdf` are in `assets/robots/<id>/`, and the meshes are rebuilt from the upstream
 descriptions (see [Installation](installation.md#the-robot-meshes)).
 
