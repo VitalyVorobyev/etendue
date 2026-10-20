@@ -35,6 +35,15 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           components: rust-docs
+          targets: wasm32-unknown-unknown
+
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      - name: Set up bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: web/package.json
 
       - name: Install mdBook and plugins
         uses: taiki-e/install-action@v2
@@ -47,6 +56,15 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
+
+      # The book's interactive widgets (web/apps/book-demos) run the wasm kernel:
+      # build it, then the widgets into book/src/demos, before mdBook copies them.
+      - name: Build the book's widgets
+        run: |
+          node crates/etendue-wasm/scripts/build-npm.mjs
+          cd web
+          bun install --frozen-lockfile
+          bun run --filter @etendue/book-demos build
 
       - name: Build rustdoc and book
         env:

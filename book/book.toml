@@ -11,3 +11,5 @@ default-theme = "light"
 preferred-dark-theme = "navy"
 git-repository-url = "https://github.com/VitalyVorobyev/etendue"
 mathjax-support = false
+# The interactive widgets (web/apps/book-demos, built into src/demos).
+additional-js = ["js/demos-loader.js"]

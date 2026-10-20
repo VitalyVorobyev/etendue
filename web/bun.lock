@@ -34,6 +34,16 @@
       "name": "@etendue/wasm",
       "version": "0.1.0",
     },
+    "apps/book-demos": {
+      "name": "@etendue/book-demos",
+      "dependencies": {
+        "@etendue/wasm": "workspace:*",
+      },
+      "devDependencies": {
+        "@playwright/test": "1.63.0",
+        "@types/node": "^26.6.3",
+      },
+    },
     "apps/studio": {
       "name": "@etendue/studio",
       "dependencies": {
@@ -82,6 +92,8 @@
     "@blazediff/core": ["@blazediff/core@1.10.0", "", {}, "sha512-AOQff0zgR7cGsZL+4E7hVkmujoPUpm0J9xzWGWZj5wCjd3gmxESXAPfKyuzs93VdpQNFhHlBhfOjrcZ+XTERtQ=="],
 
     "@dimforge/rapier3d-compat": ["@dimforge/rapier3d-compat@0.12.0", "", {}, "sha512-uekIGetywIgopfD97oDL5PfeezkFpNhwlzlaEYNOA0N6ghdsOvh/HYjSMek5Q2O1PYvRSDFcqFVJl4r4ZBwOow=="],
+
+    "@etendue/book-demos": ["@etendue/book-demos@workspace:apps/book-demos"],
 
     "@etendue/studio": ["@etendue/studio@workspace:apps/studio"],
 
