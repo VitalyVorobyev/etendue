@@ -188,8 +188,9 @@ fn default_speed_scale() -> f64 {
 #[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Step {
-    /// Point-to-point move to a joint configuration: synchronised
-    /// trapezoidal profiles, straight in joint space.
+    /// Point-to-point move to a joint configuration: straight in joint space,
+    /// every joint on one synchronised jerk-limited profile (Ruckig;
+    /// trapezoidal when no moving joint has a jerk limit).
     PtpJoints {
         /// Robot id.
         robot: String,

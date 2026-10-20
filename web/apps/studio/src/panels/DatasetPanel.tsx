@@ -239,7 +239,10 @@ export function DatasetPanel({
                 />
               </Field>
             </div>
-            <Field label="Sensor model" description="None: sRGB images. A sensor gives linear raw images (G4.2).">
+            <Field
+              label="Sensor model"
+              description="None: sRGB images. A sensor gives linear raw images, best for calibration."
+            >
               <div className="flex gap-2">
                 <Input value={sensor ?? ""} placeholder="none (sRGB)" readOnly className="font-mono text-xs" />
                 <Button
@@ -272,7 +275,7 @@ export function DatasetPanel({
               checked={form.cpu}
               onCheckedChange={(cpu) => set({ cpu })}
               label="Render on the CPU"
-              description="Bit-exact between runs, and slower (P4-5)."
+              description="Bit-exact between runs, and slower."
               disabled={running}
             />
           </>

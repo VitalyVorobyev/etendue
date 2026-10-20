@@ -445,7 +445,7 @@
           "$ref": "#/$defs/Iso3Schema"
         },
         "fan_length_m": {
-          "description": "How far the fan reaches along its edge rays, metres.",
+          "description": "Fan radius, metres: how far the fan reaches from the laser, the same\nalong every ray.",
           "type": "number",
           "format": "double"
         },
@@ -638,7 +638,7 @@
           "format": "double"
         },
         "fan_length": {
-          "description": "Fan reach along its central ray, metres.",
+          "description": "Fan radius, metres: how far the fan reaches from the laser, the same\nalong every ray.",
           "type": "number",
           "format": "double"
         },

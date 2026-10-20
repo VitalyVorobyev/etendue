@@ -84,6 +84,17 @@ pub enum Workflow {
     LaserlineDevice,
 }
 
+impl std::fmt::Display for Workflow {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::SingleCamHandeye => "single-camera hand-eye",
+            Self::RigHandeye => "rig hand-eye",
+            Self::RigHandeyeLaserline => "rig hand-eye laserline",
+            Self::LaserlineDevice => "laserline device",
+        })
+    }
+}
+
 /// Reprojection residuals of the target points.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Residuals {
@@ -198,19 +209,29 @@ impl Report {
             let _ = writeln!(
                 out,
                 "  {}: {}",
-                self.gate,
+                self.check_name(),
                 if self.pass { "PASS" } else { "FAIL" }
             );
         } else {
             let all = self.rows.iter().all(Row::within);
             let _ = writeln!(
                 out,
-                "  {} limits (not gated on this input): {}",
-                self.gate,
+                "  {} not applied (noisy or detected observations); limits {}",
+                self.check_name(),
                 if all { "all within" } else { "not all within" }
             );
         }
         out
+    }
+
+    /// The gate as users read it: [`Report::gate`] is the id the measurements use.
+    #[must_use]
+    pub fn check_name(&self) -> String {
+        if self.gate == "G5.3" {
+            "closed-loop check (target and laser plane)".into()
+        } else {
+            "closed-loop check (target)".into()
+        }
     }
 }
 
@@ -1393,16 +1414,16 @@ pub fn run_dir(
         };
         let report = calibrate(&gt, &obs, &calibrate_options)?;
         ctl.log(format!(
-            "trial {}: {:?}, mean reprojection {:.4} px, {}",
+            "trial {}: {}, mean reprojection {:.4} px, {}",
             k + 1,
             report.workflow,
             report.residuals.mean_px,
             if !report.gated {
-                "not gated"
+                "closed-loop check not applied"
             } else if report.pass {
-                "PASS"
+                "closed-loop check: PASS"
             } else {
-                "FAIL"
+                "closed-loop check: FAIL"
             }
         ));
         reports.push(report);

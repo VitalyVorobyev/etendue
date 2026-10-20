@@ -212,7 +212,7 @@ test("generates a dataset through the native pipeline", async ({ page }) => {
   await calibrate.getByRole("radio", { name: "Exact" }).click();
   await calibrate.getByRole("button", { name: "Calibrate" }).click();
   const outcome = page.getByTestId("calibration-result");
-  await expect(outcome).toContainText("G5.1 PASS");
+  await expect(outcome).toContainText("Closed-loop check: PASS");
   await expect(outcome).toContainText("rig hand-eye");
   await expect(outcome.getByRole("cell", { name: "hand-eye rotation deg" })).toBeVisible();
   await expect(outcome.getByRole("img", { name: "Reprojection errors" })).toBeVisible();
