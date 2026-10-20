@@ -4,7 +4,8 @@
 //! Saved to another folder, those paths must be rewritten, or the scene no
 //! longer finds its robots. [`rebase_manifests`] does that: it resolves each
 //! manifest against the folder the scene came from (or the robot library) and
-//! rewrites it relative to the new folder.
+//! rewrites it relative to the new folder, or as an absolute path when there
+//! is none (another Windows drive).
 
 use std::path::{Component, Path, PathBuf};
 
@@ -57,9 +58,12 @@ fn find_manifest(manifest: &str, from: Option<&Path>, library: Option<&Path>) ->
 /// file saved in the directory `to`. Manifests are found relative to `from`
 /// (where the scene was read, if anywhere), then in `library`.
 ///
+/// A manifest on another Windows drive than `to` is written as an absolute
+/// path, which the scene loader joins onto the scene's folder unchanged.
+///
 /// # Errors
 ///
-/// If a manifest is found nowhere, or `to` shares no root with it.
+/// If a manifest is found nowhere, or `to` does not exist.
 pub fn rebase_manifests(
     scene: &mut Value,
     from: Option<&Path>,
@@ -81,13 +85,7 @@ pub fn rebase_manifests(
         };
         let found = find_manifest(manifest, from, library)
             .ok_or_else(|| anyhow!("robot `{id}`: manifest {manifest} not found"))?;
-        let rebased = relative(&found, &to).ok_or_else(|| {
-            anyhow!(
-                "robot `{id}`: {} has no path relative to {}",
-                found.display(),
-                to.display()
-            )
-        })?;
+        let rebased = relative(&found, &to).unwrap_or_else(|| found.to_string_lossy().into_owned());
         robot["manifest"] = Value::String(rebased);
     }
     Ok(())
@@ -127,10 +125,9 @@ mod tests {
         let mut scene: Value =
             serde_json::from_str(&std::fs::read_to_string(example.join("scene.json")).unwrap())
                 .unwrap();
-        // Inside the checkout (a relative path needs one drive on Windows), in `target/`, which a
-        // job that builds only this shell has not made yet.
-        std::fs::create_dir_all(root.join("target")).unwrap();
-        let out = tempfile::tempdir_in(root.join("target")).unwrap();
+        // On Windows the temporary folder may be on another drive than the checkout: the
+        // manifest is then absolute.
+        let out = tempfile::tempdir().unwrap();
         rebase_manifests(&mut scene, Some(&example), out.path(), Some(&root)).unwrap();
         let manifest = scene["robots"][0]["manifest"].as_str().unwrap();
         let manifest = out.path().join(manifest);
