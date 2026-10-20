@@ -96,6 +96,14 @@ jobs:
       - name: Build the CLI
         run: cargo build --release --locked -p etendue-cli
 
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v10.2.0
+
+      # The archive carries the examples and the robot library, meshes included, so the
+      # examples validate, bake and render as they are.
+      - name: Robot meshes
+        run: uv run --locked --project tools/robot-assets tools/robot-assets/build.py
+
       # The tag's version (the workspace version on a dry run).
       - name: Version
         shell: bash
@@ -111,8 +119,11 @@ jobs:
         shell: bash
         run: |
           NAME="etendue-cli-${VERSION}-${{ matrix.target }}"
-          mkdir -p "dist/$NAME"
+          mkdir -p "dist/$NAME/assets"
           cp LICENSE etendue.toml "dist/$NAME/"
+          cp -R examples "dist/$NAME/"
+          cp -R assets/robots "dist/$NAME/assets/"
+          ls "dist/$NAME/assets/robots/ur5e/meshes" | grep -q '\.glb$' || { echo "robot meshes missing"; exit 1; }
           if [ "$RUNNER_OS" = "Windows" ]; then
             cp target/release/etendue.exe "dist/$NAME/"
             (cd dist && 7z a -tzip "$NAME.zip" "$NAME" > /dev/null)
