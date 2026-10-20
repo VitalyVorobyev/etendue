@@ -223,6 +223,10 @@ calibration datasets with exact ground truth. The 0.1.0 desktop app is replaced 
   about x, the plane of best focus, every blur value and the solver's proposal were mirrored.
 - Camera intrinsics derived from a lens use the image distance at the focus setting, not the focal
   length (about 9 % for a 25 mm lens focused at 0.3 m).
+- `etendue detect` printed the laser-stripe table twice.
+- Regenerating a dataset in the studio left the previous `laser_features.json` behind.
+- The CLI's help and verdicts, and the studio's labels, name the closed-loop check in words rather
+  than by development ids (the report's `gate` field is unchanged).
 
 ### Removed
 

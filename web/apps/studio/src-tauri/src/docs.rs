@@ -127,6 +127,9 @@ mod tests {
         let mut scene: Value =
             serde_json::from_str(&std::fs::read_to_string(example.join("scene.json")).unwrap())
                 .unwrap();
+        // Inside the checkout (a relative path needs one drive on Windows), in `target/`, which a
+        // job that builds only this shell has not made yet.
+        std::fs::create_dir_all(root.join("target")).unwrap();
         let out = tempfile::tempdir_in(root.join("target")).unwrap();
         rebase_manifests(&mut scene, Some(&example), out.path(), Some(&root)).unwrap();
         let manifest = scene["robots"][0]["manifest"].as_str().unwrap();
