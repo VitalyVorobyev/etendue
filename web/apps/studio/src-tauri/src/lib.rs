@@ -621,8 +621,13 @@ mod tests {
             resolve(&root.join("examples/../examples")),
             Some(root.join("examples"))
         );
-        // … but cannot climb out of a missing one.
-        assert_eq!(resolve(&root.join("target/nope/../../..")), None);
+        // … but cannot climb out of a missing one. (Windows folds `..` before it looks, so
+        // there the path resolves to where it really points, outside the checkout.)
+        let climbed = resolve(&root.join("target/nope/../../.."));
+        assert!(
+            climbed.as_ref().is_none_or(|p| !p.starts_with(&root)),
+            "{climbed:?}"
+        );
     }
 
     #[test]

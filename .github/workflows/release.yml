@@ -7,7 +7,8 @@ name: Release
 on:
   push:
     tags:
-      - 'v*.*.*'
+      # Plain versions only: the Windows installer (MSI) takes no pre-release suffix.
+      - 'v[0-9]+.[0-9]+.[0-9]+'
   workflow_dispatch:
 
 permissions:
@@ -25,11 +26,22 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        # 22.04: the glibc the Linux CLI and bundles are built against.
+        os: [ubuntu-22.04, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+
+      # A tag must name the version the binaries report (`etendue --version`).
+      - name: Tag matches the workspace version
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          CARGO=$(grep -m1 '^version = ' Cargo.toml | cut -d'"' -f2)
+          if [ "${GITHUB_REF_NAME#v}" != "$CARGO" ]; then
+            echo "tag $GITHUB_REF_NAME does not match the workspace version $CARGO"; exit 1
+          fi
 
       - name: Clone calibration-rs sibling ([patch.crates-io] target)
         shell: bash
@@ -59,7 +71,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
+          # 22.04: the oldest supported glibc, as the AppImage and .deb below.
+          - os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
           - os: macos-latest
             target: aarch64-apple-darwin
@@ -83,6 +96,14 @@ jobs:
       - name: Build the CLI
         run: cargo build --release --locked -p etendue-cli
 
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v10.2.0
+
+      # The archive carries the examples and the robot library, meshes included, so the
+      # examples validate, bake and render as they are.
+      - name: Robot meshes
+        run: uv run --locked --project tools/robot-assets tools/robot-assets/build.py
+
       # The tag's version (the workspace version on a dry run).
       - name: Version
         shell: bash
@@ -98,8 +119,11 @@ jobs:
         shell: bash
         run: |
           NAME="etendue-cli-${VERSION}-${{ matrix.target }}"
-          mkdir -p "dist/$NAME"
+          mkdir -p "dist/$NAME/assets"
           cp LICENSE etendue.toml "dist/$NAME/"
+          cp -R examples "dist/$NAME/"
+          cp -R assets/robots "dist/$NAME/assets/"
+          ls "dist/$NAME/assets/robots/ur5e/meshes" | grep -q '\.glb$' || { echo "robot meshes missing"; exit 1; }
           if [ "$RUNNER_OS" = "Windows" ]; then
             cp target/release/etendue.exe "dist/$NAME/"
             (cd dist && 7z a -tzip "$NAME.zip" "$NAME" > /dev/null)
@@ -264,7 +288,22 @@ jobs:
             echo "AUTO_NOTES=true" >> "$GITHUB_ENV"
           else
             echo "AUTO_NOTES=false" >> "$GITHUB_ENV"
+            {
+              echo
+              echo '---'
+              echo
+              echo '**Install:** download the studio installer or the CLI archive for your platform below, and see'
+              echo '[Installation](https://vitalyvorobyev.github.io/etendue/installation.html) (the builds are not'
+              echo 'code-signed) and the [tutorials](https://vitalyvorobyev.github.io/etendue/). Verify a download'
+              echo 'with `SHA256SUMS.txt`: `sha256sum -c SHA256SUMS.txt --ignore-missing`.'
+            } >> release-notes.md
           fi
+
+      - name: Checksums
+        working-directory: dist
+        run: |
+          sha256sum * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
 
       - name: Create release (with CHANGELOG body)
         if: env.AUTO_NOTES == 'false'

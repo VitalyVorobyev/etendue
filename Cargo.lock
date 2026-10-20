@@ -846,7 +846,7 @@ dependencies = [
 
 [[package]]
 name = "etendue-cli"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "calib-targets-charuco 0.15.5",
@@ -871,7 +871,7 @@ dependencies = [
 
 [[package]]
 name = "etendue-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "approx",
  "etendue-scene",
@@ -885,7 +885,7 @@ dependencies = [
 
 [[package]]
 name = "etendue-kinematics"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "approx",
  "etendue-scene",
@@ -901,7 +901,7 @@ dependencies = [
 
 [[package]]
 name = "etendue-scene"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "approx",
  "nalgebra 0.34.2",
@@ -916,7 +916,7 @@ dependencies = [
 
 [[package]]
 name = "etendue-synth"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "calib-targets-charuco 0.15.5",
  "calib-targets-print 0.15.5",
@@ -940,7 +940,7 @@ dependencies = [
 
 [[package]]
 name = "etendue-wasm"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "etendue-core",
  "etendue-kinematics",
