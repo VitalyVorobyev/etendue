@@ -3,7 +3,10 @@
 This note derives, from first principles, the optical model implemented in
 `etendue-core::optics` (`optics/coc.rs` and `optics/thick_lens.rs`). It is the
 written companion to the `coc.rs` module doc-comment, and the tests of both
-modules check the results below.
+modules check the results below. The book's
+[Scheimpflug page](../../book/src/scheimpflug.md) includes it from Section 1 on.
+
+<!-- ANCHOR: derivation -->
 
 The lens is treated as **ideal**: Gaussian (paraxial) imaging only. Seidel /
 Zernike aberrations, field curvature, and chromatic effects are explicitly out
@@ -30,27 +33,30 @@ A thick lens has two principal planes:
 - **H**, the *front* (object-side) principal plane;
 - **H'**, the *rear* (image-side) principal plane.
 
-They are separated by the **inter-principal gap** `g = H - H' >= 0`. For an
+They are separated by the **inter-principal gap** `g >= 0`. For an
 ideal *thin* lens the two planes coincide and `g = 0`.
 
-**Reference-point convention (this is the load-bearing modelling choice).**
-The camera-local origin `z = 0` is the **rear principal plane H'**. This is the
-natural choice: `vision-calibration-core`'s pinhole `Camera` projects through a
-single center, and the center that reproduces image-formation geometry is the
-rear nodal point, which (in air) coincides with H'. Consequently:
+**Reference-point convention.** The camera-local origin `z = 0` of this
+derivation is the **rear principal plane H'**. It is a bookkeeping choice: every
+result below depends only on the object distance from H and the image distance
+from H'. (It is not the camera's centre of projection. A camera projects from its
+entrance pupil, which the physical camera model places explicitly, with H, H'
+and the exit pupil, in the camera body's frame.) Consequently:
 
 - An object point given at camera depth `z` (its `+z` coordinate) lies at
   object distance **`d_H = z + g`** from H. That places H at `z = −g`, a
-  distance `g` on the image side of H′. (This section used to say "H sits a
-  distance `g` toward the object, at `z = +g`", which contradicts
-  `d_H = z + g`; the formulas and their tests are unchanged. ADR 0008's
-  `PhysicalCamera` places H, H′ and the pupils explicitly.)
+  distance `g` on the image side of H′.
 - The Gaussian conjugate equation is written with object distance from H and
   image distance from H'.
 
+The physical camera model measures its gap the other way round, as
+`z_H − z_H′`, positive when H lies on the object side of H′. Written with the
+object distance from H and the image distance from H′, the formulas are the
+same for both.
+
 This convention is what makes the inter-principal gap `g` a *physically
 load-bearing* parameter rather than an unused field, and it makes the
-thick → thin reduction (`g -> 0`) an exact, testable statement (Section 6).
+thick → thin reduction (`g -> 0`) an exact statement (Section 6).
 
 The four scalar lens parameters:
 
@@ -59,7 +65,7 @@ The four scalar lens parameters:
 | `f`    | effective focal length                    | m    |
 | `N`    | f-number                                  | —    |
 | `s_o`  | object-side focus distance, **from H'**    | m    |
-| `g`    | inter-principal gap `H - H'`               | m    |
+| `g`    | inter-principal gap (H at `z = −g`)        | m    |
 
 The entrance-pupil / aperture diameter is `D = f / N`.
 
@@ -139,7 +145,7 @@ This is the exact geometric CoC diameter **at the sensor**, in length units. It
 is the textbook lens-defocus CoC; (6) is derived purely by similar triangles on
 the converging image-side cone.
 
-Two properties worth stating explicitly, because the tests check them:
+Two properties worth stating explicitly:
 
 - `z = s_o  =>  s_i(z) = v0  =>  c = 0`. A point on the focus plane is sharp.
 - `c(z)` depends on `z` **only**. For a fronto-parallel sensor the CoC has **no
@@ -183,12 +189,7 @@ the plane its homography projects onto, in front of the projection centre; the
 real sensor is that plane reflected through the lens, with the image inverted.
 For calibration-rs's `+tilt_x` the real sensor's `+y` edge therefore comes
 *toward* the lens: its `tilt_x` is `−tau_x` here, and its `tilt_y` is `tau_y`.
-Until 2026-10-19 `ThickLens` and the Scheimpflug solver passed
-calibration-rs's angles through unchanged, which mirrored the plane of best
-focus about `x` for a camera tilted about `x`. They now convert
-(`optics::coc_tilt`), and `crates/etendue-core/tests/camera_frames.rs` checks
-the legacy plane of best focus against `PhysicalCamera`, whose sensor
-reproduces calibration-rs's projection to 1e-12 px.
+Scene files store calibration-rs's angles.
 
 **Conjugate of a tilted plane.** Each sensor point at image height `y_s` is the
 sharp image of exactly one object point — its optical conjugate. We find the
@@ -330,7 +331,7 @@ tilted sensor surface is at that image location**.
 
    In pixels, `c_px(P) = c(P) / p`.
 
-**Consistency checks (these are the regimes the tests cover).**
+**Consistency checks.**
 
 - *On the PoBF, `c = 0`.* The PoBF was *defined* in Section 4 as the conjugate
   locus of the tilted sensor; equivalently, equation (10) is precisely the
@@ -345,7 +346,7 @@ tilted sensor surface is at that image location**.
   manufactured.
 
 - *Increasing `tau` rotates the zero-CoC locus.* By (14), the PoBF tilt angle
-  is strictly monotincreasing in the sensor tilt, with the sign fixed by the
+  is strictly monotonically increasing in the sensor tilt, with the sign fixed by the
   convention in Section 4 — the in-focus band rotates in the geometrically
   correct (hinge-rule) direction as `tau` increases.
 
@@ -376,9 +377,9 @@ Because the camera-frame object depth `z` enters the model only through the
 combination `z + g` (Section 1), the gap `g` is a genuine, load-bearing
 parameter: with `g > 0` an object at the same camera depth `z` is further from
 H and focuses differently; with `g = 0` the model collapses, term by term, onto
-the thin lens. Test (d) verifies this reduction numerically.
+the thin lens.
 
-## 7. Worked numbers (used verbatim as test expectations)
+## 7. Worked numbers
 
 A realistic machine-vision lens: `f = 25 mm`, `N = 4`, focus distance
 `s_o = 0.30 m`, pixel pitch `p = 3.45 um`. Aperture `D = f/N = 6.25 mm`.
@@ -416,10 +417,10 @@ In pixels: `c_px = c / p = 5.16528925e-5 / 3.45e-6 = 14.9719... px`.
 `= 0.00625 * 0.025 * 0.03 / (0.33 * 0.275)`
 `= 4.6875e-6 / 0.09075 = 5.16528925e-5 m`. The two agree.)
 
-**(d) Thick reduces to thin.** With `g = 0` the thick-lens code path computes
+**(d) Thick reduces to thin.** With `g = 0` the thick-lens formulas give
 exactly the (b) numbers. With `g != 0` the same camera-depth point uses
-`d_H = z + g`, giving a different — and correctly shifted — CoC; the test
-checks both: identical at `g = 0`, divergent for `g > 0`.
+`d_H = z + g`, giving a different — and correctly shifted — CoC: identical at
+`g = 0`, divergent for `g > 0`.
 
 **(c) Scheimpflug, point on the tilted PoBF.** Same lens, `s_o = 0.30 m`,
 `g = 0`, sensor tilt `tau_x = 5 deg`. From (5), `v0 = 0.0272727... m`. PoBF
@@ -442,3 +443,5 @@ e.g. `(0, 0.05, 0.30)`, which is on the *old* fronto-parallel focus plane but
 *below* the tilted PoBF — has a strictly positive CoC. Increasing `tau_x`
 increases `tan(theta_x)` (12), rotating the zero-CoC plane further: the model
 swings the in-focus band in the hinge-correct direction.
+
+<!-- ANCHOR_END: derivation -->

@@ -183,9 +183,10 @@ jobs:
           echo "etendue_wasm_bg.wasm: $(wc -c < crates/etendue-wasm/pkg/etendue_wasm_bg.wasm) bytes, $size gzipped"
           test "$size" -le 1572864
 
-  # web/ (bun workspace): the studio. Declared imports, types generated from
-  # schemas/, typecheck, lint, unit and browser tests (Chromium), build, and
-  # the studio's Playwright e2e suite. Gate G2.2
+  # web/ (bun workspace): the studio and the book's widgets. Declared imports,
+  # types generated from schemas/, typecheck, lint, unit and browser tests
+  # (Chromium), build, the studio's Playwright e2e suite, and the book with its
+  # widgets. Gate G2.2
   # (perf) needs a GPU and runs locally (docs/measurements/g2_2_perf.md).
   web:
     runs-on: ubuntu-latest
@@ -256,12 +257,29 @@ jobs:
         working-directory: web/apps/studio
         run: bun run test:e2e
 
-      - name: Upload the Playwright report
+      # The book with its interactive widgets (the Build step put them in book/src/demos).
+      - name: Install mdBook
+        uses: taiki-e/install-action@v2
+        with:
+          tool: |
+            mdbook@0.4.48
+            mdbook-katex@0.9.4
+
+      - name: Book
+        run: mdbook build book
+
+      - name: Book widgets e2e
+        working-directory: web/apps/book-demos
+        run: bun run test:e2e
+
+      - name: Upload the Playwright reports
         if: failure()
         uses: actions/upload-artifact@v7
         with:
           name: playwright-report
-          path: web/apps/studio/playwright-report
+          path: |
+            web/apps/studio/playwright-report
+            web/apps/book-demos/playwright-report
 
   # The studio's Tauri shell (ADR 0007): its own cargo workspace, so the jobs
   # above do not see it. Rust only; its frontend is the studio the `web` job

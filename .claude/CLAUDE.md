@@ -24,6 +24,8 @@ bun run check:deps            # the studio imports only what it declares
 bun run typecheck && bun run lint && bun run format:check && bun run test && bun run build
 bun run format                # oxfmt over web/ and crates/etendue-wasm/{js,scripts,tests} (.oxfmtrc.json)
 bun run dev                   # studio at http://localhost:5178 (blocks; do not run non-interactively)
+bun run --filter @etendue/book-demos build && mdbook build ../book   # the book with its interactive widgets (book/src/demos)
+cd apps/book-demos && bun run test:e2e   # every widget on every book page starts and answers a slider (after mdbook build)
 cargo app                     # the desktop app, debug (meshes if missing, wasm, bun install, tauri dev; blocks; interactive only)
 cargo app-release [--bundles app]   # release bundles (same preparation, tauri build)
 cd apps/studio && bun run desktop:build [--bundles app]   # wasm + frontend + release bundle (needs the robot meshes)
@@ -238,7 +240,10 @@ React hooks and the React Compiler rules, which oxlint's react plugin has native
 equivalents of `@eslint-react`'s context-value and target-blank rules, and lab-ui's `tokens-only`
 rule as a local JS plugin (`web/scripts/oxlint/`, with its test). Not ported: `@eslint-react`'s
 leaked-listener/timer rules and `no-unstable-default-props`, which oxlint lacks. Formatting is oxfmt (`.oxfmtrc.json` at the root, width 120); the
-one-time reformat is in `.git-blame-ignore-revs`. `apps/studio` is the studio (not published to npm). The
+one-time reformat is in `.git-blame-ignore-revs`. `apps/studio` is the studio (not published to npm). `apps/book-demos` is the book's
+interactive widgets: vanilla TS on `@etendue/wasm`, built into `book/src/demos` (git-ignored), loaded by
+`book/js/demos-loader.js` on pages with `<div class="etendue-demo" data-demo="NAME">`; its palette and
+style are in `src/widgets.css` (mdBook theme variables). The
 `@vitavision/*` packages it uses come from npm, published from lab-ui (the incubated copies were
 dropped on 2026-10-17 once lab-ui released them): `three` (no React, no kinematics, no camera
 math), `three-react` (R3F; per-frame work in `useFrame`, never React state), `workbench`

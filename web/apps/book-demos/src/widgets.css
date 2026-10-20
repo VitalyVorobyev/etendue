@@ -1,0 +1,162 @@
+/* The widgets' style, in mdBook's theme variables (--fg, --bg, --links, --icons, --quote-*), so
+ * they follow the reader's theme. The series palette reads on light and dark themes alike. */
+.ed-card {
+  --ed-s0: #2f7fd1;
+  --ed-s1: #e0693a;
+  --ed-s2: #2e9e6b;
+  --ed-s3: #a259c4;
+  --ed-s4: #c9a227;
+  --ed-s5: #d94f7a;
+  --ed-error: #d94f4f;
+}
+
+.etendue-demo {
+  margin: 1.5em 0;
+}
+.ed-card {
+  border: 1px solid var(--quote-border);
+  border-radius: 6px;
+  background: var(--quote-bg);
+  padding: 12px 14px 14px;
+  font-size: 0.9em;
+  color: var(--fg);
+}
+.ed-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.ed-tag {
+  font-size: 0.75em;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--links);
+}
+.ed-title {
+  font-weight: 600;
+}
+.ed-controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 6px 18px;
+  margin-bottom: 10px;
+}
+.ed-control {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 0 8px;
+}
+.ed-control label {
+  font-size: 0.9em;
+}
+.ed-control output {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.9em;
+}
+.ed-control input[type="range"] {
+  grid-column: 1 / -1;
+  width: 100%;
+  accent-color: var(--links);
+}
+.ed-control select {
+  grid-column: 1 / -1;
+  width: 100%;
+  font: inherit;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--quote-border);
+  border-radius: 4px;
+  padding: 2px 4px;
+}
+.ed-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 4px 0 10px;
+}
+.ed-buttons button {
+  font: inherit;
+  font-size: 0.9em;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--quote-border);
+  border-radius: 4px;
+  padding: 3px 10px;
+  cursor: pointer;
+}
+.ed-buttons button:hover {
+  border-color: var(--links);
+}
+.ed-buttons button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.ed-figures {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 10px;
+}
+.ed-figure {
+  margin: 0;
+  min-width: 0;
+}
+.ed-wide {
+  grid-column: 1 / -1;
+}
+.ed-figure svg,
+.ed-figure canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: var(--bg);
+  border: 1px solid var(--quote-border);
+  border-radius: 4px;
+}
+.ed-figure figcaption {
+  font-size: 0.8em;
+  color: var(--icons);
+  margin-top: 3px;
+}
+.ed-readouts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 2px 18px;
+  margin-top: 10px;
+  font-size: 0.9em;
+}
+.ed-readouts div {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  border-bottom: 1px dotted var(--quote-border);
+}
+.ed-readouts span:last-child {
+  font-variant-numeric: tabular-nums;
+}
+.ed-note {
+  font-size: 0.85em;
+  color: var(--icons);
+  margin-top: 8px;
+}
+.ed-error {
+  color: var(--ed-error);
+  font-size: 0.9em;
+  margin-top: 8px;
+}
+.ed-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-size: 0.8em;
+  margin-top: 3px;
+}
+.ed-legend i {
+  display: inline-block;
+  width: 14px;
+  height: 3px;
+  vertical-align: middle;
+  margin-right: 4px;
+}
