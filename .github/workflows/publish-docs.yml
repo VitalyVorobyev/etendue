@@ -1,9 +1,10 @@
 name: Publish Docs
 
+# The book follows main. Not on tags: the github-pages environment deploys
+# only from main, and a release tag points at a commit main already published.
 on:
   push:
     branches: [ main ]
-    tags: [ 'v*.*.*' ]
   workflow_dispatch:
 
 permissions:
