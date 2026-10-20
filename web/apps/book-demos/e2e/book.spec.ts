@@ -1,5 +1,6 @@
 import { readFileSync, readdirSync } from "node:fs";
-import { join, relative } from "node:path";
+import { existsSync, statSync } from "node:fs";
+import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { expect, test } from "@playwright/test";
@@ -27,6 +28,20 @@ const USES = [...pages(BOOK)]
     demos: [...readFileSync(path, "utf8").matchAll(/class="etendue-demo" data-demo="([a-z-]+)"/g)].map((m) => m[1]!),
   }))
   .filter((p) => p.demos.length > 0);
+
+test("every link and image between pages resolves", () => {
+  const broken: string[] = [];
+  for (const path of pages(BOOK)) {
+    const html = readFileSync(path, "utf8");
+    const main = html.slice(html.indexOf("<main>"), html.indexOf("</main>"));
+    for (const [, url] of main.matchAll(/(?:href|src)="([^"#]+)(?:#[^"]*)?"/g)) {
+      if (/^(?:[a-z]+:|\/\/)/.test(url!)) continue;
+      const target = join(dirname(path), decodeURI(url!));
+      if (!existsSync(target) || !statSync(target).isFile()) broken.push(`${relative(BOOK, path)} → ${url}`);
+    }
+  }
+  expect(broken).toEqual([]);
+});
 
 test("every widget is on some page", () => {
   const used = new Set(USES.flatMap((p) => p.demos));
