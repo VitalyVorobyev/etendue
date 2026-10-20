@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-20
+
 etendue is now a tool for designing robot–camera–laser calibration cells and generating synthetic
 calibration datasets with exact ground truth. The 0.1.0 desktop app is replaced by etendue studio.
 
@@ -39,11 +41,18 @@ calibration datasets with exact ground truth. The 0.1.0 desktop app is replaced 
     quantisation, raw output);
   - `detect`: target detection (chess-corners' Radon corners, calib-targets' detectors for
     every target kind), checked against the ground truth;
-  - `scenario from-poses`: a stop-and-shoot scenario from tool poses.
+  - `scenario from-poses`: a stop-and-shoot scenario from tool poses;
+  - `scenario sphere`: calibration viewpoints on spheres around the target;
+  - `calibrate`: calibrate a generated dataset with calibration-rs and compare the result with the
+    ground truth, exactly, with seeded noise and trials (`--noise`, `--trials`), or from detected
+    features (`--features`), keeping each run (`--run`);
+  - `export`: capture poses, the timed joint trajectory, the motion report and the resolved
+    scenario;
+  - `project check`: validate a project folder, its cells and its component library.
 - **Examples**: eye-in-hand and eye-to-hand UR5e cells, a hand-eye calibration cell, and
   laser-line cells with plain and Scheimpflug sensors.
-- **`@etendue/wasm`** (npm): baking, projection, back-projection and remap tables in the
-  browser.
+- **`@etendue/wasm`**, the WebAssembly kernel the studio runs on (an npm package built from
+  source): baking, projection, back-projection and remap tables in the browser.
 - **Rust crates**: `etendue-scene`, `etendue-kinematics`, `etendue-synth`, and the `etendue_cli`
   pipeline library.
 - **Robots**: the igus ReBeL 6DOF joins the library; the FAIRINO FR5 can be built locally (its
@@ -74,8 +83,8 @@ calibration datasets with exact ground truth. The 0.1.0 desktop app is replaced 
 - **Detection for every target**: `etendue detect` takes the target from `gt.json` (no
   `dataset.json` needed) and labels chessboards, ChArUco boards (by id), marker boards (by their
   circles), PuzzleBoards (by master id) and PuzzlePoles (by pole id), every label checked against
-  the ground truth; `features.json` records the target `kind` and why a view failed. Gate G4.4
-  (`docs/measurements/g4_4_targets.md`) characterises it per kind.
+  the ground truth; `features.json` records the target `kind` and why a view failed. Its accuracy
+  per kind is measured in `docs/measurements/g4_4_targets.md`.
 - **Laser images**: `etendue render` writes `<capture>_laser.png` for every camera that images a
   laser. The stripe is composited in Rust from the render's depth, normal and albedo passes, with
   a Gaussian beam, Lambertian reflection and shadows from depth views at the laser. New
@@ -185,8 +194,19 @@ calibration datasets with exact ground truth. The 0.1.0 desktop app is replaced 
   Stereo is `image_x: "common"`: the image rows line up. `@etendue/wasm` has `rigCoverage`
   (`etendue-core::rig::coverage`).
 
+- **The book** (https://vitalyvorobyev.github.io/etendue/): tutorials, a user guide, and the
+  models and algorithms behind etendue (camera models, physical cameras, defocus, Scheimpflug,
+  laser heads, rig coverage, kinematics, motion, pose generation, synthetic images and closed-loop
+  calibration), with interactive widgets that run etendue's kernel in the page.
+- **Installers**: the studio for macOS (Apple silicon, `.dmg`), Windows (`.msi` and a setup
+  `.exe`) and Linux (`.AppImage`, `.deb`), and the `etendue` CLI for the same platforms, attached
+  to the GitHub release with their SHA-256 checksums. The builds are not code-signed.
+
 ### Changed
 
+- **Document versions**: scenes, scenarios, robot manifests, projects and library items are
+  version 1; `gt.json` is version 3 (stripe widths, each camera's `mech_se3_projection`); the
+  Blender render job is version 4.
 - **Blender 5.2**: `etendue.toml` pins the 5.2 series. A two-part pin (`"5.2"`) accepts every
   5.2.x; a three-part pin stays exact. The render gates were re-run on 5.2.2.
 - calibration-rs 0.9.0.
@@ -318,3 +338,6 @@ calibration datasets with exact ground truth. The 0.1.0 desktop app is replaced 
   stripe length within tolerance.
 - `cargo build --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`,
   `cargo fmt --all --check`, and `cargo test --workspace` all clean.
+
+[Unreleased]: https://github.com/VitalyVorobyev/etendue/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/VitalyVorobyev/etendue/releases/tag/v0.2.0

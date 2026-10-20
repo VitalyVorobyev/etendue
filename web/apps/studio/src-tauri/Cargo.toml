@@ -1,6 +1,6 @@
 [package]
 name = "etendue-studio"
-version = "0.1.0"
+version = "0.2.0"
 description = "etendue studio desktop shell (Tauri 2): the React studio with the native pipeline (ground truth, Blender render, detection)"
 authors = ["Vitaly Vorobyev <vitaly.munchen@gmail.com>"]
 license = "MIT"
