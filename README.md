@@ -8,7 +8,7 @@ etendue designs camera and laser sensors, lays them out on robots, and generates
 calibration datasets with exact ground truth — then calibrates them and tells you how close the
 calibration came to the truth.
 
-![etendue studio: the hand-eye calibration example, with the UR5e, its two-camera rig and the board in 3D, and the left camera's view at a capture below](book/src/images/studio.png)
+![etendue studio: the closed-loop calibration example in the Setup workspace, with the UR5e, its two-camera rig and the board in 3D at a capture](book/src/images/studio.png)
 
 ## What it does
 
