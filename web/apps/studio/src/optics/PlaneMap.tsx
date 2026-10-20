@@ -11,7 +11,7 @@ const METRICS: { value: Metric; label: string; unit: string; of: (m: HeadMap, i:
   { value: "blur", label: "Blur", unit: "px", of: (m, i) => m.blur_px[i]! },
   { value: "stripe", label: "Stripe", unit: "px", of: stripeWidth },
   { value: "depth", label: "dZ/px", unit: "µm", of: (m, i) => m.depth_m_per_px[i]! * 1e6 },
-  { value: "lateral", label: "mm/px", unit: "µm", of: (m, i) => m.lateral_m_per_px[i]! * 1e6 },
+  { value: "lateral", label: "Lateral/px", unit: "µm", of: (m, i) => m.lateral_m_per_px[i]! * 1e6 },
   { value: "triangulation", label: "Angle", unit: "°", of: (m, i) => (m.triangulation_rad[i]! * 180) / Math.PI },
 ];
 

@@ -49,13 +49,13 @@ enum Command {
         /// Scenario file.
         scenario: Option<PathBuf>,
     },
-    /// Project folders (ADR 0009).
+    /// Work with project folders: a manifest, its cells and its component library.
     Project {
         #[command(subcommand)]
         command: ProjectCommand,
     },
-    /// Compile a scenario and write the baked scenario (`world_se3_frame`
-    /// for every frame at every sample).
+    /// Compile a scenario and write the baked scenario (the world pose of
+    /// every frame at every sample).
     Bake {
         /// Scene file.
         scene: PathBuf,
@@ -97,7 +97,7 @@ enum Command {
         resolved: Option<PathBuf>,
     },
     /// Write the analytic ground truth of a scenario: `dataset.json`
-    /// (calibration-rs `DatasetSpec`), `robot_poses.json` and `gt.json`. The
+    /// (a calibration-rs dataset), `robot_poses.json` and `gt.json`. The
     /// images it names are what `etendue render` writes into the same directory.
     Gt {
         /// Scene file.
@@ -116,14 +116,15 @@ enum Command {
         /// Dataset directory (gt.json, images/).
         dir: PathBuf,
     },
-    /// Calibrate a dataset natively with calibration-rs and compare the
-    /// result with its ground truth (`etendue gt`'s directory): gate G5.1
-    /// (G5.3 with lasers) on exact observations, as `closed_loop.py` does.
+    /// Calibrate a dataset (`etendue gt`'s directory) with calibration-rs and
+    /// compare the result with its ground truth. On exact observations this is
+    /// the closed-loop check: the calibration (and the laser plane, with
+    /// lasers) must recover the ground truth within tolerance, or the command fails.
     Calibrate {
         /// Dataset directory (gt.json).
         dir: PathBuf,
-        /// Observation noise (etendue-synth `ObservationNoise` JSON); none
-        /// gives the exact analytic observations.
+        /// Observation noise: a JSON file of noise levels and a seed (see the
+        /// book's Command line page); without it, the exact ground-truth pixels.
         #[arg(long)]
         noise: Option<PathBuf>,
         /// Repeat with seeds `seed, seed + 1, …` and report each row's spread.
@@ -195,8 +196,8 @@ enum Command {
         /// Render only these cameras (repeatable).
         #[arg(long = "camera")]
         cameras: Vec<String>,
-        /// Sensor model (JSON, etendue-synth `SensorModel`): exposure, noise, quantisation;
-        /// images become raw mono PNGs. Without it, `--exposure` and sRGB PNGs.
+        /// A sensor model JSON file (see the book's Rendering page): exposure, noise,
+        /// quantisation; images become raw mono PNGs. Without it, `--exposure` and sRGB PNGs.
         #[arg(long)]
         sensor: Option<PathBuf>,
     },
@@ -235,9 +236,9 @@ enum Command {
 #[derive(Subcommand)]
 enum ScenarioCommand {
     /// A stop-and-shoot scenario from tool poses: for each pose a `ptp_pose`
-    /// move, then a capture. The poses file is a JSON array of
-    /// `base_se3_tool` in the SE3 wire format, or `robot_poses.json` rows
-    /// (`tx … qw`, optional `capture` id).
+    /// move, then a capture. The poses file is a JSON array of tool poses in
+    /// the robot's base frame (`{"rotation": [qx, qy, qz, qw], "translation":
+    /// [x, y, z]}`), or `robot_poses.json` rows (`tx … qw`, optional `capture` id).
     FromPoses {
         /// Poses file.
         poses: PathBuf,
@@ -457,12 +458,9 @@ fn run(cli: Cli) -> Result<()> {
                 println!("{line}");
             }
             println!("features → {}", dir.join("features.json").display());
+            // `detect::run` logs the laser-stripe table itself (the studio shows it too).
             let lasers = dir.join(detect::LASER_FEATURES);
             if lasers.is_file() {
-                let stripes: detect::laser::LaserFeatures = read_json(&lasers, "laser features")?;
-                for line in detect::laser::summary_table(&stripes) {
-                    println!("{line}");
-                }
                 println!("laser stripes → {}", lasers.display());
             }
             Ok(())
@@ -691,11 +689,11 @@ fn run_calibrate(
         let report = calibrate::calibrate(&gt, &obs, &options)?;
         if k == 0 || trials == 1 {
             println!(
-                "{}: {:?} ({} cameras {:?}, {} views, {} points, {} laser pixels){}",
+                "{}: {} ({} camera(s): {}; {} views, {} points, {} laser pixels){}",
                 dir.display(),
                 report.workflow,
                 report.cameras.len(),
-                report.cameras,
+                report.cameras.join(", "),
                 report.views,
                 report.points,
                 report.laser_pixels,
@@ -726,7 +724,7 @@ fn run_calibrate(
     let failed = reports
         .iter()
         .any(|r| r.gated && !r.pass)
-        .then(|| reports[0].gate.clone());
+        .then(|| reports[0].check_name());
     let doc = calibrate::Run {
         reports,
         row_stats: stats,
@@ -746,8 +744,10 @@ fn run_calibrate(
         calibrate::write_run(folder, dir, &options, &doc)?;
         println!("run → {}", folder.display());
     }
-    if let Some(gate) = failed {
-        return Err(anyhow!("{gate} failed"));
+    if let Some(check) = failed {
+        return Err(anyhow!(
+            "{check} failed: the calibration did not recover the ground truth within tolerance"
+        ));
     }
     Ok(())
 }

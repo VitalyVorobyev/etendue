@@ -13,7 +13,7 @@ function outcome(r: StoredRun): { text: string; tone: "normal" | "defect" | "neu
   const first = r.run.reports[0];
   if (!first) return { text: "empty", tone: "neutral" };
   if (first.gated)
-    return { text: `${first.gate} ${first.pass ? "PASS" : "FAIL"}`, tone: first.pass ? "normal" : "defect" };
+    return { text: `closed-loop check ${first.pass ? "PASS" : "FAIL"}`, tone: first.pass ? "normal" : "defect" };
   return { text: `${first.residuals.rms_axis_px.toPrecision(3)} px rms`, tone: "neutral" };
 }
 

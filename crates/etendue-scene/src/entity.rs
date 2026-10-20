@@ -86,7 +86,8 @@ pub struct LaserSpec {
     pub parent_se3_self: Isometry3<f64>,
     /// Fan half-angle in radians, in `(0, π/2)`.
     pub fan_half_angle: f64,
-    /// Fan reach along its central ray, in metres.
+    /// Fan radius, in metres: how far the fan reaches from the laser, the
+    /// same along every ray.
     pub fan_length: f64,
     /// Emission wavelength in nanometres.
     pub wavelength_nm: f64,

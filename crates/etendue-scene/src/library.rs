@@ -147,7 +147,8 @@ pub struct HeadDesign {
     pub camera: CameraTemplate,
     /// The laser.
     pub laser: LaserPart,
-    /// How far the fan reaches along its edge rays, metres.
+    /// Fan radius, metres: how far the fan reaches from the laser, the same
+    /// along every ray.
     pub fan_length_m: f64,
     /// The laser's pose in the camera's body frame (its fan in the laser's `y–z` plane,
     /// opening about `+z`).
