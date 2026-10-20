@@ -115,7 +115,7 @@ is needed yet: the observations are the analytic projections of the board's corn
 ### 4. Calibrate the exact observations
 
 ```text
-target/pipeline/dataset: RigHandeye (2 cameras ["cam_left", "cam_right"], 24 views, 2592 points, 0 laser pixels)
+target/pipeline/dataset: rig hand-eye (2 camera(s): cam_left, cam_right; 24 views, 2592 points, 0 laser pixels)
   mean reprojection px             7.676e-7  ≤ 0.05     PASS
   cam_left fx rel                 1.489e-10  ≤ 0.0001   PASS
   cam_left fy rel                  7.540e-11  ≤ 0.0001   PASS
@@ -125,6 +125,7 @@ target/pipeline/dataset: RigHandeye (2 cameras ["cam_left", "cam_right"], 24 vie
   hand-eye rotation deg            1.528e-7  ≤ 0.01     PASS
   hand-eye translation mm          1.330e-6  ≤ 0.05     PASS
   …
+  closed-loop check (target): PASS
   reprojection: mean 0.0000 px, rms per axis 0.0000 px over 2592 points
 ```
 

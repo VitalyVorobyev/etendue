@@ -82,7 +82,7 @@ quantity, and the reprojection error. On the `closed_loop_ur5e` example with exa
 ```text
 $ etendue gt examples/closed_loop_ur5e/scene.json examples/closed_loop_ur5e/scenario.json -o out
 $ etendue calibrate out
-out: RigHandeye (2 cameras ["cam_left", "cam_right"], 24 views, 2592 points, 0 laser pixels)
+out: rig hand-eye (2 camera(s): cam_left, cam_right; 24 views, 2592 points, 0 laser pixels)
   mean reprojection px             7.676e-7  ≤ 0.05     PASS
   cam_left fx rel                 1.489e-10  ≤ 0.0001   PASS
   cam_left fy rel                 7.540e-11  ≤ 0.0001   PASS
@@ -101,7 +101,7 @@ out: RigHandeye (2 cameras ["cam_left", "cam_right"], 24 views, 2592 points, 0 l
   hand-eye translation mm          1.330e-6  ≤ 0.05     PASS
   base_se3_target rot deg          1.929e-8
   base_se3_target trans mm         1.094e-6
-  G5.1: PASS
+  closed-loop check (target): PASS
   reprojection: mean 0.0000 px, rms per axis 0.0000 px over 2592 points
 ```
 
@@ -147,9 +147,10 @@ estimate, so rows outside a tolerance print `outside` and the command still succ
 tolerances are not accuracy specifications for a real cell: they are a yardstick for how far the
 noise moved the result.
 
-The verdict line names the check by its id, `G5.1` for cameras alone and `G5.3` for a dataset
-with lasers; the studio's badge shows the same id. The [Glossary](glossary.md#gate) explains
-these ids.
+The verdict line names what was checked: `closed-loop check (target)` for cameras alone, and
+`closed-loop check (target and laser plane)` for a dataset with lasers. The studio's badge reads
+**Closed-loop check: PASS** or **FAIL**. In the report file the check keeps its development id
+(`"gate": "G5.1"` or `"G5.3"`; see the [Glossary](glossary.md#gate)).
 
 **Known limitation.** The `laser_scheimpflug_ur5e` example does not pass on exact data: with
 tilted sensors, the tilt and the principal point trade off against each other, and calibration-rs
@@ -164,7 +165,7 @@ The same dataset with `pixel_sigma_px` 0.5 and seed 1, over 8 trials (excerpt):
 $ echo '{"pixel_sigma_px": 0.5, "seed": 1}' > noise.json
 $ etendue calibrate out --noise noise.json --trials 8
 …
-  G5.1 limits (not gated on this input): not all within
+  closed-loop check (target) not applied (noisy or detected observations); limits not all within
   reprojection: mean 0.6066 px, rms per axis 0.4862 px over 2592 points
 8 trials:
   mean reprojection px         mean   6.140e-1  std   8.454e-3  max   6.292e-1

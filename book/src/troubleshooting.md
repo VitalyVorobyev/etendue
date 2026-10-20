@@ -131,7 +131,7 @@ reaches the target (`fan_length`) and that the camera images it (`camera` on the
 | `--noise and --trials apply to the analytic observations, not to --features` | Detections already carry their own error. |
 | `parsing observation noise …: unknown field …` | A misspelt noise field; the message lists the valid ones. |
 | `the observations do not match the ground truth's captures and cameras` | `features.json` is from another run of `gt`. Detect again after `gt` and `render`. |
-| `G5.1 failed`, `G5.3 failed` | On exact observations, a quantity is outside its tolerance ([Calibration](calibration.md#the-tolerances)). For a Scheimpflug laser rig this is a known limitation; otherwise please report it with the scene. |
+| `closed-loop check (target) failed`, `closed-loop check (target and laser plane) failed` | On exact observations, a quantity is outside its tolerance ([Calibration](calibration.md#the-tolerances)). For a Scheimpflug laser rig this is a known limitation; otherwise please report it with the scene. |
 
 ## Logs
 

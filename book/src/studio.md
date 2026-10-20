@@ -76,7 +76,7 @@ laser and the window. **Lens** zooms onto the camera; the mouse wheel zooms and 
 
 **Map** (centre, bottom left): the window on the laser plane, face on, coloured by total blur
 (defocus and diffraction), depth per pixel (**dZ/px**), millimetres per pixel along the line
-(**mm/px**), the triangulation **Angle**, or the **Stripe** width. Hatched samples are out of
+(**Lateral/px**), the triangulation **Angle**, or the **Stripe** width. Hatched samples are out of
 view; a white contour marks the blur limit.
 
 **Along the laser** (centre, bottom right), from the window's near end to its far end:

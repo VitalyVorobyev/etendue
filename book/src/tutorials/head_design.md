@@ -142,7 +142,7 @@ The 16 mm lens wins on blur, but each of its pixels covers 505 µm of depth at t
 ### 9. Read the views
 
 - **Map** (bottom left), the laser plane over the window, face on: **Blur** (total blur),
-  **Stripe** (the stripe's width), **dZ/px** (depth per pixel), **mm/px** (lateral resolution)
+  **Stripe** (the stripe's width), **dZ/px** (depth per pixel), **Lateral/px** (lateral resolution)
   and **Angle** (triangulation angle). Hatched samples are out of view; the white contour is the
   blur limit.
 - **Along the laser** (bottom right): **Sensor** (the line on the image at seven ranges, each

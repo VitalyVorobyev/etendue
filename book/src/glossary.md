@@ -54,7 +54,7 @@ has one, placed in its parent's. See [Frames and poses](models/frames.md).
 <a id="gate"></a>
 **Gate.** A measured pass/fail criterion of etendue's own development, with an id such as G4.2
 or G5.1. Measurements in the repository's `docs/measurements/` and some tool output are labelled
-with them. The two you meet as a user: **G5.1** is the exact-data check of a camera calibration
+with them, as is the `gate` field of a calibration report. The two you meet as a user: **G5.1** is the exact-data check of a camera calibration
 (reprojection, focal length, principal point, hand-eye), and **G5.3** adds the laser plane. Their
 tolerances are in [Calibration](calibration.md#the-tolerances).
 
