@@ -20,7 +20,7 @@ https://vitalyvorobyev.github.io/etendue.
 | `assets/robots/` | Robot descriptions (`robot.urdf`, `robot.json`); meshes are rebuilt by `tools/robot-assets`. |
 | `examples/` | Example scenes and scenarios. |
 | `tools/` | `robot-assets` (pinned upstream robots → URDF + GLB), `closed-loop` (calibration-rs closed loop), `fixtures` (FK fixtures). |
-| `docs/` | Design records: `adrs/`, `pivot/PLAN.md` (the roadmap and its gates), `measurements/` (every gate result, with commit SHA), `derivations/`. |
+| `docs/` | Design records: `adrs/`, `pivot/PLAN.md` (the roadmap and its gates), `measurements/` (every gate result, with commit SHA), `derivations/`, and `kernel.md` (the optics kernel's module map, API shapes and the legacy kernel's conventions; the book's model pages are the user-facing explanation). |
 
 ## Building from source
 
