@@ -78,10 +78,10 @@ gains the `origin` of §3.
   it to put a rig or a target on a robot's tool flange (eye-in-hand, eye-to-hand).
 - **`robot`** items are the existing robot folders. They can now be imported into the user bank
   or a project:
-  - `etendue library import --urdf <file> --manifest <robot.json>`;
+  - `etendue library import <robot folder> --into <bank or project>` (the folder holds `robot.json`, its URDF and meshes);
   - the same from the studio.
 
-  The import validates the manifest against the URDF, as `etendue project check` does.
+  The import loads the robot as the kinematics would before it copies anything.
 - **Targets already cover every target.** A library target holds a `TargetGeometry`, which
   covers every board and every `PrintedTarget`. The new part is the studio's editor for them.
 
