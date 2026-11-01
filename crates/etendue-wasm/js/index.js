@@ -16,6 +16,7 @@ import init, {
   rigCoverage as rawRigCoverage,
   rigSharpness as rawRigSharpness,
   validateLibraryItem as rawValidateLibraryItem,
+  libraryItemHash as rawLibraryItemHash,
 } from "./etendue_wasm.js";
 
 export { init as default, initSync };
@@ -149,6 +150,10 @@ export function deriveOptics(optics, params) {
 
 export function validateLibraryItem(text) {
   return JSON.parse(rawValidateLibraryItem(typeof text === "string" ? text : JSON.stringify(text)));
+}
+
+export function libraryItemHash(item) {
+  return rawLibraryItemHash(typeof item === "string" ? item : JSON.stringify(item));
 }
 
 const HEAD_MAP_FIELDS = 10;

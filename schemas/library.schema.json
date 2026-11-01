@@ -59,9 +59,31 @@
         }
       ]
     },
+    "mount": {
+      "description": "A flange mount (version 2).",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/MountPart"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "name": {
       "description": "What it is, for people.",
       "type": "string"
+    },
+    "origin": {
+      "description": "Where this copy came from, when it was copied into a project (version 2).",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ItemOrigin"
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "rig": {
       "description": "A rig design.",
@@ -79,6 +101,17 @@
       "anyOf": [
         {
           "$ref": "#/$defs/SensorPart"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "source": {
+      "description": "Its datasheet (version 2).",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ItemSource"
         },
         {
           "type": "null"
@@ -590,6 +623,65 @@
         "translation"
       ]
     },
+    "ItemOrigin": {
+      "description": "Where a project's copy of an item came from (ADR 0010 §3).",
+      "type": "object",
+      "properties": {
+        "layer": {
+          "description": "The layer it was copied from.",
+          "$ref": "#/$defs/Layer"
+        },
+        "reference": {
+          "description": "Its reference there, `<folder>/<id>`.",
+          "type": "string"
+        },
+        "sha256": {
+          "description": "The source's content hash (`etendue_core::library::content_hash`) when it was copied.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "layer",
+        "reference",
+        "sha256"
+      ]
+    },
+    "ItemSource": {
+      "description": "Where an item's data comes from: its datasheet, for people.",
+      "type": "object",
+      "properties": {
+        "datasheet_url": {
+          "description": "The datasheet.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "notes": {
+          "description": "Anything else: how a value was measured, what was assumed.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "part_number": {
+          "description": "The maker's part number.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "vendor": {
+          "description": "The maker.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
     "LaserLayout": {
       "description": "One line laser per camera.",
       "type": "object",
@@ -705,6 +797,21 @@
       "required": [
         "wavelength_nm",
         "fan_half_angle"
+      ]
+    },
+    "Layer": {
+      "description": "A library layer (ADR 0010 §1) an item can be copied from.",
+      "oneOf": [
+        {
+          "description": "Shipped with etendue, read-only.",
+          "type": "string",
+          "const": "builtin"
+        },
+        {
+          "description": "The user's bank.",
+          "type": "string",
+          "const": "bank"
+        }
       ]
     },
     "LensMount": {
@@ -871,6 +978,28 @@
         "i",
         "j",
         "polarity"
+      ]
+    },
+    "MountPart": {
+      "description": "A rigid adapter on a robot's tool flange (ADR 0010 §5): what a rig or a target is mounted\nthrough, eye-in-hand or eye-to-hand.",
+      "type": "object",
+      "properties": {
+        "flange_se3_device": {
+          "description": "The mounted device's frame in the flange's frame.",
+          "$ref": "#/$defs/Iso3Schema"
+        },
+        "mass_kg": {
+          "description": "Mass, kilograms, for the payload budget.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "flange_se3_device"
       ]
     },
     "OpticsSpec": {

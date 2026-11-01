@@ -32,9 +32,17 @@ export interface LibraryItem {
    */
   lens?: LensPart | null;
   /**
+   * A flange mount (version 2).
+   */
+  mount?: MountPart | null;
+  /**
    * What it is, for people.
    */
   name: string;
+  /**
+   * Where this copy came from, when it was copied into a project (version 2).
+   */
+  origin?: ItemOrigin | null;
   /**
    * A rig design.
    */
@@ -43,6 +51,10 @@ export interface LibraryItem {
    * A sensor.
    */
   sensor?: SensorPart | null;
+  /**
+   * Its datasheet (version 2).
+   */
+  source?: ItemSource | null;
   /**
    * A calibration target.
    */
@@ -443,6 +455,34 @@ export interface LensPart {
   principal_gap_m?: number;
 }
 /**
+ * A rigid adapter on a robot's tool flange (ADR 0010 §5): what a rig or a target is mounted
+ * through, eye-in-hand or eye-to-hand.
+ */
+export interface MountPart {
+  flange_se3_device: Iso3Schema;
+  /**
+   * Mass, kilograms, for the payload budget.
+   */
+  mass_kg?: number | null;
+}
+/**
+ * Where a project's copy of an item came from (ADR 0010 §3).
+ */
+export interface ItemOrigin {
+  /**
+   * The layer it was copied from.
+   */
+  layer: "builtin" | "bank";
+  /**
+   * Its reference there, `<folder>/<id>`.
+   */
+  reference: string;
+  /**
+   * The source's content hash (`etendue_core::library::content_hash`) when it was copied.
+   */
+  sha256: string;
+}
+/**
  * A rig of identical units.
  */
 export interface RigDesign {
@@ -556,6 +596,27 @@ export interface SensorPart {
    * Full-well capacity, electrons.
    */
   well_depth_e?: number | null;
+}
+/**
+ * Where an item's data comes from: its datasheet, for people.
+ */
+export interface ItemSource {
+  /**
+   * The datasheet.
+   */
+  datasheet_url?: string | null;
+  /**
+   * Anything else: how a value was measured, what was assumed.
+   */
+  notes?: string | null;
+  /**
+   * The maker's part number.
+   */
+  part_number?: string | null;
+  /**
+   * The maker.
+   */
+  vendor?: string | null;
 }
 /**
  * A calibration target.

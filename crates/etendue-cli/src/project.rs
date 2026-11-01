@@ -4,29 +4,14 @@ use std::collections::BTreeMap;
 use std::path::Path;
 
 use anyhow::{Result, anyhow, bail};
-use etendue_core::from_scene::check_derived;
 use etendue_kinematics::compile;
 use etendue_scene::{
-    KINDS, LibraryItem, PROJECT_FILE, ProjectManifest, RobotManifest, ScenarioSpec, Versioned,
-    library_file,
+    Layer, PROJECT_FILE, ProjectManifest, RobotManifest, ScenarioSpec, library_file,
 };
 
+use crate::library;
 use crate::load::{load, read_json};
 
-/// A library file: its version first (ADR 0009), then the item.
-fn read_item(text: &str) -> Result<LibraryItem, etendue_scene::ValidationError> {
-    let parse_error = |e: serde_json::Error| etendue_scene::ValidationError {
-        issues: vec![etendue_scene::Issue {
-            path: String::new(),
-            message: e.to_string(),
-        }],
-    };
-    let v: Versioned = serde_json::from_str(text).map_err(parse_error)?;
-    LibraryItem::check_version(v.version)?;
-    serde_json::from_str(text).map_err(parse_error)
-}
-
-/// What a project holds, once checked.
 #[derive(Clone, Debug, Default)]
 pub struct ProjectSummary {
     /// The project's name.
@@ -37,6 +22,9 @@ pub struct ProjectSummary {
     pub library: BTreeMap<&'static str, usize>,
     /// Robots the project carries.
     pub robots: usize,
+    /// With a bank: copies whose source in the bank has changed or gone (ADR 0010 §3). These
+    /// are not problems: the project is self-contained.
+    pub notes: Vec<String>,
 }
 
 /// Check the project folder `dir`:
@@ -47,10 +35,12 @@ pub struct ProjectSummary {
 /// - the defaults (they name existing items of the right kind);
 /// - the project's robots.
 ///
+/// With `bank`, also note the items copied from it whose source has changed since.
+///
 /// # Errors
 ///
 /// Every problem found, one per line.
-pub fn check(dir: &Path) -> Result<ProjectSummary> {
+pub fn check(dir: &Path, bank: Option<&Path>) -> Result<ProjectSummary> {
     let manifest: ProjectManifest = read_json(&dir.join(PROJECT_FILE), "project manifest")?;
     let mut problems: Vec<String> = Vec::new();
     if let Err(e) = manifest.validate() {
@@ -86,72 +76,28 @@ pub fn check(dir: &Path) -> Result<ProjectSummary> {
         summary.cells += 1;
     }
 
-    for (kind, folder) in KINDS {
-        let at = dir.join("library").join(folder);
-        let Ok(entries) = std::fs::read_dir(&at) else {
-            continue;
-        };
-        let mut files: Vec<_> = entries.filter_map(|e| e.ok().map(|e| e.path())).collect();
-        files.sort();
-        for path in files
-            .into_iter()
-            .filter(|p| p.extension().is_some_and(|x| x == "json"))
-        {
-            let name = format!(
-                "library/{folder}/{}",
-                path.file_name().unwrap_or_default().to_string_lossy()
-            );
-            let text = match std::fs::read_to_string(&path) {
-                Ok(t) => t,
-                Err(e) => {
-                    problems.push(format!("{name}: {e}"));
-                    continue;
-                }
+    let (contents, found) = library::scan(dir);
+    problems.extend(found);
+    summary.library = contents.counts();
+    if let Some(bank) = bank {
+        let (banked, _) = library::scan(bank);
+        for (reference, item) in &contents.items {
+            let Some(origin) = item.origin.as_ref().filter(|o| o.layer == Layer::Bank) else {
+                continue;
             };
-            let item = match read_item(&text) {
-                Ok(i) => i,
-                Err(e) => {
-                    problems.extend(
-                        e.issues
-                            .iter()
-                            .map(|i| format!("{name}: {}: {}", i.path, i.message)),
-                    );
-                    continue;
+            match banked.items.get(&origin.reference) {
+                Some(source) if etendue_core::library::content_hash(source) != origin.sha256 => {
+                    summary.notes.push(format!(
+                        "library/{reference}.json: the bank's {} has changed since it was copied",
+                        origin.reference
+                    ))
                 }
-            };
-            let mut issues = item.validate().err().map(|e| e.issues).unwrap_or_default();
-            if path
-                .file_stem()
-                .is_none_or(|s| s.to_string_lossy() != item.id)
-            {
-                problems.push(format!("{name}: its id `{}` is not its file name", item.id));
+                None => summary.notes.push(format!(
+                    "library/{reference}.json: the bank no longer has {}",
+                    origin.reference
+                )),
+                Some(_) => {}
             }
-            if item.kind().is_some_and(|k| k != kind) {
-                problems.push(format!(
-                    "{name}: a {} in the {folder} folder",
-                    item.kind().unwrap_or_default()
-                ));
-            }
-            if let Some(c) = &item.camera
-                && let Some(o) = &c.optics
-            {
-                issues.extend(check_derived(o, &c.params, "camera"));
-            }
-            if let Some(r) = &item.rig
-                && let Some(o) = &r.layout.camera.optics
-            {
-                issues.extend(check_derived(
-                    o,
-                    &r.layout.camera.params,
-                    "rig.layout.camera",
-                ));
-            }
-            problems.extend(
-                issues
-                    .iter()
-                    .map(|i| format!("{name}: {}: {}", i.path, i.message)),
-            );
-            *summary.library.entry(folder).or_default() += 1;
         }
     }
 

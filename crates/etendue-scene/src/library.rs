@@ -8,6 +8,11 @@
 //! An item holds exactly one part, under the key that names its kind. Designs embed their parts by
 //! value, so a library file is complete on its own; scenes copy designs by value too, so a scene
 //! never depends on a library.
+//!
+//! The same layout serves a user bank (ADR 0010, [`crate::bank`]). An item copied from the bank or
+//! the built-ins into a project records where it came from ([`ItemOrigin`]), with its source's
+//! content hash (`etendue_core::library::content_hash`), which tells whether the source has
+//! changed since.
 
 use serde::{Deserialize, Serialize};
 
@@ -23,8 +28,72 @@ pub struct Versioned {
     pub version: u32,
 }
 
-/// The library item format this build reads and writes.
-pub const LIBRARY_VERSION: u32 = 1;
+/// The library item format this build writes. Version 2 (ADR 0010) adds `source`, `origin` and the
+/// `mount` kind; version 1 files still read.
+pub const LIBRARY_VERSION: u32 = 2;
+
+/// The library item formats this build reads.
+pub const LIBRARY_VERSIONS: [u32; 2] = [1, LIBRARY_VERSION];
+
+/// Where an item's data comes from: its datasheet, for people.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
+#[serde(deny_unknown_fields)]
+pub struct ItemSource {
+    /// The maker.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub vendor: Option<String>,
+    /// The maker's part number.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub part_number: Option<String>,
+    /// The datasheet.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub datasheet_url: Option<String>,
+    /// Anything else: how a value was measured, what was assumed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub notes: Option<String>,
+}
+
+/// A library layer (ADR 0010 §1) an item can be copied from.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
+#[serde(rename_all = "snake_case")]
+pub enum Layer {
+    /// Shipped with etendue, read-only.
+    Builtin,
+    /// The user's bank.
+    Bank,
+}
+
+/// Where a project's copy of an item came from (ADR 0010 §3).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
+#[serde(deny_unknown_fields)]
+pub struct ItemOrigin {
+    /// The layer it was copied from.
+    pub layer: Layer,
+    /// Its reference there, `<folder>/<id>`.
+    pub reference: String,
+    /// The source's content hash (`etendue_core::library::content_hash`) when it was copied.
+    pub sha256: String,
+}
+
+/// A rigid adapter on a robot's tool flange (ADR 0010 §5): what a rig or a target is mounted
+/// through, eye-in-hand or eye-to-hand.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
+#[serde(deny_unknown_fields)]
+pub struct MountPart {
+    /// The mounted device's frame in the flange's frame.
+    #[cfg_attr(
+        feature = "schemars",
+        schemars(with = "vision_calibration_core::Iso3Schema")
+    )]
+    pub flange_se3_device: nalgebra::Isometry3<f64>,
+    /// Mass, kilograms, for the payload budget.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mass_kg: Option<f64>,
+}
 
 /// An image sensor.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -185,6 +254,12 @@ pub struct LibraryItem {
     /// More about it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
+    /// Its datasheet (version 2).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source: Option<ItemSource>,
+    /// Where this copy came from, when it was copied into a project (version 2).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub origin: Option<ItemOrigin>,
     /// A sensor.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sensor: Option<SensorPart>,
@@ -206,10 +281,13 @@ pub struct LibraryItem {
     /// A rig design.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rig: Option<RigDesign>,
+    /// A flange mount (version 2).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mount: Option<MountPart>,
 }
 
 /// The kinds of library item, and the folder each lives in.
-pub const KINDS: [(&str, &str); 7] = [
+pub const KINDS: [(&str, &str); 8] = [
     ("sensor", "sensors"),
     ("lens", "lenses"),
     ("laser", "lasers"),
@@ -217,6 +295,7 @@ pub const KINDS: [(&str, &str); 7] = [
     ("camera", "cameras"),
     ("head", "heads"),
     ("rig", "rigs"),
+    ("mount", "mounts"),
 ];
 
 impl LibraryItem {
@@ -226,19 +305,26 @@ impl LibraryItem {
     ///
     /// # Errors
     ///
-    /// A [`ValidationError`] at `version` for any version but [`LIBRARY_VERSION`].
+    /// A [`ValidationError`] at `version` for a version not in [`LIBRARY_VERSIONS`].
     pub fn check_version(version: u32) -> Result<(), ValidationError> {
-        if version == LIBRARY_VERSION {
+        if LIBRARY_VERSIONS.contains(&version) {
             return Ok(());
         }
         Err(ValidationError {
             issues: vec![Issue {
                 path: "version".to_owned(),
                 message: format!(
-                    "library item version {version}; this etendue reads version {LIBRARY_VERSION}"
+                    "library item version {version}; this etendue reads versions 1 to {LIBRARY_VERSION}"
                 ),
             }],
         })
+    }
+
+    /// Its folder: where an item of its kind lives (`cameras`), if it has one kind.
+    #[must_use]
+    pub fn folder(&self) -> Option<&'static str> {
+        let kind = self.kind()?;
+        KINDS.iter().find(|(k, _)| *k == kind).map(|(_, f)| *f)
     }
 
     /// The item's kind: the one part it holds, or `None` when it holds none or several.
@@ -252,6 +338,7 @@ impl LibraryItem {
             self.camera.is_some(),
             self.head.is_some(),
             self.rig.is_some(),
+            self.mount.is_some(),
         ];
         (set.iter().filter(|s| **s).count() == 1)
             .then(|| KINDS[set.iter().position(|s| *s).unwrap_or(0)].0)
@@ -264,11 +351,33 @@ impl LibraryItem {
     /// Every problem found.
     pub fn validate(&self) -> Result<(), ValidationError> {
         let mut issues = Issues::default();
-        if self.version != LIBRARY_VERSION {
+        if !LIBRARY_VERSIONS.contains(&self.version) {
             issues.push(
                 "version",
                 format!("unsupported library item version {}", self.version),
             );
+        }
+        if self.version < 2
+            && (self.source.is_some() || self.origin.is_some() || self.mount.is_some())
+        {
+            issues.push(
+                "version",
+                "`source`, `origin` and `mount` need library version 2",
+            );
+        }
+        if let Some(o) = &self.origin {
+            if crate::project::library_file(&o.reference, &KINDS.map(|(_, f)| f)).is_none() {
+                issues.push(
+                    "origin.reference",
+                    format!(
+                        "`{}` is not a library reference (`<folder>/<id>`)",
+                        o.reference
+                    ),
+                );
+            }
+            if o.sha256.len() != 64 || !o.sha256.bytes().all(|b| b.is_ascii_hexdigit()) {
+                issues.push("origin.sha256", "must be 64 hex digits");
+            }
         }
         if !crate::frame::is_valid_id(&self.id) {
             issues.push("id", format!("`{}` is not a valid id", self.id));
@@ -279,7 +388,7 @@ impl LibraryItem {
         if self.kind().is_none() {
             issues.push(
                 "",
-                "must hold exactly one of sensor, lens, laser, target, camera, head, rig",
+                "must hold exactly one of sensor, lens, laser, target, camera, head, rig, mount",
             );
         }
         if let Some(s) = &self.sensor {
@@ -361,6 +470,12 @@ impl LibraryItem {
         if let Some(r) = &self.rig {
             r.layout.check(&mut issues, "rig.layout");
         }
+        if let Some(m) = &self.mount {
+            issues.check_pose("mount.flange_se3_device", &m.flange_se3_device);
+            if let Some(kg) = m.mass_kg {
+                issues.check_non_negative("mount.mass_kg", kg);
+            }
+        }
         issues.finish()
     }
 }
@@ -405,6 +520,53 @@ mod tests {
         });
         assert_eq!(two.kind(), None);
         assert!(two.validate().is_err());
+    }
+
+    #[test]
+    fn version_1_still_reads_and_its_copy_carries_an_origin() {
+        let v1 = read(sensor()).unwrap();
+        assert_eq!(v1.version, 1);
+        let mut copy = v1.clone();
+        copy.version = LIBRARY_VERSION;
+        copy.origin = Some(ItemOrigin {
+            layer: Layer::Bank,
+            reference: "sensors/imx174".into(),
+            sha256: "0".repeat(64),
+        });
+        copy.validate().unwrap();
+        // Version 2's fields in a version 1 file are refused.
+        let mut early = v1.clone();
+        early.source = Some(ItemSource {
+            vendor: Some("Sony".into()),
+            ..ItemSource::default()
+        });
+        assert!(early.validate().is_err());
+        early.version = 2;
+        early.validate().unwrap();
+    }
+
+    #[test]
+    fn a_mount_is_a_pose_and_a_bad_origin_is_refused() {
+        let text = r#"{ "version": 2, "id": "flange_plate", "name": "Flange plate",
+            "mount": { "flange_se3_device": { "rotation": [0, 0, 0, 1], "translation": [0, 0, 0.04] }, "mass_kg": 0.3 } }"#;
+        let item = read(text).unwrap();
+        assert_eq!(item.kind(), Some("mount"));
+        assert_eq!(item.folder(), Some("mounts"));
+        item.validate().unwrap();
+        let mut bad = item.clone();
+        bad.origin = Some(ItemOrigin {
+            layer: Layer::Builtin,
+            reference: "../x".into(),
+            sha256: "abc".into(),
+        });
+        let paths: Vec<_> = bad
+            .validate()
+            .unwrap_err()
+            .issues
+            .into_iter()
+            .map(|i| i.path)
+            .collect();
+        assert_eq!(paths, ["origin.reference", "origin.sha256"]);
     }
 
     #[test]

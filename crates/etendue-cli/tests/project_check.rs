@@ -11,7 +11,7 @@ fn root() -> PathBuf {
 
 #[test]
 fn the_examples_are_a_valid_project() {
-    let s = check(&root().join("examples")).unwrap();
+    let s = check(&root().join("examples"), None).unwrap();
     assert_eq!(s.cells, 6);
     assert_eq!(s.library["cameras"], 2);
     assert_eq!(s.library["sensors"], 3);
@@ -36,7 +36,7 @@ fn broken(name: &str, edit: impl FnOnce(&Path)) -> String {
     doc["cells"] = serde_json::json!([]);
     std::fs::write(dir.join("etendue-project.json"), doc.to_string()).unwrap();
     edit(&dir);
-    format!("{:#}", check(&dir).unwrap_err())
+    format!("{:#}", check(&dir, None).unwrap_err())
 }
 
 fn walk(dir: &Path) -> Vec<PathBuf> {
@@ -76,12 +76,12 @@ fn a_stale_camera_design_is_caught() {
 fn a_newer_item_is_refused_for_its_version() {
     let err = broken("version", |dir| {
         edit_json(&dir.join("library/lenses/lm25hc.json"), |v| {
-            v["version"] = serde_json::json!(2);
+            v["version"] = serde_json::json!(3);
             v["lens"]["future_field"] = serde_json::json!(true);
         });
     });
     assert!(
-        err.contains("library/lenses/lm25hc.json: version: library item version 2"),
+        err.contains("library/lenses/lm25hc.json: version: library item version 3"),
         "{err}"
     );
     assert!(!err.contains("future_field"), "{err}");
