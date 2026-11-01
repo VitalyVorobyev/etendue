@@ -258,10 +258,35 @@ Once a dataset exists, **Calibrate** calibrates it natively, as
   or **Detected** (after a render, the detector's corners and stripes).
 - **Cameras**: a rig without lasers can be calibrated as a rig, or one camera alone.
 
-The result shows the workflow, the views and points used, and a badge: on exact observations
+The result shows the workflow, the views and points used, and two badges: on exact observations
 **PASS** or **FAIL** against the closed-loop tolerances, otherwise the tolerances "for
-reference". Below it, the table of errors (with several trials, each row's mean, spread and
-maximum), the reprojection error, and a histogram of every point's error.
+reference"; and calibration-rs's own verdict on the result (**Pass**, **Warn** or **Fail**). Its
+tabs:
+
+- **Errors**: the table of errors (with several trials, each row's mean, spread and maximum), the
+  reprojection error, and a histogram of every point's error.
+- **Per view**: the residuals of every view (a capture seen by a camera) of the first trial: its
+  points, the RMS of their residuals' lengths and the largest, in pixels. Sort by any column;
+  choosing a view shows it in the camera view below, at its capture. There each observed point is
+  a dot, coloured by its residual against the run's RMS (green within it, amber up to twice it,
+  red beyond); a cross is where the estimate projects it, and the line from the dot is the
+  residual, magnified ×1, ×10, ×100 or ×1000. With a render, they are drawn over the dataset's
+  image; otherwise over the synthetic view. **Residuals** and **Observations** above the camera
+  view switch between them and what the form's observations would be.
+- **Parameters** (with noise over two or more trials): every estimated parameter's truth, mean,
+  bias, spread (the sample standard deviation over the trials), calibration-rs's predicted σ and
+  the ratio std/σ. When the model's noise is the data's, the ratio is near 1; outside 0.7–1.4 it
+  is tinted. With few trials the ratio itself is uncertain (about 50 % with 3 trials, 27 % with 8),
+  so read it over many. The predicted σ are conditional on the parameters the solve held fixed
+  (listed under the table), so a ratio well above 1 can also mean that something held fixed
+  carries error. Choosing a camera parameter (intrinsics, distortion, tilt) draws the histogram of
+  its trials' values, with the truth dashed, the mean ticked, and the band of the truth ± the
+  predicted σ. The hand-eye's rows are errors from the truth in the transform's own frame. See
+  [Calibration](calibration.md#the-json-report) for both.
+- **Solver**: the procedure that ran and its stages (workflow, cameras, views, points and mean
+  reprojection error of each), and calibration-rs's checks behind its verdict: observability,
+  convergence, the noise level, the projection σ over the image, how much of the image the
+  features cover, outlier views and correlated parameters, each with its value and limit.
 
 **Kept runs.** Every calibration is kept as a run folder: in the project's `runs/` when a project
 is open for writing, otherwise in the dataset's own `runs/`. It is named after the dataset, the
@@ -272,8 +297,9 @@ it came out; **Show** brings one back, its 3-D estimate included.
 **Beside the truth.** The 3-D view draws the estimate over the truth in the warning colour:
 each estimated camera, its laser plane, and the target. A calibration's errors are far too small
 to see, so they are exaggerated ×1, ×10, ×100 or ×1000. The camera view below shows, at each
-capture, what the calibration observes: a dot for each observed point (an outlier larger, in red)
-and a cross for the truth, so a cross without a dot was dropped.
+capture, the shown run's residuals (see **Per view** above) or, with **Observations**, what a
+calibration with the form's settings observes: a dot for each observed point (an outlier larger,
+in red) and a cross for the truth, so a cross without a dot was dropped.
 
 ## In a browser
 

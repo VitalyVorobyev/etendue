@@ -25,6 +25,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   calibration-rs's predicted σ (`uncertainty`) and quality verdict (`quality`); and, over trials,
   `param_stats`: each parameter's truth, mean, spread, bias, RMSE and predicted σ. `etendue
   calibrate --trials N` prints them.
+- **The simulation lab in the studio**: the Calibrate workspace's result has tabs. **Per view**
+  lists every view's residual RMS (sortable); choosing one shows its capture in the camera view,
+  each observed point with its reprojection and its residual magnified ×1–×1000, coloured by size,
+  over the rendered image when there is one. **Parameters** (two or more trials) tables each
+  parameter's truth, mean, bias, spread and calibration-rs's predicted σ, tints std/σ outside
+  0.7–1.4, and draws a camera parameter's values over the trials with the truth and the ±σ band.
+  **Solver** lists the procedure's stages and calibration-rs's quality checks; its verdict is a
+  badge beside the result.
 - Library items version 2: `source` (datasheet), `origin` (where a project's copy came from, with
   the source's content hash) and the `mount` kind (an adapter on a robot's flange). Version 1
   still reads.
