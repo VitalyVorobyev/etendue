@@ -874,7 +874,10 @@ mod tests {
             if write {
                 std::fs::write(&path, &text).unwrap();
             } else {
-                let on_disk = std::fs::read_to_string(&path).unwrap_or_default();
+                // A Windows checkout may have CRLF line endings.
+                let on_disk = std::fs::read_to_string(&path)
+                    .unwrap_or_default()
+                    .replace("\r\n", "\n");
                 assert_eq!(
                     on_disk,
                     text,
