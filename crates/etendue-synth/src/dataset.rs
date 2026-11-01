@@ -31,7 +31,7 @@ use etendue_scene::{
 use nalgebra::Isometry3;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use vision_calibration_core::{CameraParams, SensorParams};
+use vision_calibration_core::CameraParams;
 use vision_calibration_dataset::{DatasetSpec, Topology};
 
 use crate::gt::{BoardPoint, GtPoint, VisibilitySpec, project_points};
@@ -522,10 +522,9 @@ pub fn emit(
         // along for a hand-eye solve on the same views.
         (_, 1) if extent.is_some() => Topology::LaserlineDevice,
         _ if extent.is_some() => Topology::RigHandeyeLaserline,
-        (None, 1) => match scene.cameras[0].params.sensor {
-            SensorParams::Scheimpflug { .. } => Topology::ScheimpflugIntrinsics,
-            _ => Topology::PlanarIntrinsics,
-        },
+        // A Scheimpflug camera is planar intrinsics too: its sensor is part of the camera
+        // model (calibration-rs 0.10).
+        (None, 1) => Topology::PlanarIntrinsics,
         (None, _) => Topology::RigExtrinsics,
         (Some(_), 1) => Topology::SingleCamHandeye,
         (Some(_), _) => Topology::RigHandeye,

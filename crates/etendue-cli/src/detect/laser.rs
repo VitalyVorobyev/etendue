@@ -479,7 +479,7 @@ fn beam_sigma(
     let fan = Vector3::from(plane.normal);
     // The distance from the laser plane of what pixel (u, v) sees.
     let d = |u: f64, v: f64| {
-        let ray = model.backproject_pixel(&Point2::new(u, v)).point;
+        let ray = model.backproject_pixel(&Point2::new(u, v)).direction;
         fan.dot(&(ray * (n.dot(&x) / n.dot(&ray)))) + plane.distance
     };
     const H: f64 = 0.5;

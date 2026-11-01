@@ -14,7 +14,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "numpy", specifier = ">=2.2" },
-    { name = "vision-calibration", specifier = "==0.9.0" },
+    { name = "vision-calibration", specifier = "==0.11.0" },
 ]
 
 [[package]]
@@ -38,11 +38,14 @@ wheels = [
 
 [[package]]
 name = "vision-calibration"
-version = "0.9.0"
+version = "0.11.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/1c/e2/42e609c07f03ee662bccd52d518931d38dcff4ab70425c815553ebb8cf88/vision_calibration-0.9.0.tar.gz", hash = "sha256:8716951c70dc19455c199985873f96ec17dd77c5562e6de4c246126ef3049615", size = 729462, upload-time = "2026-09-29T12:59:24.561Z" }
+dependencies = [
+    { name = "numpy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/3c/24/51ff8474cfe23deff5e364b7d1f4b162b2b434f6917491c4714b0e450e7a/vision_calibration-0.11.0.tar.gz", hash = "sha256:6959c11ba25d182dd15de6642e204266b215f0ce195deee358b63c33a60bf537", size = 966391, upload-time = "2026-11-01T18:37:38.466Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/cb/10/be98e91b5c557909ebf133c30582fc2cbf3454f547b6ab1d258917c98223/vision_calibration-0.9.0-cp310-abi3-macosx_11_0_arm64.whl", hash = "sha256:135785599fe54fa00f41a8b7c086db84cf0df34f4d7e0e9c38a0a9479814fb9c", size = 1727590, upload-time = "2026-09-29T12:59:18.908Z" },
-    { url = "https://files.pythonhosted.org/packages/ac/2d/2bc4264db18f3dceb15cf4e6fd5445344856e73f37e3cd49b900541ea224/vision_calibration-0.9.0-cp310-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:b6e83ca377dea3147b6f4a6c4b89f821c5607a79bf0fa39358b66fc0e20107bb", size = 2543553, upload-time = "2026-09-29T12:59:20.889Z" },
-    { url = "https://files.pythonhosted.org/packages/60/9b/fe581116510383505502a5ea853816ad958c3f6f588685590871f3a7030f/vision_calibration-0.9.0-cp310-abi3-win_amd64.whl", hash = "sha256:332d46a41708c8ced91b93e16f2df7a6157865d7f091f1ecde494ed787bb42a8", size = 2101684, upload-time = "2026-09-29T12:59:22.467Z" },
+    { url = "https://files.pythonhosted.org/packages/ec/11/a5262a400bdb3eb9ae0c0ab6b9902c886079f84caa6ce524459db2d2ed95/vision_calibration-0.11.0-cp310-abi3-macosx_11_0_arm64.whl", hash = "sha256:042accf4c7f07a66ccfdc63ac9a5f434fe57b70684194f402da68e0e7d5f1f77", size = 9819238, upload-time = "2026-11-01T18:37:31.165Z" },
+    { url = "https://files.pythonhosted.org/packages/f6/a4/1781502cd3428fadc356c83e38dc7388271860c959bddec1a599d4d5e584/vision_calibration-0.11.0-cp310-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:d0775c1476c69e79e0c9ad5441bee87feb37b207091d71a6a29485fe3ab6a02d", size = 9993374, upload-time = "2026-11-01T18:37:33.567Z" },
+    { url = "https://files.pythonhosted.org/packages/e4/c4/e782877adb3c9c7c02236761702d7126110e94145fb888f8efe0dfee0c6b/vision_calibration-0.11.0-cp310-abi3-win_amd64.whl", hash = "sha256:f00c8f5c0a1168211f89e8c04e8b222cb42feb4c76339b8e80d39037eb029361", size = 9397591, upload-time = "2026-11-01T18:37:35.946Z" },
 ]

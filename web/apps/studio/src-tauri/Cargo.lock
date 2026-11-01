@@ -101,7 +101,7 @@ version = "1.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "40c48f72fd53cd289104fc64099abca73db4166ad86ea0b4341abe65af83dadc"
 dependencies = [
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -112,7 +112,7 @@ checksum = "291e6a250ff86cd4a820112fb8898808a366d8f9f58ce16d1f538353ad55747d"
 dependencies = [
  "anstyle",
  "once_cell_polyfill",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -351,9 +351,9 @@ checksum = "9df10ad1e3a240711ead31880fec6b0535f1d7b63d00a6b492cd03e2b1b6cfd4"
 
 [[package]]
 name = "box-image-pyramid"
-version = "1.3.0"
+version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "981ef85736542101268a33243fe5dd957a470d7b666e0a13114fa20c10fa042c"
+checksum = "e031e4803a4caefa880dac40cd076d20f3214dc11e04f86fcb5e894e752095c8"
 dependencies = [
  "rayon",
 ]
@@ -468,17 +468,17 @@ dependencies = [
 
 [[package]]
 name = "calib-targets"
-version = "0.12.1"
+version = "0.16.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "62dfc27990941755c7b6a3d2f77d2b16e36f9fa1bb4fac8125ab3086753a40cc"
+checksum = "0989c5d41bc75e1ad70c6e22a459cc885be2a98820621bbcc31d5a7170298209"
 dependencies = [
- "calib-targets-aruco 0.12.1",
- "calib-targets-charuco 0.12.1",
- "calib-targets-chessboard 0.12.1",
- "calib-targets-core 0.12.1",
- "calib-targets-marker 0.12.1",
- "calib-targets-print 0.12.1",
- "calib-targets-puzzleboard 0.12.1",
+ "calib-targets-aruco",
+ "calib-targets-charuco",
+ "calib-targets-chessboard",
+ "calib-targets-core",
+ "calib-targets-marker",
+ "calib-targets-print",
+ "calib-targets-puzzleboard",
  "chess-corners",
  "image",
  "nalgebra 0.35.0",
@@ -487,24 +487,11 @@ dependencies = [
 
 [[package]]
 name = "calib-targets-aruco"
-version = "0.12.1"
+version = "0.16.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d2d428ee923970e58422b963ca39f2a2a4196df4884bf14fdd1490738c638d93"
+checksum = "480e6e2748c2436b798e75c72991f900b5db38603ac66442bc1dd3a544743faa"
 dependencies = [
- "calib-targets-core 0.12.1",
- "log",
- "nalgebra 0.35.0",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "calib-targets-aruco"
-version = "0.15.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c5bd955ddcb082eae3bb249197fcbc55501660924ccc1a8e7ec6fc73e2436896"
-dependencies = [
- "calib-targets-core 0.15.5",
+ "calib-targets-core",
  "log",
  "nalgebra 0.35.0",
  "serde",
@@ -513,30 +500,13 @@ dependencies = [
 
 [[package]]
 name = "calib-targets-charuco"
-version = "0.12.1"
+version = "0.16.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "55985ea693562caa1572698ae96336efaf76602e651c379856211f1b293f69ae"
+checksum = "641c4d2e8025cc159296c58fd52995827a0f4c57ee093c0565a2c77699de3a29"
 dependencies = [
- "calib-targets-aruco 0.12.1",
- "calib-targets-chessboard 0.12.1",
- "calib-targets-core 0.12.1",
- "chess-corners",
- "log",
- "nalgebra 0.35.0",
- "serde",
- "serde_json",
- "thiserror 2.0.21",
-]
-
-[[package]]
-name = "calib-targets-charuco"
-version = "0.15.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "edaa97eeb38caf17458e89a8079f433adca1d9ce356823cca29335ddfa4cf06a"
-dependencies = [
- "calib-targets-aruco 0.15.5",
- "calib-targets-chessboard 0.15.5",
- "calib-targets-core 0.15.5",
+ "calib-targets-aruco",
+ "calib-targets-chessboard",
+ "calib-targets-core",
  "chess-corners",
  "log",
  "nalgebra 0.35.0",
@@ -547,58 +517,29 @@ dependencies = [
 
 [[package]]
 name = "calib-targets-chessboard"
-version = "0.12.1"
+version = "0.16.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c35a46d7b30a255bc61dec9623e13790af738f615bbeed93f12ba1397c26ae6e"
+checksum = "67bf38167abef54f79b06ce45d4bfa079b7adc2aae3d017d29723d19b43eb85b"
 dependencies = [
- "calib-targets-core 0.12.1",
- "kiddo",
- "log",
- "nalgebra 0.35.0",
- "projective-grid 0.14.2",
- "serde",
- "thiserror 2.0.21",
-]
-
-[[package]]
-name = "calib-targets-chessboard"
-version = "0.15.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0e73c3ab20d1eb4618c004a3e8a435b91a5646ca8a0d030efa50a6e8f15e97ce"
-dependencies = [
- "calib-targets-core 0.15.5",
+ "calib-targets-core",
  "chess-corners",
  "kiddo",
  "log",
  "nalgebra 0.35.0",
- "projective-grid 0.14.2",
+ "projective-grid",
  "serde",
  "thiserror 2.0.21",
 ]
 
 [[package]]
 name = "calib-targets-core"
-version = "0.12.1"
+version = "0.16.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eb4553ba7857c2e51340fcb67cceffd39780dcb536b843d0e5ce33707029dadc"
+checksum = "a202ae0d2342df39139d7255d5a989b3b04ebd1c3b13e2ca904e9356859ecc10"
 dependencies = [
  "chess-corners",
  "nalgebra 0.35.0",
- "projective-grid 0.14.2",
- "serde",
- "serde_json",
- "thiserror 2.0.21",
-]
-
-[[package]]
-name = "calib-targets-core"
-version = "0.15.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a3089b952c9b29f2013c83b43a159709e09f56aaf816f5f7b305532617514bf7"
-dependencies = [
- "chess-corners",
- "nalgebra 0.35.0",
- "projective-grid 0.14.2",
+ "projective-grid",
  "serde",
  "serde_json",
  "thiserror 2.0.21",
@@ -606,26 +547,12 @@ dependencies = [
 
 [[package]]
 name = "calib-targets-marker"
-version = "0.12.1"
+version = "0.16.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aeb52c8f13407d611559ba3ca3c8d9a5e8cddfe1c2986112b32600cd3919c7f2"
+checksum = "cf8e30ca8e30cfb6256e680f4f4b460084055b7220cdd938691adcae06961e04"
 dependencies = [
- "calib-targets-chessboard 0.12.1",
- "calib-targets-core 0.12.1",
- "log",
- "nalgebra 0.35.0",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "calib-targets-marker"
-version = "0.15.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e1f07ae0a4eef0110bc07d84963136e1f74b25bb845f70a79159d9bad274e3ee"
-dependencies = [
- "calib-targets-chessboard 0.15.5",
- "calib-targets-core 0.15.5",
+ "calib-targets-chessboard",
+ "calib-targets-core",
  "log",
  "nalgebra 0.35.0",
  "serde",
@@ -635,32 +562,15 @@ dependencies = [
 
 [[package]]
 name = "calib-targets-print"
-version = "0.12.1"
+version = "0.16.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "af8443cbccfadc79c04e050943454c5b956223745f6df019c0fd48695f86030d"
+checksum = "7df0370b1d96065bbb57031db4e962454082561709fa1f8c7268c2b357c897e0"
 dependencies = [
- "calib-targets-aruco 0.12.1",
- "calib-targets-charuco 0.12.1",
- "calib-targets-core 0.12.1",
- "calib-targets-marker 0.12.1",
- "calib-targets-puzzleboard 0.12.1",
- "png 0.18.1",
- "serde",
- "serde_json",
- "thiserror 2.0.21",
-]
-
-[[package]]
-name = "calib-targets-print"
-version = "0.15.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4754594cc573a6dd7b9c68af7fe7bb05d1254402c51b26bd33df8349208d6677"
-dependencies = [
- "calib-targets-aruco 0.15.5",
- "calib-targets-charuco 0.15.5",
- "calib-targets-core 0.15.5",
- "calib-targets-marker 0.15.5",
- "calib-targets-puzzleboard 0.15.5",
+ "calib-targets-aruco",
+ "calib-targets-charuco",
+ "calib-targets-core",
+ "calib-targets-marker",
+ "calib-targets-puzzleboard",
  "png 0.18.1",
  "serde",
  "serde_json",
@@ -669,27 +579,12 @@ dependencies = [
 
 [[package]]
 name = "calib-targets-puzzleboard"
-version = "0.12.1"
+version = "0.16.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e13876aa0386b45bb03f515fda7450e6c0a4d08b5b4099c4389149c08e5a0864"
+checksum = "bc7fbea22e9276bab6bc33f24ffd7346b2bbc22733e9a5ed0992328e8bae51d9"
 dependencies = [
- "calib-targets-chessboard 0.12.1",
- "calib-targets-core 0.12.1",
- "chess-corners",
- "nalgebra 0.35.0",
- "serde",
- "serde_json",
- "thiserror 2.0.21",
-]
-
-[[package]]
-name = "calib-targets-puzzleboard"
-version = "0.15.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "df42bf04bdb55762c23ddd2eec7838a291087d54efe4530be16851fcc051d4d8"
-dependencies = [
- "calib-targets-chessboard 0.15.5",
- "calib-targets-core 0.15.5",
+ "calib-targets-chessboard",
+ "calib-targets-core",
  "chess-corners",
  "nalgebra 0.35.0",
  "serde",
@@ -798,25 +693,23 @@ dependencies = [
 
 [[package]]
 name = "chess-corners"
-version = "1.3.0"
+version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1ac642ae7bbe8619617845a9c9dd20165b0368a12cdf30b07521e8ec1841c5cf"
+checksum = "a0f60935a4a23518060c763b18a6f4f8a096fd247fc46ece6a16408b0b286436"
 dependencies = [
- "box-image-pyramid 1.3.0",
+ "box-image-pyramid 2.1.0",
  "chess-corners-core",
  "image",
- "log",
  "rayon",
  "serde",
 ]
 
 [[package]]
 name = "chess-corners-core"
-version = "1.3.0"
+version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e95c6c0b6fa3189a72742a0ce3942fca472cd54cd2c2f999698ddcfde67f4dd2"
+checksum = "20b0b6ef278dad7a0fb51284e62dd41d804081716271b867f28229e547ac74db"
 dependencies = [
- "log",
  "rayon",
  "serde",
 ]
@@ -1228,7 +1121,7 @@ dependencies = [
  "libc",
  "option-ext",
  "redox_users",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -1297,6 +1190,12 @@ dependencies = [
  "selectors",
  "tendril",
 ]
+
+[[package]]
+name = "downcast-rs"
+version = "2.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "117240f60069e65410b3ae1bb213295bd828f707b5bec6596a1afc8793ce0cbc"
 
 [[package]]
 name = "dpi"
@@ -1452,7 +1351,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -1460,11 +1359,11 @@ name = "etendue-cli"
 version = "0.2.0"
 dependencies = [
  "anyhow",
- "calib-targets-charuco 0.15.5",
- "calib-targets-chessboard 0.15.5",
- "calib-targets-marker 0.15.5",
- "calib-targets-print 0.15.5",
- "calib-targets-puzzleboard 0.15.5",
+ "calib-targets-charuco",
+ "calib-targets-chessboard",
+ "calib-targets-marker",
+ "calib-targets-print",
+ "calib-targets-puzzleboard",
  "chess-corners",
  "clap",
  "etendue-core",
@@ -1474,7 +1373,7 @@ dependencies = [
  "nalgebra 0.34.2",
  "serde",
  "serde_json",
- "toml 0.9.12+spec-1.1.0",
+ "toml 1.1.6+spec-1.1.0",
  "vision-calibration-core",
  "vision-calibration-dataset",
  "vision-calibration-pipeline",
@@ -1538,9 +1437,9 @@ dependencies = [
 name = "etendue-synth"
 version = "0.2.0"
 dependencies = [
- "calib-targets-charuco 0.15.5",
- "calib-targets-print 0.15.5",
- "calib-targets-puzzleboard 0.15.5",
+ "calib-targets-charuco",
+ "calib-targets-print",
+ "calib-targets-puzzleboard",
  "etendue-core",
  "etendue-kinematics",
  "etendue-scene",
@@ -1573,6 +1472,40 @@ dependencies = [
  "rayon-core",
  "smallvec",
  "zune-inflate",
+]
+
+[[package]]
+name = "factrs"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "156d1ea13549a08acf1d79cc834d9538262226a9a00899511edd912ef5449e76"
+dependencies = [
+ "downcast-rs",
+ "dyn-clone",
+ "factrs-proc",
+ "faer",
+ "faer-ext",
+ "foldhash",
+ "indexmap 2.14.2",
+ "log",
+ "matrixcompare",
+ "nalgebra 0.34.2",
+ "num-dual 0.13.7",
+ "pad-adapter",
+ "paste",
+ "simba 0.9.1",
+ "statrs",
+]
+
+[[package]]
+name = "factrs-proc"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "97f1e4da4f0f379db2aae5338654bd4aa2cc824a7473808f7394c33ddf22b612"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
 ]
 
 [[package]]
@@ -1678,19 +1611,6 @@ name = "find-msvc-tools"
 version = "0.1.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "aedcfb3409746eddb02b9e19ebda1c3394f759a152e48ee875a0844d1b955484"
-
-[[package]]
-name = "fixed"
-version = "1.29.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "707070ccf8c4173548210893a0186e29c266901b71ed20cd9e2ca0193dfe95c3"
-dependencies = [
- "az",
- "bytemuck",
- "half",
- "num-traits",
- "typenum",
-]
 
 [[package]]
 name = "flate2"
@@ -2965,7 +2885,6 @@ dependencies = [
  "az",
  "cmov",
  "divrem",
- "fixed",
  "generator",
  "num-traits",
  "ordered-float",
@@ -3130,6 +3049,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "matrixcompare"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "37832ba820e47c93d66b4360198dccb004b43c74abc3ac1ce1fed54e65a80445"
+dependencies = [
+ "matrixcompare-core",
+ "num-traits",
+]
+
+[[package]]
+name = "matrixcompare-core"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b0bdabb30db18805d5290b3da7ceaccbddba795620b86c02145d688e04900a73"
+
+[[package]]
 name = "matrixmultiply"
 version = "0.3.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3229,7 +3164,7 @@ dependencies = [
  "png 0.18.1",
  "serde",
  "thiserror 2.0.21",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3257,6 +3192,7 @@ dependencies = [
  "glam 0.30.10",
  "glam 0.31.1",
  "glam 0.32.1",
+ "matrixcompare-core",
  "matrixmultiply",
  "nalgebra-macros",
  "num-complex",
@@ -3446,7 +3382,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3493,6 +3429,18 @@ name = "num-dual"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "58ef374bb34978304bf541752bdaa948891c2d3cc787e91b9b11b429ef8f77f2"
+dependencies = [
+ "approx",
+ "nalgebra 0.34.2",
+ "num-traits",
+ "simba 0.9.1",
+]
+
+[[package]]
+name = "num-dual"
+version = "0.13.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bf1a798053cf80ae959272b98688f2afb18ddef5b651a5964d41c4e2b4031c32"
 dependencies = [
  "approx",
  "nalgebra 0.34.2",
@@ -3785,6 +3733,12 @@ checksum = "8c7c9e0d9b23589f26070720bac724174bfec1083e82f7854cdd0267518343c0"
 dependencies = [
  "num-traits",
 ]
+
+[[package]]
+name = "pad-adapter"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "56d80efc4b6721e8be2a10a5df21a30fa0b470f1539e53d8b4e6e75faf938b63"
 
 [[package]]
 name = "pango"
@@ -4144,22 +4098,9 @@ dependencies = [
 
 [[package]]
 name = "projective-grid"
-version = "0.10.1"
+version = "0.14.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "393db536d6155586a7432d508733475de7786b96b50cfe825268670f66f96916"
-dependencies = [
- "delaunator",
- "kiddo",
- "nalgebra 0.34.2",
- "serde",
- "thiserror 2.0.21",
-]
-
-[[package]]
-name = "projective-grid"
-version = "0.14.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "78bad492c2363b0e9a953d6de41395c81a2b6e890ecf28d4a71777cd472f3bf0"
+checksum = "942936716fda9aa03dceccec8f2065c3cc32daebd0e9395d0d881213b8628282"
 dependencies = [
  "delaunator",
  "kiddo",
@@ -4633,15 +4574,15 @@ checksum = "47b34b781b31e5d73e9fbc8689c70551fd1ade9a19e3e28cfec8580a79290cc4"
 
 [[package]]
 name = "ringgrid"
-version = "0.11.0"
+version = "0.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f171b397b9e9b04b79568679a3c55b1390b98f95d9ab22fcf3f7cdd6272d54bb"
+checksum = "e4e3dbce1804726b1d9c512c0680088c6382c5db435639f6b304bb64a9f1761b"
 dependencies = [
  "approx",
  "image",
- "nalgebra 0.34.2",
+ "nalgebra 0.35.0",
  "png 0.18.1",
- "projective-grid 0.10.1",
+ "projective-grid",
  "radsym",
  "rand 0.10.3",
  "serde",
@@ -4692,7 +4633,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -5088,7 +5029,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c3d1e2c7f27f8d4cb10542a02c49005dbd6e93095799d6f3be745fae9f8fedd4"
 dependencies = [
  "libc",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -5174,7 +5115,17 @@ dependencies = [
  "cfg-if",
  "libc",
  "psm",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "statrs"
+version = "0.18.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2a3fe7c28c6512e766b0874335db33c94ad7b8f9054228ae1c2abd47ce7d335e"
+dependencies = [
+ "approx",
+ "num-traits",
 ]
 
 [[package]]
@@ -5634,10 +5585,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.3.4",
+ "getrandom 0.4.3",
  "once_cell",
  "rustix",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -5752,7 +5703,7 @@ dependencies = [
  "faer-ext",
  "log",
  "nalgebra 0.34.2",
- "num-dual",
+ "num-dual 0.12.1",
  "num-traits",
  "rayon",
  "simba 0.9.1",
@@ -5815,21 +5766,6 @@ dependencies = [
 
 [[package]]
 name = "toml"
-version = "0.9.12+spec-1.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cf92845e79fc2e2def6a5d828f0801e29a2f8acc037becc5ab08595c7d5e9863"
-dependencies = [
- "indexmap 2.14.2",
- "serde_core",
- "serde_spanned 1.1.1",
- "toml_datetime 0.7.5+spec-1.1.0",
- "toml_parser",
- "toml_writer",
- "winnow 0.7.15",
-]
-
-[[package]]
-name = "toml"
 version = "1.1.6+spec-1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "920602543f0911ab71da12c50d59701da54c196d1a2bf5cb4b75667f137a406a"
@@ -5850,15 +5786,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7cda73e2f1397b1262d6dfdcef8aafae14d1de7748d66822d3bfeeb6d03e5e4b"
 dependencies = [
  "serde",
-]
-
-[[package]]
-name = "toml_datetime"
-version = "0.7.5+spec-1.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "92e1cfed4a3038bc5a127e35a2d360f145e1f4b971b551a2ba5fd7aedf7e1347"
-dependencies = [
- "serde_core",
 ]
 
 [[package]]
@@ -6046,7 +5973,7 @@ dependencies = [
  "png 0.18.1",
  "serde",
  "thiserror 2.0.21",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -6179,7 +6106,7 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
 name = "vision-calibration-core"
-version = "0.9.0"
+version = "0.11.0"
 dependencies = [
  "nalgebra 0.34.2",
  "rand 0.10.3",
@@ -6189,16 +6116,17 @@ dependencies = [
 
 [[package]]
 name = "vision-calibration-dataset"
-version = "0.9.0"
+version = "0.11.0"
 dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.21",
+ "toml 1.1.6+spec-1.1.0",
 ]
 
 [[package]]
 name = "vision-calibration-detect"
-version = "0.9.0"
+version = "0.11.0"
 dependencies = [
  "calib-targets",
  "image",
@@ -6210,7 +6138,7 @@ dependencies = [
 
 [[package]]
 name = "vision-calibration-linear"
-version = "0.9.0"
+version = "0.11.0"
 dependencies = [
  "log",
  "nalgebra 0.34.2",
@@ -6222,11 +6150,13 @@ dependencies = [
 
 [[package]]
 name = "vision-calibration-optim"
-version = "0.9.0"
+version = "0.11.0"
 dependencies = [
+ "factrs",
  "faer",
  "faer-ext",
  "nalgebra 0.34.2",
+ "num-dual 0.12.1",
  "serde",
  "thiserror 2.0.21",
  "tiny-solver",
@@ -6235,7 +6165,7 @@ dependencies = [
 
 [[package]]
 name = "vision-calibration-pipeline"
-version = "0.9.0"
+version = "0.11.0"
 dependencies = [
  "glob",
  "image",
@@ -6254,7 +6184,7 @@ dependencies = [
 
 [[package]]
 name = "vision-geometry"
-version = "0.9.0"
+version = "0.11.0"
 dependencies = [
  "nalgebra 0.34.2",
  "thiserror 2.0.21",
@@ -6542,7 +6472,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -6563,7 +6493,7 @@ dependencies = [
  "objc2-foundation",
  "objc2-quartz-core",
  "raw-window-handle",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
  "windows-version",
 ]
 
@@ -6931,12 +6861,6 @@ checksum = "f593a95398737aeed53e489c785df13f3618e41dbcd6718c6addbf1395aa6876"
 dependencies = [
  "memchr",
 ]
-
-[[package]]
-name = "winnow"
-version = "0.7.15"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "df79d97927682d2fd8adb29682d1140b343be4ac0f08fd68b7765d9c059d3945"
 
 [[package]]
 name = "winnow"

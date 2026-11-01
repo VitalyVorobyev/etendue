@@ -16,8 +16,8 @@ use proptest::collection::vec;
 use proptest::prelude::*;
 use serde::{Serialize, de::DeserializeOwned};
 use vision_calibration_core::{
-    BrownConrady5, CameraParams, DistortionParams, FxFyCxCySkew, IntrinsicsParams,
-    ProjectionParams, ScheimpflugParams, SensorParams,
+    BrownConrady5, CameraParams, DistortionParams, FxFyCxCy, ProjectionParams, ScheimpflugParams,
+    SensorParams,
 };
 
 fn roundtrip<T: Serialize + DeserializeOwned>(value: &T) {
@@ -105,14 +105,11 @@ fn camera_params() -> impl Strategy<Value = CameraParams> {
             projection: ProjectionParams::Pinhole,
             distortion,
             sensor,
-            intrinsics: IntrinsicsParams::FxFyCxCySkew {
-                params: FxFyCxCySkew {
-                    fx: k[0],
-                    fy: k[1],
-                    cx: k[2],
-                    cy: k[3],
-                    skew: k[4],
-                },
+            intrinsics: FxFyCxCy {
+                fx: k[0],
+                fy: k[1],
+                cx: k[2],
+                cy: k[3],
             },
         }
     })

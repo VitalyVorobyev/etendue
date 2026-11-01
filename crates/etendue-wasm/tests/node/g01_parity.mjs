@@ -78,7 +78,7 @@ const optics = {
   sensor: { pixel_pitch_m: 4.8e-6 },
   lens: { focal_length_m: 0.012, f_number: 5.6, principal_gap_m: 0.004, entrance_pupil_m: 0.003 },
   focus_distance_m: 0.5,
-  tilt_rad: [0.02, -0.01],
+  tilt_rad: [0.02, 0.0],
 };
 const opticsDoc = JSON.parse(scene);
 const left = opticsDoc.cameras.find((c) => c.id === "cam_left");

@@ -108,7 +108,7 @@ export function toDesign(h: Head): HeadDesign {
     projection: { type: "pinhole" as const },
     distortion: { type: "none" as const },
     sensor: { type: "identity" as const },
-    intrinsics: { type: "fx_fy_cx_cy_skew" as const, fx: 1, fy: 1, cx: w / 2, cy: hgt / 2, skew: 0 },
+    intrinsics: { fx: 1, fy: 1, cx: w / 2, cy: hgt / 2 },
   };
   const { params } = deriveOptics(optics, asBuilt);
   const [near, far] = windowRange(h);

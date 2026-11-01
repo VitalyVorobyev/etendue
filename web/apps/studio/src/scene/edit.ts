@@ -183,7 +183,7 @@ export function newEntity(scene: SceneSpec, list: EntityList, parent: string, de
           projection: { type: "pinhole" },
           distortion: { type: "none" },
           sensor: { type: "identity" },
-          intrinsics: { type: "fx_fy_cx_cy_skew", fx: 2400, fy: 2400, cx: 640, cy: 512, skew: 0 },
+          intrinsics: { fx: 2400, fy: 2400, cx: 640, cy: 512 },
         },
         resolution: [1280, 1024],
       };

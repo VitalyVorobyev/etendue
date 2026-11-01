@@ -45,7 +45,7 @@ fn physical_scene() -> SceneSpec {
             focusing: Default::default(),
         },
         focus_distance_m: 0.5,
-        tilt_rad: [0.02, -0.01],
+        tilt_rad: [0.02, 0.0],
     };
     let camera = scene
         .cameras

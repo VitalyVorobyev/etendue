@@ -11,11 +11,11 @@ use std::collections::BTreeMap;
 
 use etendue_scene::{CameraSpec, Issue, OpticsSpec, SceneSpec, ValidationError};
 use nalgebra::Isometry3;
-use vision_calibration_core::{CameraParams, IntrinsicsParams, SensorParams};
+use vision_calibration_core::{CameraParams, SensorParams};
 
 use crate::optics::camera::{Lens, PhysicalCamera};
 
-/// How far (relative) a camera's stored focal lengths and skew may be from the ones its optics
+/// How far (relative) a camera's stored focal lengths may be from the ones its optics
 /// give, and (in radians) its stored sensor tilt from the derived one.
 pub const DERIVED_TOLERANCE: f64 = 1e-9;
 
@@ -66,15 +66,12 @@ fn close(a: f64, b: f64, tolerance: f64) -> bool {
 /// The ways stored `params` differ from the `derived` ones, as `(field, stored, derived)`.
 fn mismatches(stored: &CameraParams, derived: &CameraParams) -> Vec<(&'static str, f64, f64)> {
     let mut out = Vec::new();
-    let IntrinsicsParams::FxFyCxCySkew { params: s } = &stored.intrinsics;
-    let IntrinsicsParams::FxFyCxCySkew { params: d } = &derived.intrinsics;
+    let s = &stored.intrinsics;
+    let d = &derived.intrinsics;
     for (field, a, b) in [("fx", s.fx, d.fx), ("fy", s.fy, d.fy)] {
         if !close(a, b, DERIVED_TOLERANCE * b.abs()) {
             out.push((field, a, b));
         }
-    }
-    if !close(s.skew, d.skew, DERIVED_TOLERANCE * d.fx.abs()) {
-        out.push(("skew", s.skew, d.skew));
     }
     let tilt = |p: &CameraParams| match &p.sensor {
         SensorParams::Scheimpflug { params } => Some((params.tilt_x, params.tilt_y)),
@@ -129,7 +126,7 @@ fn check_camera(
 
 /// The problems with a camera design (or a scene camera) whose `params` must hold what its
 /// `optics` derive, reported under `path`: optics that are not physical, or stored focal
-/// lengths, skew or tilt beyond [`DERIVED_TOLERANCE`].
+/// lengths or tilt beyond [`DERIVED_TOLERANCE`].
 #[must_use]
 pub fn check_derived(optics: &OpticsSpec, params: &CameraParams, path: &str) -> Vec<Issue> {
     let mut issues = Vec::new();

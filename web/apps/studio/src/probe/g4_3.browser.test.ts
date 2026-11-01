@@ -1,7 +1,7 @@
 /**
  * Gate G4.3, cross-backend agreement (docs/pivot/PLAN.md P4-4): the same board, camera and
  * frames rendered by Blender (`etendue measure g4-2`) and by the web `SensorView`, run
- * through the same detector (chess-corners 1.2.0: the Rust crate there, its wasm build
+ * through the same detector (chess-corners 2.1: the Rust crate there, its wasm build
  * `@vitavision/chess-corners` here), must give corners that differ by ≤ 0.05 px RMS.
  *
  * The scene comes from the Blender run's `target/g4_2/detections.json` (poses, camera,
@@ -10,15 +10,7 @@
  */
 
 import init, { type CameraParams, EtendueScene } from "@etendue/wasm";
-import initDetector, {
-  CenterOfMassConfig,
-  ChessDetector,
-  ChessRefiner,
-  DetectorConfig,
-  ForstnerConfig,
-  PeakFitMode,
-  SaddlePointConfig,
-} from "@vitavision/chess-corners";
+import initDetector, { ChessDetector, DetectorConfig, ImageRefiner, PeakFitMode } from "@vitavision/chess-corners";
 import { SensorView, matrixFromIso3 } from "@vitavision/three";
 import {
   DoubleSide,
@@ -65,8 +57,11 @@ const data = text === undefined ? undefined : (JSON.parse(text) as Detections);
 
 const SUPERSAMPLE = 4;
 const GATE_PX = 0.05;
-/** The detector setups of `etendue measure g4-2`: ChESS with each refiner, Radon with each peak fit. */
-const SETUPS = ["center_of_mass", "forstner", "saddle_point", "radon", "radon_parabolic"] as const;
+/**
+ * The detector setups of `etendue measure g4-2`: ChESS with its center of mass and with the
+ * saddle-point image refiner, Radon with each peak fit.
+ */
+const SETUPS = ["center_of_mass", "saddle_point", "radon", "radon_parabolic"] as const;
 
 /** Unlit constant radiance: what the Blender scene gives each surface under its white sky. */
 const radiance = (value: number) =>
@@ -83,17 +78,15 @@ function detector(setup: (typeof SETUPS)[number], threshold: number): ChessDetec
       return ChessDetector.withConfig(DetectorConfig.radon());
     case "radon_parabolic":
       return ChessDetector.withConfig(DetectorConfig.radon().withRadon({ peakFit: PeakFitMode.Parabolic }));
-    case "forstner":
-      return chess(ChessRefiner.withForstner(new ForstnerConfig()), threshold);
     case "saddle_point":
-      return chess(ChessRefiner.withSaddlePoint(new SaddlePointConfig()), threshold);
+      return ChessDetector.withConfig(chess(threshold).withRefiner(ImageRefiner.saddlePoint()));
     case "center_of_mass":
-      return chess(ChessRefiner.withCenterOfMass(new CenterOfMassConfig()), threshold);
+      return ChessDetector.withConfig(chess(threshold));
   }
 }
 
-function chess(refiner: ChessRefiner, threshold: number): ChessDetector {
-  return ChessDetector.withConfig(DetectorConfig.chess().withThreshold(threshold).withChessRefiner(refiner));
+function chess(threshold: number): DetectorConfig {
+  return DetectorConfig.chess().withThreshold(threshold);
 }
 
 describe("G4.3 cross-backend agreement (web SensorView vs Blender)", () => {

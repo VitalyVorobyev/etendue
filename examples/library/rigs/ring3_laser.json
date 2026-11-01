@@ -28,12 +28,10 @@
             "type": "identity"
           },
           "intrinsics": {
-            "type": "fx_fy_cx_cy_skew",
             "fx": 2318.8,
             "fy": 2318.8,
             "cx": 640,
-            "cy": 512,
-            "skew": 0
+            "cy": 512
           }
         },
         "resolution": [

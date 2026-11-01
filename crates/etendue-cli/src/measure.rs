@@ -17,8 +17,8 @@ use etendue_synth::job::{
 use etendue_synth::{CanonicalCamera, CanonicalSpec, PixelCentre, remap_lut};
 use nalgebra::{Isometry3, Point2};
 use vision_calibration_core::{
-    BrownConrady5, CameraParams, DistortionParams, FxFyCxCySkew, IntrinsicsParams,
-    ProjectionParams, ScheimpflugParams, SensorParams,
+    BrownConrady5, CameraParams, DistortionParams, FxFyCxCy, ProjectionParams, ScheimpflugParams,
+    SensorParams,
 };
 
 use etendue_cli::Loaded;
@@ -42,20 +42,12 @@ const RADIUS_M: f64 = 0.001;
 const WINDOW_PX: i64 = 10;
 const GATE_PX: f64 = 0.01;
 
-fn intrinsics(fx: f64, fy: f64, cx: f64, cy: f64, skew: f64) -> IntrinsicsParams {
-    IntrinsicsParams::FxFyCxCySkew {
-        params: FxFyCxCySkew {
-            fx,
-            fy,
-            cx,
-            cy,
-            skew,
-        },
-    }
+fn intrinsics(fx: f64, fy: f64, cx: f64, cy: f64) -> FxFyCxCy<f64> {
+    FxFyCxCy { fx, fy, cx, cy }
 }
 
 /// The probe cameras: the examples' distorted camera, and an off-centre,
-/// skewed, tilted one that exercises every LUT stage.
+/// tilted one that exercises every LUT stage.
 fn cameras() -> Vec<(&'static str, CameraParams)> {
     vec![
         (
@@ -73,11 +65,11 @@ fn cameras() -> Vec<(&'static str, CameraParams)> {
                     },
                 },
                 sensor: SensorParams::Identity,
-                intrinsics: intrinsics(2318.8, 2318.8, 640.0, 512.0, 0.0),
+                intrinsics: intrinsics(2318.8, 2318.8, 640.0, 512.0),
             },
         ),
         (
-            "offcentre_skew_tilt",
+            "offcentre_tilt",
             CameraParams {
                 projection: ProjectionParams::Pinhole,
                 distortion: DistortionParams::BrownConrady5 {
@@ -96,7 +88,7 @@ fn cameras() -> Vec<(&'static str, CameraParams)> {
                         tilt_y: -1f64.to_radians(),
                     },
                 },
-                intrinsics: intrinsics(2300.0, 2296.0, 612.3, 541.7, 0.6),
+                intrinsics: intrinsics(2300.0, 2296.0, 612.3, 541.7),
             },
         ),
     ]
@@ -112,7 +104,7 @@ fn spheres(params: &CameraParams) -> Result<Vec<[f64; 3]>> {
         for c in 0..7 {
             let u = 90.0 + (w - 180.0) * f64::from(c) / 6.0 + 0.37;
             let v = 90.0 + (h - 180.0) * f64::from(r) / 4.0 + 0.21;
-            let ray = model.backproject_pixel(&Point2::new(u, v)).point;
+            let ray = model.backproject_pixel(&Point2::new(u, v)).direction;
             let p = ray * (DEPTH_M / ray.z);
             out.push([p.x, p.y, p.z]);
         }

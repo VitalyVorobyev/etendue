@@ -29,6 +29,8 @@ use serde_json::{Value, json};
 use vision_calibration_core::{
     CorrespondenceView, Pt2, Pt3, RigDataset, RigView, RigViewObs, SensorParams, View,
 };
+use vision_calibration_pipeline::common::RobotPoseMeta;
+use vision_calibration_pipeline::laserline_device::DeviceManualInit;
 use vision_calibration_pipeline::session::CalibrationSession;
 use vision_calibration_pipeline::{
     laserline_device, rig_handeye, rig_handeye_laserline, single_cam_handeye,
@@ -582,7 +584,7 @@ fn nominal_seed(cameras: &[&GtCamera]) -> Value {
             .round_ties_even()
             * 100.0;
         let [w, h] = c.resolution.map(f64::from);
-        intrinsics.push(json!({"fx": f, "fy": f, "cx": w / 2.0, "cy": h / 2.0, "skew": 0.0}));
+        intrinsics.push(json!({"fx": f, "fy": f, "cx": w / 2.0, "cy": h / 2.0}));
         let tilt = match c.params.sensor {
             SensorParams::Scheimpflug { params } => params.tilt_x,
             _ => 0.0,
@@ -594,10 +596,17 @@ fn nominal_seed(cameras: &[&GtCamera]) -> Value {
     json!({"per_cam_intrinsics": intrinsics, "per_cam_distortion": null, "per_cam_sensors": sensors})
 }
 
-fn camera_of(v: &Value, id: &str, cam_se3_ref: Isometry3<f64>, tilt: [f64; 2]) -> EstimatedCamera {
+/// An estimated camera from an export's `CameraParams` JSON (its tilt from `sensor`, zero for an
+/// untilted one).
+fn camera_of(v: &Value, id: &str, cam_se3_ref: Isometry3<f64>) -> EstimatedCamera {
     let n = |x: &Value| x.as_f64().unwrap_or(f64::NAN);
-    let k = &v["k"];
-    let d = &v["dist"];
+    let k = &v["intrinsics"];
+    let d = &v["distortion"];
+    let s = &v["sensor"];
+    let tilt = [
+        s["tilt_x"].as_f64().unwrap_or(0.0),
+        s["tilt_y"].as_f64().unwrap_or(0.0),
+    ];
     EstimatedCamera {
         id: id.to_owned(),
         intrinsics: [n(&k["fx"]), n(&k["fy"]), n(&k["cx"]), n(&k["cy"])],
@@ -637,7 +646,7 @@ fn residuals(export: &Value, cameras: usize) -> Residuals {
     let mut errors = Vec::new();
     let mut sq = 0.0;
     let mut per_camera = vec![(0.0, 0usize); cameras];
-    for r in export["per_feature_residuals"]["target"]
+    for r in export["diagnostics"]["per_feature_residuals"]["target"]
         .as_array()
         .into_iter()
         .flatten()
@@ -736,7 +745,7 @@ fn run_single(
             points += v.len();
             views.push(View::new(
                 v,
-                single_cam_handeye::HandeyeMeta {
+                RobotPoseMeta {
                     base_se3_gripper: *pose,
                 },
             ));
@@ -908,7 +917,6 @@ fn single(
         &export["camera"],
         &truth.gt.cameras[i].id,
         Isometry3::identity(),
-        [0.0, 0.0],
     );
     let (he, target) = if eye_in_hand {
         (
@@ -953,7 +961,7 @@ fn single(
 
 /// The rig rows shared by the rig workflows: per camera intrinsics, `cam_se3_rig`, `extra`; then
 /// hand-eye and target.
-fn rig_estimate(truth: &Truth, export: &Value, tilts: &[[f64; 2]]) -> Result<Vec<EstimatedCamera>> {
+fn rig_estimate(truth: &Truth, export: &Value) -> Result<Vec<EstimatedCamera>> {
     let cams = export["cameras"].as_array().context("export cameras")?;
     let rigs = export["cam_se3_rig"]
         .as_array()
@@ -970,7 +978,6 @@ fn rig_estimate(truth: &Truth, export: &Value, tilts: &[[f64; 2]]) -> Result<Vec
                 rigs.get(i)
                     .and_then(iso)
                     .unwrap_or_else(Isometry3::identity),
-                tilts.get(i).copied().unwrap_or([0.0, 0.0]),
             )
         })
         .collect())
@@ -1037,7 +1044,7 @@ fn rig(
                 .sum::<usize>();
             views.push(RigView {
                 obs: RigViewObs { cameras: cams },
-                meta: rig_handeye_laserline::RobotPoseMeta {
+                meta: RobotPoseMeta {
                     base_se3_gripper: *pose,
                 },
             });
@@ -1051,7 +1058,7 @@ fn rig(
     )?)?;
     rig_handeye::run_calibration(&mut session)?;
     let export = serde_json::to_value(session.export()?)?;
-    let cameras = rig_estimate(truth, &export, &[])?;
+    let cameras = rig_estimate(truth, &export)?;
     let (rows, (he, target)) = rig_rows(truth, &export, &cameras, eye_in_hand, |_| vec![])?;
     let all: Vec<usize> = (0..n).collect();
     let estimate = Estimate {
@@ -1118,8 +1125,8 @@ fn rig_laser(
             &mut patch,
             &json!({"handeye": {
                 "manual_init": nominal_seed(&cams),
-                "sensor": scheimpflug_mode(),
-                "rig": {"refine_intrinsics_in_rig_ba": true},
+                "camera": scheimpflug_camera(),
+                "rig": {"refine_intrinsics": true, "refine_sensor": true},
             }}),
         );
     }
@@ -1129,20 +1136,7 @@ fn rig_laser(
     session.set_config(config(&patch)?)?;
     rig_handeye_laserline::run_calibration(&mut session)?;
     let export = serde_json::to_value(session.export()?)?;
-    let tilts: Vec<[f64; 2]> = export["sensors"]
-        .as_array()
-        .map(|s| {
-            s.iter()
-                .map(|t| {
-                    [
-                        t["tilt_x"].as_f64().unwrap_or(0.0),
-                        t["tilt_y"].as_f64().unwrap_or(0.0),
-                    ]
-                })
-                .collect()
-        })
-        .unwrap_or_default();
-    let cameras = rig_estimate(truth, &export, &tilts)?;
+    let cameras = rig_estimate(truth, &export)?;
     let planes: Vec<Option<Plane>> = (0..n)
         .map(|i| export["laser_planes_cam"].get(i).and_then(plane_of))
         .collect();
@@ -1180,8 +1174,10 @@ fn rig_laser(
     ))
 }
 
-fn scheimpflug_mode() -> Value {
-    json!({"kind": "Scheimpflug", "refine_scheimpflug_in_rig_ba": true})
+/// The camera config of a Scheimpflug camera: the tilted sensor is part of the model, and the
+/// model's default fix lists apply (calibration-rs 0.10).
+fn scheimpflug_camera() -> Value {
+    json!({"model": {"sensor": "scheimpflug"}})
 }
 
 /// One camera carrying its laser: the laserline device workflow for intrinsics, tilt and plane,
@@ -1207,35 +1203,32 @@ fn head(
     let count = views.len();
     let input: laserline_device::LaserlineDeviceInput =
         serde_json::from_value(Value::Array(views)).context("laserline device input")?;
-    let tilt = match truth.gt.cameras[0].params.sensor {
-        SensorParams::Scheimpflug { params } => {
-            params.tilt_x.to_degrees().round_ties_even().to_radians()
-        }
-        _ => 0.0,
-    };
+    let tilted = truth.scheimpflug(&[0]);
+    let mut patch = json!({
+        // No target pose is held: a single camera has no gauge to fix, and the linear
+        // estimate of any one pose is not exact.
+        "optimize": {"fix_poses": []},
+        "solver": {"max_iters": 200},
+    });
+    if tilted {
+        merge(&mut patch, &json!({"camera": scheimpflug_camera()}));
+    }
     let mut session = CalibrationSession::<laserline_device::LaserlineDeviceProblem>::new();
     session.set_input(input)?;
-    laserline_device::run_calibration(
-        &mut session,
-        Some(config(&json!({
-            "sensor_init": {"tilt_x": tilt, "tilt_y": 0.0},
-            // The workflow's default fixes the first target pose at its linear estimate; a
-            // single camera has no gauge to fix, and that pose is not exact.
-            "optimize": {"fix_poses": []},
-            "solver": {"max_iters": 200},
-        }))?),
-    )?;
+    session.set_config(config(&patch)?)?;
+    // The tilt a user would enter from the datasheet: about x, rounded to a whole degree.
+    let mut seed = DeviceManualInit::default();
+    if let SensorParams::Scheimpflug { params } = truth.gt.cameras[0].params.sensor {
+        seed.sensor = serde_json::from_value(json!({
+            "tilt_x": params.tilt_x.to_degrees().round_ties_even().to_radians(),
+            "tilt_y": 0.0,
+        }))?;
+    }
+    laserline_device::step_init_with_seed(&mut session, seed, None)?;
+    laserline_device::step_optimize(&mut session, None)?;
     let device = serde_json::to_value(session.export()?)?;
-    let p = &device["estimate"]["params"];
-    let mut camera = camera_of(
-        &json!({"k": p["intrinsics"], "dist": p["distortion"]}),
-        &truth.gt.cameras[0].id,
-        Isometry3::identity(),
-        [
-            p["sensor"]["tilt_x"].as_f64().unwrap_or(0.0),
-            p["sensor"]["tilt_y"].as_f64().unwrap_or(0.0),
-        ],
-    );
+    let p = &device["params"];
+    let mut camera = camera_of(&p["camera"], &truth.gt.cameras[0].id, Isometry3::identity());
     let plane = plane_of(&p["plane"]);
     let mut rows = vec![Row::new(
         "mean reprojection px",
@@ -1243,7 +1236,7 @@ fn head(
         Some(gate::MEAN_REPROJ_PX),
     )];
     rows.extend(intrinsics_rows(&camera, &truth.gt.cameras[0])?);
-    if truth.scheimpflug(&[0]) {
+    if tilted {
         rows.extend(tilt_rows(&camera, &truth.gt.cameras[0]));
     }
     if let (Some(e), Some(t)) = (&plane, truth.plane(0)) {

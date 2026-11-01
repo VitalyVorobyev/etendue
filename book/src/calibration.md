@@ -152,10 +152,11 @@ The verdict line names what was checked: `closed-loop check (target)` for camera
 **Closed-loop check: PASS** or **FAIL**. In the report file the check keeps its development id
 (`"gate": "G5.1"` or `"G5.3"`; see the [Glossary](glossary.md#gate)).
 
-**Known limitation.** The `laser_scheimpflug_ur5e` example does not pass on exact data: with
-tilted sensors, the tilt and the principal point trade off against each other, and calibration-rs
-settles a few hundredths of a degree from the truth (laser normal 0.024°, hand-eye 0.034°).
-Treat Scheimpflug laser rigs with care.
+**Scheimpflug laser rigs.** With tilted sensors the tilt and the principal point trade off
+against each other, so these rigs are seeded from datasheet values (focal length, a whole-degree
+tilt). The `laser_scheimpflug_ur5e` example passes on exact data (laser normal under 2e-7°,
+hand-eye 1e-7°). Under noise the trade-off remains: expect larger tilt and principal-point
+errors than on an untilted rig.
 
 ### With noise
 

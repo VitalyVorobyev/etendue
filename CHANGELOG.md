@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **calibration-rs 0.11.0** (was 0.9.0), **calib-targets 0.16.1** (was 0.15.5) and
+  **chess-corners 2.1** (was 1.2). The Python cross-check uses the `vision-calibration` 0.11.0
+  wheel.
+- Camera intrinsics are `{fx, fy, cx, cy}`: calibration-rs dropped skew and the
+  `"type": "fx_fy_cx_cy_skew"` tag. Older scenes still load (the extra keys are ignored); the
+  examples, the library and the schemas use the new shape.
+- `etendue calibrate` uses calibration-rs 0.11's workflow defaults. Rigs now refine intrinsics in
+  the rig and hand-eye bundle adjustments, and robot-pose refinement and the laserline losses
+  follow the new defaults. The Scheimpflug laser example (`laser_scheimpflug_ur5e`) now passes
+  the closed-loop check on exact data.
+- The corner-bias study (`etendue measure g4-2`) no longer has a Förstner setup: chess-corners 2
+  removed that refiner.
+
+### Removed
+
+- A physical camera whose sensor tilts about both axes behind a lens with its entrance pupil off
+  the principal plane (pupil magnification ≠ 1) is refused. Its equivalent pinhole needs a skew,
+  which calibration-rs no longer models. One-axis tilts, and any tilt with the pupil at the
+  principal plane, are unchanged.
+
 ## [0.2.0] - 2026-10-20
 
 etendue is now a tool for designing robot–camera–laser calibration cells and generating synthetic

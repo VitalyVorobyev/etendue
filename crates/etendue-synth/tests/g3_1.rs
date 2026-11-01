@@ -19,7 +19,7 @@ const GATE_PX: f64 = 1e-6;
 const SAMPLES: usize = 10_000;
 
 fn round_trip(model: &CameraModel, u: Point2<f64>) -> f64 {
-    let ray = model.backproject_pixel(&u).point;
+    let ray = model.backproject_pixel(&u).direction;
     let back = model
         .project_point_c(&ray)
         .expect("a back-projected ray images");
@@ -95,7 +95,7 @@ fn g3_1_lut_maps_back_to_the_target_pixel() {
                     u >= -0.5 && u <= cw - 0.5 && v >= -0.5 && v <= ch - 0.5,
                     "{name}: ({u}, {v}) outside the canonical image"
                 );
-                let ray = render.backproject_pixel(&Point2::new(u, v)).point;
+                let ray = render.backproject_pixel(&Point2::new(u, v)).direction;
                 let back = target.project_point_c(&ray).unwrap();
                 worst = worst.max((back - Point2::new(f64::from(i), f64::from(j))).norm());
             }

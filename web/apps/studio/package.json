@@ -22,10 +22,10 @@
     "@react-three/fiber": "9.8.1",
     "@tauri-apps/api": "^2.11.1",
     "@vitavision/charts": "^0.8.1",
-    "@vitavision/stage2d": "^0.13.0",
+    "@vitavision/stage2d": "^0.14.0",
     "@vitavision/three": "^0.2.0",
     "@vitavision/three-react": "^0.2.0",
-    "@vitavision/ui": "^0.12.0",
+    "@vitavision/ui": "^0.14.0",
     "@vitavision/workbench": "^0.3.0",
     "lucide-react": "^1.48.0",
     "react": "^19.3.0",
@@ -37,6 +37,6 @@
     "@tauri-apps/cli": "^2.11.5",
     "@types/node": "^26.6.3",
     "@types/three": "0.186.0",
-    "@vitavision/chess-corners": "1.2.0"
+    "@vitavision/chess-corners": "2.1.0"
   }
 }

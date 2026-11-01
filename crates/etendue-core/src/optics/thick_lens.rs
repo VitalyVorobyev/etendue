@@ -317,7 +317,7 @@ mod tests {
     use super::*;
     use approx::assert_relative_eq;
     use vision_calibration_core::{
-        DistortionParams, FxFyCxCySkew, IntrinsicsParams, ProjectionParams, ScheimpflugParams,
+        DistortionParams, FxFyCxCy, ProjectionParams, ScheimpflugParams,
     };
 
     // The same realistic machine-vision lens used in `coc.rs`'s tests:
@@ -340,14 +340,11 @@ mod tests {
                     tilt_y: tau_y,
                 },
             },
-            intrinsics: IntrinsicsParams::FxFyCxCySkew {
-                params: FxFyCxCySkew {
-                    fx,
-                    fy: fx,
-                    cx: 640.0,
-                    cy: 512.0,
-                    skew: 0.0,
-                },
+            intrinsics: FxFyCxCy {
+                fx,
+                fy: fx,
+                cx: 640.0,
+                cy: 512.0,
             },
         }
     }

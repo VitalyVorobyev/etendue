@@ -271,32 +271,7 @@ export interface CameraParams {
         lambda: number;
         type: "division";
       };
-  /**
-   * Intrinsics model parameters.
-   */
-  intrinsics: {
-    /**
-     * Principal point X coordinate in pixels.
-     */
-    cx: number;
-    /**
-     * Principal point Y coordinate in pixels.
-     */
-    cy: number;
-    /**
-     * Focal length in pixels along X.
-     */
-    fx: number;
-    /**
-     * Focal length in pixels along Y.
-     */
-    fy: number;
-    /**
-     * Skew term (typically 0).
-     */
-    skew: number;
-    type: "fx_fy_cx_cy_skew";
-  };
+  intrinsics: FxFyCxCy;
   /**
    * Projection model parameters.
    */
@@ -331,6 +306,27 @@ export interface CameraParams {
         tilt_y: number;
         type: "scheimpflug";
       };
+}
+/**
+ * Pinhole intrinsics (`fx, fy, cx, cy` in pixels).
+ */
+export interface FxFyCxCy {
+  /**
+   * Principal point X coordinate in pixels.
+   */
+  cx: number;
+  /**
+   * Principal point Y coordinate in pixels.
+   */
+  cy: number;
+  /**
+   * Focal length in pixels along X.
+   */
+  fx: number;
+  /**
+   * Focal length in pixels along Y.
+   */
+  fy: number;
 }
 /**
  * Pose of the camera in its parent (maps camera → parent).
@@ -654,12 +650,14 @@ export interface TargetSpec {
         board:
           | {
               /**
-               * Number of interior corners along the cols axis.
+               * Number of interior corners across the board (the image's
+               * columns axis when the board is seen as declared).
                */
               cols: number;
               kind: "chessboard";
               /**
-               * Number of interior corners along the rows axis.
+               * Number of interior corners down the board (the image's rows
+               * axis when the board is seen as declared).
                */
               rows: number;
               /**
@@ -699,7 +697,8 @@ export interface TargetSpec {
               cell_size_m: number;
               kind: "puzzleboard";
               /**
-               * Named layout (e.g. `"puzzle_130x130"`).
+               * Board dimensions as `puzzle_<rows>x<cols>` (e.g.
+               * `"puzzle_12x12"`; the `puzzle_` prefix is optional).
                */
               layout: string;
             }

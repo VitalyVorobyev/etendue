@@ -15,7 +15,7 @@
 //! delivers it) and sRGB-encoded (as `etendue render` writes by default).
 
 use anyhow::{Context, Result, anyhow};
-use chess_corners::{ChessRefiner, CornerDescriptor, Detector, DetectorConfig, PeakFitMode};
+use chess_corners::{CornerDescriptor, Detector, DetectorConfig, ImageRefiner, PeakFitMode};
 use etendue_synth::gt::{VisibilitySpec, project_points};
 use etendue_synth::images::{LinearImage, read_exr_combined, remap_image_box, srgb_encode};
 use etendue_synth::job::{
@@ -25,8 +25,7 @@ use etendue_synth::job::{
 use etendue_synth::{CanonicalCamera, CanonicalSpec, remap_lut};
 use nalgebra::{Isometry3, Translation3, UnitQuaternion, Vector3};
 use vision_calibration_core::{
-    BrownConrady5, CameraParams, DistortionParams, FxFyCxCySkew, IntrinsicsParams,
-    ProjectionParams, SensorParams,
+    BrownConrady5, CameraParams, DistortionParams, FxFyCxCy, ProjectionParams, SensorParams,
 };
 
 use crate::measure::ProbeArgs;
@@ -77,14 +76,11 @@ fn camera() -> CameraParams {
             },
         },
         sensor: SensorParams::Identity,
-        intrinsics: IntrinsicsParams::FxFyCxCySkew {
-            params: FxFyCxCySkew {
-                fx: 2318.8,
-                fy: 2318.8,
-                cx: 640.0,
-                cy: 512.0,
-                skew: 0.0,
-            },
+        intrinsics: FxFyCxCy {
+            fx: 2318.8,
+            fy: 2318.8,
+            cx: 640.0,
+            cy: 512.0,
         },
     }
 }
@@ -192,21 +188,20 @@ fn score(truth: &[[f64; 2]], found: &[CornerDescriptor], stats: &mut Stats) {
     }
 }
 
-/// The detector setups: ChESS with each of its refiners, and the Radon
-/// detector (Duda & Frese) with each of its peak fits.
+/// The detector setups: ChESS with its center of mass and with the saddle-point
+/// image refiner, and the Radon detector (Duda & Frese) with each of its peak
+/// fits. (chess-corners 2 dropped the Förstner refiner.)
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Setup {
     CenterOfMass,
-    Forstner,
     SaddlePoint,
     Radon,
     RadonParabolic,
 }
 
 impl Setup {
-    const ALL: [Self; 5] = [
+    const ALL: [Self; 4] = [
         Self::CenterOfMass,
-        Self::Forstner,
         Self::SaddlePoint,
         Self::Radon,
         Self::RadonParabolic,
@@ -216,7 +211,6 @@ impl Setup {
     fn name(self) -> &'static str {
         match self {
             Self::CenterOfMass => "center_of_mass",
-            Self::Forstner => "forstner",
             Self::SaddlePoint => "saddle_point",
             Self::Radon => "radon",
             Self::RadonParabolic => "radon_parabolic",
@@ -224,15 +218,10 @@ impl Setup {
     }
 
     fn detector(self) -> Result<Detector> {
-        let chess = |refiner: ChessRefiner| {
-            DetectorConfig::chess()
-                .with_threshold(CHESS_THRESHOLD)
-                .with_chess(|c| c.refiner = refiner)
-        };
+        let chess = || DetectorConfig::chess().with_threshold(CHESS_THRESHOLD);
         let config = match self {
-            Self::CenterOfMass => chess(ChessRefiner::center_of_mass()),
-            Self::Forstner => chess(ChessRefiner::forstner()),
-            Self::SaddlePoint => chess(ChessRefiner::saddle_point()),
+            Self::CenterOfMass => chess(),
+            Self::SaddlePoint => chess().with_refiner(ImageRefiner::saddle_point()),
             // Radon's threshold is relative to the frame's peak response: keep
             // the preset's.
             Self::Radon => DetectorConfig::radon(),
@@ -391,8 +380,9 @@ fn analytic_images(
                                         i as f64 + off - 0.5 + (f64::from(a) + 0.5) / f64::from(n);
                                     let v =
                                         j as f64 + off - 0.5 + (f64::from(b) + 0.5) / f64::from(n);
-                                    let ray =
-                                        model.backproject_pixel(&nalgebra::Point2::new(u, v)).point;
+                                    let ray = model
+                                        .backproject_pixel(&nalgebra::Point2::new(u, v))
+                                        .direction;
                                     let d = ray;
                                     for (k, iso) in inv.iter().enumerate() {
                                         // Ray and origin in the target frame; hit z = 0.

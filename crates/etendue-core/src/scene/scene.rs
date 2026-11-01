@@ -12,8 +12,7 @@
 use nalgebra::{Isometry3, Point3, Rotation3, Translation3, UnitQuaternion, Vector3};
 use serde::{Deserialize, Serialize};
 use vision_calibration_core::{
-    CameraParams, DistortionParams, FxFyCxCySkew, IntrinsicsParams, ProjectionParams,
-    ScheimpflugParams, SensorParams,
+    CameraParams, DistortionParams, FxFyCxCy, ProjectionParams, ScheimpflugParams, SensorParams,
 };
 
 use super::entity::{CameraEntity, LaserEntity, MeshTarget, PhysicalOptics, TargetEntity};
@@ -174,15 +173,12 @@ impl Scene {
                     tilt_y: 0.0,
                 },
             },
-            intrinsics: IntrinsicsParams::FxFyCxCySkew {
-                params: FxFyCxCySkew {
-                    // Overwritten by `CameraEntity::new` from focal/pitch.
-                    fx: 0.0,
-                    fy: 0.0,
-                    cx: 640.0,
-                    cy: 512.0,
-                    skew: 0.0,
-                },
+            intrinsics: FxFyCxCy {
+                // Overwritten by `CameraEntity::new` from focal/pitch.
+                fx: 0.0,
+                fy: 0.0,
+                cx: 640.0,
+                cy: 512.0,
             },
         };
         // The drawn frustum brackets the target standoff (~0.617 m) so the

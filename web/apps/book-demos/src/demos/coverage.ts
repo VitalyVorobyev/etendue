@@ -36,7 +36,7 @@ export function layoutOf(r: Ring): RigLayout {
     projection: { type: "pinhole" },
     distortion: { type: "none" },
     sensor: { type: "identity" },
-    intrinsics: { type: "fx_fy_cx_cy_skew", fx: 1, fy: 1, cx: RES[0] / 2, cy: RES[1] / 2, skew: 0 },
+    intrinsics: { fx: 1, fy: 1, cx: RES[0] / 2, cy: RES[1] / 2 },
   });
   return {
     count: r.count,

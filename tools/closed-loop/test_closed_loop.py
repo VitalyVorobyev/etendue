@@ -100,5 +100,5 @@ class Laser(unittest.TestCase):
             },
         }
         seed = nominal_seed([camera])
-        self.assertEqual(seed["per_cam_intrinsics"][0], {"fx": 2300.0, "fy": 2300.0, "cx": 640.0, "cy": 512.0, "skew": 0.0})
+        self.assertEqual(seed["per_cam_intrinsics"][0], {"fx": 2300.0, "fy": 2300.0, "cx": 640.0, "cy": 512.0})
         self.assertEqual(seed["per_cam_sensors"][0], {"tilt_x": math.radians(3), "tilt_y": 0.0})
