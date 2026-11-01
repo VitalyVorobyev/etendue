@@ -32,7 +32,7 @@
     },
     "../crates/etendue-wasm/pkg": {
       "name": "@etendue/wasm",
-      "version": "0.1.0",
+      "version": "0.2.0",
     },
     "apps/book-demos": {
       "name": "@etendue/book-demos",

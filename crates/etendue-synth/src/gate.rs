@@ -6,34 +6,24 @@
 //! test fixture data, shared by the gate test and its report.
 
 use vision_calibration_core::{
-    BrownConrady5, CameraParams, DistortionParams, FxFyCxCySkew, IntrinsicsParams,
-    ProjectionParams, RationalPolynomial, ScheimpflugParams, SensorParams, ThinPrism,
+    BrownConrady5, CameraParams, DistortionParams, FxFyCxCy, ProjectionParams, RationalPolynomial,
+    ScheimpflugParams, SensorParams, ThinPrism,
 };
 
 /// Image size of every gate camera.
 pub const RESOLUTION: [u32; 2] = [2048, 1536];
 
-fn camera(
-    distortion: DistortionParams,
-    sensor: SensorParams,
-    k: FxFyCxCySkew<f64>,
-) -> CameraParams {
+fn camera(distortion: DistortionParams, sensor: SensorParams, k: FxFyCxCy<f64>) -> CameraParams {
     CameraParams {
         projection: ProjectionParams::Pinhole,
         distortion,
         sensor,
-        intrinsics: IntrinsicsParams::FxFyCxCySkew { params: k },
+        intrinsics: k,
     }
 }
 
-fn k(fx: f64, fy: f64, cx: f64, cy: f64, skew: f64) -> FxFyCxCySkew<f64> {
-    FxFyCxCySkew {
-        fx,
-        fy,
-        cx,
-        cy,
-        skew,
-    }
+fn k(fx: f64, fy: f64, cx: f64, cy: f64) -> FxFyCxCy<f64> {
+    FxFyCxCy { fx, fy, cx, cy }
 }
 
 fn brown(k1: f64, k2: f64, k3: f64, p1: f64, p2: f64) -> DistortionParams {
@@ -61,16 +51,16 @@ fn tilt(deg_x: f64, deg_y: f64) -> SensorParams {
 /// `(name, params)` for every gate camera.
 #[must_use]
 pub fn cameras() -> Vec<(&'static str, CameraParams)> {
-    let c = k(1800.0, 1800.0, 1023.5, 767.5, 0.0);
+    let c = k(1800.0, 1800.0, 1023.5, 767.5);
     let id = || SensorParams::Identity;
     vec![
         ("pinhole", camera(DistortionParams::None, id(), c)),
         (
-            "pinhole_skew_offcentre",
+            "pinhole_offcentre",
             camera(
                 DistortionParams::None,
                 id(),
-                k(1800.0, 1795.0, 1000.0, 790.0, 0.8),
+                k(1800.0, 1795.0, 1000.0, 790.0),
             ),
         ),
         (

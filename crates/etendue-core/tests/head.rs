@@ -7,7 +7,7 @@
 //! ```
 
 use etendue_core::calibration::{
-    CameraParams, DistortionParams, FxFyCxCySkew, IntrinsicsParams, ProjectionParams, SensorParams,
+    CameraParams, DistortionParams, FxFyCxCy, ProjectionParams, SensorParams,
 };
 use etendue_core::head::{Beam, Head, Search, Setting, Window};
 use etendue_core::optics::camera::{Focusing, Lens, PhysicalCamera};
@@ -21,14 +21,11 @@ fn as_built() -> CameraParams {
         projection: ProjectionParams::Pinhole,
         distortion: DistortionParams::None,
         sensor: SensorParams::Identity,
-        intrinsics: IntrinsicsParams::FxFyCxCySkew {
-            params: FxFyCxCySkew {
-                fx: 1.0,
-                fy: 1.0,
-                cx: 968.0,
-                cy: 608.0,
-                skew: 0.0,
-            },
+        intrinsics: FxFyCxCy {
+            fx: 1.0,
+            fy: 1.0,
+            cx: 968.0,
+            cy: 608.0,
         },
     }
 }
@@ -310,11 +307,12 @@ fn a_focused_beam_is_its_waist_where_it_is_focused() {
 #[test]
 fn the_solid_is_the_camera_in_three_dimensions() {
     use etendue_core::optics::paraxial::sensor_pixel;
-    // A tilted sensor, so the corners are not in one z plane.
+    // A tilted sensor, so the corners are not in one z plane (about one axis: behind this pupil,
+    // off H, a compound tilt has no skew-free pinhole).
     let mut h = head(0.004, 0.003);
     h = h
         .with_setting(&Setting {
-            tilt: [0.1, 0.03],
+            tilt: [0.1, 0.0],
             focus_distance_m: 0.35,
             f_number: 4.0,
         })

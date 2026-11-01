@@ -75,7 +75,7 @@ same block.
   derived from them by the camera model (§3).
 - **Distortion stays as-built,** and so does the principal point. cx, cy and the distortion
   are parameters of the built camera; the distortion acts in P's normalised coordinates. The
-  focal lengths, the skew and the model tilt are derived (§3).
+  focal lengths and the model tilt are derived (§3).
 - **Focus breathing is modelled.** With unit focusing, refocusing moves the lens, its
   principal points and its pupils along the axis. fx changes with them (§3).
 - **A camera without the block behaves exactly as today.** Every existing scene stays
@@ -150,6 +150,12 @@ caller passes points in M or in the world.
     upper-triangular K cannot hold. A roll ψ of P about its axis, found by bisection,
     removes it. The rest is a small derived skew (−1.4e-3 of fx at τ = (0.1, 0.05) rad,
     m_p = 1.25). ψ goes into `M_se3_P`.
+  - *Amended 2026-11-01 (calibration-rs 0.11, user decision):* calibration-rs 0.10 removed
+    the skew from its intrinsics, so the compound-tilt case with `m_p ≠ 1` has no exact
+    equivalent pinhole: dropping the skew misplaces pixels by 0.2–14 px over the test cases.
+    `PhysicalCamera::new` refuses that case, and P is M moved to E without a roll. One-axis
+    tilts, and every tilt with `m_p = 1`, stay exact; the head optimiser tilts only about the
+    axes the Scheimpflug tilt uses when `m_p ≠ 1`.
 - **Circle of confusion in the H′ frame.** The existing derivation is kept and
   generalised from an aperture at the principal planes to the true exit pupil. The blur is
   the exit pupil, of diameter `D_X = m_p · f / N`, projected from the image point onto the
@@ -189,7 +195,7 @@ caller passes points in M or in the world.
   compared in either frame. The studio edits bodies: it maps a baked camera frame back
   through `mechSe3Projection` where it shows or moves one.
 - **The stored params are the equivalent pinhole.** For a camera with optics, the model
-  writes fx, fy, the skew and the tilt in `params` as the equivalent pinhole about P. `validate` (CLI
+  writes fx, fy and the tilt in `params` as the equivalent pinhole about P. `validate` (CLI
   and wasm) rejects any that differ from the derived values by more than 1e-9 relative.
   They are a readable copy, and nothing pairs them with the mechanical pose.
 - **A camera without optics** has `M_se3_P = I` and its `params` as stored. Every current

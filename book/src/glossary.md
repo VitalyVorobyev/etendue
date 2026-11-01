@@ -69,7 +69,7 @@ robot poses together with the poses the robot reports.
 **Head.** See *triangulation head*.
 
 **Intrinsics.** A camera's internal parameters: focal lengths `fx`, `fy` and principal point
-`cx`, `cy` in pixels, skew, distortion and sensor tilt. See [Camera models](models/camera_models.md).
+`cx`, `cy` in pixels, distortion and sensor tilt. See [Camera models](models/camera_models.md).
 
 **Inverse kinematics (IK).** Finding the joint positions that put the robot's tool at a pose.
 Most poses have several solutions (configurations). See [Robot kinematics](models/kinematics.md).

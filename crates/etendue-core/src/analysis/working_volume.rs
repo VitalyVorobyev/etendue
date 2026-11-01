@@ -424,8 +424,7 @@ mod tests {
     use approx::assert_relative_eq;
     use nalgebra::{Isometry3, Translation3, UnitQuaternion, Vector3};
     use vision_calibration_core::{
-        CameraParams, DistortionParams, FxFyCxCySkew, IntrinsicsParams, ProjectionParams,
-        ScheimpflugParams, SensorParams,
+        CameraParams, DistortionParams, FxFyCxCy, ProjectionParams, ScheimpflugParams, SensorParams,
     };
 
     // A realistic machine-vision lens, identical to the optics tests.
@@ -449,14 +448,11 @@ mod tests {
                     tilt_y: 0.0,
                 },
             },
-            intrinsics: IntrinsicsParams::FxFyCxCySkew {
-                params: FxFyCxCySkew {
-                    fx: 0.0,
-                    fy: 0.0,
-                    cx: f64::from(RES_W) * 0.5,
-                    cy: f64::from(RES_H) * 0.5,
-                    skew: 0.0,
-                },
+            intrinsics: FxFyCxCy {
+                fx: 0.0,
+                fy: 0.0,
+                cx: f64::from(RES_W) * 0.5,
+                cy: f64::from(RES_H) * 0.5,
             },
         };
         CameraEntity::new(

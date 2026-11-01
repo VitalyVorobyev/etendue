@@ -9,8 +9,8 @@ fn pinhole(fx: f64, w: u32, h: u32) -> serde_json::Value {
         "params": {
             "projection": {"type": "pinhole"}, "distortion": {"type": "none"},
             "sensor": {"type": "identity"},
-            "intrinsics": {"type": "fx_fy_cx_cy_skew", "fx": fx, "fy": fx,
-                           "cx": f64::from(w) / 2.0, "cy": f64::from(h) / 2.0, "skew": 0.0}
+            "intrinsics": {"fx": fx, "fy": fx,
+                           "cx": f64::from(w) / 2.0, "cy": f64::from(h) / 2.0}
         },
         "resolution": [w, h]
     })

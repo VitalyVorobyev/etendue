@@ -31,7 +31,7 @@ fn scene() -> SceneSpec {
             "params": {
                 "projection": {"type": "pinhole"}, "distortion": {"type": "none"},
                 "sensor": {"type": "identity"},
-                "intrinsics": {"type": "fx_fy_cx_cy_skew", "fx": 1000.0, "fy": 1000.0, "cx": 640.0, "cy": 512.0, "skew": 0.0}},
+                "intrinsics": {"fx": 1000.0, "fy": 1000.0, "cx": 640.0, "cy": 512.0}},
             "resolution": [1280, 1024]}],
         "targets": [{"id": "board", "parent": "world", "parent_se3_self": iso([0.5, 0.0, 0.0]),
             "geometry": {"type": "board", "board": {"kind": "chessboard", "rows": 6, "cols": 9, "square_size_m": 0.02}}}]

@@ -24,7 +24,7 @@ $$
 4. **Intrinsics** $K$ turn sensor coordinates into pixels:
 
 $$
-u = f_x\,s_x + \text{skew}\cdot s_y + c_x, \qquad v = f_y\,s_y + c_y .
+u = f_x\,s_x + c_x, \qquad v = f_y\,s_y + c_y .
 $$
 
 Back-projection runs the chain backwards: $K^{-1}$, the inverse homography, undistortion, and a
@@ -37,7 +37,7 @@ In a scene the model is the camera's `params`, one object per stage, each tagged
   "projection": { "type": "pinhole" },
   "distortion": { "type": "brown_conrady5", "k1": -0.08, "k2": 0.02, "k3": 0.0, "p1": 0.0, "p2": 0.0, "iters": 8 },
   "sensor": { "type": "scheimpflug", "tilt_x": 0.05, "tilt_y": -0.01 },
-  "intrinsics": { "type": "fx_fy_cx_cy_skew", "fx": 2318.8, "fy": 2318.8, "cx": 640.0, "cy": 512.0, "skew": 0.0 }
+  "intrinsics": { "fx": 2318.8, "fy": 2318.8, "cx": 640.0, "cy": 512.0 }
 }
 ```
 
@@ -102,7 +102,7 @@ Two points matter when you work with tilts:
 
 A camera's model is either typed in (the camera as calibrated, or as a datasheet promises) or
 **derived from optics**. A camera with an `optics` block is a [physical
-camera](../physical_cameras.md): its `fx`, `fy`, skew and sensor tilt are computed from the
+camera](../physical_cameras.md): its `fx`, `fy` and sensor tilt are computed from the
 sensor, the lens and the focus setting, and `etendue validate` refuses a scene whose stored
 values differ from the derived ones by more than one part in $10^{9}$. The principal point and the
 distortion stay as typed: they are properties of the built camera that the paraxial optics do

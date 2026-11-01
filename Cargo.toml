@@ -35,11 +35,11 @@ nalgebra = { version = "0.34", features = ["serde-serialize"] }
 # calibration-rs crates come from crates.io so every etendue library crate is
 # publishable. For local development they are redirected to the sibling
 # checkout by `[patch.crates-io]` at the bottom of this file.
-vision-calibration-core = "0.9.0"
-vision-calibration-dataset = "0.9.0"
+vision-calibration-core = "0.11.0"
+vision-calibration-dataset = "0.11.0"
 # The calibration workflows (P13, `etendue calibrate`): native only. It pulls the
 # solvers (faer, rayon) and calibration-rs's detectors; none of it reaches wasm.
-vision-calibration-pipeline = "0.9.0"
+vision-calibration-pipeline = "0.11.0"
 serde = { version = "1", features = ["derive"] }
 thiserror = "2"
 # Float-comparison assertions for kernel unit tests. 0.5 matches the version
@@ -72,24 +72,24 @@ js-sys = "0.3"
 # leave as PNG. Both only in the native render path, not in @etendue/wasm.
 exr = "1.74"
 # P4-3 corner bias study (etendue-cli `measure g4-2`); no nalgebra, no `image`.
-chess-corners = { version = "1.2", default-features = false }
+chess-corners = { version = "2.1", default-features = false }
 png = "0.18"
 # Target geometry (ADR 0006, P3-3): boards are what calib-targets prints, and their
 # points are what it resolves. calib-targets accepts nalgebra >=0.34, <0.36 since
 # 0.15.3, so it shares the pinned nalgebra. `charuco` is needed only for the marker
 # layout and the dictionary lookup, the same ones calibration-rs's detector uses.
-calib-targets-print = "0.15.5"
-calib-targets-charuco = { version = "0.15.5", default-features = false }
+calib-targets-print = "0.16.1"
+calib-targets-charuco = { version = "0.16.1", default-features = false }
 # `etendue detect` (P5-1b): calib-targets' chessboard labeller over chess-corners'
 # corners, the same crate calibration-rs's detector uses (already in the tree
 # through calib-targets-print).
-calib-targets-chessboard = "0.15.5"
+calib-targets-chessboard = "0.16.1"
 # PuzzleBoard and PuzzlePole (P7-4): the supported pole periods, the pole's object frame,
 # and their detectors. Already in the tree through calib-targets-print.
-calib-targets-puzzleboard = "0.15.5"
+calib-targets-puzzleboard = "0.16.1"
 # `etendue detect` (P7-5): the marker board detector. Already in the tree through
 # calib-targets-print.
-calib-targets-marker = "0.15.5"
+calib-targets-marker = "0.16.1"
 # Sensor model noise (etendue-synth). Seeded only: ChaCha is stable across
 # platforms and versions; default features off keep `getrandom` (OS entropy)
 # out, per the determinism rule.
@@ -97,7 +97,7 @@ rand = { version = "0.10", default-features = false }
 rand_chacha = { version = "0.10", default-features = false }
 rand_distr = { version = "0.6", default-features = false, features = ["std_math"] }
 # etendue.toml tool pins (etendue-cli).
-toml = "0.9"
+toml = "1"
 
 [profile.dev]
 debug = 1

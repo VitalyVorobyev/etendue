@@ -337,10 +337,9 @@ impl ScheimpflugCost {
             }
         }
 
-        let (cx, cy) = match &camera.params.intrinsics {
-            vision_calibration_core::IntrinsicsParams::FxFyCxCySkew { params } => {
-                (params.cx, params.cy)
-            }
+        let (cx, cy) = {
+            let params = &camera.params.intrinsics;
+            (params.cx, params.cy)
         };
 
         Ok(Self {
@@ -425,8 +424,7 @@ mod tests {
     use approx::assert_relative_eq;
     use nalgebra::{Isometry3, Translation3, UnitQuaternion, Vector3};
     use vision_calibration_core::{
-        CameraParams, DistortionParams, FxFyCxCySkew, IntrinsicsParams, ProjectionParams,
-        ScheimpflugParams, SensorParams,
+        CameraParams, DistortionParams, FxFyCxCy, ProjectionParams, ScheimpflugParams, SensorParams,
     };
 
     /// Gate G9.2: the optimum argmin 0.11's Nelder-Mead (restarted) found on these tests,
@@ -474,14 +472,11 @@ mod tests {
                     tilt_y: tau_y,
                 },
             },
-            intrinsics: IntrinsicsParams::FxFyCxCySkew {
-                params: FxFyCxCySkew {
-                    fx: 0.0,
-                    fy: 0.0,
-                    cx: f64::from(RES_W) * 0.5,
-                    cy: f64::from(RES_H) * 0.5,
-                    skew: 0.0,
-                },
+            intrinsics: FxFyCxCy {
+                fx: 0.0,
+                fy: 0.0,
+                cx: f64::from(RES_W) * 0.5,
+                cy: f64::from(RES_H) * 0.5,
             },
         };
         CameraEntity::new(

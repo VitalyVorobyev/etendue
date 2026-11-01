@@ -7,7 +7,7 @@
 //! ```
 
 use etendue_core::calibration::{
-    CameraParams, DistortionParams, FxFyCxCySkew, IntrinsicsParams, ProjectionParams, SensorParams,
+    CameraParams, DistortionParams, FxFyCxCy, ProjectionParams, SensorParams,
 };
 use etendue_core::optics::camera::{Focusing, Lens, PhysicalCamera};
 use etendue_core::optics::coc::coc_diameter_at_sensor;
@@ -21,14 +21,11 @@ fn as_built() -> CameraParams {
         projection: ProjectionParams::Pinhole,
         distortion: DistortionParams::None,
         sensor: SensorParams::Identity,
-        intrinsics: IntrinsicsParams::FxFyCxCySkew {
-            params: FxFyCxCySkew {
-                fx: 1.0,
-                fy: 1.0,
-                cx: 960.3,
-                cy: 600.7,
-                skew: 0.0,
-            },
+        intrinsics: FxFyCxCy {
+            fx: 1.0,
+            fy: 1.0,
+            cx: 960.3,
+            cy: 600.7,
         },
     }
 }
@@ -64,8 +61,12 @@ fn points(focus: f64) -> Vec<Point3<f64>> {
         .collect()
 }
 
+/// Tilts about both axes.
+const COMPOUND: [[f64; 2]; 2] = [[0.07, 0.05], [-0.15, 0.1]];
+
 /// The lenses and tilts every check runs over: thin, thick, crossed principal planes, a pupil
-/// in front of and behind H; no tilt, one axis, both axes.
+/// in front of and behind H; no tilt, one axis, both axes. A compound tilt only with the pupil
+/// at H (`m_p = 1`): behind any other pupil it has no skew-free pinhole and is refused.
 fn cases() -> Vec<(f64, f64, [f64; 2])> {
     let mut out = Vec::new();
     for (g, e) in [
@@ -79,13 +80,30 @@ fn cases() -> Vec<(f64, f64, [f64; 2])> {
             [0.0, 0.0],
             [0.08, 0.0],
             [0.0, -0.06],
-            [0.07, 0.05],
-            [-0.15, 0.1],
+            COMPOUND[0],
+            COMPOUND[1],
         ] {
+            if e != 0.0 && tilt[0] != 0.0 && tilt[1] != 0.0 {
+                continue;
+            }
             out.push((g, e, tilt));
         }
     }
     out
+}
+
+#[test]
+fn a_compound_tilt_behind_a_pupil_off_h_is_refused() {
+    // calibration-rs's intrinsics have no skew (0.10), and this camera's equivalent pinhole
+    // needs one; a one-axis tilt behind the same lens is exact.
+    for e in [0.005, -0.012] {
+        for tilt in COMPOUND {
+            let err = PhysicalCamera::new(lens(0.006, e), PITCH, 0.3, tilt, &as_built())
+                .expect_err("no skew-free pinhole");
+            assert!(err.to_string().contains("both axes"), "{err}");
+        }
+        assert!(PhysicalCamera::new(lens(0.006, e), PITCH, 0.3, [0.08, 0.0], &as_built()).is_ok());
+    }
 }
 
 #[test]
@@ -223,7 +241,7 @@ fn thin_lens_limit() {
         let d = cam.object_distance_m();
         assert!((d + v0 - focus).abs() <= 1e-15 * focus);
         assert!((1.0 / d + 1.0 / v0 - 1.0 / f).abs() <= 1e-12 / f);
-        let IntrinsicsParams::FxFyCxCySkew { params } = &cam.pinhole().intrinsics;
+        let params = &cam.pinhole().intrinsics;
         let expected = f * d / ((d - f) * PITCH);
         assert!(
             (params.fx - expected).abs() <= 1e-12 * expected,
@@ -283,7 +301,7 @@ fn equivalent_tilt_and_focal_lengths() {
         params.tilt_x.tan(),
         tau.tan() / mp
     );
-    let IntrinsicsParams::FxFyCxCySkew { params: k } = &cam.pinhole().intrinsics;
+    let k = &cam.pinhole().intrinsics;
     assert!((k.fy / k.fx - params.tilt_x.cos() / tau.cos()).abs() < 1e-12);
     // The principal point stays where the axis meets the sensor.
     assert_eq!((k.cx, k.cy), (960.3, 600.7));
@@ -297,9 +315,7 @@ fn refocusing_moves_the_optics_not_the_body() {
     // frame (where every point here is given) stays put.
     let far = camera(0.006, 0.004, 2.0, [0.05, 0.0]);
     let near = camera(0.006, 0.004, 0.25, [0.05, 0.0]);
-    let fx = |c: &PhysicalCamera| match &c.pinhole().intrinsics {
-        IntrinsicsParams::FxFyCxCySkew { params } => params.fx,
-    };
+    let fx = |c: &PhysicalCamera| c.pinhole().intrinsics.fx;
     assert!(fx(&near) > fx(&far));
     assert!(near.cardinal_points().entrance_pupil > far.cardinal_points().entrance_pupil);
     for cam in [&far, &near] {

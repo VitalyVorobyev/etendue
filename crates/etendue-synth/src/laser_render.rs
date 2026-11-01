@@ -260,7 +260,7 @@ pub fn laser_radiance(
             }
             let ray = model
                 .backproject_pixel(&Point2::new(f64::from(i) + offset, f64::from(j) + offset))
-                .point;
+                .direction;
             let p = world_se3_camera * Point3::from(ray * f64::from(z) / ray.z);
             let Some(mut n) = Vector3::new(normal[3 * k], normal[3 * k + 1], normal[3 * k + 2])
                 .cast::<f64>()
@@ -445,7 +445,7 @@ mod tests {
             let u = si / s;
             // The true stripe at this row: project points of the line, find its column.
             let y = {
-                let ray = model.backproject_pixel(&Point2::new(u, j as f64)).point;
+                let ray = model.backproject_pixel(&Point2::new(u, j as f64)).direction;
                 let p = world_se3_camera * Point3::from(ray * 0.5 / ray.z);
                 p.y
             };

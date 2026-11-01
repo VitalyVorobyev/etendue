@@ -294,8 +294,8 @@ mod tests {
                 "params": {
                     "projection": {"type": "pinhole"}, "distortion": {"type": "none"},
                     "sensor": {"type": "identity"},
-                    "intrinsics": {"type": "fx_fy_cx_cy_skew", "fx": 2000.0, "fy": 2000.0,
-                                   "cx": 640.0, "cy": 512.0, "skew": 0.0}
+                    "intrinsics": {"fx": 2000.0, "fy": 2000.0,
+                                   "cx": 640.0, "cy": 512.0}
                 },
                 "resolution": [1280, 1024]
             },
@@ -397,8 +397,8 @@ mod stereo_tests {
                 "params": {
                     "projection": {"type": "pinhole"}, "distortion": {"type": "none"},
                     "sensor": {"type": "identity"},
-                    "intrinsics": {"type": "fx_fy_cx_cy_skew", "fx": 2000.0, "fy": 2000.0,
-                                   "cx": 640.0, "cy": 512.0, "skew": 0.0}
+                    "intrinsics": {"fx": 2000.0, "fy": 2000.0,
+                                   "cx": 640.0, "cy": 512.0}
                 },
                 "resolution": [1280, 1024]
             }

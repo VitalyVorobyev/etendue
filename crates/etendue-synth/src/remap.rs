@@ -28,8 +28,7 @@
 use nalgebra::Point2;
 use serde::{Deserialize, Serialize};
 use vision_calibration_core::{
-    CameraModel, CameraParams, DistortionParams, FxFyCxCySkew, IntrinsicsParams, ProjectionParams,
-    SensorParams,
+    CameraModel, CameraParams, DistortionParams, FxFyCxCy, ProjectionParams, SensorParams,
 };
 
 use crate::{Error, Result};
@@ -147,7 +146,7 @@ impl CanonicalCamera {
             return Err(Error::InvalidInput("scan step must be ≥ 1".into()));
         }
         let model = target.build()?;
-        let IntrinsicsParams::FxFyCxCySkew { params: k } = target.intrinsics;
+        let k = target.intrinsics;
 
         // Extreme viewing directions over the image, on the z = 1 plane.
         let edge = pixel_centre.edge();
@@ -163,7 +162,7 @@ impl CanonicalCamera {
         let (mut x_max, mut y_max) = (0.0_f64, 0.0_f64);
         for &v in &ys {
             for &u in &xs {
-                let ray = model.backproject_pixel(&Point2::new(u, v)).point;
+                let ray = model.backproject_pixel(&Point2::new(u, v)).direction;
                 if !(ray.x.is_finite() && ray.y.is_finite()) {
                     return Err(Error::InvalidInput(format!(
                         "pixel ({u}, {v}) does not back-project to a forward ray"
@@ -195,14 +194,11 @@ impl CanonicalCamera {
             projection: ProjectionParams::Pinhole,
             distortion: DistortionParams::None,
             sensor: SensorParams::Identity,
-            intrinsics: IntrinsicsParams::FxFyCxCySkew {
-                params: FxFyCxCySkew {
-                    fx: focal_px,
-                    fy: focal_px,
-                    cx: centre(resolution[0]),
-                    cy: centre(resolution[1]),
-                    skew: 0.0,
-                },
+            intrinsics: FxFyCxCy {
+                fx: focal_px,
+                fy: focal_px,
+                cx: centre(resolution[0]),
+                cy: centre(resolution[1]),
             },
         };
         Self {
@@ -215,7 +211,7 @@ impl CanonicalCamera {
     /// Focal length in canonical pixels (`fx = fy`).
     #[must_use]
     pub fn focal_px(&self) -> f64 {
-        let IntrinsicsParams::FxFyCxCySkew { params } = self.params.intrinsics;
+        let params = self.params.intrinsics;
         params.fx
     }
 
@@ -299,7 +295,7 @@ pub fn remap_lut(
         for i in 0..w {
             let ray = target
                 .backproject_pixel(&Point2::new(f64::from(i) + off, f64::from(j) + off))
-                .point;
+                .direction;
             match render.project_point_c(&ray) {
                 Some(p) => data.extend_from_slice(&[p.x as f32, p.y as f32]),
                 None => data.extend_from_slice(&[f32::NAN, f32::NAN]),
@@ -324,15 +320,7 @@ mod tests {
             projection: ProjectionParams::Pinhole,
             distortion: DistortionParams::None,
             sensor: SensorParams::Identity,
-            intrinsics: IntrinsicsParams::FxFyCxCySkew {
-                params: FxFyCxCySkew {
-                    fx,
-                    fy,
-                    cx,
-                    cy,
-                    skew: 0.0,
-                },
-            },
+            intrinsics: FxFyCxCy { fx, fy, cx, cy },
         }
     }
 

@@ -156,13 +156,14 @@ decomposes it exactly into calibration-rs's tilted-sensor model, $K\,H(\tau')$:
 - for a tilt about one axis, $\tan\tau' = \tan\tau / m_p$, and that axis's focal length scales by
   $\cos\tau' / \cos\tau$. With $e = -10$ mm and a 3° tilt about x, the example above gets
   $f_x = 4599.06$ px and $f_y = 4593.02$ px;
-- for a tilt about both axes, calibration-rs's upper-triangular $K$ cannot hold the result
-  directly. etendue rolls the projection frame by a small angle about the axis, which leaves a
-  small skew.
+- for a tilt about both axes, the exact pinhole would need a skew, which calibration-rs's
+  intrinsics do not have. Such a camera is refused: tilt the sensor about one axis, or use a lens
+  whose entrance pupil is at its principal plane ($m_p = 1$), where a tilt about both axes is
+  exact.
 
 ## Derived and as built
 
-- **Derived from the optics:** `fx`, `fy`, `skew` and the sensor's model tilt. They are still
+- **Derived from the optics:** `fx`, `fy` and the sensor's model tilt. They are still
   stored in `params`, because every tool that reads a scene, and calibration-rs, reads them
   there. `etendue validate` refuses a scene whose stored values differ from the derived ones by
   more than one part in $10^9$, so the two cannot drift apart. The studio derives them for you.

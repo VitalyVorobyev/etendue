@@ -29,8 +29,7 @@ const SUPERSAMPLE = 4;
 const GATE_PX = 0.01;
 
 const I = { rotation: [0, 0, 0, 1], translation: [0, 0, 0] };
-const K = (fx: number, fy: number, cx: number, cy: number, skew: number) =>
-  ({ type: "fx_fy_cx_cy_skew", fx, fy, cx, cy, skew }) as const;
+const K = (fx: number, fy: number, cx: number, cy: number) => ({ fx, fy, cx, cy }) as const;
 const brown = (k1: number, k2: number, p1: number, p2: number) =>
   ({ type: "brown_conrady5", k1, k2, k3: 0, p1, p2, iters: 8 }) as const;
 
@@ -39,13 +38,13 @@ const CAMERAS: Record<string, CameraParams> = {
     projection: { type: "pinhole" },
     distortion: brown(-0.08, 0.02, 0, 0),
     sensor: { type: "identity" },
-    intrinsics: K(2318.8, 2318.8, 640, 512, 0),
+    intrinsics: K(2318.8, 2318.8, 640, 512),
   } as unknown as CameraParams,
-  offcentre_skew_tilt: {
+  offcentre_tilt: {
     projection: { type: "pinhole" },
     distortion: brown(-0.05, 0.01, 2e-4, -1e-4),
     sensor: { type: "scheimpflug", tilt_x: (2 * Math.PI) / 180, tilt_y: -Math.PI / 180 },
-    intrinsics: K(2300, 2296, 612.3, 541.7, 0.6),
+    intrinsics: K(2300, 2296, 612.3, 541.7),
   } as unknown as CameraParams,
 };
 

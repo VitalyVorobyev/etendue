@@ -73,7 +73,7 @@ A camera's `params` is a calibration-rs camera model, the model calibration esti
 | `projection` | `pinhole` |
 | `distortion` | `none`; `brown_conrady5` (`k1, k2, k3, p1, p2`); `rational` (`k1`–`k6`, `p1, p2`); `thin_prism`; `division`. Each with `iters`, the iteration cap for undistortion. |
 | `sensor` | `identity`; `scheimpflug` (`tilt_x`, `tilt_y`, radians); `homography` (`h`, 3 × 3) |
-| `intrinsics` | `fx`, `fy`, `cx`, `cy` (pixels), `skew` |
+| `intrinsics` | `fx`, `fy`, `cx`, `cy` (pixels) |
 
 [Camera models](models/camera_models.md) gives the equations.
 
@@ -87,7 +87,7 @@ A camera with `optics` is **physical**:
 | `tilt_rad` | the sensor's tilt `[τx, τy]` |
 
 Then the optics are the source of truth: `params` must hold the equivalent pinhole they give
-(its focal lengths, skew and tilt are checked against them), and the camera's pose is its body's
+(its focal lengths and tilt are checked against them), and the camera's pose is its body's
 mechanical frame at the image plane, not its entrance pupil. Cameras the Optics and Rigs
 workspaces place in a cell, and the library's camera designs, are written this way. See [Physical cameras and the thick lens](physical_cameras.md).
 

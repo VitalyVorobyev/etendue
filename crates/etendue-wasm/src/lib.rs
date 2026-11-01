@@ -599,7 +599,7 @@ impl Session {
         let mut xyz = Vec::with_capacity(uv.len() / 2 * 3);
         for px in uv.chunks_exact(2) {
             let ray = model.backproject_pixel(&Point2::new(px[0], px[1]));
-            xyz.extend_from_slice(&[ray.point.x, ray.point.y, ray.point.z]);
+            xyz.extend_from_slice(&[ray.direction.x, ray.direction.y, ray.direction.z]);
         }
         Ok(xyz)
     }

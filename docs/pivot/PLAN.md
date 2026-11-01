@@ -419,6 +419,8 @@ and ask; do not silently relax it.
   ADR 0022 prescribes, it stops in a flat tilt / principal-point valley (plane normal
   0.008–0.010°, cy up to 2 px off), and the wheel lacks `manual_init`. Upstream drafts await
   review (`docs/measurements/g5_3_laser_closed_loop.md`).
+  *Update (2026-11-01):* on calibration-rs 0.11 the Scheimpflug variant passes G5.3 on exact
+  data too (laser normal ≤ 1.3e-7°, hand-eye 1.1e-7°; `calibration_rs_0_11.md`).
 
 ### P6 — Design overlays and egui retirement
 

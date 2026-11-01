@@ -12,7 +12,7 @@ const camera = {
     projection: { type: "pinhole" as const },
     distortion: { type: "none" as const },
     sensor: { type: "identity" as const },
-    intrinsics: { type: "fx_fy_cx_cy_skew" as const, fx: 1, fy: 1, cx: 640, cy: 512, skew: 0 },
+    intrinsics: { fx: 1, fy: 1, cx: 640, cy: 512 },
   },
   resolution: [1280, 1024] as [number, number],
   optics: {

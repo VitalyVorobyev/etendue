@@ -195,7 +195,7 @@ def observed_captures(gt: dict[str, Any], features: dict[str, Any] | None) -> li
 # ── Comparison ────────────────────────────────────────────────────────────────
 
 
-def intrinsics_rows(estimated: vc.PinholeBrownConradyCamera, truth: dict[str, Any], name: str) -> list[tuple[str, float, float | None]]:
+def intrinsics_rows(estimated: vc.PinholeCamera | vc.PinholeScheimpflugCamera, truth: dict[str, Any], name: str) -> list[tuple[str, float, float | None]]:
     k = truth["params"]["intrinsics"]
     e = estimated.intrinsics
     d_true = truth["params"]["distortion"]
@@ -241,7 +241,7 @@ def rig_rows(
     ]
 
 
-def plane_rows(estimated: vc.LaserlinePlane, truth: dict[str, Any], name: str) -> list[tuple[str, float, float | None]]:
+def plane_rows(estimated: vc.LaserPlane, truth: dict[str, Any], name: str) -> list[tuple[str, float, float | None]]:
     """Normal angle and offset difference of two planes n·p + d = 0 in one frame (sign-free;
     either plane may have a non-unit normal, with its offset in the same scale)."""
     n_e, d_e = np.asarray(estimated.normal_xyz, dtype=float), float(estimated.distance)
@@ -327,18 +327,18 @@ def nominal_seed(cameras: list[dict[str, Any]]) -> dict[str, Any]:
         k = c["params"]["intrinsics"]
         w, h = c["resolution"]
         f = round((k["fx"] + k["fy"]) / 2, -2)
-        intrinsics.append({"fx": f, "fy": f, "cx": w / 2, "cy": h / 2, "skew": 0.0})
+        intrinsics.append({"fx": f, "fy": f, "cx": w / 2, "cy": h / 2})
         sensor = c["params"]["sensor"]
         tilt = sensor["tilt_x"] if sensor["type"] == "scheimpflug" else 0.0
         sensors.append({"tilt_x": math.radians(round(math.degrees(tilt))), "tilt_y": 0.0})
     return {"per_cam_intrinsics": intrinsics, "per_cam_distortion": None, "per_cam_sensors": sensors}
 
 
-class SeededLaserlineConfig(vc.RigHandeyeLaserlineCalibrationConfig):
+class SeededLaserlineConfig(vc.RigHandeyeLaserlineConfig):
     """The joint config with `handeye.manual_init` set.
 
-    The wheel does not expose `manual_init` yet (calibration-rs 0.9.0: "still Rust-only"), but the
-    Rust config it is deserialised into accepts it, so it is added to the payload.
+    The wheel does not expose `manual_init` (calibration-rs 0.11.0), but the Rust config it is
+    deserialised into accepts it, so it is added to the payload.
     """
 
     seed: dict[str, Any] | None = None
@@ -388,11 +388,13 @@ def laser_loop(
     config.handeye.handeye_init.handeye_mode = "EyeInHand"
     if scheimpflug(cameras):
         config.seed = nominal_seed(cameras)
-        config.handeye.sensor = vc.ScheimpflugSensorMode(refine_scheimpflug_in_rig_ba=True)
-        config.handeye.rig.refine_intrinsics_in_rig_ba = True
-    result = vc.run_rig_handeye_laserline(vc.RigHandeyeLaserlineDataset(num_cameras=len(cameras), views=views), config)
+        # The tilted sensor is part of the camera model (calibration-rs 0.10).
+        config.handeye.camera.model.sensor = "scheimpflug"
+        config.handeye.rig.refine_intrinsics = True
+        config.handeye.rig.refine_sensor = True
+    result = vc.run_rig_handeye_laserline(vc.RigHandeyeLaserlineInput(num_cameras=len(cameras), views=views), config)
     def per_camera(i: int, camera: dict[str, Any]) -> list[tuple[str, float, float | None]]:
-        rows = tilt_rows(result.sensors[i], camera, camera["id"]) if scheimpflug(cameras) else []
+        rows = tilt_rows(result.cameras[i].sensor, camera, camera["id"]) if scheimpflug(cameras) else []
         plane = next(p for p in laser_of(camera["id"])["camera_planes"] if p["frame"] == camera["id"])
         return rows + plane_rows(result.laser_planes_cam[i], plane, camera["id"])
 
@@ -468,9 +470,9 @@ def main() -> int:
             obs = observation(gt, capture["views"][i], noise, args.noise_px)
             if obs is not None:
                 views.append(vc.SingleCamHandeyeView(observation=obs, base_se3_gripper=base_se3_gripper.to_pose()))
-        config = vc.SingleCamHandeyeCalibrationConfig()
+        config = vc.SingleCamHandeyeConfig()
         config.handeye_init.handeye_mode = "EyeInHand"
-        result = vc.run_single_cam_handeye(vc.SingleCamHandeyeDataset(views=views), config)
+        result = vc.run_single_cam_handeye(vc.SingleCamHandeyeInput(views=views), config)
         truth_gripper_se3_camera = gripper_se3_rig * cam_se3_rig[i].inv()
         rot_err, trans_err = difference(Iso.pose(result.gripper_se3_camera), truth_gripper_se3_camera)
         tr_err, tt_err = difference(Iso.pose(result.base_se3_target), base_se3_target)
@@ -490,9 +492,9 @@ def main() -> int:
         obs = [observation(gt, v, noise, args.noise_px) for v in capture["views"]]
         if any(o is not None for o in obs):
             views.append(vc.RigHandeyeView(cameras=obs, base_se3_gripper=base_se3_gripper.to_pose()))
-    config = vc.RigHandeyeCalibrationConfig()
+    config = vc.RigHandeyeConfig()
     config.handeye_init.handeye_mode = "EyeInHand"
-    result = vc.run_rig_handeye(vc.RigHandeyeDataset(num_cameras=len(cameras), views=views), config)
+    result = vc.run_rig_handeye(vc.RigHandeyeInput(num_cameras=len(cameras), views=views), config)
     rows = rig_rows(result, cameras, cam_se3_rig, gripper_se3_rig, base_se3_target)
     return 0 if report(f"rig hand-eye ({len(cameras)} cameras, {len(views)} views)", rows, gated=gated) else 1
 

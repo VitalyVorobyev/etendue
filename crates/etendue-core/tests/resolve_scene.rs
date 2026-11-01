@@ -7,7 +7,7 @@
 //! ```
 
 use etendue_core::calibration::{
-    CameraParams, DistortionParams, FxFyCxCySkew, IntrinsicsParams, ProjectionParams, SensorParams,
+    CameraParams, DistortionParams, FxFyCxCy, ProjectionParams, SensorParams,
 };
 use etendue_core::from_scene::{derive, physical_camera, resolve};
 use etendue_scene::{
@@ -39,14 +39,11 @@ fn as_built() -> CameraParams {
         projection: ProjectionParams::Pinhole,
         distortion: DistortionParams::None,
         sensor: SensorParams::Identity,
-        intrinsics: IntrinsicsParams::FxFyCxCySkew {
-            params: FxFyCxCySkew {
-                fx: 1.0,
-                fy: 1.0,
-                cx: 960.0,
-                cy: 600.0,
-                skew: 0.0,
-            },
+        intrinsics: FxFyCxCy {
+            fx: 1.0,
+            fy: 1.0,
+            cx: 960.0,
+            cy: 600.0,
         },
     }
 }
@@ -142,7 +139,7 @@ fn worst(a: &[Option<nalgebra::Point2<f64>>], b: &[Option<nalgebra::Point2<f64>>
 
 #[test]
 fn the_resolved_pinhole_projects_as_the_physical_camera() {
-    for tilt in [[0.0, 0.0], [0.06, 0.0], [0.05, -0.04]] {
+    for tilt in [[0.0, 0.0], [0.06, 0.0], [0.0, -0.04]] {
         let scene = cell(tilt, Isometry3::identity());
         let gap = worst(
             &physical_pixels(&scene, &world_points()),
@@ -154,7 +151,7 @@ fn the_resolved_pinhole_projects_as_the_physical_camera() {
 
 #[test]
 fn the_camera_moves_to_its_projection_frame_and_what_hangs_on_it_stays() {
-    let scene = cell([0.05, -0.04], Isometry3::identity());
+    let scene = cell([0.0, -0.04], Isometry3::identity());
     let resolved = resolve(&scene).unwrap();
     let m_se3_p = resolved.mech_se3_projection["cam"];
     assert!(
@@ -190,7 +187,7 @@ fn the_camera_moves_to_its_projection_frame_and_what_hangs_on_it_stays() {
 
 #[test]
 fn resolving_twice_changes_nothing() {
-    let scene = cell([0.05, -0.04], Isometry3::identity());
+    let scene = cell([0.0, -0.04], Isometry3::identity());
     let once = resolve(&scene).unwrap();
     let twice = resolve(&once.scene).unwrap();
     assert!(twice.mech_se3_projection.is_empty());
@@ -203,7 +200,7 @@ fn resolving_twice_changes_nothing() {
 #[test]
 fn stale_params_are_reported_where_they_are() {
     let mut scene = cell([0.0, 0.0], Isometry3::identity());
-    let IntrinsicsParams::FxFyCxCySkew { params } = &mut scene.cameras[0].params.intrinsics;
+    let params = &mut scene.cameras[0].params.intrinsics;
     params.fx *= 1.0 + 1e-6;
     let err = resolve(&scene).unwrap_err();
     assert_eq!(err.issues.len(), 1, "{err}");
@@ -220,7 +217,7 @@ fn stale_params_are_reported_where_they_are() {
 #[test]
 fn where_the_frames_are_drawn_changes_no_pixel() {
     let points = world_points();
-    let reference = cell([0.05, -0.04], Isometry3::identity());
+    let reference = cell([0.0, -0.04], Isometry3::identity());
     let world_se3_mech = world_of(&reference, "cam");
     // World points the reference camera sees.
     let in_world: Vec<Point3<f64>> = points.iter().map(|p| world_se3_mech * p).collect();
@@ -236,7 +233,7 @@ fn where_the_frames_are_drawn_changes_no_pixel() {
     let base = pixels(&reference, &in_world);
     // 1. The whole cell moved: the points move with it.
     let moved_by = pose(Vector3::new(0.3, -1.0, 0.5), 1.1, [2.0, -1.0, 0.4]);
-    let moved = cell([0.05, -0.04], moved_by);
+    let moved = cell([0.0, -0.04], moved_by);
     let moved_points: Vec<Point3<f64>> = in_world.iter().map(|p| moved_by * p).collect();
     assert!(worst(&base, &pixels(&moved, &moved_points)) < 1e-9);
     // 2. The camera re-parented to the world with the pose it had: nothing moves.

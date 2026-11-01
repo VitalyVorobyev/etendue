@@ -53,10 +53,11 @@
 //! - for a tilt about one axis, `tan τ′ = tan τ / m_p`, and that axis's focal length scales by
 //!   `cos τ′ / cos τ`;
 //! - for a tilt about both axes, `K` would carry a lower-left term that calibration-rs's
-//!   upper-triangular K cannot hold. A roll ψ of P about the axis removes it, leaving a small
-//!   skew; ψ is found by bisection.
+//!   upper-triangular K cannot hold. Rolling P about its axis removes it, but leaves a skew, and
+//!   calibration-rs's intrinsics have none (since 0.10). Such a camera has no exact equivalent
+//!   pinhole, so [`PhysicalCamera::new`] refuses it.
 //!
-//! The decomposition is exact. The tests compare it with an independent paraxial trace
+//! The decomposition is exact for every camera it accepts. The tests compare it with an independent paraxial trace
 //! ([`crate::optics::paraxial`]).
 //!
 //! # Blur
@@ -72,12 +73,10 @@
 //!   `0.6 · tan θ` (relative) of the traced ellipse's mean diameter, θ the sensor's tilt from the
 //!   axis: about 5 % at 5°.
 
-use nalgebra::{
-    Isometry3, Matrix3, Point2, Point3, Quaternion, Translation3, UnitQuaternion, Vector3,
-};
+use nalgebra::{Isometry3, Matrix3, Point2, Point3, Translation3, UnitQuaternion, Vector3};
 use serde::{Deserialize, Serialize};
 use vision_calibration_core::{
-    CameraModel, CameraParams, FxFyCxCySkew, IntrinsicsParams, ScheimpflugParams, SensorParams,
+    CameraModel, CameraParams, FxFyCxCy, ScheimpflugParams, SensorParams,
 };
 
 use crate::{Error, Result};
@@ -206,11 +205,6 @@ fn decompose(h: &Matrix3<f64>) -> Result<([f64; 2], Matrix3<f64>)> {
     Ok(([tilt_x, tilt_y], k / k[(2, 2)]))
 }
 
-fn roll(angle: f64) -> Matrix3<f64> {
-    let (s, c) = (libm::sin(angle), libm::cos(angle));
-    Matrix3::new(c, -s, 0.0, s, c, 0.0, 0.0, 0.0, 1.0)
-}
-
 impl PhysicalCamera {
     /// A camera with `lens` on a sensor of pitch `pixel_pitch_m`, focused at `focus_distance_m`
     /// from the image-plane datum, with the sensor tilted by `tilt = [τx, τy]` (radians) about
@@ -222,9 +216,10 @@ impl PhysicalCamera {
     ///
     /// [`Error::InvalidInput`] for a non-positive focal length, f-number or pitch, a non-finite
     /// value, an entrance pupil at or beyond the front focal point (`e ≥ f`), a focus closer than
-    /// the lens can reach (`D − g < 4f`), or an `as_built` that is not a pinhole with
-    /// `fx_fy_cx_cy_skew` intrinsics. [`Error::Numerical`] if the tilted sensor cannot be
-    /// expressed in calibration-rs's model.
+    /// the lens can reach (`D − g < 4f`), or a sensor tilted about both axes behind a lens whose
+    /// pupil magnification is not 1 (its equivalent pinhole needs a skew, which calibration-rs's
+    /// intrinsics do not have). [`Error::Numerical`] if the tilted sensor cannot be expressed in
+    /// calibration-rs's model.
     pub fn new(
         lens: Lens,
         pixel_pitch_m: f64,
@@ -258,7 +253,7 @@ impl PhysicalCamera {
                 4.0 * f
             )));
         }
-        let IntrinsicsParams::FxFyCxCySkew { params: built } = &as_built.intrinsics;
+        let built = &as_built.intrinsics;
         let (cx, cy) = (built.cx, built.cy);
 
         // The conjugates at the focus setting, and where the lens's points are in M.
@@ -302,51 +297,27 @@ impl PhysicalCamera {
             dn.transpose(),
         ]);
 
-        // Decompose into calibration-rs's K · H(τ′); roll P until K is upper triangular.
-        let lower = |psi: f64| -> Result<f64> { Ok(decompose(&(h_phys * roll(psi)))?.1[(1, 0)]) };
-        let scale_k = h_phys[(0, 0)].abs().max(1.0);
-        let mut psi = 0.0;
-        if lower(0.0)?.abs() > 1e-14 * scale_k {
-            let (mut a, mut b) = (-0.5_f64, 0.5_f64);
-            let (mut fa, fb) = (lower(a)?, lower(b)?);
-            if fa * fb > 0.0 {
-                return Err(Error::Numerical(format!(
-                    "no projection-frame roll makes the tilted sensor ({tilt_x}, {tilt_y}) \
-                     expressible in calibration-rs's model"
-                )));
-            }
-            for _ in 0..200 {
-                let m = 0.5 * (a + b);
-                let fm = lower(m)?;
-                if fm == 0.0 || (b - a) < 1e-17 {
-                    a = m;
-                    b = m;
-                    break;
-                }
-                if fa * fm <= 0.0 {
-                    b = m;
-                } else {
-                    a = m;
-                    fa = fm;
-                }
-            }
-            psi = 0.5 * (a + b);
+        // Decompose into calibration-rs's K · H(τ′). K must be upper triangular: a lower-left
+        // term (a compound tilt with m_p ≠ 1) has no skew-free equivalent.
+        let ([model_tilt_x, model_tilt_y], k) = decompose(&h_phys)?;
+        if k[(1, 0)].abs() > 1e-14 * h_phys[(0, 0)].abs().max(1.0) {
+            return Err(invalid(format!(
+                "a sensor tilted about both axes ({tilt_x}, {tilt_y} rad) behind a lens with pupil \
+                 magnification {pupil_magnification} has no equivalent pinhole without skew; \
+                 tilt about one axis, or use a lens whose entrance pupil is at its principal plane"
+            )));
         }
-        let ([model_tilt_x, model_tilt_y], k) = decompose(&(h_phys * roll(psi)))?;
         if !(k[(0, 0)] > 0.0 && k[(1, 1)] > 0.0) {
             return Err(Error::Numerical(format!(
                 "derived focal lengths are not positive: {k}"
             )));
         }
         let mut pinhole = as_built.clone();
-        pinhole.intrinsics = IntrinsicsParams::FxFyCxCySkew {
-            params: FxFyCxCySkew {
-                fx: k[(0, 0)],
-                fy: k[(1, 1)],
-                cx,
-                cy,
-                skew: if psi == 0.0 { 0.0 } else { k[(0, 1)] },
-            },
+        pinhole.intrinsics = FxFyCxCy {
+            fx: k[(0, 0)],
+            fy: k[(1, 1)],
+            cx,
+            cy,
         };
         pinhole.sensor = if tilt_x == 0.0 && tilt_y == 0.0 {
             SensorParams::Identity
@@ -361,14 +332,10 @@ impl PhysicalCamera {
         let model = pinhole
             .build()
             .map_err(|err| invalid(format!("the derived pinhole does not build: {err}")))?;
+        // P is M moved to the entrance pupil, unrotated.
         let mech_se3_projection = Isometry3::from_parts(
             Translation3::new(0.0, 0.0, points.entrance_pupil),
-            UnitQuaternion::new_unchecked(Quaternion::new(
-                libm::cos(psi / 2.0),
-                0.0,
-                0.0,
-                libm::sin(psi / 2.0),
-            )),
+            UnitQuaternion::identity(),
         );
         Ok(Self {
             lens,
@@ -498,7 +465,7 @@ impl PhysicalCamera {
         let ray = self.model.backproject_pixel(pixel);
         (
             self.mech_se3_projection.translation.vector.into(),
-            self.mech_se3_projection.rotation * ray.point,
+            self.mech_se3_projection.rotation * ray.direction,
         )
     }
 
@@ -641,7 +608,7 @@ impl PhysicalCamera {
     /// frame (m per px), from the derived pinhole.
     #[must_use]
     pub fn object_pixel_m(&self, z: f64) -> f64 {
-        let IntrinsicsParams::FxFyCxCySkew { params } = &self.pinhole.intrinsics;
+        let params = &self.pinhole.intrinsics;
         (z - self.points.entrance_pupil) / params.fx
     }
 }

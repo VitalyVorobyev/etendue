@@ -15,7 +15,7 @@ use vision_calibration_core::{CameraModel, CameraParams, DistortionParams};
 const GATE_PX: f64 = 1e-6;
 
 fn err(model: &CameraModel, u: Point2<f64>) -> f64 {
-    let ray = model.backproject_pixel(&u).point;
+    let ray = model.backproject_pixel(&u).direction;
     model
         .project_point_c(&ray)
         .map_or(f64::INFINITY, |b| (b - u).norm())

@@ -15,12 +15,10 @@
         "type": "identity"
       },
       "intrinsics": {
-        "type": "fx_fy_cx_cy_skew",
         "fx": 4503.959428331235,
         "fy": 4503.959428331235,
         "cx": 968,
-        "cy": 608,
-        "skew": 0
+        "cy": 608
       }
     },
     "resolution": [

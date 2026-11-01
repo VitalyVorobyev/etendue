@@ -119,8 +119,8 @@
           "$ref": "#/$defs/DistortionParams"
         },
         "intrinsics": {
-          "description": "Intrinsics model parameters.",
-          "$ref": "#/$defs/IntrinsicsParams"
+          "description": "Pinhole intrinsics (`fx, fy, cx, cy` in pixels).",
+          "$ref": "#/$defs/FxFyCxCy"
         },
         "projection": {
           "description": "Projection model parameters.",
@@ -432,6 +432,38 @@
         }
       ]
     },
+    "FxFyCxCy": {
+      "description": "Standard pinhole intrinsics: focal lengths and principal point in pixels.\n\nThe pixel grid is assumed orthogonal, so `K` carries no skew term.",
+      "type": "object",
+      "properties": {
+        "cx": {
+          "description": "Principal point X coordinate in pixels.",
+          "type": "number",
+          "format": "double"
+        },
+        "cy": {
+          "description": "Principal point Y coordinate in pixels.",
+          "type": "number",
+          "format": "double"
+        },
+        "fx": {
+          "description": "Focal length in pixels along X.",
+          "type": "number",
+          "format": "double"
+        },
+        "fy": {
+          "description": "Focal length in pixels along Y.",
+          "type": "number",
+          "format": "double"
+        }
+      },
+      "required": [
+        "fx",
+        "fy",
+        "cx",
+        "cy"
+      ]
+    },
     "HeadDesign": {
       "description": "A laser-triangulation head: a camera design and a line laser fixed to the camera's body.",
       "type": "object",
@@ -525,54 +557,6 @@
           "description": "The rig's +X, as each camera sees it: classical stereo. For two cameras on the rig's x\naxis the image rows line up (the image +Y axes are the same); with no tilt (a parallel\nrig) the image +X axes are the same too.",
           "type": "string",
           "const": "common"
-        }
-      ]
-    },
-    "IntrinsicsParams": {
-      "description": "Serializable intrinsics parameters.",
-      "oneOf": [
-        {
-          "description": "Pinhole intrinsics with optional skew.",
-          "type": "object",
-          "properties": {
-            "cx": {
-              "description": "Principal point X coordinate in pixels.",
-              "type": "number",
-              "format": "double"
-            },
-            "cy": {
-              "description": "Principal point Y coordinate in pixels.",
-              "type": "number",
-              "format": "double"
-            },
-            "fx": {
-              "description": "Focal length in pixels along X.",
-              "type": "number",
-              "format": "double"
-            },
-            "fy": {
-              "description": "Focal length in pixels along Y.",
-              "type": "number",
-              "format": "double"
-            },
-            "skew": {
-              "description": "Skew term (typically 0).",
-              "type": "number",
-              "format": "double"
-            },
-            "type": {
-              "type": "string",
-              "const": "fx_fy_cx_cy_skew"
-            }
-          },
-          "required": [
-            "type",
-            "fx",
-            "fy",
-            "cx",
-            "cy",
-            "skew"
-          ]
         }
       ]
     },
@@ -1544,11 +1528,11 @@
       "description": "Calibration-target metadata. Tagged on `kind`.",
       "oneOf": [
         {
-          "description": "Standard checkerboard. Counts are interior corners\n(i.e. `9x6` ⇒ a 10×7 black-and-white square grid).",
+          "description": "Standard checkerboard. Counts are interior corners\n(i.e. `9x6` ⇒ a 10×7 black-and-white square grid).\n\nA plain chessboard has no markers: each view is labelled from the\ndetection's own top-left corner. Where views share one target frame\n(single-camera hand-eye and every rig topology) the runner therefore\nkeeps a view only when its corners reach every edge of the board,\n`cols` across and `rows` down; partial or turned views are dropped.\nThe board must also appear the same way up in every image — a board\nseen upside down, or a square board seen turned by 90°, labels\nconsistently and cannot be told apart. Use a ChArUco or PuzzleBoard\ntarget to calibrate a shared frame from partial views.",
           "type": "object",
           "properties": {
             "cols": {
-              "description": "Number of interior corners along the cols axis.",
+              "description": "Number of interior corners across the board (the image's\ncolumns axis when the board is seen as declared).",
               "type": "integer",
               "format": "uint32",
               "minimum": 0
@@ -1558,7 +1542,7 @@
               "const": "chessboard"
             },
             "rows": {
-              "description": "Number of interior corners along the rows axis.",
+              "description": "Number of interior corners down the board (the image's rows\naxis when the board is seen as declared).",
               "type": "integer",
               "format": "uint32",
               "minimum": 0
@@ -1621,7 +1605,7 @@
           ]
         },
         {
-          "description": "Puzzleboard target (calib-targets crate). Layout is fully\ndescribed by the named variant in calib-targets; the manifest\njust carries the discriminator.",
+          "description": "Puzzleboard target: a self-identifying chessboard. The layout name\ncarries the board's dimensions, so the manifest fully determines\ndetection.",
           "type": "object",
           "properties": {
             "cell_size_m": {
@@ -1634,7 +1618,7 @@
               "const": "puzzleboard"
             },
             "layout": {
-              "description": "Named layout (e.g. `\"puzzle_130x130\"`).",
+              "description": "Board dimensions as `puzzle_<rows>x<cols>` (e.g.\n`\"puzzle_12x12\"`; the `puzzle_` prefix is optional).",
               "type": "string"
             }
           },

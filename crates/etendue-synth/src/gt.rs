@@ -175,8 +175,7 @@ mod tests {
     use super::*;
     use nalgebra::{Translation3, UnitQuaternion};
     use vision_calibration_core::{
-        CameraParams, DistortionParams, FxFyCxCySkew, IntrinsicsParams, ProjectionParams,
-        SensorParams,
+        CameraParams, DistortionParams, FxFyCxCy, ProjectionParams, SensorParams,
     };
 
     fn camera() -> CameraModel {
@@ -184,14 +183,11 @@ mod tests {
             projection: ProjectionParams::Pinhole,
             distortion: DistortionParams::None,
             sensor: SensorParams::Identity,
-            intrinsics: IntrinsicsParams::FxFyCxCySkew {
-                params: FxFyCxCySkew {
-                    fx: 100.0,
-                    fy: 100.0,
-                    cx: 49.5,
-                    cy: 39.5,
-                    skew: 0.0,
-                },
+            intrinsics: FxFyCxCy {
+                fx: 100.0,
+                fy: 100.0,
+                cx: 49.5,
+                cy: 39.5,
             },
         }
         .build()

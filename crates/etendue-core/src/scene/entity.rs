@@ -34,7 +34,7 @@
 
 use nalgebra::Isometry3;
 use serde::{Deserialize, Serialize};
-use vision_calibration_core::{CameraParams, IntrinsicsParams};
+use vision_calibration_core::CameraParams;
 
 use crate::geom::TriMesh;
 use crate::optics::ThickLens;
@@ -319,7 +319,7 @@ impl CameraEntity {
     /// physical fields must call it after each edit.
     pub fn sync_intrinsics_from_physical(&mut self) {
         let fx = self.focal_length_px();
-        let IntrinsicsParams::FxFyCxCySkew { params } = &mut self.params.intrinsics;
+        let params = &mut self.params.intrinsics;
         params.fx = fx;
         params.fy = fx;
     }
@@ -556,9 +556,7 @@ mod tests {
     use super::*;
     use approx::assert_relative_eq;
     use nalgebra::{Point3, Translation3, UnitQuaternion, Vector3};
-    use vision_calibration_core::{
-        DistortionParams, FxFyCxCySkew, IntrinsicsParams, ProjectionParams, SensorParams,
-    };
+    use vision_calibration_core::{DistortionParams, FxFyCxCy, ProjectionParams, SensorParams};
 
     /// A trivial pinhole `CameraParams` for entity tests. The `fx`/`fy` here
     /// are deliberately wrong values — `CameraEntity::new` overwrites them
@@ -568,14 +566,11 @@ mod tests {
             projection: ProjectionParams::Pinhole,
             distortion: DistortionParams::None,
             sensor: SensorParams::Identity,
-            intrinsics: IntrinsicsParams::FxFyCxCySkew {
-                params: FxFyCxCySkew {
-                    fx: 1200.0,
-                    fy: 1200.0,
-                    cx: 640.0,
-                    cy: 360.0,
-                    skew: 0.0,
-                },
+            intrinsics: FxFyCxCy {
+                fx: 1200.0,
+                fy: 1200.0,
+                cx: 640.0,
+                cy: 360.0,
             },
         }
     }
@@ -626,7 +621,7 @@ mod tests {
         // fx = fy = focal / pitch = 0.025 / 3.45e-6 ≈ 7246.3768 px, regardless
         // of the (deliberately wrong) 1200.0 in `pinhole_params`.
         let cam = camera_entity(pinhole_params(), (1280, 720), 0.1, 1.0).unwrap();
-        let IntrinsicsParams::FxFyCxCySkew { params } = &cam.params.intrinsics;
+        let params = &cam.params.intrinsics;
         let expected_fx = TEST_F_M / TEST_PITCH_M;
         assert_relative_eq!(params.fx, expected_fx, epsilon = 1e-9);
         assert_relative_eq!(params.fy, expected_fx, epsilon = 1e-9);
@@ -642,7 +637,7 @@ mod tests {
         // Edit the physical focal length, then re-sync.
         cam.optics.effective_focal_length_m = 0.050;
         cam.sync_intrinsics_from_physical();
-        let IntrinsicsParams::FxFyCxCySkew { params } = &cam.params.intrinsics;
+        let params = &cam.params.intrinsics;
         assert_relative_eq!(params.fx, 0.050 / TEST_PITCH_M, epsilon = 1e-9);
         assert_relative_eq!(params.fy, 0.050 / TEST_PITCH_M, epsilon = 1e-9);
     }

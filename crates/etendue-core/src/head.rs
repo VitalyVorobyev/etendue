@@ -24,7 +24,7 @@
 
 use nalgebra::{Isometry3, Point2, Point3, Vector2, Vector3};
 use serde::Serialize;
-use vision_calibration_core::{CameraParams, IntrinsicsParams};
+use vision_calibration_core::CameraParams;
 
 use etendue_scene::{HeadDesign, HeadWindow};
 
@@ -336,7 +336,7 @@ impl Head {
 
     fn as_built(&self) -> CameraParams {
         let mut p = self.camera.pinhole().clone();
-        let IntrinsicsParams::FxFyCxCySkew { params } = &mut p.intrinsics;
+        let params = &mut p.intrinsics;
         let [cx, cy] = self.camera.principal_point();
         params.cx = cx;
         params.cy = cy;
@@ -495,11 +495,22 @@ impl Head {
     /// condition (with the sensor square to the axis when it may not tilt) and never ends worse
     /// than that start.
     ///
+    /// Behind a lens whose pupil magnification is not 1, the sensor tilts only about the axes the
+    /// Scheimpflug tilt uses: a tilt about both axes has no skew-free pinhole there
+    /// ([`PhysicalCamera::new`]).
+    ///
     /// # Errors
     ///
-    /// As [`Head::scheimpflug`].
+    /// As [`Head::scheimpflug`], and the camera model's error when the Scheimpflug tilt itself
+    /// cannot be modelled.
     pub fn optimise(&self, window: &Window, search: &Search) -> Result<Optimum> {
-        let hinge = self.scheimpflug()?;
+        let mut hinge = self.scheimpflug()?;
+        // A tilt component this small is rounding in the hinge's arc functions, not a tilt.
+        for t in &mut hinge.tilt {
+            if t.abs() < 1e-12 {
+                *t = 0.0;
+            }
+        }
         let start = if search.tilt_free {
             hinge
         } else {
@@ -508,13 +519,23 @@ impl Head {
                 ..hinge
             }
         };
-        // The variables: the tilt (when free), the focus, the f-number (when free).
+        self.with_setting(&start)?;
+        // The tilt components that may move: both, or behind a pupil off H only those the hinge
+        // uses (a compound tilt has no skew-free pinhole there).
+        let free: Vec<usize> = if !search.tilt_free {
+            vec![]
+        } else if self.camera.pupil_magnification() == 1.0 {
+            vec![0, 1]
+        } else {
+            (0..2).filter(|&k| start.tilt[k] != 0.0).collect()
+        };
+        // The variables: the free tilt components, the focus, the f-number (when free).
         let setting = |x: &[f64]| -> Setting {
-            let (tilt, rest) = if search.tilt_free {
-                ([x[0], x[1]], &x[2..])
-            } else {
-                ([0.0, 0.0], x)
-            };
+            let mut tilt = start.tilt;
+            for (k, &axis) in free.iter().enumerate() {
+                tilt[axis] = x[k];
+            }
+            let rest = &x[free.len()..];
             Setting {
                 tilt,
                 focus_distance_m: rest[0],
@@ -544,9 +565,9 @@ impl Head {
         };
         let mut x = Vec::new();
         let mut steps = Vec::new();
-        if search.tilt_free {
-            x.extend(start.tilt);
-            steps.extend([0.01, 0.01]);
+        for &axis in &free {
+            x.push(start.tilt[axis]);
+            steps.push(0.01);
         }
         x.push(start.focus_distance_m);
         steps.push(0.02 * start.focus_distance_m);

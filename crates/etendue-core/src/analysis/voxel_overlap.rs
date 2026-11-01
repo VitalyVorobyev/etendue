@@ -210,10 +210,9 @@ pub fn voxelized_overlap(
         let laser = &scene.lasers[i];
         let lens: ThickLens = camera.thick_lens()?;
         let camera_model = camera.params.build()?;
-        let (cx, cy) = match &camera.params.intrinsics {
-            vision_calibration_core::IntrinsicsParams::FxFyCxCySkew { params } => {
-                (params.cx, params.cy)
-            }
+        let (cx, cy) = {
+            let params = &camera.params.intrinsics;
+            (params.cx, params.cy)
         };
         per_pair.push(PairContext {
             camera_from_world: camera.pose.inverse(),
