@@ -1,6 +1,6 @@
 # ADR 0010: A Layered Component Bank
 
-- Status: Proposed (2026-11-01)
+- Status: Accepted (2026-11-01)
 - Date: 2026-11-01
 - Amends: [ADR 0009](0009-project-folder.md) §1 and its rejected alternative "a per-user app-data
   library"

@@ -799,8 +799,8 @@ User decisions (2026-11-01):
   copied into it (ADR 0010);
 - the phases follow the workflow's order, P14 → P15 → P16 → P17 → P18.
 
-ADRs 0010 and 0011 are *Proposed*. Their phases start once the user accepts them. Each step is
-one PR, merged when CI is green; upstream changes (calibration-rs, lab-ui) stay drafts.
+The user accepted ADRs 0010 and 0011 on 2026-11-01. Each step is one PR, merged when CI is
+green; upstream changes (calibration-rs, lab-ui) stay drafts.
 
 - **P14 — Component bank** (ADR 0010).
   - **Layers:** built-in, user bank (`Documents/etendue/bank`; a picked folder in a browser) and

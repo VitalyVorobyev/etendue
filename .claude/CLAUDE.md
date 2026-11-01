@@ -434,7 +434,7 @@ also run its gates (`cargo clippy/test --manifest-path web/apps/studio/src-tauri
 (gates in `docs/measurements/`); P6-1/P6-3 are absorbed by P10/P11. P8–P13 (2026-10-19) are
 done. The next roadmap is P14–P18 (2026-11-01): component bank (ADR 0010) → guided cell builder
 → calibration procedure bank (ADR 0011) → simulation lab → calibration pose planning. ADRs 0010
-and 0011 are Proposed; their phases start once the user accepts them.
+and 0011 are accepted.
 
 Promoting `ThickLens` to `ApertureModel<S>` in calibration-rs is deferred (ADR 0008): no
 phase needs it upstream.

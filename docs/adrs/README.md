@@ -19,7 +19,7 @@ Status legend:
 | [0007](0007-tauri-studio-shell.md) | A Tauri shell for the studio, with the kernel kept in wasm | Accepted |
 | [0008](0008-physical-optics.md) | Physical optics in the scene, and the component library | Accepted |
 | [0009](0009-project-folder.md) | The project folder | Accepted |
-| [0010](0010-component-bank.md) | A layered component bank | Proposed |
-| [0011](0011-calibration-procedures.md) | Calibration procedures | Proposed |
+| [0010](0010-component-bank.md) | A layered component bank | Accepted |
+| [0011](0011-calibration-procedures.md) | Calibration procedures | Accepted |
 
 Gate results referenced by these ADRs are in [`docs/measurements/`](../measurements/).

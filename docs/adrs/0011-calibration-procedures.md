@@ -1,6 +1,6 @@
 # ADR 0011: Calibration Procedures
 
-- Status: Proposed (2026-11-01)
+- Status: Accepted (2026-11-01)
 - Date: 2026-11-01
 
 ## Context
