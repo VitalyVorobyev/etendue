@@ -122,6 +122,24 @@ Each missing hook becomes a **draft** calibration-rs PR, for review. Until one i
 stage runs the workflow whole, seeded where it can be, and the report says which seeds it could
 not take.
 
+## Amendments
+
+*2026-11-02, as implemented (P16a):*
+- **Procedures are a library kind.** `procedure` (folder `procedures`) holds a `ProcedurePart`, so
+  procedures live at `library/procedures/<id>.json` in the bank, a project or the built-ins, and
+  layer like every other item. ADR 0010's separate `procedures/` folder is not used.
+- **The camera model is typed.** A stage's `model` is `{sensor: design | identity | scheimpflug,
+  fix: {intrinsics, distortion, sensor}}`, and its `free` options are typed too. The parameter
+  names in the fix lists and the losses are calibration-rs's. etendue-scene may not depend on
+  serde_json (ADR 0001), so raw calibration-rs JSON cannot be held.
+- **Rig seeds come from an earlier stage only.** calibration-rs takes the target's pose per view
+  together with `cam_se3_rig`, and an earlier rig stage has them.
+- **`auto` is five built-ins:** `auto_single`, `auto_rig`, `auto_head`, `auto_rig_laser`,
+  `auto_rig_laser_scheimpflug`.
+- **A procedure's result is its last stage's,** with the laser planes of the latest stage that
+  estimated them. The `laser_head` built-in thereby reports the device's plane with the second
+  stage's hand-eye.
+
 ## Consequences
 
 - **Each run is described by its procedure.** A calibration is reproducible from its procedure
