@@ -10,8 +10,9 @@
 //! never depends on a library.
 //!
 //! The same layout serves a user bank (ADR 0010, [`crate::bank`]). An item copied from the bank or
-//! the built-ins into a project records where it came from ([`ItemOrigin`]), and its
-//! [`LibraryItem::content_hash`] tells whether the source has changed since.
+//! the built-ins into a project records where it came from ([`ItemOrigin`]), with its source's
+//! content hash (`etendue_core::library::content_hash`), which tells whether the source has
+//! changed since.
 
 use serde::{Deserialize, Serialize};
 
@@ -73,7 +74,7 @@ pub struct ItemOrigin {
     pub layer: Layer,
     /// Its reference there, `<folder>/<id>`.
     pub reference: String,
-    /// [`LibraryItem::content_hash`] of the source when it was copied.
+    /// The source's content hash (`etendue_core::library::content_hash`) when it was copied.
     pub sha256: String,
 }
 
@@ -319,22 +320,6 @@ impl LibraryItem {
         })
     }
 
-    /// The SHA-256 (hex) of the item's content: its JSON with `origin` left out and the version
-    /// set to [`LIBRARY_VERSION`], so a project's copy hashes as its source did, whichever version
-    /// either file was written in.
-    #[must_use]
-    pub fn content_hash(&self) -> String {
-        use sha2::{Digest, Sha256};
-        let mut canonical = self.clone();
-        canonical.origin = None;
-        canonical.version = LIBRARY_VERSION;
-        let json = serde_json::to_vec(&canonical).unwrap_or_default();
-        Sha256::digest(&json)
-            .iter()
-            .map(|b| format!("{b:02x}"))
-            .collect()
-    }
-
     /// Its folder: where an item of its kind lives (`cameras`), if it has one kind.
     #[must_use]
     pub fn folder(&self) -> Option<&'static str> {
@@ -538,7 +523,7 @@ mod tests {
     }
 
     #[test]
-    fn version_1_still_reads_and_hashes_as_its_version_2_copy() {
+    fn version_1_still_reads_and_its_copy_carries_an_origin() {
         let v1 = read(sensor()).unwrap();
         assert_eq!(v1.version, 1);
         let mut copy = v1.clone();
@@ -546,14 +531,9 @@ mod tests {
         copy.origin = Some(ItemOrigin {
             layer: Layer::Bank,
             reference: "sensors/imx174".into(),
-            sha256: v1.content_hash(),
+            sha256: "0".repeat(64),
         });
         copy.validate().unwrap();
-        assert_eq!(copy.content_hash(), v1.content_hash());
-        assert_eq!(v1.content_hash().len(), 64);
-        let mut changed = copy.clone();
-        changed.sensor.as_mut().unwrap().pixel_pitch_m = 5.0e-6;
-        assert_ne!(changed.content_hash(), v1.content_hash());
         // Version 2's fields in a version 1 file are refused.
         let mut early = v1.clone();
         early.source = Some(ItemSource {

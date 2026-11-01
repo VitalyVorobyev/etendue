@@ -48,6 +48,7 @@ pub mod from_scene;
 pub mod geom;
 pub mod head;
 pub mod laser;
+pub mod library;
 pub mod optics;
 pub mod rig;
 pub mod scene;

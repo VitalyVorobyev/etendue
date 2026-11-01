@@ -816,6 +816,7 @@ dependencies = [
  "nalgebra 0.34.2",
  "serde",
  "serde_json",
+ "sha2",
  "thiserror 2.0.18",
  "vision-calibration-core",
 ]
@@ -846,7 +847,6 @@ dependencies = [
  "schemars",
  "serde",
  "serde_json",
- "sha2",
  "thiserror 2.0.18",
  "vision-calibration-core",
  "vision-calibration-dataset",

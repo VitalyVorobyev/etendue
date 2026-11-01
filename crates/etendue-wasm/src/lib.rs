@@ -957,7 +957,7 @@ pub fn validate_library_item_js(text: &str) -> std::result::Result<String, JsVal
 #[wasm_bindgen(js_name = libraryItemHash)]
 pub fn library_item_hash_js(text: &str) -> std::result::Result<String, JsValue> {
     let item = validate_library_item(text).map_err(|e| js_error(&e))?;
-    Ok(item.content_hash())
+    Ok(etendue_core::library::content_hash(&item))
 }
 
 /// A head and, if given, a window (the design's own otherwise), from JSON.

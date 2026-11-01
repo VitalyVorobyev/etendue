@@ -86,7 +86,7 @@ pub fn check(dir: &Path, bank: Option<&Path>) -> Result<ProjectSummary> {
                 continue;
             };
             match banked.items.get(&origin.reference) {
-                Some(source) if source.content_hash() != origin.sha256 => {
+                Some(source) if etendue_core::library::content_hash(source) != origin.sha256 => {
                     summary.notes.push(format!(
                         "library/{reference}.json: the bank's {} has changed since it was copied",
                         origin.reference
