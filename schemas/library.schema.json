@@ -636,7 +636,7 @@
           "type": "string"
         },
         "sha256": {
-          "description": "[`LibraryItem::content_hash`] of the source when it was copied.",
+          "description": "The source's content hash (`etendue_core::library::content_hash`) when it was copied.",
           "type": "string"
         }
       },
