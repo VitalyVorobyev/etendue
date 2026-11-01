@@ -67,6 +67,11 @@ pub struct Planned {
     pub sigma_mm: Vec<f64>,
     /// The system σ (mm) of the generator's grid thinned evenly to the budget.
     pub grid_sigma_mm: f64,
+    /// The thinned grid's system σ (mm) with `k + 1` poses, for every `k` below the budget
+    /// (`None` where so few poses cannot determine the calibration): the curve beside
+    /// `sigma_mm`.
+    #[serde(default)]
+    pub grid_sigma_curve_mm: Vec<Option<f64>>,
     /// The thinned grid's capture ids.
     pub grid: Vec<String>,
     /// The system σ (mm) of every feasible candidate.
@@ -454,10 +459,12 @@ pub fn plan(
         })
         .collect();
     let m = tour.len();
-    let grid: Vec<usize> = (0..spec.budget)
-        .map(|k| tour[k * m / spec.budget])
-        .collect();
+    let thinned = |k: usize| -> Vec<usize> { (0..k).map(|j| tour[j * m / k]).collect() };
+    let grid = thinned(spec.budget);
     let grid_sigma = sigma_of(&total(&grid)).map_or(f64::NAN, |s| s.0);
+    let grid_sigma_curve: Vec<Option<f64>> = (1..=spec.budget)
+        .map(|k| sigma_of(&total(&thinned(k))).map(|s| s.0))
+        .collect();
     let all: Vec<usize> = (0..infos.len()).collect();
     let all_sigma = sigma_of(&total(&all)).map_or(f64::NAN, |s| s.0);
 
@@ -484,6 +491,7 @@ pub fn plan(
         chosen: keep,
         sigma_mm,
         grid_sigma_mm: grid_sigma,
+        grid_sigma_curve_mm: grid_sigma_curve,
         grid: grid.iter().map(|&k| capture(k)).collect(),
         all_sigma_mm: all_sigma,
         feasible: feasible.len(),

@@ -341,6 +341,24 @@ test("the sphere generator previews candidates and applies the kept ones", async
   await expect(page.getByRole("button", { name: "Undo generate poses" })).toBeEnabled();
 });
 
+test("Suggest poses picks a budget by the predicted system σ, below the grid's", async ({ page }) => {
+  await page.goto("/?example=closed_loop_ur5e");
+  await expect(page.getByRole("treeitem", { name: /cam_left/ })).toBeVisible({ timeout: 30_000 });
+  await page.getByRole("radio", { name: "Motion" }).click();
+  await page.getByRole("radio", { name: "Generate poses" }).click();
+  const suggest = page.getByTestId("suggest-poses");
+  await expect(suggest.getByRole("figure")).toBeVisible();
+  const budget = page.getByRole("spinbutton", { name: "Pose budget" });
+  await budget.fill("8");
+  await budget.press("Enter");
+  // G18.1's cell and budget: 0.0362 mm suggested against the grid's 0.0462 mm.
+  await expect(suggest).toContainText("0.0362 mm");
+  await expect(suggest).toContainText("0.0462 mm");
+  await suggest.getByRole("button", { name: "Apply 8 suggested poses" }).click();
+  await expect(page.getByTestId("step-list").getByRole("listitem")).toHaveCount(2 * 8);
+  await expect(page.getByRole("button", { name: "Undo generate poses" })).toBeEnabled();
+});
+
 test("each camera of a laser ring shows its own laser's stripe", async ({ page }) => {
   await page.goto("/?example=rig3_laser_ur5e");
   await expect(page.getByRole("treeitem", { name: /rig_cam0/ })).toBeVisible({ timeout: 30_000 });

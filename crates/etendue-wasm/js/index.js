@@ -80,6 +80,10 @@ export class EtendueScene {
     return JSON.parse(this.#raw.generatePoses(text(spec), dt));
   }
 
+  planPoses(spec, plan, dt = 0.01) {
+    return JSON.parse(this.#raw.planPoses(text(spec), text(plan), dt));
+  }
+
   exportTrajectory(scenario, robotId) {
     return this.#raw.exportTrajectory(text(scenario), robotId);
   }

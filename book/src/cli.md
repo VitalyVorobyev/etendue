@@ -314,7 +314,10 @@ $ etendue scenario plan examples/closed_loop_ur5e/scene.json \
   5 %, and calibrating noisy observations from the chosen poses gives the predicted system
   error ([measurement](https://github.com/VitalyVorobyev/etendue/blob/main/docs/measurements/g18_pose_planning.md)).
 - **`--report`** writes the picks in order, the system σ after each (the curve to choose a budget
-  from), the evenly thinned grid's σ for comparison, and every parameter's predicted σ.
+  from), the evenly thinned grid's σ for comparison (`grid_sigma_mm`, and `grid_sigma_curve_mm`
+  for every smaller number), and every parameter's predicted σ. The picks for a budget are the
+  first picks of any larger one.
+- **The studio's Suggest poses** (Motion → Generate poses) runs the same planner.
 - **Eye-to-hand** cells are planned too: the hand-eye is then `rig_se3_base` and the target's
   pose `gripper_se3_target`, and the same check holds (planned 8 poses: 0.0407 mm predicted,
   0.0428 mm measured, against the grid's 0.0485 mm).
