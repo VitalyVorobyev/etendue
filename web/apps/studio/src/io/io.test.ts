@@ -92,6 +92,32 @@ describe("loadScene", () => {
     await expect(loadScene(dropped, "scene.json", null)).rejects.toThrow(/manifest .* not found/);
   });
 
+  it("finds a robot in the project, then the bank, before the app library", async () => {
+    const dropped = memory("dropped", { "scene.json": JSON.stringify(scene) });
+    const library = memory("repo", {
+      "assets/robots/r/robot.json": JSON.stringify(manifest),
+      "assets/robots/r/robot.urdf": "<robot/>",
+    });
+    const bank = memory("bank", {
+      "robots/r/robot.json": JSON.stringify(manifest),
+      "robots/r/robot.urdf": "<robot/>",
+    });
+    const project = memory("project", {
+      "p/robots/r/robot.json": JSON.stringify(manifest),
+      "p/robots/r/robot.urdf": "<robot/>",
+    });
+    const both = [
+      { source: project, root: "p" },
+      { source: bank, root: "" },
+    ];
+    expect((await loadScene(dropped, "scene.json", null, library, both)).robots[0]!.manifestPath).toBe(
+      "project: p/robots/r/robot.json",
+    );
+    expect((await loadScene(dropped, "scene.json", null, library, both.slice(1))).robots[0]!.manifestPath).toBe(
+      "bank: robots/r/robot.json",
+    );
+  });
+
   it("reports unparsable documents with their path", async () => {
     const src = memory("repo", { "s.json": "{" });
     await expect(loadScene(src, "s.json", null)).rejects.toThrow(/repo: s.json/);

@@ -6,7 +6,14 @@
  * `etendue_cli::{progress, gt, render, detect}`.
  */
 
-import type { Iso3Schema, ObservationNoise, ProjectManifest, ScenarioSpec, SceneSpec } from "@etendue/wasm";
+import type {
+  BankManifest,
+  Iso3Schema,
+  ObservationNoise,
+  ProjectManifest,
+  ScenarioSpec,
+  SceneSpec,
+} from "@etendue/wasm";
 import { Channel, invoke } from "@tauri-apps/api/core";
 
 import { normalize } from "../io/tauri";
@@ -314,4 +321,13 @@ export function saveScene(args: {
  */
 export function openProjectDir(dir: string): Promise<ProjectManifest> {
   return invoke<ProjectManifest>("open_project", { dir });
+}
+
+/**
+ * Open the user's bank (ADR 0010): the shell makes its folder a bank the first time and makes it
+ * readable and writable. Returns the folder and its manifest.
+ */
+export async function openBankDir(): Promise<{ dir: string; manifest: BankManifest }> {
+  const [dir, manifest] = await invoke<[string, BankManifest]>("open_bank");
+  return { dir: normalize(dir), manifest };
 }

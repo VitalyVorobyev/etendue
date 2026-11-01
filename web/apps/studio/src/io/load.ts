@@ -72,16 +72,25 @@ async function parse<T>(source: FileSource, path: string): Promise<T> {
   }
 }
 
+/** A folder that carries robots as `robots/<id>/robot.json`: a project or a bank (ADR 0009 §2, 0010). */
+export interface RobotFolder {
+  source: FileSource;
+  /** The folder's path in `source` (`""` for its root). */
+  root: string;
+}
+
 /**
  * Read the scene at `scenePath` in `source` and its robots' assets. A robot manifest that is
- * not in `source` is looked up in `library` (the repository's `assets/robots/`), so a scene
- * dropped on its own still finds the robots it names.
+ * not in `source` is looked up by its folder's name in each of `folders` (the open project, then
+ * the bank: `robots/<id>/robot.json`), then in `library` (the app's `assets/robots/`), so a scene
+ * moved on its own still finds the robots it names.
  */
 export async function loadScene(
   source: FileSource,
   scenePath: string,
   scenarioPath: string | null,
   library?: FileSource,
+  folders: RobotFolder[] = [],
 ): Promise<LoadedScene> {
   const scene = await parse<SceneSpec>(source, scenePath);
   const scenario = scenarioPath === null ? null : await parse<ScenarioSpec>(source, scenarioPath);
@@ -91,13 +100,20 @@ export async function loadScene(
       let from = source;
       let manifestPath = wanted;
       if (!(await source.has(wanted))) {
-        const fallback = libraryPath(wanted);
-        if (library && fallback !== null && (await library.has(fallback))) {
-          from = library;
-          manifestPath = fallback;
-        } else {
-          throw new Error(`robot \`${robot.id}\`: manifest ${robot.manifest} not found in ${source.name}`);
+        const id = dirname(wanted).split("/").at(-1);
+        let found = false;
+        for (const folder of id ? folders : []) {
+          const path = join(folder.root, `robots/${id}/robot.json`);
+          if (await folder.source.has(path)) {
+            [from, manifestPath, found] = [folder.source, path, true];
+            break;
+          }
         }
+        const fallback = libraryPath(wanted);
+        if (!found && library && fallback !== null && (await library.has(fallback))) {
+          [from, manifestPath, found] = [library, fallback, true];
+        }
+        if (!found) throw new Error(`robot \`${robot.id}\`: manifest ${robot.manifest} not found in ${source.name}`);
       }
       return loadRobot(from, manifestPath, robot.id);
     }),

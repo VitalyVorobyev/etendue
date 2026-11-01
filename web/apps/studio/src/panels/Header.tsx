@@ -71,6 +71,8 @@ export function Header({
   onProject,
   reopenable,
   onReopen,
+  bank,
+  onBank,
   onSaveAsCell,
   onFiles,
   onPaths,
@@ -97,6 +99,10 @@ export function Header({
   onExample: (id: string) => void;
   /** Open (or, with `create`, make) a project folder; `null` where folders cannot be opened. */
   onProject: ((create: boolean) => void) | null;
+  /** The user's bank, by name, once it is open. */
+  bank: string | null;
+  /** Choose the bank's folder (the browser; the desktop app's bank folder is fixed), or `null`. */
+  onBank: (() => void) | null;
   /** A project of an earlier session the browser must be allowed again, by name. */
   reopenable: string | null;
   onReopen: () => void;
@@ -177,6 +183,11 @@ export function Header({
               {reopenable !== null && (
                 <MenuItem icon={<FolderSync className="size-4" />} onSelect={onReopen}>
                   Reopen {reopenable}
+                </MenuItem>
+              )}
+              {onBank && (
+                <MenuItem icon={<FolderOpen className="size-4" />} onSelect={onBank}>
+                  {bank === null ? "Choose bank folder…" : `Bank: ${bank} (choose another…)`}
                 </MenuItem>
               )}
               <MenuSeparator />

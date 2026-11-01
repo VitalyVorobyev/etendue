@@ -114,22 +114,22 @@ function db(): Promise<IDBDatabase> {
   });
 }
 
-/** Remember `handle` as the project to reopen. A convenience: failures are ignored. */
-export async function rememberFolder(handle: DirectoryHandle): Promise<void> {
+/** Remember `handle` as the project (or `key`'s folder) to reopen. A convenience: failures are ignored. */
+export async function rememberFolder(handle: DirectoryHandle, key = KEY): Promise<void> {
   try {
     const d = await db();
-    d.transaction(STORE, "readwrite").objectStore(STORE).put(handle, KEY);
+    d.transaction(STORE, "readwrite").objectStore(STORE).put(handle, key);
   } catch {
     // Private windows and blocked storage: nothing is remembered.
   }
 }
 
-/** The remembered project folder, if any, and whether it may be used without asking. */
-export async function rememberedFolder(): Promise<{ handle: DirectoryHandle; granted: boolean } | null> {
+/** The remembered project folder (or `key`'s), if any, and whether it may be used without asking. */
+export async function rememberedFolder(key = KEY): Promise<{ handle: DirectoryHandle; granted: boolean } | null> {
   try {
     const d = await db();
     const handle = await new Promise<DirectoryHandle | undefined>((resolve, reject) => {
-      const get = d.transaction(STORE).objectStore(STORE).get(KEY);
+      const get = d.transaction(STORE).objectStore(STORE).get(key);
       get.onsuccess = () => resolve(get.result as DirectoryHandle | undefined);
       get.onerror = () => reject(get.error ?? new Error("IndexedDB read failed"));
     });

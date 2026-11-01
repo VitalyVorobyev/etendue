@@ -115,7 +115,9 @@ export function App() {
     preview: editing,
     project,
     reopenable,
+    bank,
   } = useStudio(studio);
+  const bankName = bank?.manifest.name ?? null;
   const [cellDialog, setCellDialog] = useState(false);
   const [robotLibrary, setRobotLibrary] = useState(false);
   // The Optics workspace's head, kept across workspaces; it starts from the project's parts.
@@ -1072,6 +1074,8 @@ export function App() {
             onProject={studio.canOpenProjects() ? (create) => void studio.openProject(create) : null}
             reopenable={reopenable}
             onReopen={() => void studio.reopenProject()}
+            bank={bankName}
+            onBank={!isTauri() && studio.canOpenProjects() ? () => void studio.chooseBank() : null}
             onSaveAsCell={current && project?.write ? () => setCellDialog(true) : null}
             onFiles={studio.openFiles}
             onPaths={studio.openPaths}

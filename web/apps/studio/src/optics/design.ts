@@ -239,6 +239,8 @@ const EMPTY: Project = {
   manifest: { version: 1, name: "" },
   cells: [],
   library: new Map(),
+  own: new Map(),
+  layers: new Map(),
   problems: [],
 };
 

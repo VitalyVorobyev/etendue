@@ -288,6 +288,44 @@ fn open_project(
     Ok(manifest)
 }
 
+/// The user's bank (ADR 0010): `DataRoot::bank`, made a bank (with an
+/// `etendue-bank.json`) the first time. It becomes readable and writable.
+/// Returns its folder and manifest.
+#[tauri::command]
+fn open_bank(
+    app: AppHandle,
+    access: State<'_, Access>,
+    root: State<'_, Option<DataRoot>>,
+) -> Result<(PathBuf, etendue_scene::BankManifest), String> {
+    let dir = root
+        .inner()
+        .as_ref()
+        .map(|r| r.bank.clone())
+        .ok_or("no data root: the bank has no folder")?;
+    let manifest = bank_manifest(&dir)?;
+    access.allow_write(&app, &dir);
+    let dir = resolve(&dir).unwrap_or(dir);
+    Ok((dir, manifest))
+}
+
+/// The bank manifest in `dir`, written first if the folder has none.
+fn bank_manifest(dir: &Path) -> Result<etendue_scene::BankManifest, String> {
+    let path = dir.join(etendue_scene::BANK_FILE);
+    if !path.exists() {
+        std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+        let manifest = etendue_scene::BankManifest::new("My bank");
+        let text = serde_json::to_string_pretty(&manifest).map_err(|e| e.to_string())? + "\n";
+        std::fs::write(&path, text).map_err(|e| format!("{}: {e}", path.display()))?;
+    }
+    let text = std::fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+    let manifest: etendue_scene::BankManifest =
+        serde_json::from_str(&text).map_err(|e| format!("{}: {e}", path.display()))?;
+    manifest
+        .validate()
+        .map_err(|e| format!("{}: {e}", path.display()))?;
+    Ok(manifest)
+}
+
 /// Save a scene (and its scenario) to `scene_path` (and `scenario_path`),
 /// both in writable folders. The scene's robot manifest paths are rewritten
 /// relative to its new folder: they are found relative to `from` (the folder
@@ -367,11 +405,13 @@ fn checkout() -> Option<PathBuf> {
 }
 
 /// Where the examples, the robot library and the `etendue.toml` Blender pin
-/// are (`root`), and where datasets go by default (`datasets`).
+/// are (`root`), where datasets go by default (`datasets`), and the user's
+/// component bank (`bank`, ADR 0010).
 #[derive(Clone, Debug, serde::Serialize)]
 struct DataRoot {
     root: PathBuf,
     datasets: PathBuf,
+    bank: PathBuf,
 }
 
 impl DataRoot {
@@ -380,7 +420,12 @@ impl DataRoot {
     fn find(app: &AppHandle) -> Option<Self> {
         if let Some(root) = checkout() {
             let datasets = root.join("target/studio");
-            return Some(Self { root, datasets });
+            let bank = datasets.join("bank");
+            return Some(Self {
+                root,
+                datasets,
+                bank,
+            });
         }
         let documents = app
             .path()
@@ -400,7 +445,12 @@ impl DataRoot {
             return None;
         }
         let datasets = documents.unwrap_or_else(std::env::temp_dir).join("etendue");
-        Some(Self { root, datasets })
+        let bank = datasets.join("bank");
+        Some(Self {
+            root,
+            datasets,
+            bank,
+        })
     }
 }
 
@@ -575,6 +625,7 @@ pub fn run() {
             save_dialog,
             write_text,
             open_project,
+            open_bank,
             save_scene,
             read_text,
             path_exists,
@@ -598,6 +649,27 @@ mod tests {
     /// The checkout the tests run in (in any profile).
     fn repo() -> PathBuf {
         dunce::canonicalize(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../..")).unwrap()
+    }
+
+    #[test]
+    fn a_bank_is_made_once_and_read_after() {
+        let dir = repo().join("target/studio/test-bank");
+        let _ = std::fs::remove_dir_all(&dir);
+        let made = bank_manifest(&dir).unwrap();
+        assert_eq!(made.name, "My bank");
+        std::fs::write(
+            dir.join(etendue_scene::BANK_FILE),
+            r#"{"version": 1, "name": "Lab bank"}"#,
+        )
+        .unwrap();
+        assert_eq!(bank_manifest(&dir).unwrap().name, "Lab bank");
+        std::fs::write(
+            dir.join(etendue_scene::BANK_FILE),
+            r#"{"version": 9, "name": "x"}"#,
+        )
+        .unwrap();
+        assert!(bank_manifest(&dir).is_err());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

@@ -6,8 +6,13 @@ import type { FileSource } from "./source";
 vi.mock("@etendue/wasm", () => ({
   validateLibraryItem: (text: string) => {
     const item = JSON.parse(text) as { version: number };
-    if (item.version !== 1) throw new Error(`library item version ${item.version}`);
+    if (item.version !== 1 && item.version !== 2) throw new Error(`library item version ${item.version}`);
     return item;
+  },
+  // A stand-in hash: the item's JSON without origin and version (the kernel's is SHA-256).
+  libraryItemHash: (item: { origin?: unknown; version?: number }) => {
+    const { origin: _origin, version: _version, ...rest } = item;
+    return JSON.stringify(rest);
   },
 }));
 
@@ -46,7 +51,7 @@ describe("projects", () => {
       "p/library/cameras/cam1.json": item("cam1", "Zeta", "camera"),
       "p/library/cameras/cam2.json": item("cam2", "Alpha", "camera"),
       "p/library/cameras/misnamed.json": item("other", "X", "camera"),
-      "p/library/lenses/new.json": item("new", "Future", "lens", 2),
+      "p/library/lenses/new.json": item("new", "Future", "lens", 3),
     });
     const project = await loadProject(source, "p");
     expect(project.cells).toEqual([
@@ -89,7 +94,13 @@ describe("writing projects", () => {
       cells: [],
       defaults: { camera: "cameras/c" },
     });
-    expect(JSON.parse(written.get("library/cameras/c.json")!)).toMatchObject({ id: "c", camera: {} });
+    // The project copies what its defaults name, with the copy's origin.
+    expect(JSON.parse(written.get("library/cameras/c.json")!)).toMatchObject({
+      id: "c",
+      version: 2,
+      camera: {},
+      origin: { layer: "builtin", reference: "cameras/c" },
+    });
 
     const files = Object.fromEntries(written);
     let project = await loadProject(memory(files), "", write, "bench");
@@ -113,5 +124,75 @@ describe("writing projects", () => {
     await expect(saveLibraryItem(readOnly, { version: 1, id: "x", name: "X", laser: {} } as never)).rejects.toThrow(
       /read-only/,
     );
+  });
+});
+
+describe("layers (ADR 0010)", () => {
+  it("resolves project, then bank, then built-in; copies an item into the project; notices a stale copy", async () => {
+    const { isStale, loadBank, saveToBank, useInProject, withLayers } = await import("./project");
+    const builtin = await loadProject(
+      memory({
+        "b/etendue-project.json": JSON.stringify({ version: 1, name: "builtin" }),
+        "b/library/lenses/l25.json": item("l25", "Built-in 25", "lens"),
+        "b/library/lenses/l12.json": item("l12", "Built-in 12", "lens"),
+      }),
+      "b",
+    );
+    const bankFiles: Record<string, string> = {
+      "etendue-bank.json": JSON.stringify({ version: 1, name: "mine" }),
+      "library/lenses/l25.json": item("l25", "My 25", "lens", 2),
+      "library/sensors/s1.json": item("s1", "My sensor", "sensor", 2),
+    };
+    const bankWrites = new Map<string, string>();
+    let bank = await loadBank(memory(bankFiles), (path, text) => {
+      bankWrites.set(path, text);
+      return Promise.resolve();
+    });
+    const projectWrites = new Map<string, string>();
+    const own = await loadProject(
+      memory({
+        "etendue-project.json": JSON.stringify({ version: 1, name: "p" }),
+        "library/lenses/l12.json": item("l12", "Project 12", "lens"),
+      }),
+      "",
+      (path, text) => {
+        projectWrites.set(path, text);
+        return Promise.resolve();
+      },
+    );
+    let project = withLayers(own, bank, builtin.own);
+    expect(project.library.get("lenses/l12")?.name).toBe("Project 12");
+    expect(project.layers.get("lenses/l12")).toEqual({ layer: "project", hides: ["builtin"] });
+    expect(project.library.get("lenses/l25")?.name).toBe("My 25");
+    expect(project.layers.get("lenses/l25")).toEqual({ layer: "bank", hides: ["builtin"] });
+    expect(project.layers.get("sensors/s1")?.layer).toBe("bank");
+    // The built-in project is its own layer.
+    expect(withLayers(builtin, bank, builtin.own, true).layers.get("lenses/l12")).toEqual({
+      layer: "builtin",
+      hides: [],
+    });
+
+    project = await useInProject(project, "lenses/l25");
+    const copy = JSON.parse(projectWrites.get("library/lenses/l25.json")!) as { origin: unknown; name: string };
+    expect(copy).toMatchObject({ name: "My 25", origin: { layer: "bank", reference: "lenses/l25" } });
+    expect(project.layers.get("lenses/l25")).toEqual({ layer: "project", hides: ["bank", "builtin"] });
+    expect(isStale(project, bank.library, "lenses/l25")).toBe(false);
+    // Editing the bank's item makes the project's copy stale; the copy itself is unchanged.
+    bank = await saveToBank(bank, { ...bank.library.get("lenses/l25")!, name: "My 25, measured" });
+    expect(JSON.parse(bankWrites.get("library/lenses/l25.json")!)).toMatchObject({
+      version: 2,
+      name: "My 25, measured",
+    });
+    expect(isStale(project, bank.library, "lenses/l25")).toBe(true);
+    expect(withLayers(project, bank, builtin.own).library.get("lenses/l25")?.name).toBe("My 25");
+    // Using an item the project owns changes nothing.
+    expect(await useInProject(project, "lenses/l12")).toBe(project);
+  });
+
+  it("refuses a bank manifest of another version", async () => {
+    const { loadBank } = await import("./project");
+    await expect(
+      loadBank(memory({ "etendue-bank.json": JSON.stringify({ version: 2, name: "x" }) }), null),
+    ).rejects.toThrow(/bank version 2/);
   });
 });

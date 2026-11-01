@@ -11,12 +11,18 @@ import { useSyncExternalStore } from "react";
 import { download, jsonText } from "../io/export";
 import { type LoadedRobot, type LoadedScene, documentKind, loadRobot, loadScene } from "../io/load";
 import {
+  BANK_FILE,
+  type Bank,
   PROJECT_FILE,
   type Project,
   type ProjectWriter,
   addCell,
   createProject,
+  loadBank,
   loadProject,
+  saveToBank,
+  useInProject as copyIntoProject,
+  withLayers,
   saveLibraryItem as writeLibraryItem,
 } from "../io/project";
 import { canOpenFolders, folderSource, pickFolder, regrant, rememberFolder, rememberedFolder } from "../io/folder";
@@ -26,6 +32,7 @@ import { type Baked, type KernelFailure, bakeScene, describeFailure, initKernel,
 import {
   type Dataset,
   dataRoot,
+  openBankDir,
   openProjectDir,
   pickDirectory,
   saveDialog,
@@ -84,6 +91,8 @@ export interface StudioState {
   project: Project | null;
   /** A project folder opened in an earlier session that the browser must be allowed again. */
   reopenable: string | null;
+  /** The user's bank (ADR 0010), once it has opened. */
+  bank: Bank | null;
 }
 
 /** One entry of the undo or redo stack: the document before (or after) an edit. */
@@ -195,6 +204,7 @@ export class Studio {
     preview: null,
     project: null,
     reopenable: null,
+    bank: null,
   };
   readonly #listeners = new Set<() => void>();
   #generation = 0;
@@ -224,8 +234,29 @@ export class Studio {
   };
 
   #set(patch: Partial<StudioState>): void {
+    // The project always sees the current bank and the built-ins below its own items.
+    const bank = patch.bank !== undefined ? patch.bank : this.#state.bank;
+    const project =
+      patch.project !== undefined ? patch.project : patch.bank !== undefined ? this.#state.project : undefined;
+    if (project) patch = { ...patch, project: this.#layered(project, bank) };
     this.#state = { ...this.#state, ...patch };
     for (const l of this.#listeners) l();
+  }
+
+  /** Where a scene's robots may also be (ADR 0009 §2): `project`'s folder, then the bank's. */
+  #robotFolders(project: Project | null): { source: FileSource; root: string }[] {
+    const bank = this.#state.bank;
+    return [
+      ...(project ? [{ source: project.source, root: project.root }] : []),
+      ...(bank ? [{ source: bank.source, root: "" }] : []),
+    ];
+  }
+
+  /** `project` over `bank` and the built-ins (the starter's own items). */
+  #layered(project: Project, bank: Bank | null): Project {
+    const starter = this.#starter;
+    const isBuiltin = starter !== null && project.source === starter.source && project.root === starter.root;
+    return withLayers(project, bank, starter?.own ?? null, isBuiltin);
   }
 
   /** Start or stop playback. */
@@ -241,8 +272,13 @@ export class Studio {
   #openCell(project: Project, id: string): void {
     const cell = project.cells.find((c) => c.id === id);
     if (!cell) return;
-    this.#set({ example: project === this.#state.project ? id : "" });
-    void this.#open(cell.id, async () => loadScene(project.source, cell.scene, cell.scenario, await repository()));
+    // The same project folder, however it was layered since (`#set` re-layers every project).
+    const open = this.#state.project;
+    const same = open !== null && project.source === open.source && project.root === open.root;
+    this.#set({ example: same ? id : "" });
+    void this.#open(cell.id, async () =>
+      loadScene(project.source, cell.scene, cell.scenario, await repository(), this.#robotFolders(project)),
+    );
   }
 
   /** Open files picked by absolute path (the Tauri shell's file dialog). */
@@ -625,6 +661,7 @@ export class Studio {
       .then(([repo]) => loadProject(repo, "examples"))
       .then(async (starter) => {
         this.#starter = starter;
+        void this.#openBank();
         // An example asked for by name wins; otherwise the project last opened, if it still opens.
         const project = (id === "" ? await this.#reopen() : null) ?? starter;
         for (const p of project.problems) console.warn(`project: ${p.path}: ${p.message}`);
@@ -713,6 +750,87 @@ export class Studio {
     else this.#set({ example: "" });
     toast({ title: `Opened ${project.manifest.name}`, description: project.location, tone: "success", duration: 2500 });
   }
+
+  /** Open the user's bank: the desktop app's bank folder, or the browser folder remembered. */
+  async #openBank(): Promise<void> {
+    try {
+      let bank: Bank | null = null;
+      if (isTauri()) {
+        const { dir } = await openBankDir();
+        bank = await loadBank(
+          fsSource(dir, folderName(dir)),
+          (path, text) => writeText(absolute(dir, path), text),
+          dir,
+        );
+      } else if (canOpenFolders()) {
+        const remembered = await rememberedFolder(BANK_KEY);
+        if (remembered?.granted) bank = await browserBank(remembered.handle);
+      }
+      if (bank) {
+        for (const p of bank.problems) console.warn(`bank: ${p.path}: ${p.message}`);
+        this.#set({ bank });
+      }
+    } catch (e) {
+      console.warn(`bank: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  /** Choose a folder as the bank (the browser; the desktop app's bank folder is fixed). */
+  readonly chooseBank = async (): Promise<void> => {
+    try {
+      const handle = await pickFolder();
+      if (handle === null) return;
+      const bank = await browserBank(handle);
+      this.#set({ bank });
+      toast({ title: `Bank: ${bank.manifest.name}`, description: handle.name, tone: "success", duration: 2500 });
+    } catch (e) {
+      toast({
+        title: "Could not open the bank",
+        description: e instanceof Error ? e.message : String(e),
+        tone: "error",
+      });
+    }
+  };
+
+  /** Save `item` into the bank. */
+  readonly saveToBank = async (item: LibraryItem): Promise<boolean> => {
+    const bank = this.#state.bank;
+    if (!bank) return false;
+    try {
+      this.#set({ bank: await saveToBank(bank, item) });
+      toast({
+        title: `Saved ${item.name}`,
+        description: `${bank.manifest.name} (bank)`,
+        tone: "success",
+        duration: 2500,
+      });
+      return true;
+    } catch (e) {
+      toast({
+        title: "Could not save to the bank",
+        description: e instanceof Error ? e.message : String(e),
+        tone: "error",
+      });
+      return false;
+    }
+  };
+
+  /** Copy the bank or built-in item at `ref` into the open project (ADR 0010 §3). */
+  readonly copyIntoProject = async (ref: string): Promise<boolean> => {
+    const project = this.#state.project;
+    if (!project) return false;
+    try {
+      this.#set({ project: await copyIntoProject(project, ref) });
+      return true;
+    } catch (e) {
+      toast({
+        title: "Could not copy into the project",
+        description: e instanceof Error ? e.message : String(e),
+        tone: "error",
+      });
+      return false;
+    }
+  };
 
   /** Save `item` into the open project's library (a design from the Optics workspace). */
   readonly saveLibraryItem = async (item: LibraryItem): Promise<boolean> => {
@@ -803,6 +921,20 @@ export class Studio {
 
 /** Where the desktop app remembers the last project folder. */
 const PROJECT_KEY = "etendue-studio:project";
+
+/** Where the browser remembers the bank folder's handle. */
+const BANK_KEY = "bank";
+
+/** A bank folder opened in the browser: made a bank (its manifest written) when it is not one. */
+async function browserBank(handle: Parameters<typeof folderSource>[0]): Promise<Bank> {
+  const source = folderSource(handle);
+  if (!(await source.has(BANK_FILE))) {
+    await source.write(BANK_FILE, `${JSON.stringify({ version: 1, name: handle.name }, null, 2)}\n`);
+  }
+  const bank = await loadBank(source, source.write, handle.name);
+  await rememberFolder(handle, BANK_KEY);
+  return bank;
+}
 
 function folderName(dir: string): string {
   return normalize(dir).replace(/\/+$/, "").split("/").at(-1) ?? dir;
