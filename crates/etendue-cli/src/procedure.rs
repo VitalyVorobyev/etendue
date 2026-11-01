@@ -1,7 +1,7 @@
 //! Calibration procedures (ADR 0011): run a [`ProcedurePart`]'s stages against a dataset.
 //!
 //! Each stage is resolved against the dataset into calibration-rs's own config (a patch over the
-//! workflow's defaults) and seeds ([`StageRun`]), then run by the workflow functions of
+//! workflow's defaults) and seeds (`StageRun`), then run by the workflow functions of
 //! [`crate::calibrate`]. The procedure's report is its last stage's, with the laser planes of the
 //! latest stage that estimated them, and a summary of every stage.
 //!
