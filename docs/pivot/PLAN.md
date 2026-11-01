@@ -870,16 +870,19 @@ green; upstream changes (calibration-rs, lab-ui) stay drafts.
 - **P18 — Calibration pose planning.**
   - **Generator:**
     - It supports eye-to-hand; it refuses it today (`etendue-synth/src/poses.rs`).
-    - It ranks the feasible candidates by the uncertainty calibration-rs predicts for the chosen
-      procedure's free parameters (`analysis::next_view`: `predict_with_views`,
-      `rank_candidates`).
+    - It ranks the feasible candidates by the **system σ in mm**: the predicted covariance of the
+      chosen procedure's free parameters (intrinsics, rig, hand-eye) propagated to the σ of a 3-D
+      point in the robot base frame over the working volume (user decision, 2026-11-01).
+      calibration-rs's `analysis::next_view` predicts only the intrinsics. Its extension to the
+      rig and hand-eye terms is a draft upstream PR, and until it lands etendue computes those
+      terms itself.
     - It picks K poses greedily, with hand-eye rotation diversity, under the existing reach,
       margin and visibility filters. Collision checking stays deferred.
   - **Studio:** "Suggest poses", with a pose budget and a curve of predicted σ against the
     number of poses, beside the sphere grid's.
   - **Gates:**
-    - **G18.1:** for the same N, the planned poses give a predicted σ of focal length and
-      hand-eye no larger than the grid's, and P17's empirical std confirms it.
+    - **G18.1:** for the same N, the planned poses give a system σ no larger than the grid's,
+      and P17's empirical std confirms it (within 15 %).
     - **G18.2:** the eye-to-hand example yields a feasible tour.
 
 ### Deferred (not planned; do not scaffold)
