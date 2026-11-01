@@ -478,7 +478,7 @@ export interface ItemOrigin {
    */
   reference: string;
   /**
-   * [`LibraryItem::content_hash`] of the source when it was copied.
+   * The source's content hash (`etendue_core::library::content_hash`) when it was copied.
    */
   sha256: string;
 }

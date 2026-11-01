@@ -948,7 +948,7 @@ pub fn validate_library_item_js(text: &str) -> std::result::Result<String, JsVal
     serde_json::to_string(&item).map_err(|e| js_error(&Error::Input(e.to_string())))
 }
 
-/// A library item's content hash ([`etendue_scene::LibraryItem::content_hash`], ADR 0010): what a
+/// A library item's content hash ([`etendue_core::library::content_hash`], ADR 0010): what a
 /// project's copy records of its source, to tell later whether the source changed.
 ///
 /// # Errors
