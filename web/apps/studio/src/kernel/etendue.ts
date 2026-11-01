@@ -3,7 +3,14 @@
  * into a session (validated scene + robot models) and a baked scenario.
  */
 
-import init, { type BakedScenario, EtendueScene, type EtendueError, isEtendueError } from "@etendue/wasm";
+import init, {
+  type BakedScenario,
+  EtendueScene,
+  type EtendueError,
+  type RobotSource,
+  type SceneSpec,
+  isEtendueError,
+} from "@etendue/wasm";
 
 /** A rig layout's cameras and lasers (the kernel's `RigLayout::expand`). Needs `initKernel()`. */
 export { expandRig } from "@etendue/wasm";
@@ -105,6 +112,27 @@ export function rebake(prev: Baked, loaded: LoadedScene): Baked {
     }
   }
   return { loaded, session: prev.session, baked: bake(prev.session, loaded) };
+}
+
+/**
+ * Run `f` on a throwaway session of `scene` and its robots, baked at the rest pose, and free the
+ * session. For questions about a document that is not the open one (a cell being built). Needs
+ * `initKernel()`; throws what the kernel throws.
+ */
+export function withScene<T>(
+  scene: SceneSpec,
+  robots: readonly RobotSource[],
+  f: (session: EtendueScene, baked: BakedScenario) => T,
+): T {
+  const session = new EtendueScene(
+    scene,
+    robots.map(({ id, manifest, urdf }) => ({ id, manifest, urdf })),
+  );
+  try {
+    return f(session, session.bake(REST));
+  } finally {
+    session.free();
+  }
 }
 
 /** Describe any error thrown while loading or baking. */

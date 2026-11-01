@@ -13,6 +13,7 @@ import {
   type LucideIcon,
   Package,
   Plus,
+  SquarePlus,
   Trash2,
   Zap,
 } from "lucide-react";
@@ -71,6 +72,7 @@ export function Navigator({
   onAddRobot,
   onBrowseRobots,
   onRemove,
+  onNewCell,
 }: {
   tree: SceneNode;
   selected: string | null;
@@ -84,6 +86,8 @@ export function Navigator({
   onBrowseRobots?: (() => void) | undefined;
   /** Remove the selection; `null` when it is not removable. */
   onRemove: (() => void) | null;
+  /** Start the cell builder: a new cell from library items, in place of this one. */
+  onNewCell?: (() => void) | undefined;
 }) {
   const nodes = useMemo(() => [toTreeNode(tree)], [tree]);
   // Everything open except the groups of bare robot links, which are long and rarely needed.
@@ -100,6 +104,17 @@ export function Navigator({
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex h-9 shrink-0 items-center gap-1 border-b border-line px-2">
         <span className="flex-1 text-xs font-medium text-fg-muted">Scene</span>
+        {onNewCell && (
+          <Button
+            variant="ghost"
+            size="sm"
+            icon={<SquarePlus className="size-4" />}
+            title="Build a new cell from library items, step by step"
+            onClick={onNewCell}
+          >
+            New cell…
+          </Button>
+        )}
         <DropdownMenu
           align="end"
           trigger={

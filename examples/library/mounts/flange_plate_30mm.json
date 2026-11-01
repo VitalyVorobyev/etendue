@@ -1,0 +1,21 @@
+{
+  "version": 2,
+  "id": "flange_plate_30mm",
+  "name": "Flange plate, 30 mm",
+  "description": "A plate on the tool flange that carries a rig 30 mm out along the flange's axis, as in examples/eye_in_hand_ur5e.",
+  "mount": {
+    "flange_se3_device": {
+      "rotation": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "translation": [
+        0,
+        0,
+        0.03
+      ]
+    }
+  }
+}

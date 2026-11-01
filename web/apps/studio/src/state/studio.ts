@@ -427,6 +427,17 @@ export class Studio {
     return true;
   };
 
+  /**
+   * Commit the edit in progress as a new document (a cell built from scratch): as `commit`, and
+   * then Save no longer writes over the cell or the files it replaced; it asks where, or the cell
+   * is saved as a new one.
+   */
+  readonly commitNew = (): boolean => {
+    if (!this.commit()) return false;
+    this.#set({ example: "", saveTo: null });
+    return true;
+  };
+
   /** Drop the edit in progress: the document goes back to what it was before it. */
   readonly cancel = (): void => {
     const tx = this.#tx;

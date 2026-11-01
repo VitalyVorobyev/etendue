@@ -457,3 +457,48 @@ test("the Library workspace: a bank lens used in a project, edited, its copy upd
   await expect(bankLens).not.toContainText("hidden by project");
   expect(await file("/bank/library/lenses/bench_lens.json")).toBeDefined();
 });
+
+test("a cell built from built-in items copies them into the project, and saves as a cell", async ({ page }) => {
+  await installShell(page);
+  await page.goto("/?example=eye_in_hand_ur5e");
+  await expect(page.getByRole("treeitem", { name: /cam_left/ })).toBeVisible({ timeout: 30_000 });
+  await page.getByRole("button", { name: "File" }).click();
+  await page.getByRole("menuitem", { name: "New project…" }).click();
+  await expect(page.getByText("Opened proj")).toBeVisible();
+  const file = async (path: string) => {
+    const text = await page.evaluate(
+      (p) => (JSON.parse(sessionStorage.getItem("fake-disk") ?? "{}") as Record<string, string>)[p],
+      path,
+    );
+    return text === undefined ? undefined : (JSON.parse(text) as unknown);
+  };
+
+  // The project's own default camera and target; a built-in mount.
+  await page.getByRole("button", { name: "New cell…" }).click();
+  await page
+    .getByTestId("cell-steps")
+    .getByRole("button", { name: /Mounting/ })
+    .click();
+  await page.getByRole("combobox", { name: "Mount (rig on the flange)", exact: true }).click();
+  await page.getByRole("option", { name: /^Flange plate, 30 mm · built-in/ }).click();
+  await page
+    .getByTestId("cell-steps")
+    .getByRole("button", { name: /Review/ })
+    .click();
+  await page.getByRole("button", { name: "Build cell" }).click();
+  await expect(page.getByText("Built the cell")).toBeVisible({ timeout: 30_000 });
+  await expect
+    .poll(() => file("/proj/library/mounts/flange_plate_30mm.json"))
+    .toMatchObject({ id: "flange_plate_30mm", origin: { layer: "builtin", reference: "mounts/flange_plate_30mm" } });
+
+  await page.getByRole("button", { name: "File" }).click();
+  await page.getByRole("menuitem", { name: "Save as a cell of proj…" }).click();
+  await page.getByRole("textbox", { name: "Cell" }).fill("built");
+  await page.getByRole("dialog").getByRole("button", { name: "Save" }).click();
+  await expect(page.getByText("Saved as built")).toBeVisible();
+  expect(await file("/proj/built/scene.json")).toMatchObject({
+    rigs: [{ id: "rig", parent: "ur5e/tool0", parent_se3_self: { translation: [0, 0, 0.03] } }],
+    cameras: [{ id: "cam", parent: "rig" }],
+  });
+  expect(await file("/proj/built/scenario.json")).toMatchObject({ steps: [] });
+});
