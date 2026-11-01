@@ -120,6 +120,52 @@ enum Mode {
     },
 }
 
+/// Which of the sensor and the target the robot carries.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Mounting {
+    /// The sensor on the tool, the target fixed.
+    EyeInHand,
+    /// The target on the tool, the sensor fixed.
+    EyeToHand,
+}
+
+/// Whether `look` rides rigidly on robot `r`'s tool with `target` fixed, or the reverse. Checked
+/// by moving every joint; the robot's base must not move.
+pub(crate) fn mounting(
+    posed: &Posed<'_>,
+    r: usize,
+    model: &RobotModel,
+    look: &str,
+    target: &str,
+) -> Result<Mounting> {
+    let robot = &posed.scene.robots[r].id;
+    let names = model.links();
+    let base = posed.index(&format!("{robot}/{}", names[model.base_link()]))?;
+    let tcp = posed.index(&format!("{robot}/{}", names[model.tcp_link()]))?;
+    let (look_frame, target_frame) = (posed.index(look)?, posed.index(target)?);
+    let q_ref = &posed.rest[r];
+    let q_alt: Vec<f64> = q_ref
+        .iter()
+        .zip(model.active_joints())
+        .map(|(q, j)| (q + 0.3).min(j.upper).max(j.lower))
+        .collect();
+    let (a, b) = (posed.at(r, q_ref), posed.at(r, &q_alt));
+    if !same(&a[base], &b[base]) {
+        return Err(bad(format!("`{robot}`'s base moves with its joints")));
+    }
+    let carried = |f: usize| same(&(a[tcp].inverse() * a[f]), &(b[tcp].inverse() * b[f]));
+    let fixed = |f: usize| same(&a[f], &b[f]);
+    if carried(look_frame) && fixed(target_frame) {
+        Ok(Mounting::EyeInHand)
+    } else if carried(target_frame) && fixed(look_frame) {
+        Ok(Mounting::EyeToHand)
+    } else {
+        Err(bad(format!(
+            "either `{look}` rides on `{robot}`'s tool and target `{target}` is fixed (eye-in-hand), or the reverse (eye-to-hand)"
+        )))
+    }
+}
+
 /// How still a frame must stay (metres and radians) to count as carried
 /// rigidly, or as fixed, when every joint moves.
 const RIGID: f64 = 1e-9;
@@ -301,42 +347,16 @@ pub fn generate(
         .ok_or_else(|| bad(format!("no target `{}`", spec.target)))?;
     let target_frame = posed.index(&target.id)?;
 
-    // Rigidity: the sensor rides on the tool; the base and the target do not
-    // move with the robot. Checked by moving every joint.
-    let q_alt: Vec<f64> = q_ref
-        .iter()
-        .zip(model.active_joints())
-        .map(|(q, j)| (q + 0.3).min(j.upper).max(j.lower))
-        .collect();
-    let (a, b) = (posed.at(r, &q_ref), posed.at(r, &q_alt));
-    if !same(&a[base_frame], &b[base_frame]) {
-        return Err(bad(format!(
-            "`{}`'s base moves with its joints",
-            spec.robot
-        )));
-    }
-    let tcp_se3_look = a[tcp_frame].inverse() * a[look_frame];
-    let tcp_se3_target = a[tcp_frame].inverse() * a[target_frame];
-    let carried = |frame: usize, tcp_se3: &Isometry3<f64>| {
-        same(tcp_se3, &(b[tcp_frame].inverse() * b[frame]))
-    };
-    let fixed = |frame: usize| same(&a[frame], &b[frame]);
+    let a = posed.at(r, &q_ref);
     let look_se3_sensor = spec.look_se3_sensor.unwrap_or_else(Isometry3::identity);
-    // Eye-in-hand: the sensor on the tool, the target fixed. Eye-to-hand: the reverse.
-    let mode = if carried(look_frame, &tcp_se3_look) && fixed(target_frame) {
-        Mode::EyeInHand {
-            sensor_se3_tcp: (tcp_se3_look * look_se3_sensor).inverse(),
-        }
-    } else if carried(target_frame, &tcp_se3_target) && fixed(look_frame) {
-        Mode::EyeToHand {
+    let mode = match mounting(&posed, r, model, &spec.look, &target.id)? {
+        Mounting::EyeInHand => Mode::EyeInHand {
+            sensor_se3_tcp: (a[tcp_frame].inverse() * a[look_frame] * look_se3_sensor).inverse(),
+        },
+        Mounting::EyeToHand => Mode::EyeToHand {
             world_se3_sensor: a[look_frame] * look_se3_sensor,
-            target_se3_tcp: tcp_se3_target.inverse(),
-        }
-    } else {
-        return Err(bad(format!(
-            "either `{}` rides on `{}`'s tool and target `{}` is fixed (eye-in-hand), or the reverse (eye-to-hand)",
-            spec.look, spec.robot, target.id
-        )));
+            target_se3_tcp: a[target_frame].inverse() * a[tcp_frame],
+        },
     };
     let world_se3_base = a[base_frame];
     let world_se3_target = a[target_frame];

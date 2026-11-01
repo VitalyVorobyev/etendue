@@ -242,7 +242,8 @@ Import tool poses…** does the same.
 etendue scenario sphere <scene> --spec <spec.json> -o <scenario.json> [--candidates candidates.json] [--dt 0.01]
 ```
 
-Calibration viewpoints on spheres around a target, for a sensor the robot carries. The spec is
+Calibration viewpoints on spheres around a target, for a sensor the robot carries
+(eye-in-hand) or a fixed sensor that sees a target the robot carries (eye-to-hand). The spec is
 the JSON a scenario keeps in its `generator`, so `--spec` also takes a generated scenario, to
 generate it again:
 
@@ -256,8 +257,8 @@ generate it again:
 
 | Field | Default | Meaning |
 |---|---|---|
-| `robot` | — | The robot that carries the sensor. |
-| `look` | — | The sensor: a rig, camera or frame the robot's tool carries. |
+| `robot` | — | The robot that carries the sensor, or the target. |
+| `look` | — | The sensor: a rig, camera or frame, on the robot's tool or fixed. |
 | `look_se3_sensor` | identity | The sensor's axis relative to `look`. |
 | `target` | — | The target looked at. |
 | `centre_m` | the target's centre | The spheres' centre, in the target's frame. |
@@ -272,7 +273,9 @@ generate it again:
 | `return_home` | false | Go back to the start configuration at the end. |
 
 The sensor is placed at every radius, polar angle and azimuth, its +Z at the centre and its image
-upright, then rolled by each roll angle. A placement is kept when the robot reaches it within the
+upright, then rolled by each roll angle. Eye-to-hand, the placements are relative to the target:
+the robot puts the target where the fixed sensor sees it from there
+(`examples/eye_to_hand_ur5e/sphere.json` is such a spec). A placement is kept when the robot reaches it within the
 joint margin and away from singularities, and every required camera sees enough of the target.
 The kept poses are ordered into a short tour and written as `ptp_pose` moves, each with its joint
 configuration stored, and captures. `--candidates` writes every placement and why it was kept or
@@ -312,7 +315,9 @@ $ etendue scenario plan examples/closed_loop_ur5e/scene.json \
   error ([measurement](https://github.com/VitalyVorobyev/etendue/blob/main/docs/measurements/g18_pose_planning.md)).
 - **`--report`** writes the picks in order, the system σ after each (the curve to choose a budget
   from), the evenly thinned grid's σ for comparison, and every parameter's predicted σ.
-- **Eye-in-hand only**, as the generator.
+- **Eye-to-hand** cells are planned too: the hand-eye is then `rig_se3_base` and the target's
+  pose `gripper_se3_target`, and the same check holds (planned 8 poses: 0.0407 mm predicted,
+  0.0428 mm measured, against the grid's 0.0485 mm).
 
 ## `project check`
 

@@ -11,7 +11,7 @@ Every example uses a Universal Robots UR5e, a 9 × 6 inner-corner chessboard and
 | Example | The cell | Dataset |
 |---|---|---|
 | `eye_in_hand_ur5e` | A stereo rig on the UR5e's flange views a chessboard (25 mm squares) lying on the table. Nine viewpoints around the board, then a 6 cm straight-line pass: 10 captures. | rig hand-eye, eye-in-hand |
-| `eye_to_hand_ur5e` | A static stereo rig on a stand views a chessboard (25 mm squares) held by the UR5e. Nine board presentations. | rig hand-eye, eye-to-hand |
+| `eye_to_hand_ur5e` | A static stereo rig on a stand views a chessboard (25 mm squares) held by the UR5e. Nine board presentations; `sphere.json` is a pose-generator spec for it (48 feasible poses). | rig hand-eye, eye-to-hand |
 | `closed_loop_ur5e` | A two-camera rig mounted 15° and 10° off square on the flange, with lens distortion, views a chessboard (20 mm squares) at 0.45–0.55 m. 24 viewpoints made by the pose generator (its spec is kept in the scenario). Comes with `sensor_linear.json`, a noise-free linear 8-bit sensor. | rig hand-eye, eye-in-hand |
 | `laser_ur5e` | The `closed_loop_ur5e` rig with a red line laser (660 nm, 20° fan half-angle) between the cameras, imaged by both. | rig hand-eye laser-line |
 | `laser_scheimpflug_ur5e` | The laser rig with Scheimpflug sensors, tilted about 3° and 2°. It does not pass the exact-data check: see [Calibration](calibration.md#the-tolerances). | rig hand-eye laser-line |
