@@ -1159,6 +1159,8 @@ fn finish(truth: &Truth, obs: &Observations, gated: bool, solved: Solved) -> Rep
         f.capture.clone_from(&capture.id);
         f.camera.clone_from(&truth.gt.cameras[i].id);
         f.point = point.point;
+        // Named now: the indices are not kept (nor written).
+        f.raw = [0; 3];
         true
     });
     let uncertainty = predicted(&export);
