@@ -96,6 +96,8 @@ calib-targets-marker = "0.16.1"
 rand = { version = "0.10", default-features = false }
 rand_chacha = { version = "0.10", default-features = false }
 rand_distr = { version = "0.6", default-features = false, features = ["std_math"] }
+# Library item content hashes (etendue-scene, ADR 0010): a project's copy against its source.
+sha2 = "0.10"
 # etendue.toml tool pins (etendue-cli).
 toml = "1"
 

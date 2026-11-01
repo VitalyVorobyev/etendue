@@ -948,6 +948,18 @@ pub fn validate_library_item_js(text: &str) -> std::result::Result<String, JsVal
     serde_json::to_string(&item).map_err(|e| js_error(&Error::Input(e.to_string())))
 }
 
+/// A library item's content hash ([`etendue_scene::LibraryItem::content_hash`], ADR 0010): what a
+/// project's copy records of its source, to tell later whether the source changed.
+///
+/// # Errors
+///
+/// Throws as [`validate_library_item_js`] for an item that does not check.
+#[wasm_bindgen(js_name = libraryItemHash)]
+pub fn library_item_hash_js(text: &str) -> std::result::Result<String, JsValue> {
+    let item = validate_library_item(text).map_err(|e| js_error(&e))?;
+    Ok(item.content_hash())
+}
+
 /// A head and, if given, a window (the design's own otherwise), from JSON.
 fn head_of(
     design_json: &str,

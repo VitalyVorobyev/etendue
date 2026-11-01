@@ -41,8 +41,12 @@ export type {
   LaserPart,
   TargetPart,
   RigDesign,
+  MountPart,
+  ItemSource,
+  ItemOrigin,
 } from "./types/library.js";
 export type { ProjectManifest, ProjectDefaults } from "./types/project.js";
+export type { BankManifest } from "./types/bank.js";
 export type { CaptureExport, CaptureRow } from "./types/captures.js";
 export type {
   RobotManifest,
@@ -260,6 +264,14 @@ export function deriveOptics(optics: OpticsSpec | string, params: CameraParams |
  * @throws {@link EtendueError} `kind: "invalid"` with every problem found.
  */
 export function validateLibraryItem(text: string | object): import("./types/library.js").LibraryItem;
+
+/**
+ * The SHA-256 (hex) of a library item's content, `origin` left out (ADR 0010 §3): what a
+ * project's copy records of its source, so the studio can tell when the source has changed.
+ *
+ * @throws {@link EtendueError} `kind: "invalid"` for an item that does not check.
+ */
+export function libraryItemHash(item: string | object): string;
 
 /** A 2-D point or direction of a head's section, `[s, z]` (m): `z` along the camera axis. */
 export type SectionPoint = [number, number];

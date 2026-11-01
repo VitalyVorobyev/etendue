@@ -15,7 +15,8 @@ is read-only: open or create a project of your own to save into.
 │   ├── targets/<id>.json
 │   ├── cameras/<id>.json
 │   ├── heads/<id>.json
-│   └── rigs/<id>.json
+│   ├── rigs/<id>.json
+│   └── mounts/<id>.json
 ├── robots/<id>/robot.json …       robots that come with the project (optional, listed in the manifest)
 ├── <cell>/scene.json              a cell: its scene …
 ├── <cell>/scenario.json           … and usually its scenario
@@ -87,7 +88,12 @@ names its kind:
 }
 ```
 
-Every item has `version`, `id`, `name` and an optional `description`.
+Every item has `version`, `id`, `name` and an optional `description`. Version 2 items may also
+carry:
+- `source`: where the data comes from (`vendor`, `part_number`, `datasheet_url`, `notes`);
+- `origin`: on a project's copy of a bank or built-in item, where it came from (`layer`,
+  `reference`) and the source's content hash when it was copied (`sha256`). See
+  [The bank](#the-bank).
 
 | Kind | Folder | What it holds |
 |---|---|---|
@@ -98,10 +104,11 @@ Every item has `version`, `id`, `name` and an optional `description`.
 | `camera` | `cameras` | a camera design: its model, image size and, when physical, its optics ([Physical cameras](physical_cameras.md)) |
 | `head` | `heads` | a laser-triangulation head: a physical camera, a laser, the laser's pose on the camera's body (`camera_se3_laser`), its fan length, and the window it must work in (`near_m`, `far_m`, `width_m`, `max_blur_px`) |
 | `rig` | `rigs` | a rig layout, its camera and lasers included ([Rig layouts](scenes.md#rig-layouts)) |
+| `mount` | `mounts` | an adapter on a robot's tool flange: the device's pose on the flange (`flange_se3_device`) and, when known, its `mass_kg` |
 
 - **The id is the file name.**
-- **`version` is read first.** An etendue that reads version 1 refuses a version 2 file because
-  of its version, not because of a field it does not know.
+- **`version` is read first.** etendue reads versions 1 and 2 and writes 2. An older etendue
+  refuses a newer file because of its version, not because of a field it does not know.
 - **Designs embed their parts by value,** so a library file is complete on its own.
 - **A scene copies a design by value.** It never depends on a library being present, and a
   dataset made from it never points at a missing file.
@@ -129,4 +136,39 @@ The check covers:
 - the defaults: they name existing items;
 - the project's robots.
 
-Every problem is reported, one per line, and the command fails.
+Every problem is reported, one per line, and the command fails. With `--bank <dir>` it also
+notes the items copied from that bank whose source has changed since (a note, not a problem: the
+project still has its copy).
+
+## The bank
+
+A **bank** is your own library, shared by every project. It has the same `library/` and
+`robots/` folders as a project, and a manifest instead of cells:
+
+```text
+<bank>/
+├── etendue-bank.json              {"version": 1, "name": "My bank"}
+├── library/<folder>/<id>.json
+└── robots/<id>/robot.json …
+```
+
+The studio reads three layers, in this order: the open project, your bank, and the built-in
+library that ships with etendue. An item found in a higher layer hides one with the same
+reference below it.
+
+A project keeps **copies** of what it uses. The copy records its source in `origin`, so a project
+opens without the bank, and the studio can tell you when the bank's item has changed.
+
+On the command line:
+
+```bash
+etendue library init ~/Documents/etendue/bank --name "My bank"
+etendue library import my_lens.json --into ~/Documents/etendue/bank
+etendue library import path/to/my_robot --into ~/Documents/etendue/bank   # robot.json, URDF, meshes
+etendue library check ~/Documents/etendue/bank
+etendue library list --project my_project --bank ~/Documents/etendue/bank --builtin examples
+```
+
+- **`import`** checks the item (or loads the robot as the kinematics would) before it writes,
+  and writes items at version 2. It replaces an existing item only with `--force`.
+- **`list`** prints each item once, from the layer it resolves to, and names the layers it hides.

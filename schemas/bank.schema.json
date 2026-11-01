@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "BankManifest",
+  "description": "`etendue-bank.json`.",
+  "type": "object",
+  "properties": {
+    "name": {
+      "description": "What it is, for people.",
+      "type": "string"
+    },
+    "version": {
+      "description": "Format version, [`BANK_VERSION`].",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "name"
+  ]
+}

@@ -16,7 +16,11 @@ etendue calibrate <dir> [--noise <noise.json>] [--trials N] [--camera <id>]
                   [--features <features.json>] [--laser-features <file>] [-o <report.json>] [--run <dir>]
 etendue scenario from-poses <poses> --robot <id> -o <scenario.json> [--speed-scale S] [--dt T] [--scene <scene>]
 etendue scenario sphere <scene> --spec <spec.json> -o <scenario.json> [--candidates <file>] [--dt T]
-etendue project check <dir>
+etendue project check <dir> [--bank <dir>]
+etendue library list [--project <dir>] [--bank <dir>] [--builtin <dir>]
+etendue library check <dir>
+etendue library import <item.json | robot folder> --into <dir> [--force]
+etendue library init <dir> [--name <name>]
 ```
 
 A typical run, from scene to calibration:
@@ -293,4 +297,26 @@ every library item, the defaults and the project's robots. See
 ```text
 $ etendue project check examples
 project ok: etendue examples: 6 cell(s), library 2 cameras, 3 lasers, 3 lenses, 1 rigs, 3 sensors, 2 targets, 0 robot(s)
+```
+
+With `--bank <dir>` it also notes each copy whose source in that bank has changed since it was
+copied.
+
+## `library`
+
+```text
+etendue library list [--project <dir>] [--bank <dir>] [--builtin <dir>]
+etendue library check <dir>
+etendue library import <item.json | robot folder> --into <dir> [--force]
+etendue library init <dir> [--name <name>]
+```
+
+Works with a user bank (or any folder with `library/` and `robots/`). See
+[The bank](library.md#the-bank).
+
+```text
+$ etendue library list --builtin examples
+builtin  cameras/imx174_lm25hc                    IMX174 + Kowa LM25HC, f/4, focused at 0.5 m
+…
+14 item(s) and robot(s), 0 problem(s)
 ```

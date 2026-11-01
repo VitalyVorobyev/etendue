@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **The bank** (ADR 0010): a user library shared by every project, in the same layout as a
+  project's library, with an `etendue-bank.json` manifest. `etendue library init|import|check|list`
+  make, fill, check and list it; `list` shows each item from the layer it resolves to (project,
+  bank, built-in). `etendue project check --bank` notes copies whose bank source has changed.
+- Library items version 2: `source` (datasheet), `origin` (where a project's copy came from, with
+  the source's content hash) and the `mount` kind (an adapter on a robot's flange). Version 1
+  still reads.
+
 ### Changed
 
 - **calibration-rs 0.11.0** (was 0.9.0), **calib-targets 0.16.1** (was 0.15.5) and

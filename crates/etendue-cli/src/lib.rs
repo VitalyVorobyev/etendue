@@ -11,6 +11,7 @@ pub mod calibrate;
 pub mod detect;
 pub mod export;
 pub mod gt;
+pub mod library;
 pub mod load;
 pub mod poses;
 pub mod progress;

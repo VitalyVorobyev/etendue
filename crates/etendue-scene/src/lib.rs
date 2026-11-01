@@ -33,6 +33,7 @@
 //! [ADR 0003]: https://github.com/VitalyVorobyev/etendue/blob/main/docs/adrs/0003-baking.md
 
 pub mod baked;
+pub mod bank;
 pub mod entity;
 pub mod export;
 pub mod frame;
@@ -53,12 +54,14 @@ use nalgebra::Isometry3;
 use serde::{Deserialize, Serialize};
 
 pub use baked::{BakedRobot, BakedSample, BakedScenario, CaptureEvent};
+pub use bank::{BANK_FILE, BANK_VERSION, BankManifest};
 pub use entity::{CameraSpec, LaserSpec, PartSpec, RigSpec, TargetGeometry, TargetSpec};
 pub use export::{CaptureExport, CaptureRow, ExportError};
 pub use frame::{FrameGraph, FrameRef, FrameSpec, ParsedFrameRef, WORLD, is_valid_id};
 pub use library::{
-    HeadDesign, HeadWindow, KINDS, LIBRARY_VERSION, LaserPart, LensMount, LensPart, LibraryItem,
-    RigDesign, SensorPart, TargetPart, Versioned,
+    HeadDesign, HeadWindow, ItemOrigin, ItemSource, KINDS, LIBRARY_VERSION, LIBRARY_VERSIONS,
+    LaserPart, Layer, LensMount, LensPart, LibraryItem, MountPart, RigDesign, SensorPart,
+    TargetPart, Versioned,
 };
 pub use light::{LightShape, LightSpec};
 pub use optics::{Focusing, LensOptics, OpticsSpec, SensorOptics};
