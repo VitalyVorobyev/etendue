@@ -117,15 +117,33 @@ fn bad(message: impl Into<String>) -> Error {
 
 /// The frame poses of the scene with robot `r` at `q` (the others at their
 /// initial configuration).
-struct Posed<'a> {
-    scene: &'a SceneSpec,
+pub(crate) struct Posed<'a> {
+    pub(crate) scene: &'a SceneSpec,
     robots: &'a [RobotModel],
     graph: FrameGraph,
-    rest: Vec<Vec<f64>>,
+    pub(crate) rest: Vec<Vec<f64>>,
 }
 
-impl Posed<'_> {
-    fn at(&self, r: usize, q: &[f64]) -> Vec<Isometry3<f64>> {
+impl<'a> Posed<'a> {
+    /// The scene's frame tree, every robot at its initial configuration unless posed.
+    pub(crate) fn new(scene: &'a SceneSpec, robots: &'a [RobotModel]) -> Result<Self> {
+        let links: Vec<Vec<String>> = robots.iter().map(|m| m.links().to_vec()).collect();
+        let graph = FrameGraph::build(scene, &links).map_err(|e| bad(e.to_string()))?;
+        let rest: Vec<Vec<f64>> = scene
+            .robots
+            .iter()
+            .zip(robots)
+            .map(|(s, m)| s.initial_q.clone().unwrap_or_else(|| vec![0.0; m.dof()]))
+            .collect();
+        Ok(Self {
+            scene,
+            robots,
+            graph,
+            rest,
+        })
+    }
+
+    pub(crate) fn at(&self, r: usize, q: &[f64]) -> Vec<Isometry3<f64>> {
         let links: Vec<Vec<Isometry3<f64>>> = self
             .robots
             .iter()
@@ -135,7 +153,7 @@ impl Posed<'_> {
         self.graph.resolve(|robot, link| links[robot][link])
     }
 
-    fn index(&self, frame: &str) -> Result<usize> {
+    pub(crate) fn index(&self, frame: &str) -> Result<usize> {
         self.graph
             .index_of(frame)
             .ok_or_else(|| bad(format!("no frame `{frame}` in the scene")))
@@ -256,20 +274,7 @@ pub fn generate(
     let model = robots
         .get(r)
         .ok_or_else(|| bad("a robot model per scene robot"))?;
-    let links: Vec<Vec<String>> = robots.iter().map(|m| m.links().to_vec()).collect();
-    let graph = FrameGraph::build(scene, &links).map_err(|e| bad(e.to_string()))?;
-    let rest: Vec<Vec<f64>> = scene
-        .robots
-        .iter()
-        .zip(robots)
-        .map(|(s, m)| s.initial_q.clone().unwrap_or_else(|| vec![0.0; m.dof()]))
-        .collect();
-    let posed = Posed {
-        scene,
-        robots,
-        graph,
-        rest,
-    };
+    let posed = Posed::new(scene, robots)?;
     let q_ref = posed.rest[r].clone();
     let names = model.links();
     let base_frame = posed.index(&format!("{}/{}", spec.robot, names[model.base_link()]))?;
