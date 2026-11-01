@@ -1,0 +1,38 @@
+{
+  "version": 2,
+  "id": "rig_handeye",
+  "name": "Hand-eye, rig",
+  "description": "Each camera's intrinsics, the rig's extrinsics, then the rig's hand-eye with the robot poses refined.",
+  "procedure": {
+    "stages": [
+      {
+        "id": "intrinsics",
+        "problem": "planar_intrinsics"
+      },
+      {
+        "id": "rig",
+        "problem": "rig_extrinsics",
+        "seed": {
+          "intrinsics": {
+            "stage": "intrinsics"
+          }
+        }
+      },
+      {
+        "id": "handeye",
+        "problem": "rig_handeye",
+        "free": {
+          "refine_robot_poses": true
+        },
+        "seed": {
+          "intrinsics": {
+            "stage": "rig"
+          },
+          "rig": {
+            "stage": "rig"
+          }
+        }
+      }
+    ]
+  }
+}

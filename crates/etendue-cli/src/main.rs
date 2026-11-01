@@ -138,6 +138,11 @@ enum Command {
         /// Calibrate this camera of a rig alone (single-camera hand-eye).
         #[arg(long)]
         camera: Option<String>,
+        /// The calibration procedure: a built-in's id (intrinsics, stereo, handeye, rig_handeye,
+        /// laser_head, laser_rig) or a procedure file; without it, the choice by the dataset's
+        /// shape.
+        #[arg(long)]
+        procedure: Option<String>,
         /// Observations from `etendue detect` instead of the ground truth.
         #[arg(long)]
         features: Option<PathBuf>,
@@ -592,6 +597,7 @@ fn run(cli: Cli) -> Result<()> {
             noise,
             trials,
             camera,
+            procedure,
             features,
             laser_features,
             output,
@@ -600,7 +606,7 @@ fn run(cli: Cli) -> Result<()> {
             &dir,
             noise.as_deref(),
             trials,
-            camera,
+            (camera, procedure),
             (features.as_deref(), laser_features.as_deref()),
             (output.as_deref(), run.as_deref()),
         ),
@@ -761,7 +767,7 @@ fn run_calibrate(
     dir: &Path,
     noise: Option<&Path>,
     trials: u32,
-    camera: Option<String>,
+    (camera, procedure): (Option<String>, Option<String>),
     (features, laser_features): (Option<&Path>, Option<&Path>),
     (output, run): (Option<&Path>, Option<&Path>),
 ) -> Result<()> {
@@ -781,9 +787,16 @@ fn run_calibrate(
             "--noise and --trials apply to the analytic observations, not to --features"
         ));
     }
+    let procedure = procedure
+        .map(|name| etendue_cli::procedure::named(&name))
+        .transpose()?;
+    if let Some((id, p)) = &procedure {
+        println!("procedure: {id} ({} stage(s))", p.stages.len());
+    }
     let options = calibrate::Options {
         camera: camera.clone(),
         detected: features.is_some(),
+        procedure: procedure.clone(),
     };
     let mut reports = Vec::new();
     for k in 0..trials.max(1) {
@@ -862,6 +875,7 @@ fn run_calibrate(
             trials: trials.max(1),
             camera,
             detected: features.is_some(),
+            procedure: procedure.map(|(id, procedure)| calibrate::RunProcedure { id, procedure }),
         };
         calibrate::write_run(folder, dir, &options, &doc)?;
         println!("run → {}", folder.display());

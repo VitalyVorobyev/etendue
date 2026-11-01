@@ -1,0 +1,22 @@
+{
+  "version": 2,
+  "id": "laser_rig",
+  "name": "Rig with lasers",
+  "description": "Cameras, rig, laser planes and hand-eye in one joint solve, seeded from the datasheet focal lengths and tilts.",
+  "procedure": {
+    "stages": [
+      {
+        "id": "joint",
+        "problem": "rig_handeye_laserline",
+        "free": {
+          "refine_intrinsics": true,
+          "refine_sensor": true
+        },
+        "seed": {
+          "intrinsics": "nominal",
+          "sensor": "nominal"
+        }
+      }
+    ]
+  }
+}

@@ -85,6 +85,17 @@
         }
       ]
     },
+    "procedure": {
+      "description": "A calibration procedure (version 2, ADR 0011).",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ProcedurePart"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "rig": {
       "description": "A rig design.",
       "anyOf": [
@@ -143,6 +154,22 @@
     "name"
   ],
   "$defs": {
+    "CameraChoice": {
+      "description": "The camera model of a stage and what of it stays fixed.",
+      "type": "object",
+      "properties": {
+        "fix": {
+          "description": "Fixed parameters.",
+          "$ref": "#/$defs/FixLists"
+        },
+        "sensor": {
+          "description": "The sensor model.",
+          "$ref": "#/$defs/SensorChoice",
+          "default": "design"
+        }
+      },
+      "additionalProperties": false
+    },
     "CameraParams": {
       "description": "Serializable camera parameters for building a runtime model.",
       "type": "object",
@@ -447,6 +474,43 @@
         }
       ]
     },
+    "FixLists": {
+      "description": "The parameters held fixed in the solve, by calibration-rs's names per slot. A slot left out\nkeeps calibration-rs's default for the model.",
+      "type": "object",
+      "properties": {
+        "distortion": {
+          "description": "`k1`, `k2`, `k3`, `p1`, `p2`.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "intrinsics": {
+          "description": "`fx`, `fy`, `cx`, `cy`.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "sensor": {
+          "description": "`tilt_x`, `tilt_y`.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
     "Focusing": {
       "description": "How a lens focuses.",
       "oneOf": [
@@ -464,6 +528,98 @@
           ]
         }
       ]
+    },
+    "Freedoms": {
+      "description": "What else a stage estimates or holds, beyond the camera. Each is calibration-rs's option of\nthe same meaning; one that does not apply to the stage's workflow is refused. Absent, the\nworkflow's default holds.",
+      "type": "object",
+      "properties": {
+        "fix_handeye": {
+          "description": "Hold the hand-eye in the joint laser solve (`rig_handeye_laserline`).",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "fix_plane": {
+          "description": "Hold the laser plane (`laserline_device`).",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "fix_poses": {
+          "description": "The target poses (view indices) held at their linear estimate (`planar_intrinsics`,\n`laserline_device`).",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "integer",
+            "format": "uint",
+            "minimum": 0
+          }
+        },
+        "fix_target": {
+          "description": "Hold the target's pose in the joint laser solve (`rig_handeye_laserline`).",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "min_motion_angle_deg": {
+          "description": "The least robot rotation between views the linear hand-eye uses, degrees.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "refine_intrinsics": {
+          "description": "Refine the intrinsics jointly with the rig and the hand-eye (rig workflows).",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "refine_rig": {
+          "description": "Refine the cameras' poses in the rig during the hand-eye solve (`rig_handeye`).",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "refine_robot_poses": {
+          "description": "Refine each view's robot pose under a prior (hand-eye workflows).",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "refine_sensor": {
+          "description": "Refine a Scheimpflug sensor's tilt jointly with the rig (rig workflows).",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "robot_rot_sigma_rad": {
+          "description": "The robot-pose prior's rotation σ, radians.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "robot_trans_sigma_m": {
+          "description": "The robot-pose prior's translation σ, metres.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        }
+      },
+      "additionalProperties": false
     },
     "FxFyCxCy": {
       "description": "Standard pinhole intrinsics: focal lengths and principal point in pixels.\n\nThe pixel grid is assumed orthogonal, so `K` carries no skew term.",
@@ -636,7 +792,7 @@
           "type": "string"
         },
         "sha256": {
-          "description": "[`LibraryItem::content_hash`] of the source when it was copied.",
+          "description": "The source's content hash (`etendue_core::library::content_hash`) when it was copied.",
           "type": "string"
         }
       },
@@ -950,6 +1106,81 @@
         "focal_length_m",
         "min_f_number",
         "mount"
+      ]
+    },
+    "Loss": {
+      "description": "A robust loss, as calibration-rs names it.",
+      "oneOf": [
+        {
+          "description": "Least squares.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "none"
+            }
+          },
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "description": "Huber, with its scale (pixels for reprojection).",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "huber"
+            },
+            "scale": {
+              "description": "Where the loss turns linear.",
+              "type": "number",
+              "format": "double"
+            }
+          },
+          "required": [
+            "kind",
+            "scale"
+          ]
+        },
+        {
+          "description": "Cauchy, with its scale.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "cauchy"
+            },
+            "scale": {
+              "description": "The scale.",
+              "type": "number",
+              "format": "double"
+            }
+          },
+          "required": [
+            "kind",
+            "scale"
+          ]
+        },
+        {
+          "description": "Arctan, with its scale.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "arctan"
+            },
+            "scale": {
+              "description": "The scale.",
+              "type": "number",
+              "format": "double"
+            }
+          },
+          "required": [
+            "kind",
+            "scale"
+          ]
+        }
       ]
     },
     "MarkerCircle": {
@@ -1330,6 +1561,58 @@
         }
       ]
     },
+    "Problem": {
+      "description": "A calibration-rs workflow (`vision-calibration-pipeline`'s problem modules).",
+      "oneOf": [
+        {
+          "description": "One camera's intrinsics from planar views, no robot.",
+          "type": "string",
+          "const": "planar_intrinsics"
+        },
+        {
+          "description": "A rig's cameras and extrinsics from planar views, no robot.",
+          "type": "string",
+          "const": "rig_extrinsics"
+        },
+        {
+          "description": "One camera and its hand-eye.",
+          "type": "string",
+          "const": "single_cam_handeye"
+        },
+        {
+          "description": "A rig and its hand-eye.",
+          "type": "string",
+          "const": "rig_handeye"
+        },
+        {
+          "description": "One camera with its laser (a triangulation head): intrinsics, sensor tilt, plane; the\nhand-eye solved on the same views.",
+          "type": "string",
+          "const": "laserline_device"
+        },
+        {
+          "description": "A rig with lasers and its hand-eye, jointly.",
+          "type": "string",
+          "const": "rig_handeye_laserline"
+        }
+      ]
+    },
+    "ProcedurePart": {
+      "description": "A calibration procedure: stages in order. The last stage's result is the procedure's.",
+      "type": "object",
+      "properties": {
+        "stages": {
+          "description": "The stages, run in order.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Stage"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "stages"
+      ]
+    },
     "ProjectionParams": {
       "description": "Serializable projection model parameters.",
       "oneOf": [
@@ -1423,6 +1706,105 @@
         "radius_m",
         "working_distance_m",
         "camera"
+      ]
+    },
+    "Seed": {
+      "description": "Where a stage's starting value of an estimate comes from.",
+      "oneOf": [
+        {
+          "description": "The design, as a user would enter it from datasheets: the focal length rounded to 100 px,\nthe principal point at the image centre, no distortion, the tilt about x rounded to a\nwhole degree.",
+          "type": "string",
+          "const": "nominal"
+        },
+        {
+          "description": "The truth (synthetic datasets only; the report says so).",
+          "type": "string",
+          "const": "truth"
+        },
+        {
+          "description": "An earlier stage's estimate, by the stage's id.",
+          "type": "object",
+          "properties": {
+            "stage": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "stage"
+          ]
+        }
+      ]
+    },
+    "Seeds": {
+      "description": "What a stage starts from. Absent, the workflow's own linear initialisation.",
+      "type": "object",
+      "properties": {
+        "handeye": {
+          "description": "The hand-eye transform.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Seed"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "intrinsics": {
+          "description": "Focal lengths and principal points (and with them the distortion).",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Seed"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "rig": {
+          "description": "The cameras' poses in the rig: from an earlier rig stage only (calibration-rs takes the\ntarget's pose per view with them).",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Seed"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sensor": {
+          "description": "Scheimpflug tilts.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Seed"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "SensorChoice": {
+      "description": "The sensor model a stage calibrates.",
+      "oneOf": [
+        {
+          "description": "What the design has: Scheimpflug when a camera's sensor tilts, identity otherwise.",
+          "type": "string",
+          "const": "design"
+        },
+        {
+          "description": "An untilted sensor.",
+          "type": "string",
+          "const": "identity"
+        },
+        {
+          "description": "A tilted (Scheimpflug) sensor.",
+          "type": "string",
+          "const": "scheimpflug"
+        }
       ]
     },
     "SensorOptics": {
@@ -1568,6 +1950,89 @@
       "required": [
         "pixel_pitch_m",
         "resolution"
+      ]
+    },
+    "SolverChoice": {
+      "description": "How a stage solves. Absent fields keep the workflow's defaults.",
+      "type": "object",
+      "properties": {
+        "max_iters": {
+          "description": "Iteration limit of the non-linear solve.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint",
+          "minimum": 0
+        },
+        "robust_loss": {
+          "description": "The robust loss on the reprojection residuals.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Loss"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "Stage": {
+      "description": "One stage of a procedure.",
+      "type": "object",
+      "properties": {
+        "camera": {
+          "description": "The camera a single-camera stage calibrates, by scene id; absent, the dataset's only\ncamera (a stage per camera repeats with each id). Rig stages take every camera.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "free": {
+          "description": "Further estimates freed or held.",
+          "$ref": "#/$defs/Freedoms"
+        },
+        "id": {
+          "description": "Its id, unique in the procedure; later stages seed from it by this id.",
+          "type": "string"
+        },
+        "model": {
+          "description": "The camera model and its fixed parameters.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CameraChoice"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "problem": {
+          "description": "The workflow.",
+          "$ref": "#/$defs/Problem"
+        },
+        "seed": {
+          "description": "What it starts from.",
+          "$ref": "#/$defs/Seeds"
+        },
+        "solver": {
+          "description": "How it solves.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SolverChoice"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "problem"
       ]
     },
     "TargetGeometry": {
