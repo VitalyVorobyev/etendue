@@ -781,6 +781,107 @@ studio code, so no phase waits on a review.
     observations, exact or noisy, at each capture with their totals. Generating a dataset and
     calibrating stay in the desktop app. That closes P13's deferred list.
 
+### P14–P18 — From a cell editor to a calibration planner (user request 2026-11-01)
+
+The user asked for:
+- an extendable, persistent bank of optical devices, robots and calibration targets;
+- a clear tool to select optics, build a rigid rig, put it on a robot (or put the target on the
+  robot), and select a calibration target;
+- calibration robot poses suggested automatically;
+- a full simulation of the calibration: each image with its detected features, reprojection
+  errors, and statistics of the calibrated parameters;
+- a bank of calibration procedures (intrinsics, extrinsics, hand-eye, non-linear refinements,
+  which parameters are fixed and which free), and the sequence of them that calibrates a whole
+  system.
+
+User decisions (2026-11-01):
+- the bank is layered: built-in, then a user bank, then the project, with what a project uses
+  copied into it (ADR 0010);
+- the phases follow the workflow's order, P14 → P15 → P16 → P17 → P18.
+
+ADRs 0010 and 0011 are *Proposed*. Their phases start once the user accepts them. Each step is
+one PR, merged when CI is green; upstream changes (calibration-rs, lab-ui) stay drafts.
+
+- **P14 — Component bank** (ADR 0010).
+  - **Layers:** built-in, user bank (`Documents/etendue/bank`; a picked folder in a browser) and
+    project, resolved by kind and id. Items record their `source` (datasheet) and, once copied
+    into a project, their `origin`. The library format moves to version 2.
+  - **New kinds:** `mount` (flange-to-device adapter) and imported robots (URDF + manifest).
+  - **CLI:** `etendue library list|check|import`, `etendue project check --bank`.
+  - **Studio:** a Library workspace (browse, create, edit, duplicate, rename, delete, import,
+    export, use in project; forms from the library schema), and three-layer pickers in Setup.
+    The studio resolves robots from the project's `robots/` too (ADR 0009 §2; today it reads only
+    the app's library).
+  - **Gates:**
+    - **G14.1:** every built-in item round-trips byte-identically through the studio's save
+      path and `library check`.
+    - **G14.2:** a project that uses user-bank items still passes `project check` after the bank
+      is removed (its copies are complete).
+- **P15 — Guided cell builder.** A Setup stepper that writes an ordinary `scene.json`:
+  1. optics: a camera or head from the bank, or "design in Optics";
+  2. rig: one camera, or a rig design;
+  3. mounting:
+     - **eye-in-hand:** the rig on the tool flange through a mount;
+     - **eye-to-hand:** the target on the flange, the rig fixed in the cell;
+  4. target: from the bank, sized against the field of view and working distance;
+  5. robot and base placement.
+
+  Each step checks reach and visibility live.
+  - **Gate G15.1:** the builder recreates `examples/eye_in_hand_ur5e` and
+    `examples/eye_to_hand_ur5e` from bank items (scenes equal to 1e-12; Playwright).
+- **P16 — Calibration procedure bank** (ADR 0011).
+  - **`CalibrationProcedure`:** ordered stages, each with:
+    - a calibration-rs workflow and the devices it covers;
+    - calibration-rs's own camera config and fix lists;
+    - which estimates are free;
+    - the solver;
+    - seeds: an earlier stage, the nominal design, or the truth (simulation only).
+  - **Engine:** `etendue calibrate --procedure` runs the stages through the workflows' `step_*`
+    and `*_with_seed` functions. It checks the procedure against the dataset first.
+  - **Built-ins:**
+    - `intrinsics`, `stereo`, `eye_in_hand`, `eye_to_hand`, `laser_head`, `laser_rig`;
+    - `auto`, today's behaviour, which stays the default.
+  - **Studio:** a procedure editor in Calibrate: stages, a fixed/free table, seeds.
+  - **Upstream:** missing hooks (`rig_handeye_laserline` has no steps) become draft calibration-rs
+    PRs.
+  - **Gates:**
+    - **G16.1:** `auto` reproduces the current reports bit for bit.
+    - **G16.2:** each built-in recovers the truth on exact data within G5.1 / G5.3 on its
+      example cell.
+- **P17 — Simulation lab.**
+  - **Report v3:**
+    - per view and per feature, residuals with ids (camera, view, point, observed and projected
+      pixel);
+    - per-stage results;
+    - the **parameter values** of every trial, not only their errors;
+    - calibration-rs's posterior σ (`uncertainty`);
+    - the `analysis::quality` verdict.
+  - **Runs** keep every trial's estimate, compactly.
+  - **Studio:**
+    - a per-image viewer: the rendered or synthetic image, detected features, reprojected points
+      and residual vectors (magnified), per-view RMS, outliers;
+    - parameter statistics: a histogram or scatter per parameter with the truth and the
+      predicted σ band, and a table of mean, std, bias, RMSE and predicted σ;
+    - stage by stage.
+  - **Gates:**
+    - **G17.1:** on `closed_loop_ur5e` with 200 noisy trials, the empirical std of fx, cx and the
+      hand-eye matches calibration-rs's predicted σ to within 15 %.
+    - **G17.2:** the per-feature residuals reproduce the report's RMS exactly.
+- **P18 — Calibration pose planning.**
+  - **Generator:**
+    - It supports eye-to-hand; it refuses it today (`etendue-synth/src/poses.rs`).
+    - It ranks the feasible candidates by the uncertainty calibration-rs predicts for the chosen
+      procedure's free parameters (`analysis::next_view`: `predict_with_views`,
+      `rank_candidates`).
+    - It picks K poses greedily, with hand-eye rotation diversity, under the existing reach,
+      margin and visibility filters. Collision checking stays deferred.
+  - **Studio:** "Suggest poses", with a pose budget and a curve of predicted σ against the
+    number of poses, beside the sphere grid's.
+  - **Gates:**
+    - **G18.1:** for the same N, the planned poses give a predicted σ of focal length and
+      hand-eye no larger than the grid's, and P17's empirical std confirms it.
+    - **G18.2:** the eye-to-hand example yields a feasible tour.
+
 ### Deferred (not planned; do not scaffold)
 
 Motion blur and rolling shutter (on-the-fly capture), a Mitsuba 3 backend, a telecentric
