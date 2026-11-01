@@ -19,8 +19,9 @@ import {
   SegmentedControl,
   Select,
   Textarea,
-  toast,
 } from "@vitavision/ui";
+// The studio's Toaster shows workbench's toasts.
+import { toast } from "@vitavision/workbench";
 import { Check, ChevronLeft, ChevronRight, Crosshair, Hammer, X } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import type { LibraryRobot } from "virtual:etendue-robots";

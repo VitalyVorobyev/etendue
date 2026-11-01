@@ -69,5 +69,5 @@ etendue project check examples
 ```
 
 ```text
-project ok: etendue examples: 6 cell(s), library 2 cameras, 3 lasers, 3 lenses, 1 rigs, 3 sensors, 2 targets, 0 robot(s)
+project ok: etendue examples: 6 cell(s), library 3 cameras, 3 lasers, 3 lenses, 2 mounts, 2 rigs, 3 sensors, 2 targets, 0 robot(s)
 ```

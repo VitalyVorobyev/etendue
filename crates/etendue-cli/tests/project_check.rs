@@ -13,8 +13,9 @@ fn root() -> PathBuf {
 fn the_examples_are_a_valid_project() {
     let s = check(&root().join("examples"), None).unwrap();
     assert_eq!(s.cells, 6);
-    assert_eq!(s.library["cameras"], 2);
+    assert_eq!(s.library["cameras"], 3);
     assert_eq!(s.library["sensors"], 3);
+    assert_eq!(s.library["mounts"], 2);
 }
 
 /// A copy of the examples' manifest and library in `target/project_check/<name>`, with `edit`

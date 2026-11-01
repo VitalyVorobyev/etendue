@@ -296,7 +296,7 @@ every library item, the defaults and the project's robots. See
 
 ```text
 $ etendue project check examples
-project ok: etendue examples: 6 cell(s), library 2 cameras, 3 lasers, 3 lenses, 1 rigs, 3 sensors, 2 targets, 0 robot(s)
+project ok: etendue examples: 6 cell(s), library 3 cameras, 3 lasers, 3 lenses, 2 mounts, 2 rigs, 3 sensors, 2 targets, 0 robot(s)
 ```
 
 With `--bank <dir>` it also notes each copy whose source in that bank has changed since it was
