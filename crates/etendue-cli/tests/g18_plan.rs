@@ -154,3 +154,58 @@ fn g18_1_planned_poses_beat_the_grid_and_the_prediction_holds() {
     assert!((0.85..=1.15).contains(&ratio), "{ratio}");
     assert!(measured[0] <= measured[1], "{measured:?}");
 }
+
+#[test]
+fn the_planner_picks_its_budget_lowering_the_system_sigma_each_time() {
+    let example = root().join("examples/closed_loop_ur5e");
+    let loaded = load(&example.join("scene.json")).unwrap();
+    let scenario: ScenarioSpec =
+        serde_json::from_str(&std::fs::read_to_string(example.join("scenario.json")).unwrap())
+            .unwrap();
+    let Some(GeneratorSpec::Sphere(sphere)) = scenario.generator.clone() else {
+        panic!("the example's scenario keeps its generator");
+    };
+    let generated =
+        etendue_synth::poses::generate(&loaded.scene, &loaded.models, &sphere, scenario.dt)
+            .unwrap();
+    let spec = PlanSpec {
+        budget: 5,
+        noise_px: 0.5,
+    };
+    let planned = plan(&loaded.scene, &loaded.models, &generated, &sphere, &spec).unwrap();
+    assert_eq!(planned.chosen.len(), 5);
+    assert!(
+        planned.sigma_mm.windows(2).all(|w| w[1] <= w[0]),
+        "{:?}",
+        planned.sigma_mm
+    );
+    assert!(*planned.sigma_mm.last().unwrap() <= planned.grid_sigma_mm);
+    assert!(planned.all_sigma_mm <= *planned.sigma_mm.last().unwrap());
+    // The same inputs, the same plan (no random numbers).
+    let again = plan(&loaded.scene, &loaded.models, &generated, &sphere, &spec).unwrap();
+    assert_eq!(again.chosen, planned.chosen);
+    // The scenario holds the chosen captures only, and compiles.
+    let captures = planned
+        .scenario
+        .steps
+        .iter()
+        .filter(|s| matches!(s, etendue_scene::Step::Capture { .. }))
+        .count();
+    assert_eq!(captures, 5);
+    etendue_kinematics::compile(&loaded.scene, &planned.scenario, &loaded.models).unwrap();
+    // A budget beyond the feasible poses is refused.
+    let too_many = PlanSpec {
+        budget: planned.feasible + 1,
+        ..spec
+    };
+    assert!(
+        plan(
+            &loaded.scene,
+            &loaded.models,
+            &generated,
+            &sphere,
+            &too_many
+        )
+        .is_err()
+    );
+}

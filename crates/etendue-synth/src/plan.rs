@@ -344,16 +344,16 @@ pub fn plan(
                 }
                 let depth = (nominal * p).z;
                 let w = (depth / cam.fx) * (depth / cam.fx) * 1e6;
-                for row in 0..2 {
-                    for x in 0..n {
-                        let jx = j[x][row];
+                for axis in 0..2 {
+                    let row: Vec<f64> = j.iter().map(|d| d[axis]).collect();
+                    for (x, &jx) in row.iter().enumerate() {
                         if jx == 0.0 {
                             continue;
                         }
-                        for y in 0..n {
-                            info[(x, y)] += jx * j[y][row] / var;
+                        for (y, &jy) in row.iter().enumerate() {
+                            info[(x, y)] += jx * jy / var;
                             if x < target_offset && y < target_offset {
-                                a[(x, y)] += w * jx * j[y][row];
+                                a[(x, y)] += w * jx * jy;
                             }
                         }
                     }
@@ -399,11 +399,11 @@ pub fn plan(
     let mut info = prior.clone();
     for _ in 0..spec.budget {
         let mut best: Option<(usize, f64)> = None;
-        for k in 0..infos.len() {
+        for (k, candidate) in infos.iter().enumerate() {
             if chosen.contains(&k) {
                 continue;
             }
-            let trial = &info + &infos[k];
+            let trial = &info + candidate;
             if let Some((s, _)) = sigma_of(&trial)
                 && best.is_none_or(|(_, b)| s < b)
             {
