@@ -713,6 +713,7 @@ fn pooled(mut reports: Vec<Report>) -> Report {
     out.estimate.offsets = None;
     let (mut views, mut points, mut pixels) = (0, 0, 0);
     let mut errors = Vec::new();
+    let mut features = Vec::new();
     let (mut sum, mut sq, mut count) = (0.0, 0.0, 0usize);
     let mut per_camera = Vec::new();
     let mut max: f64 = 0.0;
@@ -735,6 +736,7 @@ fn pooled(mut reports: Vec<Report>) -> Report {
         max = max.max(r.residuals.max_px);
         per_camera.extend(r.residuals.per_camera_mean_px);
         errors.extend(r.residuals.errors_px);
+        features.extend(r.residuals.features);
         out.estimate.cameras.extend(r.estimate.cameras);
         out.estimate.laser_planes.extend(r.estimate.laser_planes);
         export.insert(id.clone(), r.export);
@@ -757,6 +759,7 @@ fn pooled(mut reports: Vec<Report>) -> Report {
         },
         max_px: max,
         per_camera_mean_px: per_camera,
+        features,
         errors_px: errors,
     };
     out.pass = !out.gated || out.rows.iter().all(crate::calibrate::Row::within);

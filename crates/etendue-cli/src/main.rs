@@ -821,7 +821,10 @@ fn run_calibrate(
                 },
             ),
         };
-        let report = calibrate::calibrate(&gt, &obs, &options)?;
+        let mut report = calibrate::calibrate(&gt, &obs, &options)?;
+        if k > 0 {
+            report.residuals.features.clear();
+        }
         if k == 0 || trials == 1 {
             println!(
                 "{}: {} ({} camera(s): {}; {} views, {} points, {} laser pixels){}",
@@ -860,9 +863,26 @@ fn run_calibrate(
         .iter()
         .any(|r| r.gated && !r.pass)
         .then(|| reports[0].check_name());
+    let params = (reports.len() > 1).then(|| calibrate::param_stats(&gt, &reports));
+    if let Some(params) = &params {
+        println!(
+            "parameters over {} trials (predicted σ: calibration-rs's covariance):",
+            reports.len()
+        );
+        for p in params {
+            let predicted = p.predicted_sigma.map_or(String::new(), |s| {
+                format!("  predicted σ {s:10.3e}  std/σ {:5.2}", p.std / s)
+            });
+            println!(
+                "  {:<22} {:>3}  truth {:11.4e}  bias {:10.3e}  std {:10.3e}{predicted}",
+                p.label, p.unit, p.truth, p.bias, p.std
+            );
+        }
+    }
     let doc = calibrate::Run {
         reports,
         row_stats: stats,
+        param_stats: params,
     };
     if let Some(out) = output {
         std::fs::write(out, serde_json::to_string_pretty(&doc)? + "\n")

@@ -307,3 +307,40 @@ fn a_procedure_that_does_not_fit_the_dataset_is_refused_before_it_runs() {
     assert!(err.contains("needs a laser"), "{err}");
     assert!(err.contains("one-camera head"), "{err}");
 }
+
+#[test]
+fn g17_2_the_feature_residuals_are_the_reports_rms_and_name_their_points() {
+    let gt = truth(&example("closed_loop_ur5e"), "closed_loop_ur5e", "features");
+    let noise = ObservationNoise {
+        pixel_sigma_px: 0.5,
+        seed: 7,
+        ..ObservationNoise::default()
+    };
+    let obs = observe(&gt, &noise);
+    let report = calibrate(&gt, &obs, &Options::default()).unwrap();
+    let f = &report.residuals.features;
+    assert_eq!(f.len(), report.residuals.count);
+    // Exactly the report's figure, from the same sums.
+    let sq: f64 = f
+        .iter()
+        .map(|r| {
+            (r.projected_px[0] - r.observed_px[0]).powi(2)
+                + (r.projected_px[1] - r.observed_px[1]).powi(2)
+        })
+        .sum();
+    assert_eq!(
+        (sq / (2 * f.len()) as f64).sqrt(),
+        report.residuals.rms_axis_px
+    );
+    // Each names its capture, camera and point, and its observed pixel is that point's.
+    for r in f.iter().step_by(97) {
+        let capture = obs.captures.iter().find(|c| c.id == r.capture).unwrap();
+        let view = capture.views.iter().find(|v| v.camera == r.camera).unwrap();
+        let point = view.points.iter().find(|p| p.point == r.point).unwrap();
+        assert_eq!(point.pixel, r.observed_px);
+    }
+    // calibration-rs's covariance and quality verdict come with the report.
+    let u = report.uncertainty.as_ref().unwrap();
+    assert!(u.labels.iter().any(|l| l == "cam0.fx"));
+    assert!(report.quality.is_some());
+}

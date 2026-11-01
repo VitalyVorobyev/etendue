@@ -21,6 +21,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `examples/library/procedures/`; `procedure` is a library kind. The report names its procedure
   and lists its stages (report version 3). Without `--procedure`, the choice by the dataset's
   shape is unchanged, bit for bit.
+- **The simulation report**: every target point's residual with its capture, camera and point;
+  calibration-rs's predicted σ (`uncertainty`) and quality verdict (`quality`); and, over trials,
+  `param_stats`: each parameter's truth, mean, spread, bias, RMSE and predicted σ. `etendue
+  calibrate --trials N` prints them.
 - Library items version 2: `source` (datasheet), `origin` (where a project's copy came from, with
   the source's content hash) and the `mount` kind (an adapter on a robot's flange). Version 1
   still reads.
