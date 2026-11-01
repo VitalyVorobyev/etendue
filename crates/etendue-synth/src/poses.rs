@@ -1,11 +1,13 @@
-//! Calibration poses on spheres around a target (P7-6).
+//! Calibration poses on spheres around a target (P7-6; eye-to-hand P18).
 //!
-//! An eye-in-hand sensor — a rig, a camera, or any frame the robot's tool
+//! **Eye-in-hand**, a sensor — a rig, a camera, or any frame the robot's tool
 //! carries — is placed on spheres centred on the target: at radius `r`,
 //! polar angle `θ` from the sphere's pole and azimuth `φ`, with its +Z at
 //! the centre and its +Y along the target's "down" (so the images read
-//! upright), then rolled about its axis. Each placement is a candidate. It is
-//! kept when:
+//! upright), then rolled about its axis. **Eye-to-hand**, the target is on
+//! the tool and the sensor fixed: the robot places the target so the sensor
+//! sees it from the same placements, relative to the target. Each placement is
+//! a candidate. It is kept when:
 //!
 //! 1. the robot reaches it (inverse kinematics), with every joint at least
 //!    `joint_margin_rad` from its limits and the tool Jacobian's smallest
@@ -105,6 +107,17 @@ pub struct Generated {
     pub candidates: Vec<Candidate>,
     /// The kept candidates as a stop-and-shoot scenario.
     pub scenario: ScenarioSpec,
+}
+
+/// Which frame the robot moves.
+enum Mode {
+    /// The sensor rides on the tool: the tool is placed through the sensor.
+    EyeInHand { sensor_se3_tcp: Isometry3<f64> },
+    /// The target rides on the tool and the sensor is fixed in the world.
+    EyeToHand {
+        world_se3_sensor: Isometry3<f64>,
+        target_se3_tcp: Isometry3<f64>,
+    },
 }
 
 /// How still a frame must stay (metres and radians) to count as carried
@@ -244,9 +257,9 @@ fn order(model: &RobotModel, start: &[f64], poses: &[Vec<f64>]) -> Vec<usize> {
 /// # Errors
 ///
 /// [`Error::InvalidInput`] if the spec names an unknown robot, frame,
-/// target or camera; if the sensor is not carried rigidly by the robot's
-/// tool; if the target moves with the robot (eye-to-hand is not generated)
-/// or has no printed layout; or if a parameter is out of range.
+/// target or camera; if neither the sensor nor the target rides rigidly on
+/// the robot's tool with the other fixed; if the target has no printed
+/// layout; or if a parameter is out of range.
 pub fn generate(
     scene: &SceneSpec,
     robots: &[RobotModel],
@@ -296,29 +309,37 @@ pub fn generate(
         .map(|(q, j)| (q + 0.3).min(j.upper).max(j.lower))
         .collect();
     let (a, b) = (posed.at(r, &q_ref), posed.at(r, &q_alt));
-    let tcp_se3_look = a[tcp_frame].inverse() * a[look_frame];
-    if !same(&tcp_se3_look, &(b[tcp_frame].inverse() * b[look_frame])) {
-        return Err(bad(format!(
-            "`{}` is not carried rigidly by `{}`'s tool: the generator places an eye-in-hand sensor",
-            spec.look, spec.robot
-        )));
-    }
     if !same(&a[base_frame], &b[base_frame]) {
         return Err(bad(format!(
             "`{}`'s base moves with its joints",
             spec.robot
         )));
     }
-    if !same(&a[target_frame], &b[target_frame]) {
+    let tcp_se3_look = a[tcp_frame].inverse() * a[look_frame];
+    let tcp_se3_target = a[tcp_frame].inverse() * a[target_frame];
+    let carried = |frame: usize, tcp_se3: &Isometry3<f64>| {
+        same(tcp_se3, &(b[tcp_frame].inverse() * b[frame]))
+    };
+    let fixed = |frame: usize| same(&a[frame], &b[frame]);
+    let look_se3_sensor = spec.look_se3_sensor.unwrap_or_else(Isometry3::identity);
+    // Eye-in-hand: the sensor on the tool, the target fixed. Eye-to-hand: the reverse.
+    let mode = if carried(look_frame, &tcp_se3_look) && fixed(target_frame) {
+        Mode::EyeInHand {
+            sensor_se3_tcp: (tcp_se3_look * look_se3_sensor).inverse(),
+        }
+    } else if carried(target_frame, &tcp_se3_target) && fixed(look_frame) {
+        Mode::EyeToHand {
+            world_se3_sensor: a[look_frame] * look_se3_sensor,
+            target_se3_tcp: tcp_se3_target.inverse(),
+        }
+    } else {
         return Err(bad(format!(
-            "target `{}` moves with `{}`: eye-to-hand poses are not generated",
-            target.id, spec.robot
+            "either `{}` rides on `{}`'s tool and target `{}` is fixed (eye-in-hand), or the reverse (eye-to-hand)",
+            spec.look, spec.robot, target.id
         )));
-    }
+    };
     let world_se3_base = a[base_frame];
     let world_se3_target = a[target_frame];
-    let tcp_se3_sensor = tcp_se3_look * spec.look_se3_sensor.unwrap_or_else(Isometry3::identity);
-    let sensor_se3_tcp = tcp_se3_sensor.inverse();
 
     let board = layout(&target.geometry)?.ok_or_else(|| {
         bad(format!(
@@ -408,14 +429,26 @@ pub fn generate(
                         Translation3::from(eye),
                         frame(x, y, z) * UnitQuaternion::from_axis_angle(&Vector3::z_axis(), roll),
                     );
-                    let world_se3_sensor = world_se3_target * target_se3_sensor;
+                    let (world_se3_sensor, world_se3_tool) = match &mode {
+                        Mode::EyeInHand { sensor_se3_tcp } => {
+                            let sensor = world_se3_target * target_se3_sensor;
+                            (sensor, sensor * sensor_se3_tcp)
+                        }
+                        Mode::EyeToHand {
+                            world_se3_sensor,
+                            target_se3_tcp,
+                        } => (
+                            *world_se3_sensor,
+                            world_se3_sensor * target_se3_sensor.inverse() * target_se3_tcp,
+                        ),
+                    };
                     candidates.push(Candidate {
                         radius_m: radius,
                         theta_rad: theta,
                         phi_rad: phi,
                         roll_rad: roll,
                         world_se3_sensor,
-                        base_se3_tool: world_se3_base.inverse() * world_se3_sensor * sensor_se3_tcp,
+                        base_se3_tool: world_se3_base.inverse() * world_se3_tool,
                         q: None,
                         ik_restart: false,
                         status: CandidateStatus::Unreachable,
@@ -468,11 +501,12 @@ pub fn generate(
         if c.status == CandidateStatus::Ok {
             let frames = posed.at(r, &q);
             for (id, frame, camera, resolution) in &camera_models {
+                // Where the target is with the robot there (it moves eye-to-hand).
                 let seen = project_points(
                     camera,
                     *resolution,
                     &frames[*frame],
-                    &world_se3_target,
+                    &frames[target_frame],
                     &points,
                     &visibility,
                     edge,
