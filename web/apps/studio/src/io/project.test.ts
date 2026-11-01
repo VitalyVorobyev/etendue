@@ -189,6 +189,86 @@ describe("layers (ADR 0010)", () => {
     expect(await useInProject(project, "lenses/l12")).toBe(project);
   });
 
+  it("renames and removes items, keeps defaults resolving, updates a stale copy", async () => {
+    const {
+      copyOf,
+      isStale,
+      loadBank,
+      removeFromBank,
+      removeLibraryItem,
+      renameInBank,
+      renameLibraryItem,
+      saveLibraryItem,
+      saveToBank,
+      updateCopy,
+      withLayers,
+    } = await import("./project");
+    // A folder in memory that writes and removes.
+    const folder = (files: Record<string, string>) => ({
+      files,
+      source: memory(files),
+      write: (path: string, text: string) => {
+        files[path] = text;
+        return Promise.resolve();
+      },
+      remove: (path: string) => {
+        if (!(path in files)) return Promise.reject(new Error(`${path}: not found`));
+        delete files[path];
+        return Promise.resolve();
+      },
+    });
+    const b = folder({
+      "etendue-bank.json": JSON.stringify({ version: 1, name: "mine" }),
+      "library/lenses/l25.json": item("l25", "My 25", "lens", 2),
+    });
+    let bank = await loadBank(b.source, b.write, "bank", b.remove);
+    const p = folder({
+      "etendue-project.json": JSON.stringify({ version: 1, name: "p", defaults: { camera: "cameras/c" } }),
+      "library/cameras/c.json": item("c", "Camera", "camera"),
+    });
+    let project = await loadProject(p.source, "", p.write, "p", p.remove);
+
+    // Renaming writes the new file, removes the old one, and moves the default with it.
+    project = await renameLibraryItem(project, "cameras/c", "c2");
+    expect(Object.keys(p.files).sort()).toEqual(["etendue-project.json", "library/cameras/c2.json"]);
+    expect(JSON.parse(p.files["library/cameras/c2.json"]!)).toMatchObject({ id: "c2", name: "Camera" });
+    expect(project.manifest.defaults).toEqual({ camera: "cameras/c2" });
+    expect(JSON.parse(p.files["etendue-project.json"]!)).toMatchObject({ defaults: { camera: "cameras/c2" } });
+    expect([...project.own.keys()]).toEqual(["cameras/c2"]);
+    await expect(renameLibraryItem(project, "cameras/c2", "bad id")).rejects.toThrow(/letters, digits/);
+    await expect(renameLibraryItem(project, "cameras/gone", "x")).rejects.toThrow(/no item/);
+
+    // A copy of the bank's lens; the bank's lens changes; the copy is updated, keeping its id.
+    const l25 = bank.library.get("lenses/l25")!;
+    project = await saveLibraryItem(withLayers(project, bank, null), copyOf(l25, "bank", "lenses/l25"));
+    bank = await saveToBank(bank, { ...l25, name: "My 25, measured" });
+    expect(isStale(project, bank.library, "lenses/l25")).toBe(true);
+    project = await updateCopy(project, "lenses/l25", bank.library.get("lenses/l25")!);
+    expect(isStale(project, bank.library, "lenses/l25")).toBe(false);
+    expect(JSON.parse(p.files["library/lenses/l25.json"]!)).toMatchObject({
+      id: "l25",
+      name: "My 25, measured",
+      origin: { layer: "bank", reference: "lenses/l25" },
+    });
+    await expect(updateCopy(project, "cameras/c2", l25)).rejects.toThrow(/not a copy/);
+
+    // Removing the copy shows the bank's lens again once layered.
+    project = await removeLibraryItem(project, "lenses/l25");
+    expect(p.files["library/lenses/l25.json"]).toBeUndefined();
+    expect(withLayers(project, bank, null).layers.get("lenses/l25")).toEqual({ layer: "bank", hides: [] });
+    await expect(removeLibraryItem(project, "lenses/l25")).rejects.toThrow(/no item/);
+    // Without a remover, nothing is removed.
+    await expect(removeLibraryItem({ ...project, remove: null }, "cameras/c2")).rejects.toThrow(/cannot be removed/);
+
+    // The bank renames and removes the same way.
+    bank = await renameInBank(bank, "lenses/l25", "l25_measured");
+    expect(Object.keys(b.files).sort()).toEqual(["etendue-bank.json", "library/lenses/l25_measured.json"]);
+    await expect(renameInBank(bank, "lenses/l25_measured", "l25_measured")).rejects.toThrow(/exists already/);
+    bank = await removeFromBank(bank, "lenses/l25_measured");
+    expect(bank.library.size).toBe(0);
+    expect(Object.keys(b.files)).toEqual(["etendue-bank.json"]);
+  });
+
   it("refuses a bank manifest of another version", async () => {
     const { loadBank } = await import("./project");
     await expect(

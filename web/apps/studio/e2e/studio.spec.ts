@@ -514,3 +514,26 @@ test("the Motion workspace jogs a robot and teaches its pose", async ({ page }) 
   await expect(steps).toHaveCount(before + 1);
   await expect(steps.first()).toContainText("PTP");
 });
+
+test("the Library workspace in a browser: built-ins read-only, a bank to choose, filters", async ({ page }) => {
+  await loaded(page);
+  await page.getByRole("radio", { name: "Library" }).click();
+  await expect(page.getByTestId("library-layers")).toContainText("Choose a bank folder first");
+  const list = page.getByTestId("library-list");
+  await expect(list.locator('[data-layer="project"]')).toHaveCount(0);
+
+  // Filtering by kind and text.
+  await page.getByRole("combobox", { name: "Kind" }).click();
+  await page.getByRole("option", { name: "Targets" }).click();
+  await expect(list.getByTestId("library-row")).toHaveCount(2);
+  await page.getByRole("searchbox", { name: "Filter the library" }).fill("25 mm");
+  await expect(list.getByTestId("library-row")).toHaveCount(1);
+
+  // A built-in target: its JSON is shown read-only, and nothing writes into the examples.
+  await list.getByTestId("library-row").click();
+  const detail = page.getByTestId("library-detail");
+  await expect(detail.getByText("Built-in items are read-only")).toBeVisible();
+  await expect(detail.getByRole("textbox", { name: "JSON" })).toHaveValue(/"square_size_m": 0.025/);
+  await expect(detail.getByRole("button", { name: "Use in project" })).toBeDisabled();
+  await expect(detail.getByRole("button", { name: "Duplicate…" })).toBeDisabled();
+});

@@ -265,6 +265,21 @@ fn write_text(path: PathBuf, text: String, access: State<'_, Access>) -> Result<
     std::fs::write(&path, text).map_err(|e| format!("{}: {e}", path.display()))
 }
 
+/// Remove a file in a writable folder (a library item renamed or deleted in a project or the
+/// bank). Folders are refused.
+#[tauri::command]
+fn remove_file(path: PathBuf, access: State<'_, Access>) -> Result<(), String> {
+    remove_in(&access, &path)
+}
+
+fn remove_in(access: &Access, path: &Path) -> Result<(), String> {
+    let path = access.writable(path)?;
+    if !path.is_file() {
+        return Err(format!("{}: not a file", path.display()));
+    }
+    std::fs::remove_file(&path).map_err(|e| format!("{}: {e}", path.display()))
+}
+
 /// Open the project folder `dir` (ADR 0009): it must hold an `etendue-project.json` that
 /// parses. The folder becomes readable and writable (it is the user's), and so does nothing
 /// else. Returns the manifest.
@@ -624,6 +639,7 @@ pub fn run() {
             pick,
             save_dialog,
             write_text,
+            remove_file,
             open_project,
             open_bank,
             save_scene,
@@ -670,6 +686,31 @@ mod tests {
         .unwrap();
         assert!(bank_manifest(&dir).is_err());
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn files_are_removed_only_in_writable_folders() {
+        let root = repo().join("target/studio/test-remove");
+        let _ = std::fs::remove_dir_all(&root);
+        let inside = root.join("bank/library/lenses");
+        let outside = root.join("elsewhere");
+        std::fs::create_dir_all(&inside).unwrap();
+        std::fs::create_dir_all(&outside).unwrap();
+        std::fs::write(inside.join("a.json"), "{}").unwrap();
+        std::fs::write(outside.join("b.json"), "{}").unwrap();
+        let access = Access::default();
+        access.write.add(&root.join("bank"));
+
+        remove_in(&access, &inside.join("a.json")).unwrap();
+        assert!(!inside.join("a.json").exists());
+        // A folder, a missing file, a file outside, and `..` out of the folder are refused.
+        assert!(remove_in(&access, &inside).is_err());
+        assert!(inside.is_dir());
+        assert!(remove_in(&access, &inside.join("a.json")).is_err());
+        assert!(remove_in(&access, &outside.join("b.json")).is_err());
+        assert!(remove_in(&access, &inside.join("../../../elsewhere/b.json")).is_err());
+        assert!(outside.join("b.json").is_file());
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]

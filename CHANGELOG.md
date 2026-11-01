@@ -13,6 +13,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   project's library, with an `etendue-bank.json` manifest. `etendue library init|import|check|list`
   make, fill, check and list it; `list` shows each item from the layer it resolves to (project,
   bank, built-in). `etendue project check --bank` notes copies whose bank source has changed.
+- **The studio's Library workspace**: every item the open project sees (project, bank,
+  built-in), filtered by text, kind and layer, with what hides what and which project copies are
+  stale. Forms for sensors, lenses, lasers and mounts, a checked JSON editor for targets, cameras,
+  heads and rigs, and name, description and source for every item. New, duplicate, rename,
+  delete, import and export; use in project, save to bank, update a stale copy. The desktop
+  shell's `remove_file` removes files only inside the folders it lets the studio write.
 - Library items version 2: `source` (datasheet), `origin` (where a project's copy came from, with
   the source's content hash) and the `mount` kind (an adapter on a robot's flange). Version 1
   still reads.

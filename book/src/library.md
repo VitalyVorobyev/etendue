@@ -172,3 +172,33 @@ etendue library list --project my_project --bank ~/Documents/etendue/bank --buil
 - **`import`** checks the item (or loads the robot as the kinematics would) before it writes,
   and writes items at version 2. It replaces an existing item only with `--force`.
 - **`list`** prints each item once, from the layer it resolves to, and names the layers it hides.
+
+## In the studio
+
+The **Library** workspace lists every item the open project sees: its own, your bank's and the
+built-ins, grouped by kind. Filter it by text (name, id, vendor, part number), by kind and by
+layer. Each row names its layer; a row that hides the same item in a lower layer says so, and the
+hidden one is dimmed. A project copy whose source in the bank or the built-ins has changed since
+it was copied is marked **stale**.
+
+Choose an item to see and edit it:
+- **Name, description and source** (vendor, part number, datasheet, notes), for every kind.
+- **Sensors, lenses, lasers and mounts** have a form in a datasheet's units (µm, mm, degrees).
+- **Targets, cameras, heads and rigs** are edited as JSON, checked as you type; the item saves
+  once it checks.
+- **Built-in items are read-only.** Duplicate one into your bank or the project to change it.
+
+The actions:
+- **New…** makes an item of a kind from typical values, in your bank or the project.
+- **Duplicate…**, **Rename…** (a new id: the item is saved under it and the old file removed; the
+  project's defaults follow it) and **Delete…**.
+- **Import** reads item files into your bank or the project, checking each first. It does not
+  replace an item with the same id.
+- **Export** saves the item's JSON.
+- **Use in project** copies a bank or built-in item into the project, with its origin.
+- **Save to bank** copies a project item into your bank.
+- **Update copy** replaces a stale copy with its source as it is now, keeping its id.
+
+The desktop app's bank is `Documents/etendue/bank`, made the first time the studio starts. In a
+browser, choose a folder with **File › Choose bank folder…** (Chrome and Edge); until then the
+bank's actions say so. The bundled examples are read-only: open or create a project to add to it.

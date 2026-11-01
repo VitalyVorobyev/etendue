@@ -106,6 +106,16 @@ second nalgebra: calib-targets allows 0.35, and a fresh lockfile took it.
   the scene and keeps the robot models, as long as the scene names the same
   robots.
 
+**Amended 2026-11-01 (ADR 0010, P14):** the user's bank is a second writable
+folder.
+
+- `open_bank` makes `Documents/etendue/bank` (the checkout's
+  `target/studio/bank` in a debug build) a bank the first time, and allows it
+  for reading and writing.
+- `remove_file` removes one file under a writable folder, with the same check
+  as `write_text`, and refuses folders. The Library workspace uses it to
+  rename and delete library items in a project or the bank.
+
 ### Scope of this change
 
 The shell adds the Dataset panel, "Open scene…", "Import poses…", and the
