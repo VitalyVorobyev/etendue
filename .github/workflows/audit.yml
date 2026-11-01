@@ -20,14 +20,17 @@ jobs:
       - uses: actions/checkout@v6
       - name: Clone calibration-rs sibling ([patch.crates-io] target)
         run: git clone --depth 1 --branch "$CALIBRATION_RS_REF" https://github.com/VitalyVorobyev/calibration-rs.git ../calibration-rs
-      - uses: EmbarkStudios/cargo-deny-action@v2
+      # cargo-deny runs on the runner, not in cargo-deny-action's container: the
+      # container mounts only the workspace, so the `[patch.crates-io]` sibling in
+      # ../calibration-rs would be invisible to `cargo metadata`.
+      - uses: taiki-e/install-action@v2
         with:
-          # deny.toml lists RUSTSEC-2024-0436 (paste, upstream-blocked via
-          # nalgebra 0.34 → simba → paste) in advisories.ignore.
-          command: check advisories licenses bans sources
+          tool: cargo-deny
+      # deny.toml lists RUSTSEC-2024-0436 (paste, upstream-blocked via
+      # nalgebra 0.34 → simba → paste) in advisories.ignore.
+      - name: cargo deny (workspace)
+        run: cargo deny --locked check advisories licenses bans sources
       # The studio shell is its own cargo workspace, with its own lockfile and
       # deny.toml (Tauri's graph adds licences and one upstream advisory).
-      - uses: EmbarkStudios/cargo-deny-action@v2
-        with:
-          manifest-path: web/apps/studio/src-tauri/Cargo.toml
-          command: check advisories licenses bans sources
+      - name: cargo deny (studio shell)
+        run: cargo deny --locked --manifest-path web/apps/studio/src-tauri/Cargo.toml check advisories licenses bans sources
