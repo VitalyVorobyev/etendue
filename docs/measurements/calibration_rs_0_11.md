@@ -109,6 +109,38 @@ At s = 4, sharp, on linear renders (RMS px):
 - `etendue detect` still uses Radon, the 1.2-era recommendation. Whether to switch is a separate
   decision.
 
+### P5-1b, the image-level loop
+
+The procedure is `closed_loop_images.md`'s: closed_loop_ur5e, rendered linear at s = 4 with 16
+samples, then `etendue detect`, then calibration from `features.json`.
+
+**Detection** (calib-targets 0.16.1, chess-corners 2.1 Radon):
+- 48/48 views found and 2592 corners.
+- 0 mislabelled, 0 unmatched.
+- 0.0578 px (cam_left) and 0.0583 px (cam_right) RMS from the analytic pixels, max 0.137 px.
+  On 0.9 these were 0.0578 and 0.0582 px.
+
+**Calibration** (native `etendue calibrate --features`; `closed_loop.py --features` gives the
+same rows). The loop is still noise-limited, as recorded for 0.9:
+
+| Quantity | Limit (G5.1) | 0.9.0 | 0.11.0 |
+|---|---|---|---|
+| mean reprojection px | 0.05 | 0.0521 | 0.0527 |
+| cam_left fx rel | 1e-4 | 1.9e-4 | 1.8e-4 |
+| cam_left cx px | 0.05 | 0.28 | 0.35 |
+| cam_left cy px | 0.05 | 0.017 | 0.018 |
+| cam_right fx rel | 1e-4 | 1.2e-4 | 7.4e-5 |
+| cam_right cx px | 0.05 | 0.13 | 0.13 |
+| cam_right cy px | 0.05 | 0.027 | 0.014 |
+| hand-eye rotation deg | 0.01 | 0.012 | 0.012 |
+| hand-eye translation mm | 0.05 | 0.14 | 0.12 |
+
+Compared with the white-noise spread recorded for 0.9 (12 seeds, the same RMS):
+- the intrinsics (but cam_left cy) and the hand-eye lie inside it;
+- cam_left cy (0.018 px) is below its minimum, 0.086 px;
+- the mean reprojection (0.0527 px) is 0.0011 px above its maximum, 0.0516 px. On 0.9 the
+  detected run was also above it, by 0.0005 px.
+
 ### Studio shell
 
 - clippy is clean.
