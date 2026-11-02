@@ -143,7 +143,7 @@ etendue render scene.json scenario.json -o out --supersample 4 --samples 16 --se
 ## `detect`
 
 ```text
-etendue detect <dir>
+etendue detect <dir> [--corners saddle_point|radon]
 ```
 
 Detects the target in every image of a rendered dataset (`gt` and `render` into the same
@@ -152,14 +152,23 @@ against the ground truth. The target's kind comes from `gt.json`:
 
 | Kind | Detected by | Labels |
 |---|---|---|
-| chessboard | chess-corners' Radon corners and calib-targets' chessboard detector | grid position; the whole board must be found, and the square colours decide its half-turn |
+| chessboard | chess-corners' ChESS corners with the saddle-point refiner, and calib-targets' chessboard detector | grid position; the whole board must be found, and the square colours decide its half-turn |
 | ChArUco | calib-targets' ChArUco detector | ChArUco corner id |
 | marker board | calib-targets' marker-board detector (the three circles fix the grid) | grid position |
 | PuzzleBoard | calib-targets' PuzzleBoard detector | corner id |
 | PuzzlePole | calib-targets' PuzzlePole detector | corner id on the cylinder |
 
-For the last four, calib-targets' own corner finder proposes the corners and each moves to the
-Radon corner within 1 px, so every kind is located as accurately as the chessboard. Every label
+For the last four, calib-targets' own corner finder proposes the corners and each moves to
+chess-corners' Radon corner within 1 px. The saddle-point refiner is not used for them: their
+marker bits and edges near a corner disturb its fit.
+
+`--corners` sets the corner detector for every kind: `saddle_point` (ChESS with the saddle-point
+refiner) or `radon` (chess-corners' Radon detector, the chessboard's default before). On etendue's
+closed-loop renders the saddle point is about five times more accurate on a chessboard (0.012
+against 0.058 px RMS). These are synthetic images, whose clean corners suit the saddle-point fit:
+the comparison does not carry over to real cameras unmeasured.
+
+Every label
 is then checked against the ground truth — reported, never corrected — and a table per camera is
 printed: views kept, views with no board, a partial board, an ambiguous or undecoded board,
 points, mislabelled and unmatched points, and the RMS and largest distance from the true pixels.

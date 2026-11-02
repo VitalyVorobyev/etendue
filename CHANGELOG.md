@@ -66,6 +66,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `etendue detect` finds a chessboard's corners with chess-corners' ChESS and its saddle-point
+  refiner instead of Radon, and the studio's dataset generation with it. On the closed-loop renders
+  it is about five times more accurate (0.012 against 0.058 px RMS), and the hand-eye from the
+  detected corners is 7 times closer to the truth. These are synthetic images; the other target
+  kinds keep Radon. `--corners radon|saddle_point` chooses for every kind
+  (`docs/measurements/p5_1c_saddle_point.md`).
 - **calibration-rs 0.12.0** (was 0.9.0, through 0.11.0), **calib-targets 0.16.1** (was 0.15.5)
   and **chess-corners 2.1** (was 1.2). The Python cross-check uses the `vision-calibration` 0.12.0
   wheel (one `Camera` class).
