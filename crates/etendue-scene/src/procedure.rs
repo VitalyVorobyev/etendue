@@ -286,8 +286,9 @@ pub struct ProcedurePart {
 }
 
 impl ProcedurePart {
-    /// The structural checks of [`Self::check`], on a procedure that does not come from a library
-    /// file (a run's procedure, passed by value).
+    /// The structural checks a library file's procedure gets (ids, seeds naming earlier stages,
+    /// freedoms that apply to their workflow), on a procedure that does not come from one (a
+    /// run's procedure, passed by value).
     ///
     /// # Errors
     ///
