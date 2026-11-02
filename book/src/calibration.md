@@ -271,7 +271,29 @@ whole image chain — rendering, sensor, detection — at work.
   used, the `noise`, the `rows` (`label`, `value`, `limit` when there is one), the `residuals`
   (`count`, `mean_px`, `rms_axis_px`, `max_px`, `per_camera_mean_px` and every point's error
   `errors_px`), and the `estimate`;
-- `row_stats`: with several trials, each row's `mean`, `std` and `max`.
+- `row_stats`: with several trials, each row's `mean`, `std` and `max`;
+- `param_stats`: with several trials, each estimated parameter (`cam_left fx`, `hand-eye ty`, …)
+  with its `truth`, `mean`, `std`, `bias`, `rmse` and calibration-rs's `predicted_sigma`.
+
+Each report also holds:
+- `residuals.features`: every target point's residual, with its `capture`, `camera` and `point`
+  (its index in the target) and the `observed_px` and `projected_px` pixels. In a run of several
+  trials, only the first trial keeps them.
+- `uncertainty`: calibration-rs's predicted σ of every estimated parameter (`labels`, `sigma`,
+  in calibration-rs's units: px, radians, metres; `camN` is the report's `cameras[N]`), the
+  parameters held `fixed`, and the reprojection noise the residuals imply (`noise_px`).
+- `quality`: calibration-rs's quality verdict on the result (`verdict`: pass, warn or fail; and
+  its `checks`).
+
+**Predicted against observed.** The σ are calibration-rs's covariance, which is *conditional on
+the parameters held fixed*. The rig workflow holds the cameras' poses in the rig fixed while it
+solves the hand-eye (`refine_rig` is off by default). Its σ for the intrinsics and the hand-eye
+are then smaller than the spread you see over trials: 1.2–2.6 times smaller on
+`closed_loop_ur5e` at 0.5 px of noise. With `"free": {"refine_rig": true}` (a procedure), the
+covariance holds the rig too, and the predicted σ match the spread. The hand-eye's σ are in
+calibration-rs's tangent space, `estimate = truth · Exp(δ)`, and `param_stats` reports the
+hand-eye error that way: the rotation `log(R_trueᵀ R)` and the translation `R_trueᵀ (t − t_true)`,
+both in the hand-eye's own frame.
 
 The estimate's `offsets` place it beside the truth: each estimated camera in the true camera's
 frame, the estimated target in the true target's frame, and each laser plane, true and

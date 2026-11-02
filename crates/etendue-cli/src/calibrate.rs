@@ -103,6 +103,38 @@ impl std::fmt::Display for Workflow {
     }
 }
 
+/// One target point's reprojection residual.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct FeatureResidual {
+    /// The capture, by id.
+    pub capture: String,
+    /// The camera, by id.
+    pub camera: String,
+    /// The target point, by its index in the ground truth's target.
+    pub point: usize,
+    /// The observed pixel.
+    pub observed_px: [f64; 2],
+    /// The pixel the estimate projects it to.
+    pub projected_px: [f64; 2],
+    /// calibration-rs's view, camera and feature indices, until [`finish`] names them.
+    #[serde(skip)]
+    raw: [usize; 3],
+}
+
+/// calibration-rs's predicted uncertainty of the estimate (its covariance's diagonal).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Predicted {
+    /// calibration-rs's parameter labels (`cam0.fx`, `gripper_se3_rig.tx`, …), `camN` being the
+    /// report's `cameras[N]`.
+    pub labels: Vec<String>,
+    /// The σ of each, in calibration-rs's units (px, radians, metres).
+    pub sigma: Vec<f64>,
+    /// The parameters held fixed (the σ are conditional on them).
+    pub fixed: Vec<String>,
+    /// The reprojection noise σ the residuals imply (px).
+    pub noise_px: Option<f64>,
+}
+
 /// Reprojection residuals of the target points.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Residuals {
@@ -116,6 +148,9 @@ pub struct Residuals {
     pub max_px: f64,
     /// Mean Euclidean error per camera (px), in the ground truth's camera order.
     pub per_camera_mean_px: Vec<f64>,
+    /// Every point's residual with where it is (the first trial's only, in a run of several).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub features: Vec<FeatureResidual>,
     /// Every point's Euclidean error (px), view-major.
     pub errors_px: Vec<f64>,
 }
@@ -186,6 +221,12 @@ pub struct Report {
     pub rows: Vec<Row>,
     pub residuals: Residuals,
     pub estimate: Estimate,
+    /// calibration-rs's quality verdict on the estimate (`analysis::quality`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub quality: Option<Value>,
+    /// calibration-rs's predicted uncertainty of the estimate.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub uncertainty: Option<Predicted>,
     /// The procedure that ran (ADR 0011): a built-in's id (`auto_rig`, …) or a library item's.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub procedure: String,
@@ -671,6 +712,7 @@ fn residuals(export: &Value, cameras: usize) -> Residuals {
     let mut errors = Vec::new();
     let mut sq = 0.0;
     let mut per_camera = vec![(0.0, 0usize); cameras];
+    let mut features = Vec::new();
     for r in export["diagnostics"]["per_feature_residuals"]["target"]
         .as_array()
         .into_iter()
@@ -689,6 +731,15 @@ fn residuals(export: &Value, cameras: usize) -> Residuals {
             slot.0 += e;
             slot.1 += 1;
         }
+        let index = |k: &str| r[k].as_u64().unwrap_or(0) as usize;
+        features.push(FeatureResidual {
+            capture: String::new(),
+            camera: String::new(),
+            point: 0,
+            observed_px: [f(o, 0), f(o, 1)],
+            projected_px: [f(p, 0), f(p, 1)],
+            raw: [index("pose"), c, index("feature")],
+        });
     }
     let n = errors.len();
     Residuals {
@@ -704,8 +755,72 @@ fn residuals(export: &Value, cameras: usize) -> Residuals {
             .iter()
             .map(|&(s, k)| if k == 0 { f64::NAN } else { s / k as f64 })
             .collect(),
+        features,
         errors_px: errors,
     }
+}
+
+/// The captures a workflow's views come from, in order: those `used` admits.
+fn used_views(obs: &Observations, used: impl Fn(&ObservedCapture) -> bool) -> Vec<usize> {
+    (0..obs.captures.len())
+        .filter(|&k| used(&obs.captures[k]))
+        .collect()
+}
+
+/// An export as JSON, with calibration-rs's quality verdict for cameras of `sizes`.
+fn exported<E>(export: E, sizes: &[[u32; 2]]) -> Result<(Value, Option<Value>)>
+where
+    E: Serialize + vision_calibration_pipeline::common::CalibratedCameras,
+{
+    let quality = vision_calibration_pipeline::analysis::assess(
+        &export,
+        sizes,
+        &vision_calibration_pipeline::analysis::QualityThresholds::default(),
+    )
+    .ok()
+    .and_then(|q| serde_json::to_value(q).ok());
+    Ok((serde_json::to_value(export)?, quality))
+}
+
+/// The image sizes of dataset cameras `cams`.
+fn sizes(truth: &Truth, cams: &[usize]) -> Vec<[u32; 2]> {
+    cams.iter()
+        .map(|&i| truth.gt.cameras[i].resolution)
+        .collect()
+}
+
+/// calibration-rs's covariance in `export` (or in the first workflow's of several), as σ.
+fn predicted(export: &Value) -> Option<Predicted> {
+    let u = export
+        .get("uncertainty")
+        .filter(|u| u.get("labels").is_some())
+        .or_else(|| {
+            export
+                .as_object()?
+                .values()
+                .find_map(|v| v.get("uncertainty").filter(|u| u.get("labels").is_some()))
+        })?;
+    let labels: Vec<String> = serde_json::from_value(u["labels"].clone()).ok()?;
+    let cov: Vec<Vec<f64>> = serde_json::from_value(u["covariance"].clone()).ok()?;
+    let sigma = (0..labels.len())
+        .map(|i| {
+            cov.get(i)
+                .and_then(|r| r.get(i))
+                .copied()
+                .unwrap_or(f64::NAN)
+                .max(0.0)
+                .sqrt()
+        })
+        .collect();
+    Some(Predicted {
+        labels,
+        sigma,
+        fixed: serde_json::from_value(u["fixed"].clone()).unwrap_or_default(),
+        noise_px: u["noise"]
+            .as_array()
+            .and_then(|n| n.iter().find(|x| x["kind"] == "reprojection"))
+            .and_then(|x| x["sigma"].as_f64()),
+    })
 }
 
 // ── Stages ────────────────────────────────────────────────────────────────────
@@ -849,13 +964,17 @@ pub fn calibrate(gt: &GroundTruth, obs: &Observations, options: &Options) -> Res
     crate::procedure::run(gt, obs, options, &procedure.0, &procedure.1)
 }
 
+/// What a single-camera hand-eye run gives: the export, its quality verdict, views and points.
+type SingleRun = (Value, Option<Value>, usize, usize);
+
 fn run_single(
     obs: &Observations,
     poses: &[Isometry3<f64>],
     i: usize,
     eye_in_hand: bool,
     run: &StageRun,
-) -> Result<(Value, usize, usize)> {
+    size: [u32; 2],
+) -> Result<SingleRun> {
     let mut views = Vec::new();
     let mut points = 0;
     for (c, pose) in obs.captures.iter().zip(poses) {
@@ -897,7 +1016,8 @@ fn run_single(
         }
         single_cam_handeye::step_handeye_optimize(&mut session, None)?;
     }
-    Ok((serde_json::to_value(session.export()?)?, n, points))
+    let (export, quality) = exported(session.export()?, &[size])?;
+    Ok((export, quality, n, points))
 }
 
 fn handeye_rows(
@@ -933,6 +1053,10 @@ struct Solved {
     /// The target pose the workflow reports (base frame eye-in-hand, gripper eye-to-hand).
     target: Option<Isometry3<f64>>,
     export: Value,
+    /// The capture of each of calibration-rs's views, in order.
+    views: Vec<usize>,
+    /// calibration-rs's quality verdict.
+    quality: Option<Value>,
 }
 
 /// The estimated camera `j` (truth camera `i`) in the true camera's frame.
@@ -1014,12 +1138,32 @@ fn finish(truth: &Truth, obs: &Observations, gated: bool, solved: Solved) -> Rep
         cameras,
         rows,
         counts,
-        residuals,
+        mut residuals,
         mut estimate,
         target,
         export,
+        views,
+        quality,
     } = solved;
     estimate.offsets = offsets(truth, &cameras, &estimate, target);
+    // Name each residual's capture, camera and target point.
+    residuals.features.retain_mut(|f| {
+        let [view, cam, feature] = f.raw;
+        let (Some(&k), Some(&i)) = (views.get(view), cameras.get(cam)) else {
+            return false;
+        };
+        let capture = &obs.captures[k];
+        let Some(point) = capture.views[i].points.get(feature) else {
+            return false;
+        };
+        f.capture.clone_from(&capture.id);
+        f.camera.clone_from(&truth.gt.cameras[i].id);
+        f.point = point.point;
+        // Named now: the indices are not kept (nor written).
+        f.raw = [0; 3];
+        true
+    });
+    let uncertainty = predicted(&export);
     let laser = !truth.gt.lasers.is_empty();
     let pass = rows.iter().all(Row::within);
     Report {
@@ -1039,6 +1183,8 @@ fn finish(truth: &Truth, obs: &Observations, gated: bool, solved: Solved) -> Rep
         rows,
         residuals,
         estimate,
+        quality,
+        uncertainty,
         procedure: String::new(),
         stages: Vec::new(),
         export,
@@ -1091,7 +1237,14 @@ pub(crate) fn single(
     gated: bool,
     run: &StageRun,
 ) -> Result<Report> {
-    let (export, views, points) = run_single(obs, poses, i, eye_in_hand, run)?;
+    let (export, quality, views, points) = run_single(
+        obs,
+        poses,
+        i,
+        eye_in_hand,
+        run,
+        truth.gt.cameras[i].resolution,
+    )?;
     let camera = camera_of(
         &export["camera"],
         &truth.gt.cameras[i].id,
@@ -1137,6 +1290,8 @@ pub(crate) fn single(
             estimate,
             target,
             export,
+            views: used_views(obs, |c| correspondences(&c.views[i]).is_some()),
+            quality,
         },
     ))
 }
@@ -1266,7 +1421,10 @@ pub(crate) fn rig(
         }
         rig_handeye::step_handeye_optimize(&mut session, None)?;
     }
-    let export = serde_json::to_value(session.export()?)?;
+    let (export, quality) = exported(
+        session.export()?,
+        &sizes(truth, &(0..n).collect::<Vec<_>>()),
+    )?;
     let cameras = rig_estimate(truth, &export)?;
     let scheimpflug = run.scheimpflug;
     let (rows, (he, target)) = rig_rows(truth, &export, &cameras, eye_in_hand, |i| {
@@ -1296,6 +1454,10 @@ pub(crate) fn rig(
             estimate,
             target,
             export,
+            views: used_views(obs, |c| {
+                c.views.iter().any(|v| correspondences(v).is_some())
+            }),
+            quality,
         },
     ))
 }
@@ -1339,7 +1501,10 @@ pub(crate) fn rig_laser(
     session.set_input(input)?;
     session.set_config(config(&run.patch)?)?;
     rig_handeye_laserline::run_calibration(&mut session)?;
-    let export = serde_json::to_value(session.export()?)?;
+    let (export, quality) = exported(
+        session.export()?,
+        &sizes(truth, &(0..n).collect::<Vec<_>>()),
+    )?;
     let cameras = rig_estimate(truth, &export)?;
     let planes: Vec<Option<Plane>> = (0..n)
         .map(|i| export["laser_planes_cam"].get(i).and_then(plane_of))
@@ -1374,6 +1539,10 @@ pub(crate) fn rig_laser(
             estimate,
             target,
             export,
+            views: used_views(obs, |c| {
+                c.views.iter().any(|v| correspondences(v).is_some())
+            }),
+            quality,
         },
     ))
 }
@@ -1412,7 +1581,7 @@ pub(crate) fn head(
         serde_json::from_value(device_run.seeds.camera_init(0)).context("device seed")?;
     laserline_device::step_init_with_seed(&mut session, seed, None)?;
     laserline_device::step_optimize(&mut session, None)?;
-    let device = serde_json::to_value(session.export()?)?;
+    let (device, quality) = exported(session.export()?, &sizes(truth, &[0]))?;
     let p = &device["params"];
     let mut camera = camera_of(&p["camera"], &truth.gt.cameras[0].id, Isometry3::identity());
     let plane = plane_of(&p["plane"]);
@@ -1430,7 +1599,14 @@ pub(crate) fn head(
     }
     // The hand-eye, from the same target views (by default a pinhole workflow: on a Scheimpflug
     // camera its intrinsics absorb the tilt, so only its hand-eye is kept).
-    let (he_export, _, _) = run_single(obs, poses, 0, eye_in_hand, handeye_run)?;
+    let (he_export, _, _, _) = run_single(
+        obs,
+        poses,
+        0,
+        eye_in_hand,
+        handeye_run,
+        truth.gt.cameras[0].resolution,
+    )?;
     let (he, target) = if eye_in_hand {
         (
             iso(&he_export["gripper_se3_camera"]),
@@ -1463,6 +1639,10 @@ pub(crate) fn head(
             estimate,
             target,
             export: json!({"laserline_device": device, "single_cam_handeye": he_export}),
+            views: used_views(obs, |c| {
+                correspondences(&c.views[0]).is_some() && laser_pixels(&c.views[0]).is_some()
+            }),
+            quality,
         },
     ))
 }
@@ -1490,7 +1670,7 @@ pub(crate) fn intrinsics(
     } else {
         planar_intrinsics::run_calibration(&mut session)?;
     }
-    let export = serde_json::to_value(session.export()?)?;
+    let (export, quality) = exported(session.export()?, &sizes(truth, &[i]))?;
     let camera = camera_of(
         &export["params"]["camera"],
         &truth.gt.cameras[i].id,
@@ -1524,6 +1704,8 @@ pub(crate) fn intrinsics(
             estimate,
             target: None,
             export,
+            views: used_views(obs, |c| correspondences(&c.views[i]).is_some()),
+            quality,
         },
     ))
 }
@@ -1576,7 +1758,10 @@ pub(crate) fn rig_extrinsics(
         }
         rig_extrinsics::step_rig_optimize(&mut session, None)?;
     }
-    let export = serde_json::to_value(session.export()?)?;
+    let (export, quality) = exported(
+        session.export()?,
+        &sizes(truth, &(0..n).collect::<Vec<_>>()),
+    )?;
     let cameras = rig_estimate(truth, &export)?;
     let ref_se3_rig = truth.cam_se3_rig[0];
     let rig_se3_ref = ref_se3_rig.inverse();
@@ -1615,6 +1800,10 @@ pub(crate) fn rig_extrinsics(
             estimate,
             target: None,
             export,
+            views: used_views(obs, |c| {
+                c.views.iter().any(|v| correspondences(v).is_some())
+            }),
+            quality,
         },
     ))
 }
@@ -1628,6 +1817,185 @@ pub struct RowStats {
     pub max: f64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub limit: Option<f64>,
+}
+
+/// One estimated parameter over trials, beside its truth and calibration-rs's predicted σ.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ParamStats {
+    /// `cam_left fx`, `hand-eye tx`, …
+    pub label: String,
+    /// `px`, `deg`, `mm`, or empty (distortion coefficients).
+    pub unit: String,
+    pub truth: f64,
+    pub mean: f64,
+    /// Sample standard deviation over the trials.
+    pub std: f64,
+    /// `mean − truth`.
+    pub bias: f64,
+    /// Root mean square of `value − truth`.
+    pub rmse: f64,
+    /// calibration-rs's σ for it, the mean over the trials that have one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub predicted_sigma: Option<f64>,
+    /// Trials it was estimated in.
+    pub trials: usize,
+}
+
+/// A parameter's value in one trial: label, unit, truth, value, predicted σ.
+type Sample = (String, &'static str, f64, f64, Option<f64>);
+
+/// The rotation vector (radians) of `r`.
+fn rotation_vector(r: &nalgebra::UnitQuaternion<f64>) -> Vector3<f64> {
+    r.scaled_axis()
+}
+
+/// The parameters of one report, beside the truth.
+fn samples(truth: &Truth, r: &Report) -> Vec<Sample> {
+    let sigma = |labels: &[String]| -> Option<f64> {
+        let u = r.uncertainty.as_ref()?;
+        labels
+            .iter()
+            .find_map(|l| u.labels.iter().position(|x| x == l))
+            .map(|i| u.sigma[i])
+    };
+    let mut out = Vec::new();
+    for (j, e) in r.estimate.cameras.iter().enumerate() {
+        let Some(t) = truth.gt.cameras.iter().find(|c| c.id == e.id) else {
+            continue;
+        };
+        let k = &t.params.intrinsics;
+        let names = [
+            ("fx", k.fx, e.intrinsics[0]),
+            ("fy", k.fy, e.intrinsics[1]),
+            ("cx", k.cx, e.intrinsics[2]),
+            ("cy", k.cy, e.intrinsics[3]),
+        ];
+        for (n, tv, ev) in names {
+            let s = sigma(&[format!("cam{j}.{n}"), n.to_owned()]);
+            out.push((format!("{} {n}", e.id), "px", tv, ev, s));
+        }
+        if let vision_calibration_core::DistortionParams::BrownConrady5 { params: d } =
+            &t.params.distortion
+        {
+            for (n, tv, ev) in [
+                ("k1", d.k1, e.distortion[0]),
+                ("k2", d.k2, e.distortion[1]),
+                ("k3", d.k3, e.distortion[2]),
+                ("p1", d.p1, e.distortion[3]),
+                ("p2", d.p2, e.distortion[4]),
+            ] {
+                let s = sigma(&[format!("cam{j}.{n}"), n.to_owned()]);
+                out.push((format!("{} {n}", e.id), "", tv, ev, s));
+            }
+        }
+        if let SensorParams::Scheimpflug { params } = t.params.sensor {
+            for (n, tv, ev) in [
+                ("tilt_x", params.tilt_x, e.tilt[0]),
+                ("tilt_y", params.tilt_y, e.tilt[1]),
+            ] {
+                let s = sigma(&[format!("cam{j}.{n}"), n.to_owned()]).map(f64::to_degrees);
+                out.push((
+                    format!("{} {n}", e.id),
+                    "deg",
+                    tv.to_degrees(),
+                    ev.to_degrees(),
+                    s,
+                ));
+            }
+        }
+    }
+    if let (Some(he), Some(first)) = (r.estimate.handeye, r.cameras.first())
+        && let Some(i) = truth.gt.cameras.iter().position(|c| &c.id == first)
+        && truth.gt.handeye.is_some()
+    {
+        let t = truth.handeye(&truth.cam_se3_rig[i]);
+        // calibration-rs's label of the hand-eye: the one transform that is not the target's.
+        let prefix = r.uncertainty.as_ref().and_then(|u| {
+            u.labels
+                .iter()
+                .filter_map(|l| l.strip_suffix(".tx"))
+                .find(|p| {
+                    (p.starts_with("gripper_se3_") || p.ends_with("_se3_base"))
+                        && !p.ends_with("target")
+                })
+                .map(str::to_owned)
+        });
+        let s = |c: &str| prefix.as_ref().and_then(|p| sigma(&[format!("{p}.{c}")]));
+        // The error in calibration-rs's tangent: `estimate = truth · Exp(δ)`, the rotation part
+        // `log(R_trueᵀ R)` and the translation part `R_trueᵀ (t − t_true)`, both in the
+        // transform's own frame (checked against its covariance: docs/measurements/g17_sim_lab.md).
+        let dr = rotation_vector(&(t.rotation.inverse() * he.rotation));
+        let dt = t.rotation.inverse() * (he.translation.vector - t.translation.vector);
+        for (c, v) in ["rx", "ry", "rz"].iter().zip(dr.iter()) {
+            out.push((
+                format!("hand-eye {c}"),
+                "deg",
+                0.0,
+                v.to_degrees(),
+                s(c).map(f64::to_degrees),
+            ));
+        }
+        for (c, v) in ["tx", "ty", "tz"].iter().zip(dt.iter()) {
+            out.push((
+                format!("hand-eye {c}"),
+                "mm",
+                0.0,
+                v * 1e3,
+                s(c).map(|v| v * 1e3),
+            ));
+        }
+    }
+    out
+}
+
+/// One parameter's samples over trials: unit, truth, values, predicted σ.
+type Gathered = (&'static str, f64, Vec<f64>, Vec<f64>);
+
+/// Each estimated parameter over `reports` (trials of one dataset): its spread against its truth
+/// and against calibration-rs's predicted σ.
+#[must_use]
+pub fn param_stats(gt: &GroundTruth, reports: &[Report]) -> Vec<ParamStats> {
+    let truth = Truth::new(gt);
+    let mut order: Vec<String> = Vec::new();
+    let mut by: BTreeMap<String, Gathered> = BTreeMap::new();
+    for r in reports {
+        for (label, unit, t, v, s) in samples(&truth, r) {
+            let entry = by.entry(label.clone()).or_insert_with(|| {
+                order.push(label);
+                (unit, t, Vec::new(), Vec::new())
+            });
+            entry.2.push(v);
+            if let Some(s) = s {
+                entry.3.push(s);
+            }
+        }
+    }
+    order
+        .into_iter()
+        .map(|label| {
+            let (unit, truth, values, sigmas) = &by[&label];
+            let n = values.len() as f64;
+            let mean = values.iter().sum::<f64>() / n;
+            let var = if values.len() > 1 {
+                values.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (n - 1.0)
+            } else {
+                0.0
+            };
+            let mse = values.iter().map(|v| (v - truth).powi(2)).sum::<f64>() / n;
+            ParamStats {
+                unit: (*unit).to_owned(),
+                truth: *truth,
+                mean,
+                std: var.sqrt(),
+                bias: mean - truth,
+                rmse: mse.sqrt(),
+                predicted_sigma: (!sigmas.is_empty())
+                    .then(|| sigmas.iter().sum::<f64>() / sigmas.len() as f64),
+                trials: values.len(),
+                label,
+            }
+        })
+        .collect()
 }
 
 /// Per row, the mean, standard deviation and maximum over `reports` (rows matched by label).
@@ -1694,6 +2062,9 @@ pub struct Run {
     pub reports: Vec<Report>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub row_stats: Option<Vec<RowStats>>,
+    /// With several trials, each estimated parameter's spread ([`param_stats`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub param_stats: Option<Vec<ParamStats>>,
 }
 
 /// Calibrate the dataset in `dir` (`gt.json`, and `etendue detect`'s files when `detected`),
@@ -1757,7 +2128,11 @@ pub fn run_dir(
                 },
             ),
         };
-        let report = calibrate(&gt, &obs, &calibrate_options)?;
+        let mut report = calibrate(&gt, &obs, &calibrate_options)?;
+        if k > 0 {
+            // Every point's residual is kept for the first trial only.
+            report.residuals.features.clear();
+        }
         ctl.log(format!(
             "trial {}: {}, mean reprojection {:.4} px, {}",
             k + 1,
@@ -1776,6 +2151,7 @@ pub fn run_dir(
     ctl.step(Stage::Calibrate, trials as usize, trials as usize);
     Ok(Run {
         row_stats: (reports.len() > 1).then(|| row_stats(&reports)),
+        param_stats: (reports.len() > 1).then(|| param_stats(&gt, &reports)),
         reports,
     })
 }
