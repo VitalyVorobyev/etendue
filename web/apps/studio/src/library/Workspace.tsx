@@ -57,10 +57,11 @@ import {
   reselect,
 } from "./browse";
 import { GeneralForm, LaserForm, LensForm, MountForm, SensorForm, SourceForm } from "./PartForms";
+import { ProcedureEditor } from "../calibrate/ProcedureEditor";
 import { newPart } from "./templates";
 
 /** The kinds edited as JSON (their parts are nested documents). */
-const JSON_KINDS: readonly LibraryKind[] = ["target", "camera", "head", "rig", "procedure"];
+const JSON_KINDS: readonly LibraryKind[] = ["target", "camera", "head", "rig"];
 
 type DialogState =
   | { mode: "new" }
@@ -614,6 +615,15 @@ function PartForm({
     return <LaserForm part={item.laser} onChange={(laser) => onChange({ ...item, laser })} disabled={disabled} />;
   if (kind === "mount" && item.mount)
     return <MountForm part={item.mount} onChange={(mount) => onChange({ ...item, mount })} disabled={disabled} />;
+  if (kind === "procedure" && item.procedure)
+    return (
+      <ProcedureEditor
+        value={item.procedure}
+        onChange={(procedure) => onChange({ ...item, procedure })}
+        disabled={disabled}
+        showIssues={false}
+      />
+    );
   return null;
 }
 

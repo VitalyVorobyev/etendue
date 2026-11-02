@@ -309,6 +309,28 @@ Once a dataset exists, **Calibrate** calibrates it natively, as
   their σ, dropouts, laser σ, robot rotation and translation σ, a seed and a number of trials),
   or **Detected** (after a render, the detector's corners and stripes).
 - **Cameras**: a rig without lasers can be calibrated as a rig, or one camera alone.
+- **Procedure**: either the choice by the dataset's shape (`auto`), or a
+  [procedure](calibration.md#procedures) from the library: the project's, the bank's or a
+  built-in. **Edit stages** opens it in the procedure editor; an edited procedure runs as it
+  stands, and **Save to project** (or **Save to bank**, where the project is read-only) keeps it as
+  a library item.
+
+The procedure editor shows the stages in order. Each stage has an id, a workflow and, for a
+single-camera workflow, its camera ("Each camera" runs it once per camera). Its options are:
+
+- **Camera model**: the sensor model (as designed, untilted or Scheimpflug) and the parameters held
+  fixed, per slot (intrinsics, distortion, tilt). A slot left at **Default** keeps calibration-rs's
+  own choice.
+- **Starts from**: each estimate's seed, which is the workflow's own initialisation, the datasheet
+  values, the truth (simulation only) or an earlier stage's result.
+- **Also estimated or held**: only the options that apply to the stage's workflow, each at
+  **Default**, **Yes** or **No** (or a value).
+- **Solver**: the iteration limit and the robust loss.
+
+Stages can be added, moved and removed. Renaming a stage renames the seeds that name it. The
+kernel checks the procedure on every edit, and one that does not check (for example, a seed from a
+later stage) lists why and does not run. The Library workspace edits procedure items with the same
+editor.
 
 The result shows the workflow, the views and points used, and two badges: on exact observations
 **PASS** or **FAIL** against the closed-loop tolerances, otherwise the tolerances "for

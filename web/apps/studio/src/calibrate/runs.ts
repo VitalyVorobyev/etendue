@@ -27,12 +27,13 @@ export function runName(dataset: string, options: CalibrateOptions, at: Date): s
   const trials = (options.trials ?? 1) > 1 ? `x${options.trials}` : "";
   const what = options.detected ? "detected" : options.noise ? `noise-s${options.noise.seed ?? 0}${trials}` : "exact";
   const camera = options.camera ? `-${options.camera}` : "";
-  return `${base(dataset)}-${when}-${what}${camera}`.replace(/[^\w.-]+/g, "_");
+  const procedure = options.procedure ? `-${options.procedure.id}` : "";
+  return `${base(dataset)}-${when}-${what}${camera}${procedure}`.replace(/[^\w.-]+/g, "_");
 }
 
 /** What a run calibrated from, for people: "exact", "detected", or the noise and trials. */
 export function describeRun(options: CalibrateOptions): string {
-  const camera = options.camera ? `, ${options.camera} alone` : "";
+  const camera = `${options.camera ? `, ${options.camera} alone` : ""}${options.procedure ? `, ${options.procedure.id}` : ""}`;
   if (options.detected) return `detected${camera}`;
   const n = options.noise;
   if (!n || Object.entries(n).every(([k, v]) => k === "seed" || !v)) return `exact${camera}`;

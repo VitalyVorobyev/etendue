@@ -20,6 +20,8 @@ import {
 import { Play, Square } from "lucide-react";
 import { useState } from "react";
 
+import type { LibraryItem } from "@etendue/wasm";
+
 import type {
   CalibrateOptions,
   CalibrationReport,
@@ -29,6 +31,13 @@ import type {
   RowStats,
 } from "../kernel/native";
 import { KeptRuns } from "../calibrate/KeptRuns";
+import {
+  AUTO_PROCEDURE,
+  ProcedureChoice,
+  type ProcedureState,
+  procedureProblem,
+  runProcedure,
+} from "../calibrate/ProcedureChoice";
 import { ParamStatsView } from "../calibrate/ParamStatsView";
 import { ResidualViews, type ViewChoice } from "../calibrate/ResidualViews";
 import { runName } from "../calibrate/runs";
@@ -229,10 +238,19 @@ export function CalibratePanel({
   onView,
   residualScale,
   onResidualScale,
+  procedures,
+  tilted,
+  saveProcedure,
 }: {
   dataset: Dataset;
   cameras: string[];
   lasers: boolean;
+  /** Every procedure the project sees, by reference. */
+  procedures: ReadonlyMap<string, LibraryItem>;
+  /** Whether the scene's cameras tilt (Scheimpflug). */
+  tilted: boolean;
+  /** Where an edited procedure can be kept; `null` where nothing is writable. */
+  saveProcedure: { where: string; put: (item: LibraryItem) => Promise<boolean> } | null;
   runner: CalibrationRunner;
   form: CalibrateForm;
   onForm: (form: CalibrateForm) => void;
@@ -252,6 +270,8 @@ export function CalibratePanel({
   const setSource = (s: Source) => onForm({ ...form, source: s });
   const [camera, setCamera] = useState<string>("");
   const [tab, setTab] = useState<ResultTab>("errors");
+  const [procedure, setProcedure] = useState<ProcedureState>(AUTO_PROCEDURE);
+  const procedureBlocked = procedureProblem(procedure);
   const { running, result, failure, kept } = useCalibrationRun(runner);
   const detectedAvailable = dataset.render !== null && dataset.detection.length > 0;
 
@@ -265,6 +285,10 @@ export function CalibratePanel({
       : {}),
     ...(source === "detected" ? { detected: true } : {}),
     ...(camera !== "" ? { camera } : {}),
+    ...(() => {
+      const p = runProcedure(procedure, procedures);
+      return p ? { procedure: p } : {};
+    })(),
   });
   const shown = result?.dir === dataset.output ? result.run : null;
   const first = shown?.reports[0] ?? null;
@@ -313,6 +337,8 @@ export function CalibratePanel({
         ) : (
           <Button
             icon={<Play className="size-4" />}
+            disabled={procedureBlocked !== null}
+            title={procedureBlocked ?? undefined}
             onClick={() => {
               const o = options();
               runner.start(dataset.output, o, runsFolder, runName(dataset.output, o, new Date()));
@@ -322,6 +348,16 @@ export function CalibratePanel({
           </Button>
         )}
       </div>
+      <ProcedureChoice
+        state={procedure}
+        onChange={setProcedure}
+        procedures={procedures}
+        cameras={cameras}
+        lasers={lasers}
+        tilted={tilted}
+        save={saveProcedure}
+        disabled={running !== null}
+      />
       {source === "noisy" && (
         <NoiseFields
           noise={noise}

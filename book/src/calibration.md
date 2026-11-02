@@ -68,7 +68,8 @@ etendue calibrate out --procedure my_procedure.json  # a library item of kind pr
 | `laser_rig` | one joint solve of cameras, rig, planes and hand-eye, seeded from datasheet values |
 
 The built-ins are also files, `examples/library/procedures/<id>.json`: copy one into your bank
-or project and edit it. A procedure file is a library item:
+or project and edit it, in the studio's procedure editor ([The studio](studio.md#calibrate-and-compare))
+or by hand. A procedure file is a library item:
 
 ```json
 { "version": 2, "id": "my_handeye", "name": "Hand-eye, principal point held",

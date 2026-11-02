@@ -573,6 +573,9 @@ fn cameras_of(truth: &Truth, s: &Stage) -> Result<Vec<usize>> {
 ///
 /// Every mismatch, in one error.
 pub fn check(gt: &GroundTruth, procedure: &ProcedurePart) -> Result<()> {
+    // A procedure passed by value (the studio's edits) has not been through a library file's
+    // checks.
+    procedure.validate().map_err(|e| anyhow::anyhow!("{e}"))?;
     let mut problems = Vec::new();
     let truth = Truth::new(gt);
     for s in &procedure.stages {

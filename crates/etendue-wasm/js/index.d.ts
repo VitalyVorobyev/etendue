@@ -44,6 +44,15 @@ export type {
   MountPart,
   ItemSource,
   ItemOrigin,
+  ProcedurePart,
+  Stage,
+  CameraChoice,
+  FixLists,
+  Freedoms,
+  SolverChoice,
+  Loss,
+  Seed,
+  Seeds,
 } from "./types/library.js";
 export type { ProjectManifest, ProjectDefaults } from "./types/project.js";
 export type { BankManifest } from "./types/bank.js";

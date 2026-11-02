@@ -186,6 +186,8 @@ Choose an item to see and edit it:
 - **Sensors, lenses, lasers and mounts** have a form in a datasheet's units (µm, mm, degrees).
 - **Targets, cameras, heads and rigs** are edited as JSON, checked as you type; the item saves
   once it checks.
+- **Procedures** have the procedure editor ([The studio](studio.md#calibrate-and-compare)): their
+  stages, each with its workflow, fixed parameters, seeds, options and solver.
 - **Built-in items are read-only.** Duplicate one into your bank or the project to change it.
 
 The actions:
