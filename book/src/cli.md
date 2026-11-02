@@ -12,10 +12,11 @@ etendue export    <scene> <scenario> [--robot <id>] [--captures <file>] [--traje
 etendue gt        <scene> <scenario> -o <dir>
 etendue render    <scene> <scenario> -o <dir> [options]
 etendue detect    <dir>
-etendue calibrate <dir> [--noise <noise.json>] [--trials N] [--camera <id>]
+etendue calibrate <dir> [--noise <noise.json>] [--trials N] [--camera <id>] [--procedure <id | file>]
                   [--features <features.json>] [--laser-features <file>] [-o <report.json>] [--run <dir>]
 etendue scenario from-poses <poses> --robot <id> -o <scenario.json> [--speed-scale S] [--dt T] [--scene <scene>]
 etendue scenario sphere <scene> --spec <spec.json> -o <scenario.json> [--candidates <file>] [--dt T]
+etendue scenario plan <scene> --spec <spec.json> --budget N -o <scenario.json> [--report plan.json] [--noise-px 0.5]
 etendue project check <dir> [--bank <dir>]
 etendue library list [--project <dir>] [--bank <dir>] [--builtin <dir>]
 etendue library check <dir>
@@ -180,19 +181,21 @@ The [Datasets](datasets.md) page shows an example.
 ## `calibrate`
 
 ```text
-etendue calibrate <dir> [--noise noise.json] [--trials N] [--camera <id>]
+etendue calibrate <dir> [--noise noise.json] [--trials N] [--camera <id>] [--procedure <id | file>]
                   [--features features.json] [--laser-features laser_features.json]
                   [-o report.json] [--run <folder>]
 ```
 
 Calibrates a dataset (the directory `gt` wrote) with calibration-rs, natively, and compares
-every estimated quantity with the ground truth. The dataset needs a robot (a hand-eye cell).
+every estimated quantity with the ground truth. Without `--procedure`, the dataset's shape picks
+the workflow, and the dataset needs a robot (a hand-eye cell).
 
 | Option | Meaning |
 |---|---|
 | `--noise <file>` | Observation noise, a JSON object (below). Without it, the observations are the ground truth's exact pixels. |
 | `--trials N` | Repeat with seeds `seed, seed + 1, …` and print each row's mean, spread and maximum (default 1). |
 | `--camera <id>` | Calibrate one camera of a rig alone, as a single-camera hand-eye problem. Not for laser datasets. |
+| `--procedure <id \| file>` | Calibrate in stages: a built-in (`intrinsics`, `stereo`, `handeye`, `rig_handeye`, `laser_head`, `laser_rig`) or a procedure file. See [Procedures](calibration.md#procedures). The `intrinsics` and `stereo` built-ins need no robot. |
 | `--features <file>` | Calibrate from `etendue detect`'s detections instead of the ground truth. Cannot be combined with `--noise` or `--trials`. |
 | `--laser-features <file>` | The detected laser stripes (default: `laser_features.json` next to `--features`). |
 | `-o`, `--output` | Write the report (JSON). |
@@ -239,7 +242,8 @@ Import tool poses…** does the same.
 etendue scenario sphere <scene> --spec <spec.json> -o <scenario.json> [--candidates candidates.json] [--dt 0.01]
 ```
 
-Calibration viewpoints on spheres around a target, for a sensor the robot carries. The spec is
+Calibration viewpoints on spheres around a target, for a sensor the robot carries
+(eye-in-hand) or a fixed sensor that sees a target the robot carries (eye-to-hand). The spec is
 the JSON a scenario keeps in its `generator`, so `--spec` also takes a generated scenario, to
 generate it again:
 
@@ -253,8 +257,8 @@ generate it again:
 
 | Field | Default | Meaning |
 |---|---|---|
-| `robot` | — | The robot that carries the sensor. |
-| `look` | — | The sensor: a rig, camera or frame the robot's tool carries. |
+| `robot` | — | The robot that carries the sensor, or the target. |
+| `look` | — | The sensor: a rig, camera or frame, on the robot's tool or fixed. |
 | `look_se3_sensor` | identity | The sensor's axis relative to `look`. |
 | `target` | — | The target looked at. |
 | `centre_m` | the target's centre | The spheres' centre, in the target's frame. |
@@ -269,7 +273,9 @@ generate it again:
 | `return_home` | false | Go back to the start configuration at the end. |
 
 The sensor is placed at every radius, polar angle and azimuth, its +Z at the centre and its image
-upright, then rolled by each roll angle. A placement is kept when the robot reaches it within the
+upright, then rolled by each roll angle. Eye-to-hand, the placements are relative to the target:
+the robot puts the target where the fixed sensor sees it from there
+(`examples/eye_to_hand_ur5e/sphere.json` is such a spec). A placement is kept when the robot reaches it within the
 joint margin and away from singularities, and every required camera sees enough of the target.
 The kept poses are ordered into a short tour and written as `ptp_pose` moves, each with its joint
 configuration stored, and captures. `--candidates` writes every placement and why it was kept or
@@ -283,6 +289,38 @@ $ etendue scenario sphere examples/closed_loop_ur5e/scene.json \
 
 The studio's **Generate poses** panel (Motion workspace) runs the same generator. How it works is
 in [Pose generation](models/poses.md).
+
+## `scenario plan`
+
+```text
+etendue scenario plan <scene> --spec <spec.json> --budget N -o <scenario.json> [--report plan.json] [--noise-px 0.5] [--dt 0.01]
+```
+
+Chooses, from the sphere generator's feasible poses, the `N` that calibrate the cell best. It
+predicts, from the calibration's information, the **system σ**: how far across the line of sight
+(mm, per image axis) the calibrated cell would place a point it knows in the robot's base frame,
+averaged over the target's points as every feasible pose sees them. It adds one pose at a time,
+the one that lowers the system σ most, and writes the chosen poses in the generator's tour order.
+
+```text
+$ etendue scenario plan examples/closed_loop_ur5e/scene.json \
+      --spec examples/closed_loop_ur5e/scenario.json --budget 8 -o out/plan.json
+8 of 24 feasible poses: system σ 0.0362 mm (the grid thinned to 8: 0.0462 mm; every feasible pose: 0.0243 mm) → out/plan.json
+```
+
+- **What it assumes.** The prediction is of a rig hand-eye calibration that refines the rig
+  (`"free": {"refine_rig": true}`) and takes the robot's poses as exact, at `--noise-px` of pixel
+  noise per axis. The per-parameter σ it predicts match calibration-rs's own covariance to about
+  5 %, and calibrating noisy observations from the chosen poses gives the predicted system
+  error ([measurement](https://github.com/VitalyVorobyev/etendue/blob/main/docs/measurements/g18_pose_planning.md)).
+- **`--report`** writes the picks in order, the system σ after each (the curve to choose a budget
+  from), the evenly thinned grid's σ for comparison (`grid_sigma_mm`, and `grid_sigma_curve_mm`
+  for every smaller number), and every parameter's predicted σ. The picks for a budget are the
+  first picks of any larger one.
+- **The studio's Suggest poses** (Motion → Generate poses) runs the same planner.
+- **Eye-to-hand** cells are planned too: the hand-eye is then `rig_se3_base` and the target's
+  pose `gripper_se3_target`, and the same check holds (planned 8 poses: 0.0407 mm predicted,
+  0.0428 mm measured, against the grid's 0.0485 mm).
 
 ## `project check`
 

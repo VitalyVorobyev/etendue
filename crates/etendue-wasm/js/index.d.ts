@@ -144,6 +144,38 @@ export interface GeneratedPoses {
   scenario: ScenarioSpec;
 }
 
+/** How `EtendueScene.planPoses` plans (etendue-synth `PlanSpec`). */
+export interface PlanSpec {
+  /** How many poses to keep. */
+  budget: number;
+  /** The pixel noise σ the prediction assumes (default 0.5); it scales every σ alike. */
+  noise_px?: number;
+}
+
+/** What `EtendueScene.planPoses` chose, and how it compares (etendue-synth `Planned`). */
+export interface PlannedPoses {
+  /** The chosen candidates' capture ids, in the order the planner picked them. */
+  chosen: string[];
+  /** The predicted system σ (mm) after each pick: `sigma_mm[k]` with `k + 1` poses. */
+  sigma_mm: number[];
+  /** The system σ (mm) of the generator's grid thinned evenly to the budget. */
+  grid_sigma_mm: number;
+  /** The thinned grid's system σ (mm) with `k + 1` poses; `null` where it is undetermined. */
+  grid_sigma_curve_mm: (number | null)[];
+  /** The thinned grid's capture ids. */
+  grid: string[];
+  /** The system σ (mm) of every feasible candidate. */
+  all_sigma_mm: number;
+  /** Feasible candidates. */
+  feasible: number;
+  /** Each parameter's label (calibration-rs's names: `cam0.fx`, `gripper_se3_rig.tx`, …). */
+  labels: string[];
+  /** Each parameter's predicted σ with the chosen poses (px, radians, metres). */
+  sigma: number[];
+  /** The chosen poses as a stop-and-shoot scenario, in the generator's tour order. */
+  scenario: ScenarioSpec;
+}
+
 /** A target surface as triangles (`EtendueScene.targetMesh`). */
 export interface TargetMesh {
   /** Vertex positions, xyz, metres, in the target frame. */
@@ -692,6 +724,18 @@ export class EtendueScene {
    * @throws {@link EtendueError}
    */
   generatePoses(spec: GeneratorSpec | string, dt?: number): GeneratedPoses;
+
+  /**
+   * Plan calibration poses: run the generator of `spec`, then choose, from its feasible
+   * candidates, the `budget` poses that minimise the predicted **system σ**. That is how far
+   * (mm, across the line of sight) the calibrated cell would misplace a point it knows in the
+   * robot's base frame. The prediction models a rig hand-eye calibration with the rig refined and
+   * exact robot poses, as `etendue scenario plan` does. The picks for a smaller budget are the
+   * first picks of a larger one.
+   *
+   * @throws {@link EtendueError}
+   */
+  planPoses(spec: GeneratorSpec | string, plan: PlanSpec | string, dt?: number): PlannedPoses;
 
   /**
    * Robot `robotId`'s timed joint trajectory as CSV: `t`, the capture id on capture samples, then

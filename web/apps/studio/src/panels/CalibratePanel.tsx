@@ -15,6 +15,7 @@ import {
   SegmentedControl,
   Select,
   Table,
+  Tabs,
 } from "@vitavision/ui";
 import { Play, Square } from "lucide-react";
 import { useState } from "react";
@@ -28,19 +29,18 @@ import type {
   RowStats,
 } from "../kernel/native";
 import { KeptRuns } from "../calibrate/KeptRuns";
+import { ParamStatsView } from "../calibrate/ParamStatsView";
+import { ResidualViews, type ViewChoice } from "../calibrate/ResidualViews";
 import { runName } from "../calibrate/runs";
+import { SolverView, VerdictBadge, WORKFLOW } from "../calibrate/SolverView";
 import { type CalibrationRunner, useCalibrationRun } from "../state/calibrationRun";
 
 export type Source = "exact" | "noisy" | "detected";
 
 const DEG = Math.PI / 180;
 
-const WORKFLOW: Record<CalibrationReport["workflow"], string> = {
-  single_cam_handeye: "single-camera hand-eye",
-  rig_handeye: "rig hand-eye",
-  rig_handeye_laserline: "rig hand-eye laserline",
-  laserline_device: "laserline device + hand-eye",
-};
+/** The result's tabs. */
+type ResultTab = "errors" | "views" | "parameters" | "solver";
 
 /** The noise form, in display units (degrees and millimetres for the robot). */
 export interface NoiseForm {
@@ -225,6 +225,10 @@ export function CalibratePanel({
   scale,
   onScale,
   runsFolder,
+  view,
+  onView,
+  residualScale,
+  onResidualScale,
 }: {
   dataset: Dataset;
   cameras: string[];
@@ -237,10 +241,17 @@ export function CalibratePanel({
   onScale: (scale: number) => void;
   /** Where runs are kept: the project's `runs/`, or the dataset's own. */
   runsFolder: string;
+  /** The view whose residuals the camera view shows. */
+  view: ViewChoice | null;
+  onView: (view: ViewChoice) => void;
+  /** The camera view's magnification of the residuals. */
+  residualScale: number;
+  onResidualScale: (scale: number) => void;
 }) {
   const { source, noise } = form;
   const setSource = (s: Source) => onForm({ ...form, source: s });
   const [camera, setCamera] = useState<string>("");
+  const [tab, setTab] = useState<ResultTab>("errors");
   const { running, result, failure, kept } = useCalibrationRun(runner);
   const detectedAvailable = dataset.render !== null && dataset.detection.length > 0;
 
@@ -257,6 +268,26 @@ export function CalibratePanel({
   });
   const shown = result?.dir === dataset.output ? result.run : null;
   const first = shown?.reports[0] ?? null;
+  const features = first?.residuals.features ?? [];
+  const params = shown?.param_stats ?? [];
+  const tabs: { id: ResultTab; label: string; disabled?: boolean; title?: string }[] = [
+    { id: "errors", label: "Errors" },
+    {
+      id: "views",
+      label: "Per view",
+      disabled: features.length === 0,
+      ...(features.length === 0 ? { title: "This run has no per-point residuals" } : {}),
+    },
+    {
+      id: "parameters",
+      label: "Parameters",
+      disabled: params.length === 0,
+      ...(params.length === 0 ? { title: "Calibrate with noise over two or more trials" } : {}),
+    },
+    { id: "solver", label: "Solver" },
+  ];
+  // A tab the shown run has nothing for falls back to the errors.
+  const active = tabs.find((t) => t.id === tab && !t.disabled)?.id ?? "errors";
 
   return (
     <div className="@container flex min-w-0 flex-col gap-3" data-testid="calibrate-panel">
@@ -326,6 +357,7 @@ export function CalibratePanel({
             ) : (
               <Badge tone="neutral">Closed-loop limits for reference</Badge>
             )}
+            {first.quality && <VerdictBadge verdict={first.quality.verdict} />}
           </div>
           <p className="font-mono text-xs text-fg-muted" data-testid="calibration-residuals">
             reprojection: mean {px(first.residuals.mean_px)} px · rms per axis {px(first.residuals.rms_axis_px)} px ·
@@ -342,27 +374,49 @@ export function CalibratePanel({
               />
             </div>
           )}
-          <div className="grid gap-4 @4xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-            <div className="min-w-0">
-              {shown.row_stats ? (
-                <StatsTable stats={shown.row_stats} trials={shown.reports.length} />
-              ) : (
-                <RowsTable report={first} />
-              )}
-            </div>
-            <Histogram
-              values={first.residuals.errors_px}
-              bins={40}
-              label="Reprojection errors"
-              xLabel="error"
-              unit="px"
-              yLabel="points"
-              variant="fluid"
-              height={220}
-              footer={`${shown.reports.length > 1 ? "First trial. " : ""}Mean per camera: ${first.residuals.per_camera_mean_px
-                .map((m, i) => `${first.cameras[i] ?? i} ${px(m)} px`)
-                .join(", ")}`}
-            />
+          <Tabs items={tabs} active={active} onSelect={setTab} label="Calibration result" idPrefix="calibration" />
+          <div
+            role="tabpanel"
+            id={`calibration-panel-${active}`}
+            aria-labelledby={`calibration-tab-${active}`}
+            className="min-w-0"
+          >
+            {active === "errors" && (
+              <div className="grid gap-4 @4xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+                <div className="min-w-0">
+                  {shown.row_stats ? (
+                    <StatsTable stats={shown.row_stats} trials={shown.reports.length} />
+                  ) : (
+                    <RowsTable report={first} />
+                  )}
+                </div>
+                <Histogram
+                  values={first.residuals.errors_px}
+                  bins={40}
+                  label="Reprojection errors"
+                  xLabel="error"
+                  unit="px"
+                  yLabel="points"
+                  variant="fluid"
+                  height={220}
+                  footer={`${shown.reports.length > 1 ? "First trial. " : ""}Mean per camera: ${first.residuals.per_camera_mean_px
+                    .map((m, i) => `${first.cameras[i] ?? i} ${px(m)} px`)
+                    .join(", ")}`}
+                />
+              </div>
+            )}
+            {active === "views" && (
+              <ResidualViews
+                features={features}
+                trials={shown.reports.length}
+                selected={view}
+                onSelect={onView}
+                scale={residualScale}
+                onScale={onResidualScale}
+              />
+            )}
+            {active === "parameters" && <ParamStatsView stats={params} reports={shown.reports} />}
+            {active === "solver" && <SolverView reports={shown.reports} />}
           </div>
         </div>
       )}

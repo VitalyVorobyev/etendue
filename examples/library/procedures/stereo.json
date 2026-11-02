@@ -1,0 +1,23 @@
+{
+  "version": 2,
+  "id": "stereo",
+  "name": "Stereo or multi-camera rig",
+  "description": "Each camera's intrinsics, then the rig's extrinsics from the shared views, refining the intrinsics jointly; no robot.",
+  "procedure": {
+    "stages": [
+      {
+        "id": "intrinsics",
+        "problem": "planar_intrinsics"
+      },
+      {
+        "id": "rig",
+        "problem": "rig_extrinsics",
+        "seed": {
+          "intrinsics": {
+            "stage": "intrinsics"
+          }
+        }
+      }
+    ]
+  }
+}

@@ -284,10 +284,13 @@ pub struct LibraryItem {
     /// A flange mount (version 2).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mount: Option<MountPart>,
+    /// A calibration procedure (version 2, ADR 0011).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub procedure: Option<crate::procedure::ProcedurePart>,
 }
 
 /// The kinds of library item, and the folder each lives in.
-pub const KINDS: [(&str, &str); 8] = [
+pub const KINDS: [(&str, &str); 9] = [
     ("sensor", "sensors"),
     ("lens", "lenses"),
     ("laser", "lasers"),
@@ -296,6 +299,7 @@ pub const KINDS: [(&str, &str); 8] = [
     ("head", "heads"),
     ("rig", "rigs"),
     ("mount", "mounts"),
+    ("procedure", "procedures"),
 ];
 
 impl LibraryItem {
@@ -339,6 +343,7 @@ impl LibraryItem {
             self.head.is_some(),
             self.rig.is_some(),
             self.mount.is_some(),
+            self.procedure.is_some(),
         ];
         (set.iter().filter(|s| **s).count() == 1)
             .then(|| KINDS[set.iter().position(|s| *s).unwrap_or(0)].0)
@@ -358,11 +363,14 @@ impl LibraryItem {
             );
         }
         if self.version < 2
-            && (self.source.is_some() || self.origin.is_some() || self.mount.is_some())
+            && (self.source.is_some()
+                || self.origin.is_some()
+                || self.mount.is_some()
+                || self.procedure.is_some())
         {
             issues.push(
                 "version",
-                "`source`, `origin` and `mount` need library version 2",
+                "`source`, `origin`, `mount` and `procedure` need library version 2",
             );
         }
         if let Some(o) = &self.origin {
@@ -388,7 +396,7 @@ impl LibraryItem {
         if self.kind().is_none() {
             issues.push(
                 "",
-                "must hold exactly one of sensor, lens, laser, target, camera, head, rig, mount",
+                "must hold exactly one of sensor, lens, laser, target, camera, head, rig, mount, procedure",
             );
         }
         if let Some(s) = &self.sensor {
@@ -469,6 +477,9 @@ impl LibraryItem {
         }
         if let Some(r) = &self.rig {
             r.layout.check(&mut issues, "rig.layout");
+        }
+        if let Some(p) = &self.procedure {
+            p.check(&mut issues, "procedure");
         }
         if let Some(m) = &self.mount {
             issues.check_pose("mount.flange_se3_device", &m.flange_se3_device);

@@ -103,7 +103,7 @@
               "default": 0.05
             },
             "look": {
-              "description": "The sensor frame: a rig, a camera, or any frame rigidly carried by\nthe robot's tool.",
+              "description": "The sensor frame: a rig, a camera, or any frame; rigidly carried by\nthe robot's tool, or fixed while the tool carries the target.",
               "type": "string"
             },
             "look_se3_sensor": {
@@ -162,7 +162,7 @@
               "default": false
             },
             "robot": {
-              "description": "The robot that carries the sensor.",
+              "description": "The robot that carries the sensor (eye-in-hand) or the target\n(eye-to-hand).",
               "type": "string"
             },
             "roll_rad": {

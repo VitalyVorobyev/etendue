@@ -20,8 +20,8 @@ export type GeneratorSpec = {
    */
   joint_margin_rad?: number;
   /**
-   * The sensor frame: a rig, a camera, or any frame rigidly carried by
-   * the robot's tool.
+   * The sensor frame: a rig, a camera, or any frame; rigidly carried by
+   * the robot's tool, or fixed while the tool carries the target.
    */
   look: string;
   /**
@@ -51,7 +51,8 @@ export type GeneratorSpec = {
    */
   return_home?: boolean;
   /**
-   * The robot that carries the sensor.
+   * The robot that carries the sensor (eye-in-hand) or the target
+   * (eye-to-hand).
    */
   robot: string;
   /**

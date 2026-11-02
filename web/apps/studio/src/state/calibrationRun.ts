@@ -57,6 +57,7 @@ export class CalibrationRunner {
         if (outcome.kind === "ok") {
           const run: CalibrationRun = { reports: outcome.reports };
           if (outcome.row_stats) run.row_stats = outcome.row_stats;
+          if (outcome.param_stats) run.param_stats = outcome.param_stats;
           next = { result: { dir, options, run, name }, kept: this.#state.kept + 1 };
         } else if (outcome.kind === "failed") {
           next = { failure: outcome.message };

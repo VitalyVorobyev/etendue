@@ -153,10 +153,19 @@ export interface CalibrationRow {
   limit?: number;
 }
 
+/** The calibration-rs workflow a dataset was solved with (`etendue-cli::calibrate::Workflow`). */
+export type CalibrationWorkflow =
+  | "single_cam_handeye"
+  | "rig_handeye"
+  | "rig_handeye_laserline"
+  | "laserline_device"
+  | "planar_intrinsics"
+  | "rig_extrinsics";
+
 /** A calibration and its comparison with the truth (`etendue-cli::calibrate::Report`). */
 export interface CalibrationReport {
   version: number;
-  workflow: "single_cam_handeye" | "rig_handeye" | "rig_handeye_laserline" | "laserline_device";
+  workflow: CalibrationWorkflow;
   gate: string;
   /** The gate applies: exact analytic observations. */
   gated: boolean;
@@ -173,9 +182,90 @@ export interface CalibrationReport {
     rms_axis_px: number;
     max_px: number;
     per_camera_mean_px: number[];
+    /** Every target point's residual (the first trial's only, in a run of several). */
+    features?: FeatureResidual[];
     errors_px: number[];
   };
   estimate: CalibrationEstimate;
+  /** calibration-rs's quality verdict on the estimate. */
+  quality?: QualityReport;
+  /** calibration-rs's predicted uncertainty of the estimate. */
+  uncertainty?: PredictedUncertainty;
+  /** The procedure that ran: a built-in's id or a library item's. */
+  procedure?: string;
+  /** What each stage gave, in order (the last is the report's own). */
+  stages?: StageSummary[];
+}
+
+/** One target point's reprojection residual (`etendue-cli::calibrate::FeatureResidual`). */
+export interface FeatureResidual {
+  capture: string;
+  camera: string;
+  /** The point's index in the ground truth's target. */
+  point: number;
+  observed_px: [number, number];
+  /** Where the estimate projects it. */
+  projected_px: [number, number];
+}
+
+/** calibration-rs's predicted σ of each parameter (`etendue-cli::calibrate::Predicted`). */
+export interface PredictedUncertainty {
+  /** calibration-rs's labels (`cam0.fx`, `gripper_se3_rig.rx`, …), `camN` being the report's `cameras[N]`. */
+  labels: string[];
+  /** In calibration-rs's units: px, radians, metres. */
+  sigma: number[];
+  /** Parameters held fixed (the σ are conditional on them). */
+  fixed: string[];
+  /** The reprojection noise σ the residuals imply (px). */
+  noise_px: number | null;
+}
+
+/** A judgment of calibration-rs's quality report. */
+export type QualityVerdict = "pass" | "warn" | "fail";
+
+/** One check of calibration-rs's `QualityReport`. */
+export interface QualityCheck {
+  kind: string;
+  /** The camera (an index into the report's `cameras`) for a per-camera check. */
+  camera?: number;
+  status: QualityVerdict | "not_applicable";
+  measurement?: { value: number; threshold: number; unit: string };
+  subjects?: string[];
+  message: string;
+}
+
+/** calibration-rs's verdict on a result and the checks behind it (`analysis::QualityReport`). */
+export interface QualityReport {
+  verdict: QualityVerdict;
+  checks: QualityCheck[];
+}
+
+/** One stage of a procedure's run (`etendue-cli::calibrate::StageSummary`). */
+export interface StageSummary {
+  id: string;
+  workflow: CalibrationWorkflow;
+  cameras: string[];
+  views: number;
+  points: number;
+  mean_reproj_px: number;
+}
+
+/** One estimated parameter over trials (`etendue-cli::calibrate::ParamStats`). */
+export interface ParamStats {
+  /** `cam_left fx`, `hand-eye tx`, … */
+  label: string;
+  /** `px`, `deg`, `mm`, or empty (distortion coefficients). */
+  unit: string;
+  truth: number;
+  mean: number;
+  /** Sample standard deviation over the trials. */
+  std: number;
+  /** `mean − truth`. */
+  bias: number;
+  rmse: number;
+  /** calibration-rs's σ for it, the mean over the trials that have one. */
+  predicted_sigma?: number;
+  trials: number;
 }
 
 /** A plane `n·p + d = 0`. */
@@ -219,9 +309,12 @@ export interface RowStats {
   limit?: number;
 }
 
+/** What a calibration run found (`etendue-cli::calibrate::Run`). */
 export interface CalibrationRun {
   reports: CalibrationReport[];
   row_stats?: RowStats[];
+  /** With several trials, each estimated parameter's spread. */
+  param_stats?: ParamStats[];
 }
 
 export type CalibrationOutcome =

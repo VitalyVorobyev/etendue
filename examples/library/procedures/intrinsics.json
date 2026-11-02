@@ -1,0 +1,14 @@
+{
+  "version": 2,
+  "id": "intrinsics",
+  "name": "Intrinsics",
+  "description": "Each camera's intrinsics and distortion from its own planar views; no robot.",
+  "procedure": {
+    "stages": [
+      {
+        "id": "intrinsics",
+        "problem": "planar_intrinsics"
+      }
+    ]
+  }
+}
