@@ -21,6 +21,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `examples/library/procedures/`; `procedure` is a library kind. The report names its procedure
   and lists its stages (report version 3). Without `--procedure`, the choice by the dataset's
   shape is unchanged, bit for bit.
+- **Calibration-pose planning**: `etendue scenario plan` chooses, from the sphere generator's
+  feasible poses, the budget that minimises the predicted system σ (how far the calibrated cell
+  would misplace a point known in the robot's base frame), with the σ after each pose and the
+  thinned grid's for comparison.
 - **The simulation report**: every target point's residual with its capture, camera and point;
   calibration-rs's predicted σ (`uncertainty`) and quality verdict (`quality`); and, over trials,
   `param_stats`: each parameter's truth, mean, spread, bias, RMSE and predicted σ. `etendue

@@ -50,6 +50,7 @@ pub mod laser;
 #[cfg(feature = "images")]
 pub mod laser_render;
 pub mod observe;
+pub mod plan;
 pub mod poses;
 pub mod remap;
 pub mod sensor;

@@ -289,6 +289,31 @@ enum ScenarioCommand {
         #[arg(long, default_value_t = 0.01)]
         dt: f64,
     },
+    /// Plan calibration poses: from the sphere generator's feasible candidates, the `budget`
+    /// that minimise the predicted system σ (how far, in mm, the calibrated cell would misplace
+    /// a point it knows in the robot's base frame).
+    Plan {
+        /// Scene file.
+        scene: PathBuf,
+        /// Generator spec, or a scenario with a `generator` (as for `sphere`).
+        #[arg(long)]
+        spec: PathBuf,
+        /// How many poses to keep.
+        #[arg(long)]
+        budget: usize,
+        /// The pixel noise σ the prediction assumes.
+        #[arg(long, default_value_t = 0.5)]
+        noise_px: f64,
+        /// Output scenario file (the chosen poses).
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Also write the plan: the picks, the σ after each, the grid's σ, each parameter's σ.
+        #[arg(long)]
+        report: Option<PathBuf>,
+        /// Baking sample period, seconds.
+        #[arg(long, default_value_t = 0.01)]
+        dt: f64,
+    },
 }
 
 /// Gates measured by `etendue measure`.
@@ -682,6 +707,58 @@ fn run(cli: Cli) -> Result<()> {
                 "{kept} of {} candidate poses kept, {:.2} s of motion → {}",
                 generated.candidates.len(),
                 (trajectory.samples.len() - 1) as f64 * trajectory.dt,
+                output.display()
+            );
+            Ok(())
+        }
+        Command::Scenario {
+            command:
+                ScenarioCommand::Plan {
+                    scene,
+                    spec,
+                    budget,
+                    noise_px,
+                    output,
+                    report,
+                    dt,
+                },
+        } => {
+            let (scene_spec, models) = load_scene(&scene)?;
+            let mut json: serde_json::Value = read_json(&spec, "generator spec")?;
+            if let Some(generator) = json.get_mut("generator") {
+                json = generator.take();
+            }
+            let GeneratorSpec::Sphere(sphere) = serde_json::from_value(json)
+                .with_context(|| format!("generator spec {}", spec.display()))?;
+            let generated = etendue_synth::poses::generate(&scene_spec, &models, &sphere, dt)
+                .with_context(|| format!("generator {}", spec.display()))?;
+            let planned = etendue_synth::plan::plan(
+                &scene_spec,
+                &models,
+                &generated,
+                &sphere,
+                &etendue_synth::plan::PlanSpec { budget, noise_px },
+            )
+            .context("planning")?;
+            compile(&scene_spec, &planned.scenario, &models)
+                .map_err(|e| anyhow!("the planned scenario: {e}"))?;
+            std::fs::write(
+                &output,
+                serde_json::to_string_pretty(&planned.scenario)? + "\n",
+            )
+            .with_context(|| format!("writing {}", output.display()))?;
+            if let Some(path) = report {
+                std::fs::write(&path, serde_json::to_string_pretty(&planned)? + "\n")
+                    .with_context(|| format!("writing {}", path.display()))?;
+            }
+            println!(
+                "{} of {} feasible poses: system σ {:.4} mm (the grid thinned to {}: {:.4} mm; every feasible pose: {:.4} mm) → {}",
+                planned.chosen.len(),
+                planned.feasible,
+                planned.sigma_mm.last().copied().unwrap_or(f64::NAN),
+                budget,
+                planned.grid_sigma_mm,
+                planned.all_sigma_mm,
                 output.display()
             );
             Ok(())

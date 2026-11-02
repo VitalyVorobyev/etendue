@@ -16,6 +16,7 @@ etendue calibrate <dir> [--noise <noise.json>] [--trials N] [--camera <id>] [--p
                   [--features <features.json>] [--laser-features <file>] [-o <report.json>] [--run <dir>]
 etendue scenario from-poses <poses> --robot <id> -o <scenario.json> [--speed-scale S] [--dt T] [--scene <scene>]
 etendue scenario sphere <scene> --spec <spec.json> -o <scenario.json> [--candidates <file>] [--dt T]
+etendue scenario plan <scene> --spec <spec.json> --budget N -o <scenario.json> [--report plan.json] [--noise-px 0.5]
 etendue project check <dir> [--bank <dir>]
 etendue library list [--project <dir>] [--bank <dir>] [--builtin <dir>]
 etendue library check <dir>
@@ -285,6 +286,33 @@ $ etendue scenario sphere examples/closed_loop_ur5e/scene.json \
 
 The studio's **Generate poses** panel (Motion workspace) runs the same generator. How it works is
 in [Pose generation](models/poses.md).
+
+## `scenario plan`
+
+```text
+etendue scenario plan <scene> --spec <spec.json> --budget N -o <scenario.json> [--report plan.json] [--noise-px 0.5] [--dt 0.01]
+```
+
+Chooses, from the sphere generator's feasible poses, the `N` that calibrate the cell best. It
+predicts, from the calibration's information, the **system σ**: how far across the line of sight
+(mm, per image axis) the calibrated cell would place a point it knows in the robot's base frame,
+averaged over the target's points as every feasible pose sees them. It adds one pose at a time,
+the one that lowers the system σ most, and writes the chosen poses in the generator's tour order.
+
+```text
+$ etendue scenario plan examples/closed_loop_ur5e/scene.json \
+      --spec examples/closed_loop_ur5e/scenario.json --budget 8 -o out/plan.json
+8 of 24 feasible poses: system σ 0.0362 mm (the grid thinned to 8: 0.0462 mm; every feasible pose: 0.0243 mm) → out/plan.json
+```
+
+- **What it assumes.** The prediction is of a rig hand-eye calibration that refines the rig
+  (`"free": {"refine_rig": true}`) and takes the robot's poses as exact, at `--noise-px` of pixel
+  noise per axis. The per-parameter σ it predicts match calibration-rs's own covariance to about
+  5 %, and calibrating noisy observations from the chosen poses gives the predicted system
+  error ([measurement](https://github.com/VitalyVorobyev/etendue/blob/main/docs/measurements/g18_pose_planning.md)).
+- **`--report`** writes the picks in order, the system σ after each (the curve to choose a budget
+  from), the evenly thinned grid's σ for comparison, and every parameter's predicted σ.
+- **Eye-in-hand only**, as the generator.
 
 ## `project check`
 
