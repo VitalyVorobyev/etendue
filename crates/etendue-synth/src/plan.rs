@@ -7,9 +7,10 @@
 //! that position:
 //! - **The calibration** estimates, per camera, the focal lengths, the principal point, the
 //!   Brown-Conrady `k1, k2, p1, p2` and a Scheimpflug tilt; each camera's pose in the rig but the
-//!   first's; the hand-eye; and the target's pose in the base. That is calibration-rs's rig
-//!   hand-eye with the rig refined (`docs/measurements/g17_sim_lab.md`). The robot poses are taken
-//!   as exact.
+//!   first's; the hand-eye; and the target's pose. Eye-in-hand (the rig on the tool) that is
+//!   `gripper_se3_rig` and the target in the base; eye-to-hand (the target on the tool, P18b)
+//!   `rig_se3_base` and the target on the gripper. That is calibration-rs's rig hand-eye with the
+//!   rig refined (`docs/measurements/g17_sim_lab.md`). The robot poses are taken as exact.
 //! - **The information** of a view is `Jᵀ J / σ²` over its visible points, `J` the derivative of
 //!   each pixel with respect to those parameters. `J` is numerical, by central differences of
 //!   calibration-rs's own projection (no camera model here), the poses perturbed on the right
@@ -30,12 +31,15 @@ use vision_calibration_core::{CameraModel, CameraParams, DistortionParams, Senso
 
 use crate::board::layout;
 use crate::gt::{VisibilitySpec, project_points};
-use crate::poses::{CandidateStatus, Generated, Posed};
+use crate::poses::{CandidateStatus, Generated, Mounting, Posed, mounting};
 use crate::{Error, PixelCentre, Result};
 
 fn bad(message: impl Into<String>) -> Error {
     Error::InvalidInput(message.into())
 }
+
+/// The relative improvement in the system σ that a later candidate needs over an earlier one.
+const TIE: f64 = 1e-7;
 
 /// How to plan.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -71,7 +75,7 @@ pub struct Planned {
     pub feasible: usize,
     /// The predicted σ of each parameter with the chosen poses (labels as calibration-rs names
     /// them: `cam0.fx`, `cam1.cam_se3_rig.tx`, `gripper_se3_rig.rx`, `base_se3_target.tz`, …;
-    /// px, radians, metres).
+    /// eye-to-hand `rig_se3_base` and `gripper_se3_target`; px, radians, metres).
     pub labels: Vec<String>,
     pub sigma: Vec<f64>,
     /// The chosen poses as a stop-and-shoot scenario, in the generator's tour order.
@@ -210,6 +214,7 @@ pub fn plan(
         .find(|t| t.id == sphere.target)
         .ok_or_else(|| bad(format!("no target `{}`", sphere.target)))?;
     let target_frame = posed.index(&target.id)?;
+    let mounting = mounting(&posed, r, model, &sphere.look, &target.id)?;
     let board = layout(&target.geometry)?
         .ok_or_else(|| bad(format!("target `{}` has no printed layout", target.id)))?;
     let points: Vec<Point3<f64>> = board.points.iter().map(|b| b.xyz()).collect();
@@ -247,10 +252,14 @@ pub fn plan(
     for c in 1..cams.len() {
         labels.extend(POSE.iter().map(|k| format!("cam{c}.cam_se3_rig.{k}")));
     }
+    let (handeye_label, target_label) = match mounting {
+        Mounting::EyeInHand => ("gripper_se3_rig", "base_se3_target"),
+        Mounting::EyeToHand => ("rig_se3_base", "gripper_se3_target"),
+    };
     let handeye_offset = labels.len();
-    labels.extend(POSE.iter().map(|k| format!("gripper_se3_rig.{k}")));
+    labels.extend(POSE.iter().map(|k| format!("{handeye_label}.{k}")));
     let target_offset = labels.len();
-    labels.extend(POSE.iter().map(|k| format!("base_se3_target.{k}")));
+    labels.extend(POSE.iter().map(|k| format!("{target_label}.{k}")));
     let n = labels.len();
 
     // Each feasible candidate's information, and the system σ's weights.
@@ -279,14 +288,25 @@ pub fn plan(
         let candidate = &generated.candidates[i];
         let f = posed.at(r, candidate.q.as_deref().expect("feasible"));
         let world_se3_ref = f[cams[0].frame];
-        let handeye = f[tcp_frame].inverse() * world_se3_ref;
         let base_se3_tcp = f[base_frame].inverse() * f[tcp_frame];
-        let base_se3_target = f[base_frame].inverse() * f[target_frame];
+        // The hand-eye and the target's pose, as the calibration estimates them.
+        let (handeye, base_se3_target) = match mounting {
+            Mounting::EyeInHand => (
+                f[tcp_frame].inverse() * world_se3_ref,
+                f[base_frame].inverse() * f[target_frame],
+            ),
+            Mounting::EyeToHand => (
+                world_se3_ref.inverse() * f[base_frame],
+                f[tcp_frame].inverse() * f[target_frame],
+            ),
+        };
         let mut info = DMatrix::<f64>::zeros(n, n);
         for (c, cam) in cams.iter().enumerate() {
             let cam_se3_ref = f[cam.frame].inverse() * world_se3_ref;
             let chain = |cam_se3_ref: &Isometry3<f64>, he: &Isometry3<f64>, t: &Isometry3<f64>| {
-                cam_se3_ref * he.inverse() * base_se3_tcp.inverse() * t
+                cam_se3_ref
+                    * ref_se3_base(mounting, he, &base_se3_tcp)
+                    * target_in_base(mounting, t, &base_se3_tcp)
             };
             let nominal = chain(&cam_se3_ref, &handeye, &base_se3_target);
             let seen = project_points(
@@ -404,8 +424,10 @@ pub fn plan(
                 continue;
             }
             let trial = &info + candidate;
+            // Better by more than rounding: a symmetric cell's mirror candidates tie (to ~1e-9
+            // here), and the earlier one is kept, so the plan does not hang on the last bits.
             if let Some((s, _)) = sigma_of(&trial)
-                && best.is_none_or(|(_, b)| s < b)
+                && best.is_none_or(|(_, b)| s < b * (1.0 - TIE))
             {
                 best = Some((k, s));
             }
@@ -500,14 +522,41 @@ pub fn subset(generated: &Generated, keep: &[String], description: String) -> Sc
     }
 }
 
+/// The reference camera's pose relative to the robot's base at a view: eye-in-hand through the
+/// hand-eye `gripper_se3_ref` and the tool's pose, eye-to-hand the hand-eye `ref_se3_base` itself.
+fn ref_se3_base(
+    mounting: Mounting,
+    handeye: &Isometry3<f64>,
+    base_se3_tcp: &Isometry3<f64>,
+) -> Isometry3<f64> {
+    match mounting {
+        Mounting::EyeInHand => handeye.inverse() * base_se3_tcp.inverse(),
+        Mounting::EyeToHand => *handeye,
+    }
+}
+
+/// The target's pose in the robot's base at a view, from its estimated pose: `base_se3_target`
+/// eye-in-hand, `gripper_se3_target` (carried by the tool) eye-to-hand.
+fn target_in_base(
+    mounting: Mounting,
+    target: &Isometry3<f64>,
+    base_se3_tcp: &Isometry3<f64>,
+) -> Isometry3<f64> {
+    match mounting {
+        Mounting::EyeInHand => *target,
+        Mounting::EyeToHand => base_se3_tcp * target,
+    }
+}
+
 /// An estimated cell, as a calibration reports it: each camera's parameters and pose in the rig
-/// (`cam_se3_ref`, the first camera's frame), and the hand-eye `gripper_se3_ref`.
+/// (`cam_se3_ref`, the first camera's frame), and the hand-eye (`gripper_se3_ref` eye-in-hand,
+/// `ref_se3_base` eye-to-hand).
 #[derive(Clone, Debug)]
 pub struct EstimatedCell {
     /// Per camera (in `sphere.require.cameras` order, or the scene's): its parameters and
     /// `cam_se3_ref`.
     pub cameras: Vec<(CameraParams, Isometry3<f64>)>,
-    /// `gripper_se3_ref`.
+    /// `gripper_se3_ref` eye-in-hand, `ref_se3_base` eye-to-hand.
     pub handeye: Isometry3<f64>,
 }
 
@@ -543,6 +592,7 @@ pub fn system_error(
         .find(|t| t.id == sphere.target)
         .ok_or_else(|| bad(format!("no target `{}`", sphere.target)))?;
     let target_frame = posed.index(&target.id)?;
+    let mounting = mounting(&posed, r, model, &sphere.look, &target.id)?;
     let board = layout(&target.geometry)?
         .ok_or_else(|| bad(format!("target `{}` has no printed layout", target.id)))?;
     let ids: Vec<String> = match &sphere.require.cameras {
@@ -603,8 +653,9 @@ pub fn system_error(
                 edge,
             );
             let true_chain = f[*frame].inverse() * f[target_frame];
-            let est_chain =
-                cam_se3_ref * estimate.handeye.inverse() * base_se3_tcp.inverse() * base_se3_target;
+            let est_chain = cam_se3_ref
+                * ref_se3_base(mounting, &estimate.handeye, &base_se3_tcp)
+                * base_se3_target;
             for (gt, b) in seen.iter().zip(&board.points) {
                 let (true_px, Some(est_px)) = (gt.pixel, pixel(model, &est_chain, &b.xyz())) else {
                     continue;

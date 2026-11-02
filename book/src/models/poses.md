@@ -9,8 +9,10 @@ orders them into a short stop-and-shoot program.
 
 ## Where the sensor goes
 
-The sensor is any frame the robot's tool carries rigidly: a rig, a camera, or a frame on the tool
-(`look`, optionally offset by `look_se3_sensor`). The target defines a sphere centre (by default
+The sensor is a rig, a camera, or another frame (`look`, optionally offset by
+`look_se3_sensor`). Either the robot's tool carries it and the target is fixed (**eye-in-hand**),
+or the tool carries the target and the sensor is fixed (**eye-to-hand**); the generator tells
+which by moving the joints. The target defines a sphere centre (by default
 the target's centre; a PuzzlePole's axis midpoint) and a **pole** (by default the board's normal,
 +Z; for a PuzzlePole, +X, the seam's outward normal). For every combination of
 
@@ -27,8 +29,10 @@ $$
 $$
 
 in the target's frame, with its +Z pointing at the centre and its +Y along the target's
-"down" (the board's −Y), so that the images read upright, then rolled by $\psi$ about +Z. The
-tool pose that puts the sensor there follows from the tool-to-sensor transform.
+"down" (the board's −Y), so that the images read upright, then rolled by $\psi$ about +Z.
+Eye-in-hand, the tool pose that puts the sensor there follows from the tool-to-sensor transform.
+Eye-to-hand, the same placement is relative: the robot puts the target where the fixed sensor
+sees it from there, and the tool pose follows from the tool-to-target transform.
 
 ## Which candidates are kept
 
@@ -83,15 +87,16 @@ poses around the board from above and from the side.
 
 ## Assumptions and limits
 
-- **Eye-in-hand only.** The sensor must ride on the robot's tool; the generator does not move a
-  target held by the robot past fixed cameras.
+- **One robot moves.** Either the sensor or the target rides on the robot's tool, and the other
+  is fixed; both on robots is refused.
 - **No collision checking.** A kept pose can put the robot or the rig through the table or the
   board's stand.
 - **Visibility is geometric.** Occlusion by other objects and lighting are not considered; the
   renders show them.
 - **A good spread is your choice.** The generator keeps what is feasible; it does not choose
-  poses to optimise the calibration's conditioning. Tilted views (larger $\theta$) and rolls are
-  what constrain the intrinsics and the hand-eye rotation.
+  poses to optimise the calibration's conditioning (`etendue scenario plan` does, from the
+  feasible ones). Tilted views (larger $\theta$) and rolls are what constrain the intrinsics and
+  the hand-eye rotation.
 
 API: `etendue-synth` `poses::generate`; `etendue scenario sphere`; `@etendue/wasm`
 `generatePoses`.

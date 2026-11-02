@@ -1,4 +1,4 @@
-# G18.1: planned calibration poses
+# G18.1 and G18.2: planned calibration poses
 
 Gate of P18 (`docs/pivot/PLAN.md`; the objective was a user decision on 2026-11-01).
 
@@ -39,14 +39,48 @@ Gate of P18 (`docs/pivot/PLAN.md`; the objective was a user decision on 2026-11-
   - Every feasible pose (24): 0.0243 mm.
 - **A normalisation bug was found here.** The first run measured 0.72× the prediction for both sets. It was a per-point (both axes) mean on the predicted side against a per-axis mean on the measured side. Both are now per axis.
 
-## G18.2 (eye-to-hand): not yet
+## G18.2 (eye-to-hand): PASS
 
-The sphere generator still refuses eye-to-hand cells (the target on the robot), and so does the planner. That is the next step of P18.
+Measured 2026-11-02, Apple M4 Pro, branch `p18b/eye-to-hand` (commit in the PR), calibration-rs
+`v0.11.0`, a clean clone.
+
+**The feasible tour.** `examples/eye_to_hand_ur5e` (a static stereo rig on a stand, the board on
+the UR5e's flange) with its generator spec `sphere.json`: radii 0.6 and 0.7 m, θ 0.14 and
+0.44 rad, 6 azimuths, rolls ±0.35 rad.
+- All 48 candidates are feasible: reachable, with joint margin, away from singularities, and
+  both cameras see all 54 corners.
+- The tour bakes, and its ground truth (`etendue gt`) sees the whole board in both cameras at
+  every capture.
+- Exact data calibrates: the hand-eye to 5.5e-6° and 9.8e-5 mm.
+- Radii of 0.5 m lose up to 3 corners at the image edge, so the spec starts at 0.6 m.
+
+**The planner, eye-to-hand.** The hand-eye is now `rig_se3_base` and the target's pose
+`gripper_se3_target`: every view's chain is `cam_se3_rig · rig_se3_base · base_se3_tcp ·
+gripper_se3_target`. The G18.1 check, run on this cell (100 calibrations per set, 0.5 px, seeds
+1000–1099):
+
+| Pose set | Predicted system σ | Measured system error | Measured / predicted |
+|---|---|---|---|
+| planned (8) | 0.0407 mm | 0.0428 mm | 1.05 |
+| grid (8) | 0.0499 mm | 0.0485 mm | 0.97 |
+
+- The planned poses beat the grid (−18 % predicted, −12 % measured), and the prediction holds to
+  5 %.
+- The planner's σ of all 34 parameters match calibration-rs's covariance within 0.93–1.14.
+- On eye-in-hand, the planner's σ match within 0.94–1.10, and G18.1 is unchanged (0.0377 mm, 1.04).
+
+**Ties.** Mirror-symmetric candidates (rolls ±0.35, symmetric azimuths) give system σ equal to
+about 1e-9 relative. The greedy pick now keeps the earlier candidate unless a later one is better
+by 1e-7 relative, so rounding (a reordered product, another platform's libm) does not swap a pick
+for its mirror. Before that rule, a reordered product picked the mirror set on
+`closed_loop_ur5e`; it measured 0.0393 mm (1.08), within the gate but a different noise draw.
 
 ## Procedure
 
 ```bash
-cargo test --release -p etendue-cli --test g18_plan -- --ignored --nocapture   # ETENDUE_G18_TRIALS=100
+cargo test --release -p etendue-cli --test g18_plan -- --include-ignored --nocapture   # ETENDUE_G18_TRIALS=100
 etendue scenario plan examples/closed_loop_ur5e/scene.json --spec examples/closed_loop_ur5e/scenario.json \
+    --budget 8 -o plan.json --report plan_report.json
+etendue scenario plan examples/eye_to_hand_ur5e/scene.json --spec examples/eye_to_hand_ur5e/sphere.json \
     --budget 8 -o plan.json --report plan_report.json
 ```

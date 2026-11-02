@@ -40,23 +40,26 @@ pub enum GeneratorSpec {
     Sphere(SphereGenerator),
 }
 
-/// Eye-in-hand poses on spheres around a target (`etendue-synth::poses`).
+/// Calibration poses on spheres around a target (`etendue-synth::poses`).
 ///
-/// The sensor frame (`look`, a frame the robot's tool carries, offset by
-/// `look_se3_sensor`) is placed at radius `r`, polar angle `θ` from the
+/// The sensor frame (`look`, offset by `look_se3_sensor`) is placed, relative
+/// to the target, at radius `r`, polar angle `θ` from the
 /// sphere's pole and azimuth `φ`, its +Z towards the centre and its +Y along
 /// the target's print-down direction (so images read upright), then rolled
-/// about +Z. Every `(r, θ, φ, roll)` is a candidate; one is kept when the
+/// about +Z. Eye-in-hand the robot's tool carries the sensor there; eye-to-hand
+/// it carries the target, and places it so the fixed sensor sees it from there.
+/// Every `(r, θ, φ, roll)` is a candidate; one is kept when the
 /// robot reaches it with joint margin and away from singularities, and every
 /// required camera sees enough of the target.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct SphereGenerator {
-    /// The robot that carries the sensor.
+    /// The robot that carries the sensor (eye-in-hand) or the target
+    /// (eye-to-hand).
     pub robot: String,
-    /// The sensor frame: a rig, a camera, or any frame rigidly carried by
-    /// the robot's tool.
+    /// The sensor frame: a rig, a camera, or any frame; rigidly carried by
+    /// the robot's tool, or fixed while the tool carries the target.
     pub look: String,
     /// The sensor axis relative to `look` (identity by default).
     #[cfg_attr(

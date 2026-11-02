@@ -24,7 +24,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Calibration-pose planning**: `etendue scenario plan` chooses, from the sphere generator's
   feasible poses, the budget that minimises the predicted system σ (how far the calibrated cell
   would misplace a point known in the robot's base frame), with the σ after each pose and the
-  thinned grid's for comparison.
+  thinned grid's for comparison. Eye-to-hand cells (the target on the robot) are planned too.
+- **Eye-to-hand pose generation**: `etendue scenario sphere` places a target the robot carries
+  in front of a fixed sensor, from the same spheres; `examples/eye_to_hand_ur5e/sphere.json` is
+  its spec for the example.
 - **The simulation report**: every target point's residual with its capture, camera and point;
   calibration-rs's predicted σ (`uncertainty`) and quality verdict (`quality`); and, over trials,
   `param_stats`: each parameter's truth, mean, spread, bias, RMSE and predicted σ. `etendue
