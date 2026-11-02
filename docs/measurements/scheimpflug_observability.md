@@ -94,6 +94,11 @@ calibration-rs's σ (first trial, final stage) in brackets.
 
 ## 3. The head procedures mix two cameras' frames
 
+> **Update (2026-11-02).** This check measures only the distance from the plane, and misses every
+> error within it. Triangulated in 3-D, the same calibrations are 0.25–29 mm off rather than
+> 0.2–0.3 mm. `auto` and `laser_head` now hold the device's camera (0.013 mm). See
+> [`head_triangulation.md`](head_triangulation.md).
+
 Same noise, 10 trials. The stripe check's rms per trial, averaged, then the largest single
 distance:
 

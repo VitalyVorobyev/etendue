@@ -56,9 +56,8 @@ fn a_rig_recovers_its_truth() {
     assert!(report.gated && report.pass);
 }
 
-#[test]
-fn a_single_head_recovers_its_plane_and_hand_eye() {
-    // laser_ur5e with one camera, the laser on its body: a triangulation head.
+/// laser_ur5e with one camera, the laser on its body: a triangulation head.
+fn head(name: &str) -> GroundTruth {
     let mut scene = example("laser_ur5e");
     scene.cameras.retain(|c| c.id == "cam_left");
     let cam = scene.cameras[0].clone();
@@ -66,7 +65,12 @@ fn a_single_head_recovers_its_plane_and_hand_eye() {
     laser.parent_se3_self = cam.parent_se3_self.inverse() * laser.parent_se3_self;
     laser.parent = FrameRef::from(cam.id.as_str());
     laser.camera = Some(cam.id.clone());
-    let gt = truth(&scene, "laser_ur5e", "head");
+    truth(&scene, "laser_ur5e", name)
+}
+
+#[test]
+fn a_single_head_recovers_its_plane_and_hand_eye() {
+    let gt = head("head");
     let report = calibrate(
         &gt,
         &observe(&gt, &ObservationNoise::default()),
@@ -81,7 +85,32 @@ fn a_single_head_recovers_its_plane_and_hand_eye() {
             .iter()
             .any(|r| r.label == "cam_left laser normal deg")
     );
+    assert!(row(&report, "cam_left triangulated max mm") < 1e-3);
     assert!(report.gated && report.pass);
+}
+
+#[test]
+fn a_heads_plane_and_hand_eye_come_from_one_camera() {
+    // Under noise, a hand-eye solve that re-estimates the camera lands in another camera frame
+    // than the device solve's plane: the stripe then triangulates 0.1 to 5 mm off. Holding the
+    // device's camera keeps it at the noise's ~0.01 mm (docs/measurements/head_triangulation.md).
+    let gt = head("head_noise");
+    let noise = ObservationNoise {
+        pixel_sigma_px: 0.1,
+        laser_sigma_px: 0.1,
+        seed: 1,
+        ..ObservationNoise::default()
+    };
+    let obs = observe(&gt, &noise);
+    for procedure in [None, Some("laser_head")] {
+        let options = Options {
+            procedure: procedure.map(|p| etendue_cli::procedure::named(p).unwrap()),
+            ..Options::default()
+        };
+        let report = calibrate(&gt, &obs, &options).unwrap();
+        let rms = row(&report, "cam_left triangulated rms mm");
+        assert!(rms < 0.05, "{procedure:?}: {rms} mm");
+    }
 }
 
 #[test]

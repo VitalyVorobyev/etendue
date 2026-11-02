@@ -879,15 +879,22 @@ green; upstream changes (calibration-rs, lab-ui) stay drafts.
       0.1 px on that head.
     - **Measurement is still right.** The camera-frame rows fail on calibrations whose laser
       plane in the gripper frame is right to 0.4 µm.
-    - **A finding about every head.** `laser_head` and `auto` take the laser plane and the
-      hand-eye from stages that estimate the camera separately. Under 0.1 px of noise, the stripe
-      in the robot's frame is 0.2–0.3 mm off, against 5 µm when the hand-eye stage holds the
-      device stage's camera. `auto`'s pinhole hand-eye puts a Scheimpflug head 0.17 mm off even on
-      exact data.
-    - **Open, for the user:**
-      - whether the head built-ins should hold the camera in the hand-eye stage;
-      - whether G5.3 should check frame-invariant quantities for heads;
-      - whether to ask calibration-rs for a one-camera joint laser hand-eye.
+    - **A finding about every head.** `laser_head` and `auto` took the laser plane and the
+      hand-eye from stages that estimate the camera separately.
+  - *Update (2026-11-02, later):* fixed, with a check that sees it
+    (`docs/measurements/head_triangulation.md`).
+    - **G5.3c**, the triangulated rows: every true stripe pixel triangulated with the estimated
+      camera, plane, hand-eye and robot pose, against the truth in the base; the largest gated at
+      0.05 mm. It does not depend on the tilt's split, and it judges the result as a whole.
+    - **What it found.** At 0.1 px of noise on the example head, `auto` was 0.25 mm rms off and
+      `laser_head` 3.0 mm (up to 13 mm in a trial); on the Scheimpflug head `auto` was 29 mm off
+      even on exact data. The head triangulates at a narrow angle (0.2–3.8 mm per pixel), so a
+      camera a pixel apart from the plane's is millimetres off. The earlier plane-distance check
+      missed errors within the plane.
+    - **The fix.** `auto`'s head hand-eye and `laser_head`'s second stage hold the device stage's
+      camera: 0.013 mm rms, the noise's floor (the rigs reach the same).
+    - **Upstream.** calibration-rs's joint laser hand-eye opened to one camera (a PR, ready for
+      review). On the head it is right and no more precise than the held camera (0.014–0.016 mm).
 - **P17 — Simulation lab.**
   - **Report v3:**
     - per view and per feature, residuals with ids (camera, view, point, observed and projected

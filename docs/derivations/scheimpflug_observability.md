@@ -102,9 +102,10 @@ in the measurements they are under 0.001 px.
 - **Mixing parameters from different solutions breaks the equivalence.** For example, combining
   datasheet tilts with calibrated principal points gives a camera whose rays are off by $f\,\delta\tau$
   pixels, 23 px on the head. Likewise, a laser plane from one solve and a hand-eye from another
-  that re-estimated the camera sit in two different camera frames. etendue's head procedures do
-  this today, at 0.2–0.3 mm of stripe error under 0.1 px of noise, against 5 µm with one camera
-  (measurements, §3).
+  that re-estimated the camera sit in two different camera frames. etendue's head procedures did
+  this, until they were fixed to hold the device's camera. Under 0.1 px of noise, a triangulated
+  stripe point was 0.25–4.7 mm off on the example heads, against 0.013 mm with one camera
+  ([`head_triangulation.md`](../measurements/head_triangulation.md)).
 
 ## 5. What a calibration does determine
 

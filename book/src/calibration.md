@@ -27,7 +27,7 @@ the robot). A dataset without a robot is refused with "the dataset has no robot"
 | One camera | single-camera hand-eye (`SingleCamHandeye`) | intrinsics, distortion, hand-eye, target pose |
 | A rig of cameras | rig hand-eye (`RigHandeye`) | each camera's intrinsics and distortion, each camera's pose on the rig, hand-eye, target pose |
 | A rig with lasers (one shared, or one per camera) | rig hand-eye laser-line (`RigHandeyeLaserline`) | as rig hand-eye, plus each camera's laser plane and a Scheimpflug sensor's tilt |
-| One camera carrying its laser (a triangulation head) | laser-line device (`LaserlineDevice`) | intrinsics, distortion, tilt and laser plane; the hand-eye from the single-camera problem on the same views |
+| One camera carrying its laser (a triangulation head) | laser-line device (`LaserlineDevice`) | intrinsics, distortion, tilt and laser plane; then the hand-eye from the single-camera problem on the same views, with that camera held |
 
 - **One camera of a rig.** `--camera <id>` (or **Cameras › _id_ alone** in the studio)
   calibrates one camera of a rig without lasers as a single-camera problem.
@@ -64,7 +64,7 @@ etendue calibrate out --procedure my_procedure.json  # a library item of kind pr
 | `stereo` | each camera's intrinsics, then the rig's extrinsics seeded from them (no robot needed) |
 | `handeye` | the camera's intrinsics, then its hand-eye with the robot poses refined; on a rig, each camera on its own |
 | `rig_handeye` | intrinsics per camera, the rig's extrinsics, then the rig's hand-eye, each seeded from the last |
-| `laser_head` | the device workflow (intrinsics, tilt, plane; datasheet tilt), then the hand-eye with the same camera model, seeded from it |
+| `laser_head` | the device workflow (intrinsics, tilt, plane; datasheet tilt), then the hand-eye with that camera held |
 | `laser_rig` | one joint solve of cameras, rig, planes and hand-eye, seeded from datasheet values |
 
 The built-ins are also files, `examples/library/procedures/<id>.json`: copy one into your bank
@@ -125,26 +125,15 @@ on the split:
 - **Quantities in the camera's frame.** The report's tilt, principal point, laser-normal and
   hand-eye rows can therefore fail on a calibration that measures correctly.
 
-**Keep the laser plane and the hand-eye in one camera.** `laser_head` (and `auto` on a head)
-estimates the laser plane in its device stage, then the hand-eye in a stage that estimates the
-camera again. The plane and the hand-eye then sit in slightly different camera frames:
-- **Under 0.1 px of noise:** a stripe point triangulated in the robot's frame is 0.2–0.3 mm off
-  (up to 1 mm) on the example heads, against 5 µm when the hand-eye stage holds the device
-  stage's camera. This happens with an untilted camera too.
-- **On a Scheimpflug head, even on exact data:** `auto`'s hand-eye stage uses an untilted camera,
-  which puts the stripe 0.17 mm off.
-
-A second stage that holds the camera:
-
-```json
-{ "id": "handeye", "problem": "single_cam_handeye",
-  "model": { "sensor": "design", "fix": {
-    "intrinsics": ["fx", "fy", "cx", "cy"], "distortion": ["k1", "k2", "k3", "p1", "p2"],
-    "sensor": ["tilt_x", "tilt_y"] } },
-  "seed": { "intrinsics": { "stage": "device" }, "sensor": { "stage": "device" } } }
-```
-
-For an untilted camera, leave out the `sensor` list.
+**The laser plane and the hand-eye share one camera.** The plane is estimated in the camera's
+frame, so it only composes with a hand-eye found for the same camera. `laser_head` and `auto`
+on a head estimate the camera, its tilt and the plane in the device stage, then the hand-eye with
+that camera held. Earlier, the hand-eye stage estimated the camera again (in etendue 0.2, `auto`
+with an untilted model), so the result combined two camera solutions. Under 0.1 px of noise a
+stripe point then triangulated 0.1–13 mm off on the example head, against about 0.013 mm now. A procedure of your own that estimates the plane in one
+stage and the hand-eye in a later one must hold the camera in the later one, as `laser_head` does
+(`examples/library/procedures/laser_head.json`). The stripe triangulation row catches one that
+does not.
 
 ## Observations
 
@@ -246,6 +235,15 @@ Some rows carry a tolerance:
 | Hand-eye translation | 0.05 mm |
 | Laser plane normal | 0.01° |
 | Laser plane offset | 0.05 mm |
+| Stripe triangulation, largest error | 0.05 mm |
+
+**The stripe triangulation row** checks the calibration as a measuring device. It takes every
+true stripe pixel, back-projects it with the calibrated camera, meets the ray with the calibrated
+laser plane, and carries the point into the robot's base through the calibrated hand-eye and the
+robot pose. It reports the distance from the true point, rms and largest, for each camera with a
+laser. Unlike the other rows it does not depend on how the solve split the projection between
+tilt, principal point and camera frame, and it judges the result as a whole: a camera, a plane
+and a hand-eye that do not belong together fail it even when each row passes.
 
 **On exact observations, the tolerances are a pass/fail check.** A correct calibration of exact
 data recovers the truth almost perfectly, well inside these numbers (in the example above, at

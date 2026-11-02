@@ -2,7 +2,7 @@
   "version": 2,
   "id": "laser_head",
   "name": "Laser triangulation head",
-  "description": "The camera, its sensor tilt and its laser plane from the device workflow, seeded from the datasheet tilt; then the hand-eye with the same camera model, seeded from that result.",
+  "description": "The camera, its sensor tilt and its laser plane from the device workflow, seeded from the datasheet tilt; then the hand-eye with that camera held, so the plane and the hand-eye share its frame.",
   "procedure": {
     "stages": [
       {
@@ -22,7 +22,26 @@
         "id": "handeye",
         "problem": "single_cam_handeye",
         "model": {
-          "sensor": "design"
+          "sensor": "design",
+          "fix": {
+            "intrinsics": [
+              "fx",
+              "fy",
+              "cx",
+              "cy"
+            ],
+            "distortion": [
+              "k1",
+              "k2",
+              "k3",
+              "p1",
+              "p2"
+            ],
+            "sensor": [
+              "tilt_x",
+              "tilt_y"
+            ]
+          }
         },
         "seed": {
           "intrinsics": {
