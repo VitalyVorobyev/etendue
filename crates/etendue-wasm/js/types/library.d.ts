@@ -4,6 +4,44 @@
  */
 
 /**
+ * Where a stage's starting value of an estimate comes from.
+ */
+export type Seed =
+  | "nominal"
+  | "truth"
+  | {
+      stage: string;
+    };
+/**
+ * A robust loss, as calibration-rs names it.
+ */
+export type Loss =
+  | {
+      kind: "none";
+    }
+  | {
+      kind: "huber";
+      /**
+       * Where the loss turns linear.
+       */
+      scale: number;
+    }
+  | {
+      kind: "cauchy";
+      /**
+       * The scale.
+       */
+      scale: number;
+    }
+  | {
+      kind: "arctan";
+      /**
+       * The scale.
+       */
+      scale: number;
+    };
+
+/**
  * One library item. Exactly one of the part fields is set: it names the item's kind.
  */
 export interface LibraryItem {
@@ -43,6 +81,10 @@ export interface LibraryItem {
    * Where this copy came from, when it was copied into a project (version 2).
    */
   origin?: ItemOrigin | null;
+  /**
+   * A calibration procedure (version 2, ADR 0011).
+   */
+  procedure?: ProcedurePart | null;
   /**
    * A rig design.
    */
@@ -481,6 +523,161 @@ export interface ItemOrigin {
    * The source's content hash (`etendue_core::library::content_hash`) when it was copied.
    */
   sha256: string;
+}
+/**
+ * A calibration procedure: stages in order. The last stage's result is the procedure's.
+ */
+export interface ProcedurePart {
+  /**
+   * The stages, run in order.
+   */
+  stages: Stage[];
+}
+/**
+ * One stage of a procedure.
+ */
+export interface Stage {
+  /**
+   * The camera a single-camera stage calibrates, by scene id; absent, the dataset's only
+   * camera (a stage per camera repeats with each id). Rig stages take every camera.
+   */
+  camera?: string | null;
+  free?: Freedoms;
+  /**
+   * Its id, unique in the procedure; later stages seed from it by this id.
+   */
+  id: string;
+  /**
+   * The camera model and its fixed parameters.
+   */
+  model?: CameraChoice | null;
+  /**
+   * The workflow.
+   */
+  problem:
+    | "planar_intrinsics"
+    | "rig_extrinsics"
+    | "single_cam_handeye"
+    | "rig_handeye"
+    | "laserline_device"
+    | "rig_handeye_laserline";
+  seed?: Seeds;
+  /**
+   * How it solves.
+   */
+  solver?: SolverChoice | null;
+}
+/**
+ * Further estimates freed or held.
+ */
+export interface Freedoms {
+  /**
+   * Hold the hand-eye in the joint laser solve (`rig_handeye_laserline`).
+   */
+  fix_handeye?: boolean | null;
+  /**
+   * Hold the laser plane (`laserline_device`).
+   */
+  fix_plane?: boolean | null;
+  /**
+   * The target poses (view indices) held at their linear estimate (`planar_intrinsics`,
+   * `laserline_device`).
+   */
+  fix_poses?: number[] | null;
+  /**
+   * Hold the target's pose in the joint laser solve (`rig_handeye_laserline`).
+   */
+  fix_target?: boolean | null;
+  /**
+   * The least robot rotation between views the linear hand-eye uses, degrees.
+   */
+  min_motion_angle_deg?: number | null;
+  /**
+   * Refine the intrinsics jointly with the rig and the hand-eye (rig workflows).
+   */
+  refine_intrinsics?: boolean | null;
+  /**
+   * Refine the cameras' poses in the rig during the hand-eye solve (`rig_handeye`).
+   */
+  refine_rig?: boolean | null;
+  /**
+   * Refine each view's robot pose under a prior (hand-eye workflows).
+   */
+  refine_robot_poses?: boolean | null;
+  /**
+   * Refine a Scheimpflug sensor's tilt jointly with the rig (rig workflows).
+   */
+  refine_sensor?: boolean | null;
+  /**
+   * The robot-pose prior's rotation σ, radians.
+   */
+  robot_rot_sigma_rad?: number | null;
+  /**
+   * The robot-pose prior's translation σ, metres.
+   */
+  robot_trans_sigma_m?: number | null;
+}
+/**
+ * The camera model of a stage and what of it stays fixed.
+ */
+export interface CameraChoice {
+  fix?: FixLists;
+  /**
+   * The sensor model.
+   */
+  sensor?: "design" | "identity" | "scheimpflug";
+}
+/**
+ * Fixed parameters.
+ */
+export interface FixLists {
+  /**
+   * `k1`, `k2`, `k3`, `p1`, `p2`.
+   */
+  distortion?: string[] | null;
+  /**
+   * `fx`, `fy`, `cx`, `cy`.
+   */
+  intrinsics?: string[] | null;
+  /**
+   * `tilt_x`, `tilt_y`.
+   */
+  sensor?: string[] | null;
+}
+/**
+ * What it starts from.
+ */
+export interface Seeds {
+  /**
+   * The hand-eye transform.
+   */
+  handeye?: Seed | null;
+  /**
+   * Focal lengths and principal points (and with them the distortion).
+   */
+  intrinsics?: Seed | null;
+  /**
+   * The cameras' poses in the rig: from an earlier rig stage only (calibration-rs takes the
+   * target's pose per view with them).
+   */
+  rig?: Seed | null;
+  /**
+   * Scheimpflug tilts.
+   */
+  sensor?: Seed | null;
+}
+/**
+ * How a stage solves. Absent fields keep the workflow's defaults.
+ */
+export interface SolverChoice {
+  /**
+   * Iteration limit of the non-linear solve.
+   */
+  max_iters?: number | null;
+  /**
+   * The robust loss on the reprojection residuals.
+   */
+  robust_loss?: Loss | null;
 }
 /**
  * A rig of identical units.

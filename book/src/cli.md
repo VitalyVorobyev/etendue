@@ -12,7 +12,7 @@ etendue export    <scene> <scenario> [--robot <id>] [--captures <file>] [--traje
 etendue gt        <scene> <scenario> -o <dir>
 etendue render    <scene> <scenario> -o <dir> [options]
 etendue detect    <dir>
-etendue calibrate <dir> [--noise <noise.json>] [--trials N] [--camera <id>]
+etendue calibrate <dir> [--noise <noise.json>] [--trials N] [--camera <id>] [--procedure <id | file>]
                   [--features <features.json>] [--laser-features <file>] [-o <report.json>] [--run <dir>]
 etendue scenario from-poses <poses> --robot <id> -o <scenario.json> [--speed-scale S] [--dt T] [--scene <scene>]
 etendue scenario sphere <scene> --spec <spec.json> -o <scenario.json> [--candidates <file>] [--dt T]
@@ -180,19 +180,21 @@ The [Datasets](datasets.md) page shows an example.
 ## `calibrate`
 
 ```text
-etendue calibrate <dir> [--noise noise.json] [--trials N] [--camera <id>]
+etendue calibrate <dir> [--noise noise.json] [--trials N] [--camera <id>] [--procedure <id | file>]
                   [--features features.json] [--laser-features laser_features.json]
                   [-o report.json] [--run <folder>]
 ```
 
 Calibrates a dataset (the directory `gt` wrote) with calibration-rs, natively, and compares
-every estimated quantity with the ground truth. The dataset needs a robot (a hand-eye cell).
+every estimated quantity with the ground truth. Without `--procedure`, the dataset's shape picks
+the workflow, and the dataset needs a robot (a hand-eye cell).
 
 | Option | Meaning |
 |---|---|
 | `--noise <file>` | Observation noise, a JSON object (below). Without it, the observations are the ground truth's exact pixels. |
 | `--trials N` | Repeat with seeds `seed, seed + 1, …` and print each row's mean, spread and maximum (default 1). |
 | `--camera <id>` | Calibrate one camera of a rig alone, as a single-camera hand-eye problem. Not for laser datasets. |
+| `--procedure <id \| file>` | Calibrate in stages: a built-in (`intrinsics`, `stereo`, `handeye`, `rig_handeye`, `laser_head`, `laser_rig`) or a procedure file. See [Procedures](calibration.md#procedures). The `intrinsics` and `stereo` built-ins need no robot. |
 | `--features <file>` | Calibrate from `etendue detect`'s detections instead of the ground truth. Cannot be combined with `--noise` or `--trials`. |
 | `--laser-features <file>` | The detected laser stripes (default: `laser_features.json` next to `--features`). |
 | `-o`, `--output` | Write the report (JSON). |

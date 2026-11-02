@@ -13,6 +13,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   project's library, with an `etendue-bank.json` manifest. `etendue library init|import|check|list`
   make, fill, check and list it; `list` shows each item from the layer it resolves to (project,
   bank, built-in). `etendue project check --bank` notes copies whose bank source has changed.
+- **Calibration procedures** (ADR 0011): `etendue calibrate --procedure <id | file>` calibrates
+  in stages: each stage is a calibration-rs workflow, now including planar intrinsics and rig
+  extrinsics without a robot, with its camera model, the parameters it holds fixed, what else
+  is free, its solver and its seeds (an earlier stage, the design, or the truth). Six built-ins
+  (`intrinsics`, `stereo`, `handeye`, `rig_handeye`, `laser_head`, `laser_rig`) ship as
+  `examples/library/procedures/`; `procedure` is a library kind. The report names its procedure
+  and lists its stages (report version 3). Without `--procedure`, the choice by the dataset's
+  shape is unchanged, bit for bit.
 - Library items version 2: `source` (datasheet), `origin` (where a project's copy came from, with
   the source's content hash) and the `mount` kind (an adapter on a robot's flange). Version 1
   still reads.
