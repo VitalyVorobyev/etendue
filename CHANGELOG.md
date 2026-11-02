@@ -23,6 +23,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   project's library, with an `etendue-bank.json` manifest. `etendue library init|import|check|list`
   make, fill, check and list it; `list` shows each item from the layer it resolves to (project,
   bank, built-in). `etendue project check --bank` notes copies whose bank source has changed.
+- **The studio's procedure editor** (Calibrate, and the Library workspace for procedure items):
+  stages in order, each with its workflow and camera, the parameters held fixed per slot, its
+  seeds, the options that apply to its workflow, and its solver. The kernel checks the procedure
+  on every edit. A calibration runs a library procedure as it is or edited (by value; the run
+  folder's name carries its id), and an edited one is kept in the project or the bank. A
+  procedure passed by value is now checked as a library file's is, before anything runs.
 - **The studio's Library workspace**: every item the open project sees (project, bank,
   built-in), filtered by text, kind and layer, with what hides what and which project copies are
   stale. Forms for sensors, lenses, lasers and mounts, a checked JSON editor for targets, cameras,

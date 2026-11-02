@@ -858,7 +858,10 @@ green; upstream changes (calibration-rs, lab-ui) stay drafts.
     (#57). The built-ins are `intrinsics`, `stereo`, `handeye`, `rig_handeye`, `laser_head` and
     `laser_rig`; both mountings share `handeye`. G16.1 and G16.2 pass
     (`docs/measurements/g16_procedures.md`).
-    - Not started: the studio's procedure editor.
+    - *P16b:* the studio's procedure editor (Calibrate, and the Library workspace for procedure
+      items): stages, a fixed/free table per slot, seeds, options and solver, checked by the
+      kernel on every edit. A run takes the procedure by value; an edited one is kept in the
+      project or the bank.
     - Not started: the upstream draft for `rig_handeye_laserline`'s steps.
 - **P17 — Simulation lab.**
   - **Report v3:**

@@ -309,6 +309,30 @@ fn a_procedure_that_does_not_fit_the_dataset_is_refused_before_it_runs() {
 }
 
 #[test]
+fn a_procedure_passed_by_value_is_checked_like_a_library_file() {
+    // The studio sends its edits by value: a seed from a later stage is refused before anything
+    // runs, as it is in a library item.
+    let gt = truth(&example("closed_loop_ur5e"), "closed_loop_ur5e", "by_value");
+    let obs = observe(&gt, &ObservationNoise::default());
+    let procedure: etendue_scene::ProcedurePart = serde_json::from_value(serde_json::json!({
+        "stages": [
+            { "id": "handeye", "problem": "rig_handeye", "seed": { "intrinsics": { "stage": "intrinsics" } } },
+            { "id": "intrinsics", "problem": "planar_intrinsics" }
+        ]
+    }))
+    .unwrap();
+    let options = Options {
+        procedure: Some(("edited".into(), procedure)),
+        ..Options::default()
+    };
+    let err = format!("{:#}", calibrate(&gt, &obs, &options).unwrap_err());
+    assert!(
+        err.contains("`intrinsics` is not an earlier stage"),
+        "{err}"
+    );
+}
+
+#[test]
 fn g17_2_the_feature_residuals_are_the_reports_rms_and_name_their_points() {
     let gt = truth(&example("closed_loop_ur5e"), "closed_loop_ur5e", "features");
     let noise = ObservationNoise {

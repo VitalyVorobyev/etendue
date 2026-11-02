@@ -286,6 +286,18 @@ pub struct ProcedurePart {
 }
 
 impl ProcedurePart {
+    /// The structural checks of [`Self::check`], on a procedure that does not come from a library
+    /// file (a run's procedure, passed by value).
+    ///
+    /// # Errors
+    ///
+    /// Every problem found.
+    pub fn validate(&self) -> Result<(), crate::ValidationError> {
+        let mut issues = Issues::default();
+        self.check(&mut issues, "procedure");
+        issues.finish()
+    }
+
     /// Structural checks: ids, seeds naming earlier stages, freedoms that apply to their workflow.
     pub(crate) fn check(&self, issues: &mut Issues, path: &str) {
         if self.stages.is_empty() {

@@ -386,6 +386,86 @@ test("a calibration with noise over trials shows its parameters, residuals per v
   await expect(outcome.getByTestId("quality-checks")).toContainText("Image coverage");
 });
 
+test("a calibration runs a library procedure, edited, by value", async ({ page }) => {
+  await installShell(page);
+  const run = JSON.parse(readFileSync(`${ROOT}${CALIBRATION}`, "utf8")) as object;
+  await page.addInitScript((r) => {
+    (window as unknown as { __calibrationRun: object }).__calibrationRun = r;
+  }, run);
+  await page.goto("/?example=closed_loop_ur5e");
+  await expect(page.getByRole("treeitem", { name: /cam_left/ })).toBeVisible({ timeout: 30_000 });
+  await page.getByRole("radio", { name: "Calibrate" }).click();
+  await page.getByTestId("dataset-panel").getByRole("button", { name: "Generate" }).click();
+  await expect(page.getByTestId("dataset-panel").getByRole("button", { name: "Cancel" })).toBeVisible();
+  await page.evaluate(() => (window as unknown as { __finishRun: () => void }).__finishRun());
+  await expect(page.getByTestId("dataset-result")).toBeVisible();
+
+  // The built-in staged procedure: intrinsics, rig, rig hand-eye.
+  const calibrate = page.getByTestId("calibrate-panel");
+  await calibrate.getByRole("combobox", { name: "Procedure", exact: true }).click();
+  await page.getByRole("option", { name: "Hand-eye, rig" }).click();
+  await expect(calibrate.getByTestId("procedure-choice")).toContainText("the rig's hand-eye");
+  await calibrate.getByRole("button", { name: "Edit stages" }).click();
+  const editor = calibrate.getByTestId("procedure-editor");
+  await expect(editor.getByRole("region", { name: /^Stage \d$/ })).toHaveCount(3);
+
+  // Free the rig in the hand-eye (G17.1's complete covariance) and hold k3 in the intrinsics.
+  await editor
+    .getByRole("radiogroup", { name: "Stage 3 Refine the rig in the hand-eye" })
+    .getByRole("radio", { name: "Yes" })
+    .click();
+  await editor.getByRole("checkbox", { name: "Stage 1 Distortion default" }).click();
+  await editor.getByRole("region", { name: "Stage 1" }).getByRole("switch", { name: "k3" }).click();
+
+  // A stage moved before the one it seeds from does not check, and does not run.
+  await editor.getByRole("button", { name: "Move Stage 3 up" }).click();
+  await expect(editor.getByTestId("procedure-issues")).toContainText("is not an earlier stage");
+  await expect(calibrate.getByRole("button", { name: "Calibrate" })).toBeDisabled();
+  // It is Stage 2 now (stages are numbered by position).
+  await editor.getByRole("button", { name: "Move Stage 2 down" }).click();
+  await expect(editor.getByTestId("procedure-issues")).toHaveCount(0);
+
+  await calibrate.getByRole("button", { name: "Calibrate" }).click();
+  await expect(page.getByTestId("calibration-result")).toBeVisible();
+  const calibrations = await page.evaluate(
+    () =>
+      (window as unknown as { __calibrations: { options: { procedure?: unknown }; keep: string }[] }).__calibrations,
+  );
+  expect(calibrations.at(-1)!.options.procedure).toEqual({
+    id: "rig_handeye_edited",
+    procedure: {
+      stages: [
+        { id: "intrinsics", problem: "planar_intrinsics", model: { sensor: "design", fix: { distortion: ["k3"] } } },
+        { id: "rig", problem: "rig_extrinsics", seed: { intrinsics: { stage: "intrinsics" } } },
+        expect.objectContaining({
+          id: "handeye",
+          problem: "rig_handeye",
+          free: expect.objectContaining({ refine_rig: true }),
+        }),
+      ],
+    },
+  });
+  expect(calibrations.at(-1)!.keep).toMatch(/-exact-rig_handeye_edited$/);
+  // The examples are read-only; the desktop's bank keeps the edit, and it is then the choice.
+  const keep = calibrate.getByRole("group", { name: "Keep the procedure" });
+  await keep.getByRole("textbox", { name: "Procedure id" }).fill("rig_free");
+  await keep.getByRole("textbox", { name: "Procedure name" }).fill("Rig hand-eye, rig refined");
+  await keep.getByRole("button", { name: "Save to bank" }).click();
+  await expect(calibrate.getByRole("combobox", { name: "Procedure", exact: true })).toContainText(
+    "Rig hand-eye, rig refined",
+  );
+  await expect(calibrate.getByTestId("procedure-editor")).toHaveCount(0);
+  const saved = await page.evaluate(
+    () =>
+      (JSON.parse(sessionStorage.getItem("fake-disk") ?? "{}") as Record<string, string>)[
+        "/bank/library/procedures/rig_free.json"
+      ],
+  );
+  const item = JSON.parse(saved!) as { id: string; procedure: { stages: { free?: object }[] } };
+  expect(item.id).toBe("rig_free");
+  expect(item.procedure.stages[2]!.free).toEqual({ refine_robot_poses: true, refine_rig: true });
+});
+
 test("a plain browser previews what a calibration observes", async ({ page }) => {
   await page.goto("/?example=closed_loop_ur5e");
   await expect(page.getByRole("treeitem", { name: /cam_left/ })).toBeVisible({ timeout: 30_000 });

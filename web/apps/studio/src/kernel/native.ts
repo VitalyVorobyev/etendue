@@ -10,6 +10,7 @@ import type {
   BankManifest,
   Iso3Schema,
   ObservationNoise,
+  ProcedurePart,
   ProjectManifest,
   ScenarioSpec,
   SceneSpec,
@@ -144,6 +145,8 @@ export interface CalibrateOptions {
   camera?: string | null;
   /** `etendue detect`'s observations instead of the ground truth's. */
   detected?: boolean;
+  /** The procedure, by value (`RunProcedure`); absent for the choice by the dataset's shape. */
+  procedure?: { id: string; procedure: ProcedurePart } | null;
 }
 
 /** One compared quantity: its error against the truth, and the gate's limit if it has one. */

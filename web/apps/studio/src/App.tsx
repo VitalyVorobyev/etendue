@@ -14,7 +14,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import library, { type LibraryRobot } from "virtual:etendue-robots";
 
 import { exportFile, jsonText } from "./io/export";
-import { type Cell, defaultOf } from "./io/project";
+import { type Cell, defaultOf, itemsOf } from "./io/project";
 import { fileUrl, isTauri, parentDir } from "./io/tauri";
 import { describeFailure, expandRig } from "./kernel/etendue";
 import { type Bodies, type PoseOverride, bodyPoses, posed } from "./kernel/posed";
@@ -311,6 +311,18 @@ export function App() {
     project?.write && project.source.absolute ? project.source.absolute(project.root).replace(/[\\/]+$/, "") : null;
   const cellName = project?.cells.some((c) => c.id === example) ? example.split("/").at(-1) : undefined;
   const projectDatasets = projectFolder && cellName ? `${projectFolder}/datasets/${cellName}` : null;
+  // The calibration procedures the project sees (its own, the bank's, the built-ins), and where an
+  // edited one can be kept.
+  const procedures = useMemo(() => new Map(project ? itemsOf(project, "procedure") : []), [project]);
+  const saveProcedure = useMemo(
+    () =>
+      project?.write
+        ? { where: "project", put: studio.saveLibraryItem }
+        : bank?.write
+          ? { where: "bank", put: studio.saveToBank }
+          : null,
+    [project, bank, studio],
+  );
   // The last calibration of this dataset (its first trial), drawn over the truth in 3-D.
   const calibrated =
     dataset && calibrationRun.result?.dir === dataset.output ? (calibrationRun.result.run.reports[0] ?? null) : null;
@@ -672,6 +684,9 @@ export function App() {
                 onView={chooseView}
                 residualScale={residualScale}
                 onResidualScale={setResidualScale}
+                procedures={procedures}
+                tilted={(current.loaded.scene.cameras ?? []).some((c) => c.params.sensor.type === "scheimpflug")}
+                saveProcedure={saveProcedure}
               />
             </section>
           )}
