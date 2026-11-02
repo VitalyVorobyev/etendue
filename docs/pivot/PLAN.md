@@ -393,7 +393,12 @@ and ask; do not silently relax it.
   limited by noise: every result sits inside the spread of unbiased white noise of the same RMS,
   and the principal point and hand-eye are outside G5.1's noise-free limits (cy up to 0.56 px,
   hand-eye 0.014° / 0.12 mm). How to gate the image-level loop awaits a decision
-  (`docs/measurements/closed_loop_images.md`). The renders found an IK branch in which the arm
+  (`docs/measurements/closed_loop_images.md`).
+  *Status (2026-11-02), P5-1c:* the chessboard's corners come from ChESS with the saddle-point
+  refiner (user decision of 2026-11-01, on the loop's confirmation): 0.012 against Radon's
+  0.058 px RMS, hand-eye 0.0017° / 0.019 mm, every error within the white-noise spread. The
+  other kinds keep Radon. These are synthetic images only
+  (`docs/measurements/p5_1c_saddle_point.md`). The renders found an IK branch in which the arm
   hid the board (fixed with `initial_q`), and that the GT has no robot self-occlusion yet.
   *Re-run (2026-10-18, Blender 5.2.2, the 24 generated viewpoints):* 48/48 views, 0 mislabels,
   0.058 px RMS; still noise-limited (every intrinsic and hand-eye quantity inside the
