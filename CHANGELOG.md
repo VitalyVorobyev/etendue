@@ -25,6 +25,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   feasible poses, the budget that minimises the predicted system σ (how far the calibrated cell
   would misplace a point known in the robot's base frame), with the σ after each pose and the
   thinned grid's for comparison. Eye-to-hand cells (the target on the robot) are planned too.
+- **Suggest poses** (studio, Motion → Generate poses): a pose budget, the predicted system σ
+  of the suggested poses and of the evenly thinned grid against the number of poses, and
+  **Apply _n_ suggested poses**. `@etendue/wasm` `planPoses`; the plan report has the grid's
+  curve (`grid_sigma_curve_mm`).
 - **Eye-to-hand pose generation**: `etendue scenario sphere` places a target the robot carries
   in front of a fixed sensor, from the same spheres; `examples/eye_to_hand_ur5e/sphere.json` is
   its spec for the example.

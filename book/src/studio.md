@@ -194,7 +194,8 @@ The [robot tutorial](tutorials/robot_program.md) walks through it.
 Calibration viewpoints on spheres around a target, as
 [`etendue scenario sphere`](cli.md#scenario-sphere) makes them:
 
-- the **robot**, the **sensor** (a rig or camera the robot carries) and the **target**;
+- the **robot**, the **sensor** (a rig or camera) and the **target**: the robot carries the
+  sensor (eye-in-hand), or the target past a fixed sensor (eye-to-hand);
 - the sphere **radii**, the polar angle **θ** and azimuth **φ** ranges with their step counts,
   and the **roll** angles;
 - **seen**: the share of the target every camera must see;
@@ -203,6 +204,18 @@ Calibration viewpoints on spheres around a target, as
 The 3-D view marks every candidate pose: green kept, amber not seen or infeasible, red
 unreachable. The counts are shown, and **Apply _n_ poses** replaces the program with the tour.
 How the generator works is in [Pose generation](models/poses.md).
+
+**Suggest poses**, below, chooses fewer of the kept poses, the ones that calibrate the cell best,
+as [`etendue scenario plan`](cli.md#scenario-plan) does:
+- **poses**: how many to keep;
+- **noise**: the pixel noise the prediction assumes (it scales every σ alike).
+
+It shows the predicted **system σ**, how far the calibrated cell would misplace a point it knows
+in the robot's base, for the suggested poses and for the kept ones thinned evenly to the same
+number (the grid). The chart draws both against the number of poses, with the chosen number
+marked, to pick a budget from. **Apply _n_ suggested poses** replaces the program with them, in
+the tour's order. The prediction is of a rig hand-eye calibration with the rig refined and the
+robot's poses exact.
 
 ### The 3-D view and the joint chart
 

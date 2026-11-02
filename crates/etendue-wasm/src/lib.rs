@@ -34,6 +34,7 @@ use etendue_synth::dataset::{EmitOptions, emit_scene};
 use etendue_synth::gt::{BoardPoint, VisibilitySpec, project_points};
 use etendue_synth::laser::{StripeSurface, stripe};
 use etendue_synth::observe::{ObservationNoise, Observations, observe};
+use etendue_synth::plan::{PlanSpec, Planned, plan};
 use etendue_synth::poses::{Generated, generate};
 use etendue_synth::target_mesh::{TargetMesh, geometry_mesh};
 use etendue_synth::{CanonicalCamera, CanonicalSpec, PixelCentre, RemapLut, remap_lut};
@@ -436,12 +437,31 @@ impl Session {
     /// # Errors
     ///
     /// [`Error::Parse`] for a malformed spec; [`Error::Input`] if it does not
-    /// fit the scene (unknown robot, frame or target; a sensor not on the
-    /// tool; bad parameters).
+    /// fit the scene (unknown robot, frame or target; neither the sensor nor
+    /// the target on the robot's tool with the other fixed; bad parameters).
     pub fn generate_poses(&self, spec_json: &str, dt: f64) -> Result<Generated> {
         let spec: GeneratorSpec = parse("generator", spec_json)?;
         let GeneratorSpec::Sphere(sphere) = spec;
         generate(&self.scene, &self.robots, &sphere, dt).map_err(|e| Error::Input(e.to_string()))
+    }
+
+    /// Plan calibration poses (P18): run the generator of `spec_json`, then choose from its
+    /// feasible candidates the `budget` (`plan_json`, `{budget, noise_px}`) that minimise the
+    /// predicted system σ (etendue-synth `plan::plan`, as `etendue scenario plan`).
+    ///
+    /// # Errors
+    ///
+    /// As [`Session::generate_poses`]; [`Error::Parse`] for a malformed plan; [`Error::Input`]
+    /// for a budget of zero or beyond the feasible poses, or poses that cannot determine the
+    /// calibration.
+    pub fn plan_poses(&self, spec_json: &str, plan_json: &str, dt: f64) -> Result<Planned> {
+        let spec: GeneratorSpec = parse("generator", spec_json)?;
+        let GeneratorSpec::Sphere(sphere) = spec;
+        let options: PlanSpec = parse("plan", plan_json)?;
+        let generated = generate(&self.scene, &self.robots, &sphere, dt)
+            .map_err(|e| Error::Input(e.to_string()))?;
+        plan(&self.scene, &self.robots, &generated, &sphere, &options)
+            .map_err(|e| Error::Input(e.to_string()))
     }
 
     fn robot(&self, robot_id: &str) -> Result<&RobotModel> {
@@ -1447,12 +1467,6 @@ impl EtendueScene {
             .map_err(|e| js_error(&e))
     }
 
-    /// Generated poses as JSON text `{candidates, scenario}`. See
-    /// [`Session::generate_poses`].
-    ///
-    /// # Errors
-    ///
-    /// Throws an `Error` with `kind`.
     /// See [`Session::robot_links`].
     ///
     /// # Errors
@@ -1533,6 +1547,12 @@ impl EtendueScene {
         )
     }
 
+    /// Generated poses as JSON text `{candidates, scenario}`. See
+    /// [`Session::generate_poses`].
+    ///
+    /// # Errors
+    ///
+    /// Throws an `Error` with `kind`.
     #[wasm_bindgen(js_name = generatePoses)]
     pub fn generate_poses(&self, spec_json: &str, dt: f64) -> std::result::Result<String, JsValue> {
         let generated = self
@@ -1540,6 +1560,25 @@ impl EtendueScene {
             .generate_poses(spec_json, dt)
             .map_err(|e| js_error(&e))?;
         serde_json::to_string(&generated).map_err(|e| js_error(&Error::Input(e.to_string())))
+    }
+
+    /// Planned poses as JSON text (etendue-synth `Planned`). See [`Session::plan_poses`].
+    ///
+    /// # Errors
+    ///
+    /// Throws an `Error` with `kind`.
+    #[wasm_bindgen(js_name = planPoses)]
+    pub fn plan_poses(
+        &self,
+        spec_json: &str,
+        plan_json: &str,
+        dt: f64,
+    ) -> std::result::Result<String, JsValue> {
+        let planned = self
+            .inner
+            .plan_poses(spec_json, plan_json, dt)
+            .map_err(|e| js_error(&e))?;
+        serde_json::to_string(&planned).map_err(|e| js_error(&Error::Input(e.to_string())))
     }
 
     /// A robot's timed joint trajectory as CSV. See
@@ -2031,6 +2070,40 @@ mod tests {
         assert!(s.bake(&text).is_ok(), "the generated scenario bakes");
         assert!(matches!(
             s.generate_poses(r#"{"type": "sphere"}"#, 0.01),
+            Err(Error::Parse { .. })
+        ));
+    }
+
+    #[test]
+    fn poses_are_planned_by_the_system_sigma() {
+        // The closed-loop example keeps its generator spec in its scenario (G18.1's cell).
+        let s = Session::load(
+            include_str!("../../../examples/closed_loop_ur5e/scene.json"),
+            &robots_json("ur5e"),
+        )
+        .unwrap();
+        let scenario: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../examples/closed_loop_ur5e/scenario.json"
+        ))
+        .unwrap();
+        let spec = &scenario["generator"].to_string();
+        let planned = s.plan_poses(spec, r#"{"budget": 4}"#, 0.01).unwrap();
+        assert_eq!(planned.chosen.len(), 4);
+        assert_eq!(planned.sigma_mm.len(), 4);
+        assert_eq!(planned.grid_sigma_curve_mm.len(), 4);
+        assert_eq!(planned.grid_sigma_curve_mm[3], Some(planned.grid_sigma_mm));
+        assert!(planned.sigma_mm[3] <= planned.grid_sigma_mm);
+        // A smaller budget picks the first of a larger one's picks.
+        let fewer = s.plan_poses(spec, r#"{"budget": 2}"#, 0.01).unwrap();
+        assert_eq!(fewer.chosen, planned.chosen[..2]);
+        let text = serde_json::to_string(&planned.scenario).unwrap();
+        assert!(s.bake(&text).is_ok(), "the planned scenario bakes");
+        assert!(matches!(
+            s.plan_poses(spec, r#"{"budget": 0}"#, 0.01),
+            Err(Error::Input(_))
+        ));
+        assert!(matches!(
+            s.plan_poses(spec, "{}", 0.01),
             Err(Error::Parse { .. })
         ));
     }
