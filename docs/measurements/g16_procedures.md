@@ -61,6 +61,16 @@ This head is not an example cell, and no built-in passes on it. Its tilt about y
 
 In every case the fit is near-perfect (mean reprojection 0.0003–0.0004 px) while the tilt and the principal point trade off. A staged procedure fixes the hand-eye's model error. The pose set itself has to fix the observability, which is what P18's planner is for.
 
+> **Correction (2026-11-02).** The last sentence is wrong; see
+> [`scheimpflug_observability.md`](scheimpflug_observability.md). With p1 and p2 free, a tilt is
+> matched by a principal-point shift, p1, p2 and a rotation of the camera frame, and no pose set
+> separates them. With p1 and p2 held, the radial distortion does. The camera-frame failures above
+> are another split of the same projection:
+> - `laser_head`'s laser plane in the gripper frame is right to 0.4 µm on exact data;
+> - `auto`'s is 0.17 mm off, because its hand-eye stage uses a pinhole camera;
+> - under noise, every head procedure here puts the plane and the hand-eye in different camera
+>   frames.
+
 ## Procedure
 
 ```bash

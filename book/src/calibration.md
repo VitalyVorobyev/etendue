@@ -96,11 +96,55 @@ A procedure is checked against the dataset before anything runs: every workflow 
 (a robot for a hand-eye, lasers for a laser workflow, one camera for `laserline_device`), every
 seed must name an earlier stage, and an option must apply to its stage's workflow.
 
-**Known limitation.** A single camera with a Scheimpflug sensor tilted about both axes is
-ill-conditioned on the example scenarios' views: its tilt about y trades off against the principal
-point. `laser_head` recovers the hand-eye far better than `auto` there (0.59° against 2.95° on
-exact data), but neither passes. Holding the principal point (`model.fix.intrinsics`) gets the
-hand-eye to 0.006°, but the tilt about y stays 0.4° off. More varied views are the cure.
+### Scheimpflug cameras and laser heads
+
+**A calibration hardly sees a sensor tilt, and measurement does not need it.** Seen through a
+planar target, a tilted sensor projects almost exactly like an untilted one with a shifted
+principal point, in a slightly rotated camera:
+- **The principal point** moves by f·τ. A tilt of 0.57° (0.01 rad) about y moves it 23 px on a
+  2300 px lens.
+- **The camera frame** turns by the tilt.
+
+Only the lens distortion tells the two apart. It acts about the optical axis, which the shift moves
+away from the principal point. The tangential terms p1 and p2 describe exactly such an off-centre
+distortion, so they can absorb the difference too:
+
+| What the procedure estimates | What happens to the tilt |
+|---|---|
+| p1, p2 and the tilt | The tilt stays near its starting value, the datasheet's. The principal point, p1, p2 and the camera frame make up the difference. More or different views do not change this. |
+| The tilt, with p1 and p2 held at zero | The tilt is measured through the radial distortion, assuming a centred lens. On the example head, at 0.1 px of noise, it comes out within about 0.1° (k1 = −0.08). Stronger distortion measures it better; with none, it is not measured at all. |
+
+The model is `{"sensor": "scheimpflug", "fix": {"distortion": ["k3", "p1", "p2"], "sensor": []}}`.
+`laser_rig` already holds p1 and p2 at zero.
+
+Either way the calibrated camera projects correctly. Every pixel's ray, the laser plane in the
+robot's frame and the target's pose come out right, whichever split the solve found. What depends
+on the split:
+- **Quantities that read the tilt itself:** the plane of best focus, or a check against the
+  head's drawing.
+- **Quantities in the camera's frame.** The report's tilt, principal point, laser-normal and
+  hand-eye rows can therefore fail on a calibration that measures correctly.
+
+**Keep the laser plane and the hand-eye in one camera.** `laser_head` (and `auto` on a head)
+estimates the laser plane in its device stage, then the hand-eye in a stage that estimates the
+camera again. The plane and the hand-eye then sit in slightly different camera frames:
+- **Under 0.1 px of noise:** a stripe point triangulated in the robot's frame is 0.2–0.3 mm off
+  (up to 1 mm) on the example heads, against 5 µm when the hand-eye stage holds the device
+  stage's camera. This happens with an untilted camera too.
+- **On a Scheimpflug head, even on exact data:** `auto`'s hand-eye stage uses an untilted camera,
+  which puts the stripe 0.17 mm off.
+
+A second stage that holds the camera:
+
+```json
+{ "id": "handeye", "problem": "single_cam_handeye",
+  "model": { "sensor": "design", "fix": {
+    "intrinsics": ["fx", "fy", "cx", "cy"], "distortion": ["k1", "k2", "k3", "p1", "p2"],
+    "sensor": ["tilt_x", "tilt_y"] } },
+  "seed": { "intrinsics": { "stage": "device" }, "sensor": { "stage": "device" } } }
+```
+
+For an untilted camera, leave out the `sensor` list.
 
 ## Observations
 
@@ -219,11 +263,12 @@ The verdict line names what was checked: `closed-loop check (target)` for camera
 **Closed-loop check: PASS** or **FAIL**. In the report file the check keeps its development id
 (`"gate": "G5.1"` or `"G5.3"`; see the [Glossary](glossary.md#gate)).
 
-**Scheimpflug laser rigs.** With tilted sensors the tilt and the principal point trade off
-against each other, so these rigs are seeded from datasheet values (focal length, a whole-degree
-tilt). The `laser_scheimpflug_ur5e` example passes on exact data (laser normal under 2e-7°,
-hand-eye 1e-7°). Under noise the trade-off remains: expect larger tilt and principal-point
-errors than on an untilted rig.
+**Scheimpflug laser rigs.** These rigs are seeded from datasheet values (focal length, a
+whole-degree tilt). The `laser_scheimpflug_ur5e` example passes on exact data, every row within
+1e-6. calibration-rs holds p1 and p2 at zero there, so the radial distortion reveals the tilt (see
+[Scheimpflug cameras and laser heads](#scheimpflug-cameras-and-laser-heads)). Under noise the tilt
+stays the weak parameter: at 0.1 px it comes out within about 0.1°, and the principal points within
+4–7 px.
 
 ### With noise
 
