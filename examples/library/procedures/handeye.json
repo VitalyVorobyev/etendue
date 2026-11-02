@@ -1,0 +1,26 @@
+{
+  "version": 2,
+  "id": "handeye",
+  "name": "Hand-eye, one camera",
+  "description": "The camera's intrinsics from planar views, then the hand-eye (eye-in-hand or eye-to-hand) with the robot poses refined under their prior. On a rig, each camera on its own.",
+  "procedure": {
+    "stages": [
+      {
+        "id": "intrinsics",
+        "problem": "planar_intrinsics"
+      },
+      {
+        "id": "handeye",
+        "problem": "single_cam_handeye",
+        "free": {
+          "refine_robot_poses": true
+        },
+        "seed": {
+          "intrinsics": {
+            "stage": "intrinsics"
+          }
+        }
+      }
+    ]
+  }
+}

@@ -259,3 +259,88 @@ fn eye_to_hand_offsets_place_the_static_camera() {
     assert!(deg > 1e-4);
     assert!((o.rotation.angle().to_degrees() - deg).abs() < 1e-9 * deg.max(1.0));
 }
+
+#[test]
+fn a_staged_procedure_recovers_a_rig_and_names_its_stages() {
+    // ADR 0011: intrinsics per camera, then the rig, then the hand-eye, each seeded from the last.
+    let gt = truth(&example("closed_loop_ur5e"), "closed_loop_ur5e", "staged");
+    let obs = observe(&gt, &ObservationNoise::default());
+    let options = Options {
+        procedure: Some(etendue_cli::procedure::named("rig_handeye").unwrap()),
+        ..Options::default()
+    };
+    let report = calibrate(&gt, &obs, &options).unwrap();
+    print!("{}", report.table());
+    assert!(report.gated && report.pass);
+    assert_eq!(report.procedure, "rig_handeye");
+    let stages: Vec<(&str, Workflow)> = report
+        .stages
+        .iter()
+        .map(|s| (s.id.as_str(), s.workflow))
+        .collect();
+    assert_eq!(
+        stages,
+        [
+            ("intrinsics", Workflow::PlanarIntrinsics),
+            ("intrinsics", Workflow::PlanarIntrinsics),
+            ("rig", Workflow::RigExtrinsics),
+            ("handeye", Workflow::RigHandeye),
+        ]
+    );
+    // Without a procedure, the choice by shape: one stage, as before procedures.
+    let auto = calibrate(&gt, &obs, &Options::default()).unwrap();
+    assert_eq!(
+        (auto.procedure.as_str(), auto.stages.len()),
+        ("auto_rig", 1)
+    );
+}
+
+#[test]
+fn a_procedure_that_does_not_fit_the_dataset_is_refused_before_it_runs() {
+    let gt = truth(&example("closed_loop_ur5e"), "closed_loop_ur5e", "misfit");
+    let obs = observe(&gt, &ObservationNoise::default());
+    let options = Options {
+        procedure: Some(etendue_cli::procedure::named("laser_head").unwrap()),
+        ..Options::default()
+    };
+    let err = format!("{:#}", calibrate(&gt, &obs, &options).unwrap_err());
+    assert!(err.contains("needs a laser"), "{err}");
+    assert!(err.contains("one-camera head"), "{err}");
+}
+
+#[test]
+fn g17_2_the_feature_residuals_are_the_reports_rms_and_name_their_points() {
+    let gt = truth(&example("closed_loop_ur5e"), "closed_loop_ur5e", "features");
+    let noise = ObservationNoise {
+        pixel_sigma_px: 0.5,
+        seed: 7,
+        ..ObservationNoise::default()
+    };
+    let obs = observe(&gt, &noise);
+    let report = calibrate(&gt, &obs, &Options::default()).unwrap();
+    let f = &report.residuals.features;
+    assert_eq!(f.len(), report.residuals.count);
+    // Exactly the report's figure, from the same sums.
+    let sq: f64 = f
+        .iter()
+        .map(|r| {
+            (r.projected_px[0] - r.observed_px[0]).powi(2)
+                + (r.projected_px[1] - r.observed_px[1]).powi(2)
+        })
+        .sum();
+    assert_eq!(
+        (sq / (2 * f.len()) as f64).sqrt(),
+        report.residuals.rms_axis_px
+    );
+    // Each names its capture, camera and point, and its observed pixel is that point's.
+    for r in f.iter().step_by(97) {
+        let capture = obs.captures.iter().find(|c| c.id == r.capture).unwrap();
+        let view = capture.views.iter().find(|v| v.camera == r.camera).unwrap();
+        let point = view.points.iter().find(|p| p.point == r.point).unwrap();
+        assert_eq!(point.pixel, r.observed_px);
+    }
+    // calibration-rs's covariance and quality verdict come with the report.
+    let u = report.uncertainty.as_ref().unwrap();
+    assert!(u.labels.iter().any(|l| l == "cam0.fx"));
+    assert!(report.quality.is_some());
+}

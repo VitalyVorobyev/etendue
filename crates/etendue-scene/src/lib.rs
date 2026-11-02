@@ -41,6 +41,7 @@ pub mod library;
 pub mod light;
 pub mod optics;
 pub mod printed;
+pub mod procedure;
 pub mod project;
 pub mod report;
 pub mod rig;
@@ -66,6 +67,10 @@ pub use library::{
 pub use light::{LightShape, LightSpec};
 pub use optics::{Focusing, LensOptics, OpticsSpec, SensorOptics};
 pub use printed::{CharucoLayout, MarkerCircle, Polarity, PrintedTarget};
+pub use procedure::{
+    CameraChoice, FixLists, Freedoms, Loss, Problem, ProcedurePart, Seed, Seeds, SensorChoice,
+    SolverChoice, Stage,
+};
 pub use project::{
     PROJECT_FILE, PROJECT_VERSION, ProjectDefaults, ProjectManifest, is_project_path, library_file,
 };

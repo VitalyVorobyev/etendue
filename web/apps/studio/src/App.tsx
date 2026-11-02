@@ -66,6 +66,8 @@ import { CalibrationRunner, useCalibrationRun } from "./state/calibrationRun";
 import { estimateDrawing, observedAt as observedIn } from "./calibrate/compare";
 import { ObservationPreview } from "./calibrate/ObservationPreview";
 import { useObservations } from "./calibrate/observations";
+import type { ViewChoice } from "./calibrate/ResidualViews";
+import { useResiduals } from "./calibrate/useResiduals";
 import { DatasetRunner } from "./state/datasetRun";
 import { Studio, initialExample, useStudio } from "./state/studio";
 
@@ -163,6 +165,11 @@ export function App() {
   const [estimateScale, setEstimateScale] = useState(100);
   const [observedCamera, setObservedCamera] = useState<string | null>(null);
   const calibrationRun = useCalibrationRun(calibration);
+  // A calibration's residuals in the camera view: which view was chosen, their magnification,
+  // and whether the view shows them or the observations of the form.
+  const [residualView, setResidualView] = useState<ViewChoice | null>(null);
+  const [residualScale, setResidualScale] = useState(10);
+  const [observationLayer, setObservationLayer] = useState<"observations" | "residuals">("residuals");
 
   const setMode = (m: Mode) => {
     setModeState(m);
@@ -315,6 +322,16 @@ export function App() {
     };
     return estimateDrawing(calibrated, estimateScale, current.loaded.scene, current.baked, extent);
   }, [mode, calibrated, current, estimateScale]);
+  const residualsAt = useResiduals(calibrated, current?.baked ?? null, residualScale);
+  const showResiduals = residualsAt !== undefined && observationLayer === "residuals";
+  // A view chosen in the residual table: its camera in the camera view, the playhead at its capture.
+  const chooseView = (v: ViewChoice) => {
+    const k = current?.baked.samples.findIndex((s) => s.capture?.id === v.capture) ?? -1;
+    if (k >= 0) playhead.set(k);
+    setObservedCamera(v.camera);
+    setResidualView(v);
+    setObservationLayer("residuals");
+  };
   const importPoses = (path: string) => {
     const ids = scene?.robots?.map((r) => r.id) ?? [];
     const robot = ids.length === 1 ? ids[0] : selectedRobot?.id;
@@ -648,6 +665,10 @@ export function App() {
                 scale={estimateScale}
                 onScale={setEstimateScale}
                 runsFolder={projectFolder ? `${projectFolder}/runs` : `${dataset.output}/runs`}
+                view={residualView}
+                onView={chooseView}
+                residualScale={residualScale}
+                onResidualScale={setResidualScale}
               />
             </section>
           )}
@@ -696,11 +717,24 @@ export function App() {
                 onValueChange={setObservedCamera}
               />
             )}
+            {residualsAt && (
+              <SegmentedControl
+                aria-label="Camera view shows"
+                value={observationLayer}
+                options={[
+                  { value: "residuals", label: "Residuals" },
+                  { value: "observations", label: "Observations" },
+                ]}
+                onValueChange={(v) => (v === "residuals" || v === "observations") && setObservationLayer(v)}
+              />
+            )}
             <span className="text-fg-muted">
-              {calibrateForm.source === "detected"
-                ? "The detector's observations are in the dataset's images."
-                : (observeError ??
-                  "At a capture, a dot is what the calibration observes (an outlier larger, in red) and a cross the truth; a cross without a dot was dropped.")}
+              {showResiduals
+                ? `The calibration's residuals${(calibrationRun.result?.run.reports.length ?? 1) > 1 ? " (first trial)" : ""} at each capture: a dot is an observed point (green within the RMS, amber up to twice it, red beyond), a cross its reprojection, the line the residual ×${residualScale}.`
+                : calibrateForm.source === "detected"
+                  ? "The detector's observations are in the dataset's images."
+                  : (observeError ??
+                    "At a capture, a dot is what the calibration observes (an outlier larger, in red) and a cross the truth; a cross without a dot was dropped.")}
             </span>
           </div>
           {shownCamera && runtime && (
@@ -714,7 +748,8 @@ export function App() {
                 lasers={scene?.lasers ?? []}
                 playhead={playhead}
                 renderedAt={renderedAt}
-                observedAt={observedAt}
+                observedAt={showResiduals ? undefined : observedAt}
+                residualsAt={showResiduals ? residualsAt : undefined}
               />
             </div>
           )}

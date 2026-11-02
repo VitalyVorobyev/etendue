@@ -31,6 +31,7 @@ export const LIBRARY_FOLDERS = {
   head: "heads",
   rig: "rigs",
   mount: "mounts",
+  procedure: "procedures",
 } as const;
 
 export type LibraryKind = keyof typeof LIBRARY_FOLDERS;

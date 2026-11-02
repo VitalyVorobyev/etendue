@@ -19,6 +19,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   heads and rigs, and name, description and source for every item. New, duplicate, rename,
   delete, import and export; use in project, save to bank, update a stale copy. The desktop
   shell's `remove_file` removes files only inside the folders it lets the studio write.
+- **Calibration procedures** (ADR 0011): `etendue calibrate --procedure <id | file>` calibrates
+  in stages: each stage is a calibration-rs workflow, now including planar intrinsics and rig
+  extrinsics without a robot, with its camera model, the parameters it holds fixed, what else
+  is free, its solver and its seeds (an earlier stage, the design, or the truth). Six built-ins
+  (`intrinsics`, `stereo`, `handeye`, `rig_handeye`, `laser_head`, `laser_rig`) ship as
+  `examples/library/procedures/`; `procedure` is a library kind. The report names its procedure
+  and lists its stages (report version 3). Without `--procedure`, the choice by the dataset's
+  shape is unchanged, bit for bit.
+- **Calibration-pose planning**: `etendue scenario plan` chooses, from the sphere generator's
+  feasible poses, the budget that minimises the predicted system σ (how far the calibrated cell
+  would misplace a point known in the robot's base frame), with the σ after each pose and the
+  thinned grid's for comparison. Eye-to-hand cells (the target on the robot) are planned too.
+- **Suggest poses** (studio, Motion → Generate poses): a pose budget, the predicted system σ
+  of the suggested poses and of the evenly thinned grid against the number of poses, and
+  **Apply _n_ suggested poses**. `@etendue/wasm` `planPoses`; the plan report has the grid's
+  curve (`grid_sigma_curve_mm`).
+- **Eye-to-hand pose generation**: `etendue scenario sphere` places a target the robot carries
+  in front of a fixed sensor, from the same spheres; `examples/eye_to_hand_ur5e/sphere.json` is
+  its spec for the example.
+- **The simulation report**: every target point's residual with its capture, camera and point;
+  calibration-rs's predicted σ (`uncertainty`) and quality verdict (`quality`); and, over trials,
+  `param_stats`: each parameter's truth, mean, spread, bias, RMSE and predicted σ. `etendue
+  calibrate --trials N` prints them.
+- **The simulation lab in the studio**: the Calibrate workspace's result has tabs. **Per view**
+  lists every view's residual RMS (sortable); choosing one shows its capture in the camera view,
+  each observed point with its reprojection and its residual magnified ×1–×1000, coloured by size,
+  over the rendered image when there is one. **Parameters** (two or more trials) tables each
+  parameter's truth, mean, bias, spread and calibration-rs's predicted σ, tints std/σ outside
+  0.7–1.4, and draws a camera parameter's values over the trials with the truth and the ±σ band.
+  **Solver** lists the procedure's stages and calibration-rs's quality checks; its verdict is a
+  badge beside the result.
 - Library items version 2: `source` (datasheet), `origin` (where a project's copy came from, with
   the source's content hash) and the `mount` kind (an adapter on a robot's flange). Version 1
   still reads.

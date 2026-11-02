@@ -1,0 +1,4191 @@
+{
+  "reports": [
+    {
+      "version": 3,
+      "workflow": "rig_handeye",
+      "gate": "G5.1",
+      "gated": false,
+      "pass": true,
+      "cameras": ["cam_left", "cam_right"],
+      "views": 24,
+      "points": 2592,
+      "laser_pixels": 0,
+      "noise": {
+        "pixel_sigma_px": 0.5,
+        "outlier_fraction": 0.0,
+        "outlier_sigma_px": 0.0,
+        "dropout_fraction": 0.0,
+        "laser_sigma_px": 0.0,
+        "robot_rot_sigma_rad": 0.0,
+        "robot_trans_sigma_m": 0.0,
+        "seed": 1
+      },
+      "rows": [
+        { "label": "mean reprojection px", "value": 0.6125467537, "limit": 0.05 },
+        { "label": "cam_left fx rel", "value": 0.0001445451772, "limit": 0.0001 },
+        { "label": "cam_left fy rel", "value": 0.0003189067338, "limit": 0.0001 },
+        { "label": "cam_left cx px", "value": 5.667938704, "limit": 0.05 },
+        { "label": "cam_left cy px", "value": 2.105984216, "limit": 0.05 },
+        { "label": "cam_left k1 abs", "value": 0.007417834578 },
+        { "label": "cam_left k2 abs", "value": 0.1305718751 },
+        { "label": "cam_left k3 abs", "value": 0.0 },
+        { "label": "cam_left p1 abs", "value": 6.097758158e-5 },
+        { "label": "cam_left p2 abs", "value": 0.001727243026 },
+        { "label": "cam_right fx rel", "value": 0.00099980089, "limit": 0.0001 },
+        { "label": "cam_right fy rel", "value": 0.001385508739, "limit": 0.0001 },
+        { "label": "cam_right cx px", "value": 8.918752175, "limit": 0.05 },
+        { "label": "cam_right cy px", "value": 7.886384987, "limit": 0.05 },
+        { "label": "cam_right k1 abs", "value": 0.01852062736 },
+        { "label": "cam_right k2 abs", "value": 0.2097910035 },
+        { "label": "cam_right k3 abs", "value": 0.0 },
+        { "label": "cam_right p1 abs", "value": 0.0008279179645 },
+        { "label": "cam_right p2 abs", "value": 0.001857079748 },
+        { "label": "cam_right cam_se3_rig deg", "value": 0.1631500759 },
+        { "label": "cam_right cam_se3_rig mm", "value": 1.014613273 },
+        { "label": "hand-eye rotation deg", "value": 0.1645107113, "limit": 0.01 },
+        { "label": "hand-eye translation mm", "value": 0.1826543895, "limit": 0.05 },
+        { "label": "base_se3_target rot deg", "value": 0.0157517216 },
+        { "label": "base_se3_target trans mm", "value": 0.00992248925 }
+      ],
+      "residuals": {
+        "count": 2592,
+        "mean_px": 0.6125467537,
+        "rms_axis_px": 0.4908497592,
+        "max_px": 1.98991112,
+        "per_camera_mean_px": [0.6137054715, 0.611388036],
+        "features": [
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_left",
+            "point": 0,
+            "observed_px": [430.3626371, 464.8649519],
+            "projected_px": [429.4578836, 464.2672409]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_left",
+            "point": 1,
+            "observed_px": [509.2144752, 427.3932981],
+            "projected_px": [510.1862907, 427.7230355]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_left",
+            "point": 2,
+            "observed_px": [590.1056732, 392.9342189],
+            "projected_px": [589.6905075, 391.7752959]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_left",
+            "point": 3,
+            "observed_px": [667.5897246, 356.4015256],
+            "projected_px": [667.9390728, 356.4357376]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_left",
+            "point": 4,
+            "observed_px": [744.0275859, 321.3813823],
+            "projected_px": [744.9057538, 321.7145592]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_left",
+            "point": 5,
+            "observed_px": [819.6452352, 286.4966498],
+            "projected_px": [820.5672642, 287.6213521]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_left",
+            "point": 6,
+            "observed_px": [894.5718484, 254.2170053],
+            "projected_px": [894.901448, 254.1658143]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_left",
+            "point": 7,
+            "observed_px": [967.719262, 222.2581277],
+            "projected_px": [967.885856, 221.3582993]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_left",
+            "point": 8,
+            "observed_px": [1039.994225, 189.2798471],
+            "projected_px": [1039.496652, 189.2102261]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_left",
+            "point": 9,
+            "observed_px": [460.5525719, 543.5657399],
+            "projected_px": [460.6570897, 542.4737172]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_left",
+            "point": 10,
+            "observed_px": [539.7502027, 505.5038011],
+            "projected_px": [540.0327329, 505.8305754]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_left",
+            "point": 11,
+            "observed_px": [618.0851126, 470.3057497],
+            "projected_px": [618.2157175, 469.7566328]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_left",
+            "point": 12,
+            "observed_px": [695.5984717, 434.255773],
+            "projected_px": [695.1765896, 434.2644073]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_left",
+            "point": 13,
+            "observed_px": [770.9762392, 399.3119152],
+            "projected_px": [770.8907441, 399.3644848]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_left",
+            "point": 14,
+            "observed_px": [844.3677231, 364.3060005],
+            "projected_px": [845.3363054, 365.0664545]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_left",
+            "point": 15,
+            "observed_px": [918.1449713, 330.8131538],
+            "projected_px": [918.4924355, 331.3796518]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_left",
+            "point": 16,
+            "observed_px": [991.0744967, 298.3509646],
+            "projected_px": [990.3380044, 298.313739]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_left",
+            "point": 17,
+            "observed_px": [1060.585737, 265.5226103],
+            "projected_px": [1060.850564, 265.8791481]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_left",
+            "point": 18,
+            "observed_px": [492.1087888, 618.2141628],
+            "projected_px": [491.0478696, 618.5164201]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_left",
+            "point": 19,
+            "observed_px": [568.9464035, 582.1466431],
+            "projected_px": [569.0963145, 581.8035643]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_left",
+            "point": 20,
+            "observed_px": [647.142534, 546.9377139],
+            "projected_px": [645.9836934, 545.6336969]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_left",
+            "point": 21,
+            "observed_px": [721.0534048, 509.3913299],
+            "projected_px": [721.6820243, 510.0202513]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_left",
+            "point": 22,
+            "observed_px": [796.7399072, 475.1999643],
+            "projected_px": [796.1678795, 474.9743418]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_left",
+            "point": 23,
+            "observed_px": [869.5872424, 440.3882415],
+            "projected_px": [869.4204092, 440.5057188]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_left",
+            "point": 24,
+            "observed_px": [942.2581526, 406.042834],
+            "projected_px": [941.4197587, 406.6235364]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_left",
+            "point": 25,
+            "observed_px": [1011.591229, 372.8944873],
+            "projected_px": [1012.14582, 373.3369601]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_left",
+            "point": 26,
+            "observed_px": [1081.773606, 340.6665617],
+            "projected_px": [1081.577264, 340.6556398]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_left",
+            "point": 27,
+            "observed_px": [520.3983544, 693.8308507],
+            "projected_px": [520.641582, 692.4351425]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_left",
+            "point": 28,
+            "observed_px": [596.709657, 655.7335434],
+            "projected_px": [597.3891763, 655.6808394]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_left",
+            "point": 29,
+            "observed_px": [672.6698385, 618.8683892],
+            "projected_px": [673.0071145, 619.4439426]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_left",
+            "point": 30,
+            "observed_px": [747.1036154, 583.0031735],
+            "projected_px": [747.46845, 583.7389244]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_left",
+            "point": 31,
+            "observed_px": [820.0264707, 549.1512977],
+            "projected_px": [820.7505648, 548.5775738]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_left",
+            "point": 32,
+            "observed_px": [893.5053031, 514.7273558],
+            "projected_px": [892.8333188, 513.9699691]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_left",
+            "point": 33,
+            "observed_px": [964.4567155, 480.8552209],
+            "projected_px": [963.6975638, 479.9252656]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_left",
+            "point": 34,
+            "observed_px": [1033.410652, 446.7491678],
+            "projected_px": [1033.323966, 446.4523269]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_left",
+            "point": 35,
+            "observed_px": [1101.267324, 413.5514369],
+            "projected_px": [1101.692089, 413.5602233]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_left",
+            "point": 36,
+            "observed_px": [549.8626202, 763.9818825],
+            "projected_px": [549.4515157, 764.2718061]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_left",
+            "point": 37,
+            "observed_px": [625.2948435, 727.581314],
+            "projected_px": [624.9248974, 727.5034745]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_left",
+            "point": 38,
+            "observed_px": [698.9061998, 690.5296731],
+            "projected_px": [699.299675, 691.2272558]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_left",
+            "point": 39,
+            "observed_px": [772.4246381, 655.6738289],
+            "projected_px": [772.549582, 655.458786]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_left",
+            "point": 40,
+            "observed_px": [844.5371393, 619.9507278],
+            "projected_px": [844.65251, 620.2106768]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_left",
+            "point": 41,
+            "observed_px": [915.5046285, 585.5476345],
+            "projected_px": [915.58877, 585.4934995]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_left",
+            "point": 42,
+            "observed_px": [985.3959971, 552.0586289],
+            "projected_px": [985.3396914, 551.3165898]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_left",
+            "point": 43,
+            "observed_px": [1054.005473, 517.7835581],
+            "projected_px": [1053.886508, 517.6887001]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_left",
+            "point": 44,
+            "observed_px": [1120.644078, 484.6389199],
+            "projected_px": [1121.209486, 484.6185194]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_left",
+            "point": 45,
+            "observed_px": [577.0691548, 833.6819868],
+            "projected_px": [577.4920027, 834.0687916]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_left",
+            "point": 46,
+            "observed_px": [651.7598177, 797.1725467],
+            "projected_px": [651.7177457, 797.3131187]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_left",
+            "point": 47,
+            "observed_px": [725.0654102, 761.0932586],
+            "projected_px": [724.8754548, 761.024283]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_left",
+            "point": 48,
+            "observed_px": [796.2685768, 724.7934247],
+            "projected_px": [796.9392556, 725.219209]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_left",
+            "point": 49,
+            "observed_px": [867.3823322, 690.0833165],
+            "projected_px": [867.8873054, 689.9114744]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_left",
+            "point": 50,
+            "observed_px": [938.3076436, 654.5847383],
+            "projected_px": [937.7001548, 655.1123036]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_left",
+            "point": 51,
+            "observed_px": [1006.039167, 620.735405],
+            "projected_px": [1006.359422, 620.8313866]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_left",
+            "point": 52,
+            "observed_px": [1074.143438, 587.8494087],
+            "projected_px": [1073.846736, 587.0775478]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_left",
+            "point": 53,
+            "observed_px": [1138.688148, 553.9055748],
+            "projected_px": [1140.142904, 553.8592867]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_right",
+            "point": 0,
+            "observed_px": [70.48356989, 463.9589908],
+            "projected_px": [71.16959926, 464.3563439]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_right",
+            "point": 1,
+            "observed_px": [153.9648239, 428.1618609],
+            "projected_px": [154.0557055, 427.9038331]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_right",
+            "point": 2,
+            "observed_px": [235.9775181, 392.4743129],
+            "projected_px": [235.9087711, 391.9922472]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_right",
+            "point": 3,
+            "observed_px": [316.3442439, 356.5383572],
+            "projected_px": [316.6617624, 356.6338123]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_right",
+            "point": 4,
+            "observed_px": [395.3457651, 322.12879],
+            "projected_px": [396.2714191, 321.83466]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_right",
+            "point": 5,
+            "observed_px": [475.0693318, 288.8836688],
+            "projected_px": [474.7113899, 287.5972515]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_right",
+            "point": 6,
+            "observed_px": [552.6440418, 253.5785],
+            "projected_px": [551.9665972, 253.9223298]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_right",
+            "point": 7,
+            "observed_px": [628.5296587, 220.5239839],
+            "projected_px": [628.0286507, 220.8104717]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_right",
+            "point": 8,
+            "observed_px": [703.8307751, 188.1137554],
+            "projected_px": [702.8921488, 188.2633026]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_right",
+            "point": 9,
+            "observed_px": [106.4231395, 542.2415137],
+            "projected_px": [107.065873, 542.3150579]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_right",
+            "point": 10,
+            "observed_px": [188.111771, 506.4082525],
+            "projected_px": [188.6085788, 505.8068095]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_right",
+            "point": 11,
+            "observed_px": [268.9486504, 470.1440648],
+            "projected_px": [269.1277774, 469.8135094]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_right",
+            "point": 12,
+            "observed_px": [348.2244252, 434.0555759],
+            "projected_px": [348.5639312, 434.3504491]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_right",
+            "point": 13,
+            "observed_px": [427.5196582, 399.5451627],
+            "projected_px": [426.8792102, 399.4260598]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_right",
+            "point": 14,
+            "observed_px": [503.1234964, 364.6871638],
+            "projected_px": [504.0511837, 365.044352]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_right",
+            "point": 15,
+            "observed_px": [580.4238442, 331.7060686],
+            "projected_px": [580.0676331, 331.2068968]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_right",
+            "point": 16,
+            "observed_px": [654.5386393, 297.7010089],
+            "projected_px": [654.9223214, 297.9144175]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_right",
+            "point": 17,
+            "observed_px": [727.5417347, 264.9800705],
+            "projected_px": [728.6115774, 265.1680521]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_right",
+            "point": 18,
+            "observed_px": [141.5944047, 617.5517431],
+            "projected_px": [142.120675, 618.1608626]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_right",
+            "point": 19,
+            "observed_px": [221.2801114, 581.5449366],
+            "projected_px": [222.3330966, 581.6147906]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_right",
+            "point": 20,
+            "observed_px": [300.9880988, 545.8800612],
+            "projected_px": [301.5371943, 545.5591278]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_right",
+            "point": 21,
+            "observed_px": [379.7769522, 509.6195812],
+            "projected_px": [379.6791891, 510.0121764]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_right",
+            "point": 22,
+            "observed_px": [456.0846394, 475.0173811],
+            "projected_px": [456.7252668, 474.9846876]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_right",
+            "point": 23,
+            "observed_px": [532.0450751, 440.5873186],
+            "projected_px": [532.6557595, 440.4823071]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_right",
+            "point": 24,
+            "observed_px": [607.2712345, 406.16447],
+            "projected_px": [607.4603527, 406.5075772]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_right",
+            "point": 25,
+            "observed_px": [681.2604468, 372.9121468],
+            "projected_px": [681.1341686, 373.0615591]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_right",
+            "point": 26,
+            "observed_px": [754.0327737, 340.1462339],
+            "projected_px": [753.6745962, 340.1451335]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_right",
+            "point": 27,
+            "observed_px": [176.6067422, 691.2014989],
+            "projected_px": [176.3347294, 691.9359857]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_right",
+            "point": 28,
+            "observed_px": [255.9341424, 654.7959273],
+            "projected_px": [255.2348028, 655.3724104]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_right",
+            "point": 29,
+            "observed_px": [333.00832, 619.4371292],
+            "projected_px": [333.146041, 619.2752489]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_right",
+            "point": 30,
+            "observed_px": [409.6609322, 583.507057],
+            "projected_px": [410.0189995, 583.6658171]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_right",
+            "point": 31,
+            "observed_px": [485.3289859, 547.9138615],
+            "projected_px": [485.8227248, 548.5572532]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_right",
+            "point": 32,
+            "observed_px": [560.3988279, 513.4701614],
+            "projected_px": [560.5393697, 513.956962]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_right",
+            "point": 33,
+            "observed_px": [634.4275119, 479.6216052],
+            "projected_px": [634.1597488, 479.8686292]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_right",
+            "point": 34,
+            "observed_px": [707.3310675, 446.7621296],
+            "projected_px": [706.679698, 446.2938671]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_right",
+            "point": 35,
+            "observed_px": [778.992648, 413.0485195],
+            "projected_px": [778.0971231, 413.2335472]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_right",
+            "point": 36,
+            "observed_px": [209.5937146, 763.120679],
+            "projected_px": [209.716788, 763.6870332]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_right",
+            "point": 37,
+            "observed_px": [287.083129, 726.8892493],
+            "projected_px": [287.3256517, 727.1281591]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_right",
+            "point": 38,
+            "observed_px": [364.6195158, 690.9237101],
+            "projected_px": [363.9684088, 691.0115518]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_right",
+            "point": 39,
+            "observed_px": [439.0439457, 655.4988053],
+            "projected_px": [439.5987838, 655.3615837]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_right",
+            "point": 40,
+            "observed_px": [513.4317956, 620.0826426],
+            "projected_px": [514.1877429, 620.1938784]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_right",
+            "point": 41,
+            "observed_px": [587.4525046, 585.3449685],
+            "projected_px": [587.7184951, 585.5177464]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_right",
+            "point": 42,
+            "observed_px": [660.3654041, 550.8622172],
+            "projected_px": [660.1823563, 551.3382057]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_right",
+            "point": 43,
+            "observed_px": [731.5875107, 517.4488018],
+            "projected_px": [731.5753553, 517.6576451]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_right",
+            "point": 44,
+            "observed_px": [801.3067204, 484.7058438],
+            "projected_px": [801.8954732, 484.4771812]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_right",
+            "point": 45,
+            "observed_px": [242.5059762, 832.9926149],
+            "projected_px": [242.280788, 833.4615712]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_right",
+            "point": 46,
+            "observed_px": [319.2521737, 796.2215096],
+            "projected_px": [318.6215687, 796.9311186]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_right",
+            "point": 47,
+            "observed_px": [394.2853456, 760.8699381],
+            "projected_px": [394.0213678, 760.8180994]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_right",
+            "point": 48,
+            "observed_px": [469.0667545, 725.2607425],
+            "projected_px": [468.4361267, 725.1500118]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_right",
+            "point": 49,
+            "observed_px": [542.1157456, 690.0300847],
+            "projected_px": [541.8379673, 689.9450809]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_right",
+            "point": 50,
+            "observed_px": [614.2563523, 656.2739969],
+            "projected_px": [614.2105368, 655.2146821]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_right",
+            "point": 51,
+            "observed_px": [686.1949323, 621.531978],
+            "projected_px": [685.5451472, 620.9653621]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_right",
+            "point": 52,
+            "observed_px": [755.4859574, 586.5099404],
+            "projected_px": [755.8375999, 587.2005143]
+          },
+          {
+            "capture": "s1_t1_p2_r1",
+            "camera": "cam_right",
+            "point": 53,
+            "observed_px": [825.0081578, 553.4636267],
+            "projected_px": [825.0855958, 553.921756]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_left",
+            "point": 0,
+            "observed_px": [438.4266752, 412.5485892],
+            "projected_px": [437.4255981, 412.5382419]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_left",
+            "point": 1,
+            "observed_px": [515.7496544, 386.9306885],
+            "projected_px": [515.7245783, 386.6987936]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_left",
+            "point": 2,
+            "observed_px": [591.8581294, 360.7599308],
+            "projected_px": [591.5966773, 361.6997694]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_left",
+            "point": 3,
+            "observed_px": [665.0548396, 337.8305305],
+            "projected_px": [665.1066891, 337.5156713]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_left",
+            "point": 4,
+            "observed_px": [737.1094167, 314.4200678],
+            "projected_px": [736.3215222, 314.1212526]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_left",
+            "point": 5,
+            "observed_px": [805.6715523, 291.1860574],
+            "projected_px": [805.3082865, 291.4919425]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_left",
+            "point": 6,
+            "observed_px": [872.4815793, 270.014928],
+            "projected_px": [872.1330045, 269.6041069]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_left",
+            "point": 7,
+            "observed_px": [936.6967569, 248.1539805],
+            "projected_px": [936.8597764, 248.4351915]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_left",
+            "point": 8,
+            "observed_px": [1000.740439, 227.1302754],
+            "projected_px": [999.5502765, 227.9637836]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_left",
+            "point": 9,
+            "observed_px": [468.4990222, 496.7856386],
+            "projected_px": [468.1239663, 496.900606]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_left",
+            "point": 10,
+            "observed_px": [545.4648015, 469.507111],
+            "projected_px": [545.9668906, 469.7110516]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_left",
+            "point": 11,
+            "observed_px": [621.7600417, 442.9546548],
+            "projected_px": [621.3883606, 443.3870727]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_left",
+            "point": 12,
+            "observed_px": [694.5654269, 417.9540995],
+            "projected_px": [694.4541939, 417.9036519]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_left",
+            "point": 13,
+            "observed_px": [764.5859384, 392.9137564],
+            "projected_px": [765.231983, 393.2355944]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_left",
+            "point": 14,
+            "observed_px": [834.1267775, 369.4929044],
+            "projected_px": [833.7892641, 369.358073]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_left",
+            "point": 15,
+            "observed_px": [899.445795, 346.8988894],
+            "projected_px": [900.1922897, 346.2469817]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_left",
+            "point": 16,
+            "observed_px": [964.8374777, 323.2302679],
+            "projected_px": [964.5052442, 323.8791486]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_left",
+            "point": 17,
+            "observed_px": [1026.273897, 303.1107634],
+            "projected_px": [1026.789778, 302.2324509]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_left",
+            "point": 18,
+            "observed_px": [498.2528338, 580.7767824],
+            "projected_px": [498.8981944, 581.311035]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_left",
+            "point": 19,
+            "observed_px": [576.5467909, 552.9963377],
+            "projected_px": [576.2617721, 552.7758714]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_left",
+            "point": 20,
+            "observed_px": [651.014818, 524.7252093],
+            "projected_px": [651.2118858, 525.1311217]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_left",
+            "point": 21,
+            "observed_px": [723.0802748, 497.005424],
+            "projected_px": [723.8147848, 498.3523624]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_left",
+            "point": 22,
+            "observed_px": [794.0289736, 472.898012],
+            "projected_px": [794.1382817, 472.4145339]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_left",
+            "point": 23,
+            "observed_px": [862.2671861, 447.6878816],
+            "projected_px": [862.2499758, 447.2926134]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_left",
+            "point": 24,
+            "observed_px": [929.5516755, 422.3222041],
+            "projected_px": [928.2160688, 422.962065]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_left",
+            "point": 25,
+            "observed_px": [992.2777364, 398.7207947],
+            "projected_px": [992.1006132, 399.3991275]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_left",
+            "point": 26,
+            "observed_px": [1053.74439, 376.6750942],
+            "projected_px": [1053.965071, 376.5809852]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_left",
+            "point": 27,
+            "observed_px": [530.1504439, 665.8083171],
+            "projected_px": [529.7232371, 665.7017892]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_left",
+            "point": 28,
+            "observed_px": [606.1981951, 635.5046704],
+            "projected_px": [606.5857497, 635.8293376]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_left",
+            "point": 29,
+            "observed_px": [681.403325, 607.1611326],
+            "projected_px": [681.0450911, 606.8711813]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_left",
+            "point": 30,
+            "observed_px": [753.3044789, 579.5289629],
+            "projected_px": [753.167394, 578.8037124]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_left",
+            "point": 31,
+            "observed_px": [823.586762, 551.0103081],
+            "projected_px": [823.0202626, 551.6021814]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_left",
+            "point": 32,
+            "observed_px": [889.6035298, 524.7684617],
+            "projected_px": [890.671027, 525.241506]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_left",
+            "point": 33,
+            "observed_px": [956.1594891, 499.2586029],
+            "projected_px": [956.1855828, 499.6968263]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_left",
+            "point": 34,
+            "observed_px": [1019.045979, 475.889777],
+            "projected_px": [1019.627655, 474.9438734]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_left",
+            "point": 35,
+            "observed_px": [1080.65033, 451.1596147],
+            "projected_px": [1081.058372, 450.9592007]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_left",
+            "point": 36,
+            "observed_px": [560.9828384, 750.4681641],
+            "projected_px": [560.5747936, 750.0043288]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_left",
+            "point": 37,
+            "observed_px": [637.0859044, 718.1314048],
+            "projected_px": [636.9156149, 718.8069519]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_left",
+            "point": 38,
+            "observed_px": [710.6342483, 688.0701689],
+            "projected_px": [710.8656705, 688.5461206]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_left",
+            "point": 39,
+            "observed_px": [782.2954988, 660.0339352],
+            "projected_px": [782.4904617, 659.1993775]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_left",
+            "point": 40,
+            "observed_px": [852.4631774, 631.1402953],
+            "projected_px": [851.8569839, 630.7425518]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_left",
+            "point": 41,
+            "observed_px": [918.6864623, 603.9742486],
+            "projected_px": [919.031989, 603.150717]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_left",
+            "point": 42,
+            "observed_px": [984.5814913, 576.3758079],
+            "projected_px": [984.0808296, 576.3988615]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_left",
+            "point": 43,
+            "observed_px": [1048.058352, 550.8777198],
+            "projected_px": [1047.066726, 550.4623456]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_left",
+            "point": 44,
+            "observed_px": [1107.976291, 525.4793593],
+            "projected_px": [1108.050338, 525.3172003]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_left",
+            "point": 45,
+            "observed_px": [591.1455162, 834.1919564],
+            "projected_px": [591.4283839, 834.1467836]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_left",
+            "point": 46,
+            "observed_px": [666.7266698, 801.9785819],
+            "projected_px": [667.2275733, 801.6413025]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_left",
+            "point": 47,
+            "observed_px": [741.0104179, 769.8804705],
+            "projected_px": [740.6503897, 770.0922642]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_left",
+            "point": 48,
+            "observed_px": [811.1782958, 739.829891],
+            "projected_px": [811.7612126, 739.4788147]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_left",
+            "point": 49,
+            "observed_px": [880.7752267, 709.3746549],
+            "projected_px": [880.6260486, 709.77773]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_left",
+            "point": 50,
+            "observed_px": [947.2829907, 681.1335711],
+            "projected_px": [947.310779, 680.9645385]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_left",
+            "point": 51,
+            "observed_px": [1012.060373, 652.8923394],
+            "projected_px": [1011.879991, 653.0143191]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_left",
+            "point": 52,
+            "observed_px": [1074.60953, 625.8908961],
+            "projected_px": [1074.396231, 625.9022569]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_left",
+            "point": 53,
+            "observed_px": [1135.469068, 598.9665368],
+            "projected_px": [1134.919569, 599.6040188]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_right",
+            "point": 0,
+            "observed_px": [79.57934411, 412.2310207],
+            "projected_px": [80.050997, 412.7949663]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_right",
+            "point": 1,
+            "observed_px": [163.1262823, 386.7551244],
+            "projected_px": [163.4103407, 386.9749083]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_right",
+            "point": 2,
+            "observed_px": [243.8202842, 361.2013814],
+            "projected_px": [244.398643, 361.9597715]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_right",
+            "point": 3,
+            "observed_px": [322.7589762, 337.762146],
+            "projected_px": [323.0406859, 337.725112]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_right",
+            "point": 4,
+            "observed_px": [399.00913, 314.6008187],
+            "projected_px": [399.3821426, 314.2444734]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_right",
+            "point": 5,
+            "observed_px": [473.7073372, 291.0187986],
+            "projected_px": [473.4815561, 291.4909207]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_right",
+            "point": 6,
+            "observed_px": [546.1092757, 269.6026564],
+            "projected_px": [545.404554, 269.4380674]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_right",
+            "point": 7,
+            "observed_px": [614.6319502, 248.4268105],
+            "projected_px": [615.2197449, 248.060733]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_right",
+            "point": 8,
+            "observed_px": [682.9970677, 227.2414443],
+            "projected_px": [682.9958699, 227.3353323]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_right",
+            "point": 9,
+            "observed_px": [110.6422569, 497.4007191],
+            "projected_px": [110.3850609, 496.88794]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_right",
+            "point": 10,
+            "observed_px": [192.8557286, 469.1415078],
+            "projected_px": [193.3625094, 469.7763371]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_right",
+            "point": 11,
+            "observed_px": [273.9976376, 444.0729543],
+            "projected_px": [273.9575388, 443.4890303]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_right",
+            "point": 12,
+            "observed_px": [352.5444157, 417.389096],
+            "projected_px": [352.2007699, 418.0049227]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_right",
+            "point": 13,
+            "observed_px": [428.6949422, 392.599721],
+            "projected_px": [428.1422653, 393.2995601]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_right",
+            "point": 14,
+            "observed_px": [501.8397385, 369.7252649],
+            "projected_px": [501.8438171, 369.3470095]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_right",
+            "point": 15,
+            "observed_px": [573.2884757, 347.0096787],
+            "projected_px": [573.3734088, 346.1211521]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_right",
+            "point": 16,
+            "observed_px": [643.5680913, 323.1035706],
+            "projected_px": [642.8013069, 323.5965463]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_right",
+            "point": 17,
+            "observed_px": [710.7619722, 301.8492959],
+            "projected_px": [710.1973692, 301.7489753]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_right",
+            "point": 18,
+            "observed_px": [141.5930471, 581.4642656],
+            "projected_px": [140.8908018, 581.064209]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_right",
+            "point": 19,
+            "observed_px": [223.3312706, 552.6037281],
+            "projected_px": [223.4510106, 552.6565818]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_right",
+            "point": 20,
+            "observed_px": [303.1570536, 525.2520943],
+            "projected_px": [303.6248146, 525.0934403]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_right",
+            "point": 21,
+            "observed_px": [381.5534645, 498.4692506],
+            "projected_px": [381.4469167, 498.3570814]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_right",
+            "point": 22,
+            "observed_px": [455.8169638, 472.6725704],
+            "projected_px": [456.9703679, 472.4250664]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_right",
+            "point": 23,
+            "observed_px": [530.0787991, 447.7601071],
+            "projected_px": [530.2590969, 447.2724518]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_right",
+            "point": 24,
+            "observed_px": [601.5883382, 422.8709377],
+            "projected_px": [601.3825631, 422.8733565]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_right",
+            "point": 25,
+            "observed_px": [670.567822, 398.9189284],
+            "projected_px": [670.4120002, 399.2020352]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_right",
+            "point": 26,
+            "observed_px": [737.8500315, 375.5105747],
+            "projected_px": [737.4178439, 376.2335883]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_right",
+            "point": 27,
+            "observed_px": [171.2438944, 665.0255087],
+            "projected_px": [171.5384618, 665.2671016]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_right",
+            "point": 28,
+            "observed_px": [253.6093694, 635.2131744],
+            "projected_px": [253.6505622, 635.5655908]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_right",
+            "point": 29,
+            "observed_px": [333.2154459, 607.2720719],
+            "projected_px": [333.3788851, 606.7281914]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_right",
+            "point": 30,
+            "observed_px": [411.1432801, 578.5500276],
+            "projected_px": [410.7605807, 578.7408774]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_right",
+            "point": 31,
+            "observed_px": [485.6561921, 551.5026524],
+            "projected_px": [485.8503905, 551.5834361]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_right",
+            "point": 32,
+            "observed_px": [558.7265341, 525.8803919],
+            "projected_px": [558.7133537, 525.2320672]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_right",
+            "point": 33,
+            "observed_px": [629.5463124, 499.3705488],
+            "projected_px": [629.4195999, 499.6612358]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_right",
+            "point": 34,
+            "observed_px": [697.8972545, 475.6441919],
+            "projected_px": [698.0407015, 474.8449666]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_right",
+            "point": 35,
+            "observed_px": [764.2785379, 451.2600593],
+            "projected_px": [764.6471868, 450.7577236]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_right",
+            "point": 36,
+            "observed_px": [202.7052505, 750.0215827],
+            "projected_px": [202.3050075, 749.4430834]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_right",
+            "point": 37,
+            "observed_px": [283.7133027, 717.9594461],
+            "projected_px": [283.9413447, 718.4564671]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_right",
+            "point": 38,
+            "observed_px": [363.4570525, 688.4638871],
+            "projected_px": [363.2025296, 688.3516263]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_right",
+            "point": 39,
+            "observed_px": [440.6541626, 659.1569611],
+            "projected_px": [440.1266255, 659.1187351]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_right",
+            "point": 40,
+            "observed_px": [514.3096655, 630.7576082],
+            "projected_px": [514.7688509, 630.7402181]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_right",
+            "point": 41,
+            "observed_px": [587.3849662, 603.9924669],
+            "projected_px": [587.1944011, 603.1937399]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_right",
+            "point": 42,
+            "observed_px": [657.7720665, 576.5278089],
+            "projected_px": [657.47333, 576.4543612]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_right",
+            "point": 43,
+            "observed_px": [725.2541617, 549.8328098],
+            "projected_px": [725.676971, 550.4960682]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_right",
+            "point": 44,
+            "observed_px": [791.5365832, 525.2302575],
+            "projected_px": [791.8755022, 525.292834]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_right",
+            "point": 45,
+            "observed_px": [233.4964802, 833.7493945],
+            "projected_px": [233.1725379, 833.5373746]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_right",
+            "point": 46,
+            "observed_px": [314.1932423, 800.8849129],
+            "projected_px": [314.3075341, 801.281435]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_right",
+            "point": 47,
+            "observed_px": [392.664958, 770.0670907],
+            "projected_px": [393.0815385, 769.9215236]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_right",
+            "point": 48,
+            "observed_px": [469.6339596, 739.2542164],
+            "projected_px": [469.5320737, 739.4527845]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_right",
+            "point": 49,
+            "observed_px": [543.2672559, 710.0177014],
+            "projected_px": [543.7136892, 709.8608974]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_right",
+            "point": 50,
+            "observed_px": [616.0202102, 681.279311],
+            "projected_px": [615.6908383, 681.1254869]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_right",
+            "point": 51,
+            "observed_px": [685.7040996, 652.2821194],
+            "projected_px": [685.5328006, 653.2226042]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_right",
+            "point": 52,
+            "observed_px": [753.4656265, 626.1147573],
+            "projected_px": [753.3101321, 626.1265105]
+          },
+          {
+            "capture": "s1_t1_p3_r1",
+            "camera": "cam_right",
+            "point": 53,
+            "observed_px": [818.8252602, 599.8118042],
+            "projected_px": [819.0922516, 599.8109352]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_left",
+            "point": 0,
+            "observed_px": [591.6748485, 189.3356858],
+            "projected_px": [591.4736588, 189.9422127]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_left",
+            "point": 1,
+            "observed_px": [667.7136594, 222.3418608],
+            "projected_px": [667.2575, 222.4371369]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_left",
+            "point": 2,
+            "observed_px": [740.7519148, 254.3039393],
+            "projected_px": [740.6692409, 253.9771875]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_left",
+            "point": 3,
+            "observed_px": [812.0271886, 285.6267786],
+            "projected_px": [811.7729646, 284.5831694]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_left",
+            "point": 4,
+            "observed_px": [880.6501421, 313.7924262],
+            "projected_px": [880.6343665, 314.2782253]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_left",
+            "point": 5,
+            "observed_px": [947.0802391, 342.6114224],
+            "projected_px": [947.3190117, 343.0867233]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_left",
+            "point": 6,
+            "observed_px": [1010.879042, 370.1390796],
+            "projected_px": [1011.891172, 371.0334666]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_left",
+            "point": 7,
+            "observed_px": [1074.188091, 398.7927498],
+            "projected_px": [1074.413084, 398.143144]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_left",
+            "point": 8,
+            "observed_px": [1134.898441, 424.5279],
+            "projected_px": [1134.944517, 424.439958]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_left",
+            "point": 9,
+            "observed_px": [561.0286439, 274.0597173],
+            "projected_px": [560.6112652, 274.0491148]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_left",
+            "point": 10,
+            "observed_px": [637.3948723, 305.3095436],
+            "projected_px": [636.9400575, 305.2401707]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_left",
+            "point": 11,
+            "observed_px": [710.9026222, 335.4258424],
+            "projected_px": [710.8821875, 335.4961018]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_left",
+            "point": 12,
+            "observed_px": [783.0074044, 365.1595257],
+            "projected_px": [782.5028494, 364.8392979]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_left",
+            "point": 13,
+            "observed_px": [851.8908775, 393.0463494],
+            "projected_px": [851.868722, 393.2938361]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_left",
+            "point": 14,
+            "observed_px": [918.7341865, 420.5144181],
+            "projected_px": [919.0462386, 420.8845316]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_left",
+            "point": 15,
+            "observed_px": [983.9642888, 448.1064942],
+            "projected_px": [984.1004368, 447.636274]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_left",
+            "point": 16,
+            "observed_px": [1046.196946, 473.3199016],
+            "projected_px": [1047.094229, 473.5735753]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_left",
+            "point": 17,
+            "observed_px": [1108.274586, 498.6885342],
+            "projected_px": [1108.087976, 498.7202743]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_left",
+            "point": 18,
+            "observed_px": [529.4968364, 358.6122267],
+            "projected_px": [529.7475011, 358.3245351]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_left",
+            "point": 19,
+            "observed_px": [606.61105, 388.28405],
+            "projected_px": [606.6014681, 388.1947427]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_left",
+            "point": 20,
+            "observed_px": [681.3311677, 417.3683769],
+            "projected_px": [681.0561844, 417.1518999]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_left",
+            "point": 21,
+            "observed_px": [754.7225397, 445.399776],
+            "projected_px": [753.1774673, 445.219535]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_left",
+            "point": 22,
+            "observed_px": [822.9378591, 472.3311729],
+            "projected_px": [823.0325999, 472.4222964]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_left",
+            "point": 23,
+            "observed_px": [891.2206432, 498.8325266],
+            "projected_px": [890.6885927, 498.7851518]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_left",
+            "point": 24,
+            "observed_px": [955.4477928, 524.9559606],
+            "projected_px": [956.211027, 524.332838]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_left",
+            "point": 25,
+            "observed_px": [1019.772406, 548.9456879],
+            "projected_px": [1019.663323, 549.0894971]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_left",
+            "point": 26,
+            "observed_px": [1081.153689, 573.0425574],
+            "projected_px": [1081.106313, 573.0784479]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_left",
+            "point": 27,
+            "observed_px": [499.0025307, 442.5648615],
+            "projected_px": [498.9068299, 442.6969309]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_left",
+            "point": 28,
+            "observed_px": [577.3119044, 471.357706],
+            "projected_px": [576.2654856, 471.233723]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_left",
+            "point": 29,
+            "observed_px": [650.8829538, 499.5293688],
+            "projected_px": [651.2144049, 498.8811487]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_left",
+            "point": 30,
+            "observed_px": [723.3589276, 525.8958353],
+            "projected_px": [723.8195144, 525.6635451]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_left",
+            "point": 31,
+            "observed_px": [794.4156533, 552.1143549],
+            "projected_px": [794.1483023, 551.605868]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_left",
+            "point": 32,
+            "observed_px": [862.6675799, 576.6606329],
+            "projected_px": [862.2680476, 576.7330252]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_left",
+            "point": 33,
+            "observed_px": [928.4874199, 601.8800864],
+            "projected_px": [928.24464, 601.0694315]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_left",
+            "point": 34,
+            "observed_px": [992.6974812, 625.1664321],
+            "projected_px": [992.1418293, 624.6387242]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_left",
+            "point": 35,
+            "observed_px": [1053.035359, 646.8072232],
+            "projected_px": [1054.020787, 647.4635955]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_left",
+            "point": 36,
+            "observed_px": [468.5313032, 527.2380656],
+            "projected_px": [468.1135855, 527.0979229]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_left",
+            "point": 37,
+            "observed_px": [546.1144899, 553.6864825],
+            "projected_px": [545.9553245, 554.2927405]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_left",
+            "point": 38,
+            "observed_px": [621.0519961, 581.007216],
+            "projected_px": [621.3791376, 580.6228153]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_left",
+            "point": 39,
+            "observed_px": [694.6075811, 606.7876828],
+            "projected_px": [694.4505128, 606.1130765]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_left",
+            "point": 40,
+            "observed_px": [765.1316308, 630.4403987],
+            "projected_px": [765.2367154, 630.7886158]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_left",
+            "point": 41,
+            "observed_px": [834.0724005, 654.870654],
+            "projected_px": [833.8049611, 654.6741479]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_left",
+            "point": 42,
+            "observed_px": [900.1067962, 678.2311793],
+            "projected_px": [900.2211921, 677.7936619]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_left",
+            "point": 43,
+            "observed_px": [964.4984606, 700.3188845],
+            "projected_px": [964.5492939, 700.170211]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_left",
+            "point": 44,
+            "observed_px": [1027.505096, 721.1021298],
+            "projected_px": [1026.85063, 721.8257997]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_left",
+            "point": 45,
+            "observed_px": [436.7209712, 610.8063601],
+            "projected_px": [437.3928958, 611.4597692]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_left",
+            "point": 46,
+            "observed_px": [515.765714, 637.1841152],
+            "projected_px": [515.6945106, 637.3078553]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_left",
+            "point": 47,
+            "observed_px": [591.1937516, 662.8263737],
+            "projected_px": [591.5725707, 662.3161214]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_left",
+            "point": 48,
+            "observed_px": [664.5067813, 686.4414432],
+            "projected_px": [665.0915338, 686.5099787]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_left",
+            "point": 49,
+            "observed_px": [736.3722938, 709.8933086],
+            "projected_px": [736.3179779, 709.9145749]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_left",
+            "point": 50,
+            "observed_px": [805.6041737, 732.8397935],
+            "projected_px": [805.3186925, 732.5543737]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_left",
+            "point": 51,
+            "observed_px": [872.4948038, 755.3747092],
+            "projected_px": [872.1593912, 754.4528986]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_left",
+            "point": 52,
+            "observed_px": [937.4410062, 774.5035924],
+            "projected_px": [936.9038786, 775.6325914]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_left",
+            "point": 53,
+            "observed_px": [999.765196, 795.6797457],
+            "projected_px": [999.6135466, 796.1147538]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_right",
+            "point": 0,
+            "observed_px": [232.746847, 190.3364307],
+            "projected_px": [233.2278438, 190.4360059]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_right",
+            "point": 1,
+            "observed_px": [313.4103335, 222.7451944],
+            "projected_px": [314.3431508, 222.7238725]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_right",
+            "point": 2,
+            "observed_px": [393.3751896, 254.4910054],
+            "projected_px": [393.1000228, 254.1000261]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_right",
+            "point": 3,
+            "observed_px": [470.1250802, 284.7487485],
+            "projected_px": [469.5370806, 284.5720062]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_right",
+            "point": 4,
+            "observed_px": [544.0632284, 314.6376674],
+            "projected_px": [543.709481, 314.1562175]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_right",
+            "point": 5,
+            "observed_px": [615.5947433, 342.7435459],
+            "projected_px": [615.6819367, 342.874654]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_right",
+            "point": 6,
+            "observed_px": [685.5586231, 371.2002414],
+            "projected_px": [685.5237392, 370.75252]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_right",
+            "point": 7,
+            "observed_px": [753.952299, 397.5044726],
+            "projected_px": [753.3052822, 397.8165251]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_right",
+            "point": 8,
+            "observed_px": [818.6191576, 423.3801506],
+            "projected_px": [819.0956991, 424.0936881]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_right",
+            "point": 9,
+            "observed_px": [202.1225132, 274.444351],
+            "projected_px": [202.3536801, 274.5115011]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_right",
+            "point": 10,
+            "observed_px": [284.4557896, 305.0799924],
+            "projected_px": [283.9739259, 305.5327178]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_right",
+            "point": 11,
+            "observed_px": [363.2431581, 335.6170923],
+            "projected_px": [363.2220682, 335.6571864]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_right",
+            "point": 12,
+            "observed_px": [440.0439861, 364.841621],
+            "projected_px": [440.1370312, 364.8971566]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_right",
+            "point": 13,
+            "observed_px": [514.6726183, 393.3875785],
+            "projected_px": [514.7744643, 393.2720907]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_right",
+            "point": 14,
+            "observed_px": [587.3751836, 421.2590891],
+            "projected_px": [587.1996896, 420.8057928]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_right",
+            "point": 15,
+            "observed_px": [658.6800864, 447.3359501],
+            "projected_px": [657.4826747, 447.524343]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_right",
+            "point": 16,
+            "observed_px": [725.6723522, 473.4159411],
+            "projected_px": [725.6945171, 473.4546388]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_right",
+            "point": 17,
+            "observed_px": [792.0097046, 499.3879277],
+            "projected_px": [791.9050552, 498.6233886]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_right",
+            "point": 18,
+            "observed_px": [171.1547873, 358.5394781],
+            "projected_px": [171.5746064, 358.6650669]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_right",
+            "point": 19,
+            "observed_px": [253.4764887, 389.1008459],
+            "projected_px": [253.6745562, 388.4050836]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_right",
+            "point": 20,
+            "observed_px": [332.2538704, 416.9673185],
+            "projected_px": [333.3942266, 417.26642]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_right",
+            "point": 21,
+            "observed_px": [411.0044806, 444.5620576],
+            "projected_px": [410.7714014, 445.2653232]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_right",
+            "point": 22,
+            "observed_px": [485.7219853, 472.4755472],
+            "projected_px": [485.861083, 472.4237411]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_right",
+            "point": 23,
+            "observed_px": [558.4577527, 499.6712612],
+            "projected_px": [558.7283104, 498.7668292]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_right",
+            "point": 24,
+            "observed_px": [630.1841294, 524.0353762],
+            "projected_px": [629.443032, 524.3211784]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_right",
+            "point": 25,
+            "observed_px": [698.5824743, 548.372419],
+            "projected_px": [698.0765137, 549.1135845]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_right",
+            "point": 26,
+            "observed_px": [765.2441468, 573.8833962],
+            "projected_px": [764.6988911, 573.1702174]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_right",
+            "point": 27,
+            "observed_px": [141.5065319, 442.3207567],
+            "projected_px": [140.9093768, 442.8429418]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_right",
+            "point": 28,
+            "observed_px": [222.7968966, 470.3582752],
+            "projected_px": [223.4615076, 471.2940066]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_right",
+            "point": 29,
+            "observed_px": [304.216134, 499.0558846],
+            "projected_px": [303.6311728, 498.8861452]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_right",
+            "point": 30,
+            "observed_px": [381.0949256, 525.4436799],
+            "projected_px": [381.4534841, 525.6391291]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_right",
+            "point": 31,
+            "observed_px": [456.9207411, 551.6210414],
+            "projected_px": [456.9815849, 551.5770213]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_right",
+            "point": 32,
+            "observed_px": [530.3884422, 577.3808048],
+            "projected_px": [530.2792774, 576.7260394]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_right",
+            "point": 33,
+            "observed_px": [600.9270544, 600.541823],
+            "projected_px": [601.4157452, 601.1130622]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_right",
+            "point": 34,
+            "observed_px": [670.5926832, 625.0032324],
+            "projected_px": [670.4618445, 624.7646132]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_right",
+            "point": 35,
+            "observed_px": [736.9690804, 647.2980624],
+            "projected_px": [737.4875655, 647.706196]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_right",
+            "point": 36,
+            "observed_px": [110.6403119, 527.4399681],
+            "projected_px": [110.3821489, 526.9916858]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_right",
+            "point": 37,
+            "observed_px": [191.689223, 553.96177],
+            "projected_px": [193.3554912, 554.1525587]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_right",
+            "point": 38,
+            "observed_px": [274.4253707, 580.8021102],
+            "projected_px": [273.9508229, 580.4745688]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_right",
+            "point": 39,
+            "observed_px": [352.3212648, 605.8748771],
+            "projected_px": [352.1989443, 605.9807754]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_right",
+            "point": 40,
+            "observed_px": [428.3328615, 630.8010328],
+            "projected_px": [428.1498375, 630.6971821]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_right",
+            "point": 41,
+            "observed_px": [502.1497959, 653.8809808],
+            "projected_px": [501.8650384, 654.6509452]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_right",
+            "point": 42,
+            "observed_px": [573.883077, 678.4214887],
+            "projected_px": [573.4121564, 677.8691467]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_right",
+            "point": 43,
+            "observed_px": [641.8596732, 701.1653223],
+            "projected_px": [642.8610068, 700.3779837]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_right",
+            "point": 44,
+            "observed_px": [709.6771246, 722.3332346],
+            "projected_px": [710.2809458, 722.2022634]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_right",
+            "point": 45,
+            "observed_px": [80.09945513, 610.7357756],
+            "projected_px": [80.02410866, 611.053797]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_right",
+            "point": 46,
+            "observed_px": [163.3758816, 637.9148379],
+            "projected_px": [163.3829554, 636.9298084]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_right",
+            "point": 47,
+            "observed_px": [244.314416, 661.6781406],
+            "projected_px": [244.3757071, 661.9859625]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_right",
+            "point": 48,
+            "observed_px": [322.8810458, 686.6111059],
+            "projected_px": [323.0270837, 686.2486018]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_right",
+            "point": 49,
+            "observed_px": [399.2433314, 710.1318527],
+            "projected_px": [399.382495, 709.7456926]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_right",
+            "point": 50,
+            "observed_px": [473.7195454, 731.7330811],
+            "projected_px": [473.5000887, 732.5053701]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_right",
+            "point": 51,
+            "observed_px": [545.5983572, 754.1270095],
+            "projected_px": [545.445013, 754.554972]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_right",
+            "point": 52,
+            "observed_px": [616.2216966, 775.4029425],
+            "projected_px": [615.2853448, 775.9204311]
+          },
+          {
+            "capture": "s1_t1_p3_r0",
+            "camera": "cam_right",
+            "point": 53,
+            "observed_px": [683.2247841, 796.302039],
+            "projected_px": [683.0892632, 796.625924]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_left",
+            "point": 0,
+            "observed_px": [565.9683836, 193.6509031],
+            "projected_px": [565.9103562, 193.5833767]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_left",
+            "point": 1,
+            "observed_px": [645.562725, 224.5618481],
+            "projected_px": [645.7570551, 224.1093263]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_left",
+            "point": 2,
+            "observed_px": [723.5352867, 254.5727751],
+            "projected_px": [724.8503643, 254.4143071]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_left",
+            "point": 3,
+            "observed_px": [803.873719, 284.8164683],
+            "projected_px": [803.1438561, 284.477431]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_left",
+            "point": 4,
+            "observed_px": [880.3993508, 314.7239113],
+            "projected_px": [880.5943683, 314.2804785]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_left",
+            "point": 5,
+            "observed_px": [957.022133, 343.9365213],
+            "projected_px": [957.1601388, 343.8070454]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_left",
+            "point": 6,
+            "observed_px": [1032.975591, 372.8299337],
+            "projected_px": [1032.799204, 373.0418018]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_left",
+            "point": 7,
+            "observed_px": [1107.867086, 402.2947412],
+            "projected_px": [1107.468038, 401.9698513]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_left",
+            "point": 8,
+            "observed_px": [1180.733219, 430.0295249],
+            "projected_px": [1181.120398, 430.5761818]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_left",
+            "point": 9,
+            "observed_px": [536.5133358, 274.4159302],
+            "projected_px": [536.3526209, 274.1199179]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_left",
+            "point": 10,
+            "observed_px": [616.6788926, 304.2008305],
+            "projected_px": [616.392965, 304.2915748]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_left",
+            "point": 11,
+            "observed_px": [695.4435223, 333.9043316],
+            "projected_px": [695.6832432, 334.2241129]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_left",
+            "point": 12,
+            "observed_px": [774.3871186, 364.0408643],
+            "projected_px": [774.1776893, 363.8982372]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_left",
+            "point": 13,
+            "observed_px": [852.290652, 393.160092],
+            "projected_px": [851.8338505, 393.2968639]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_left",
+            "point": 14,
+            "observed_px": [929.1559074, 421.7583014],
+            "projected_px": [928.6107116, 422.4043184]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_left",
+            "point": 15,
+            "observed_px": [1003.840776, 451.6650684],
+            "projected_px": [1004.467085, 451.2056408]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_left",
+            "point": 16,
+            "observed_px": [1078.937418, 479.2490898],
+            "projected_px": [1079.360238, 479.685988]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_left",
+            "point": 17,
+            "observed_px": [1152.888976, 507.5300593],
+            "projected_px": [1153.24474, 507.8301228]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_left",
+            "point": 18,
+            "observed_px": [506.6060576, 354.3865242],
+            "projected_px": [506.8010969, 354.8074725]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_left",
+            "point": 19,
+            "observed_px": [587.3676723, 385.1222274],
+            "projected_px": [587.015107, 384.6135989]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_left",
+            "point": 20,
+            "observed_px": [667.1460448, 414.8741287],
+            "projected_px": [666.4831547, 414.1637818]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_left",
+            "point": 21,
+            "observed_px": [745.8427747, 443.7591193],
+            "projected_px": [745.1597392, 443.4400993]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_left",
+            "point": 22,
+            "observed_px": [823.5616727, 471.9633167],
+            "projected_px": [823.0027601, 472.4264021]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_left",
+            "point": 23,
+            "observed_px": [899.6309397, 500.9345279],
+            "projected_px": [899.9716276, 501.107561]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_left",
+            "point": 24,
+            "observed_px": [975.7285787, 529.5524061],
+            "projected_px": [976.0256409, 529.4688178]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_left",
+            "point": 25,
+            "observed_px": [1051.406844, 557.6435027],
+            "projected_px": [1051.122606, 557.495229]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_left",
+            "point": 26,
+            "observed_px": [1125.485586, 585.3363681],
+            "projected_px": [1125.217669, 585.1711926]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_left",
+            "point": 27,
+            "observed_px": [476.8222715, 435.4711187],
+            "projected_px": [477.2771176, 435.583255]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_left",
+            "point": 28,
+            "observed_px": [557.6887982, 465.9831484],
+            "projected_px": [557.6448786, 465.0145123]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_left",
+            "point": 29,
+            "observed_px": [636.6549698, 494.3373264],
+            "projected_px": [637.2716845, 494.1738812]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_left",
+            "point": 30,
+            "observed_px": [715.8434199, 522.7203932],
+            "projected_px": [716.1118945, 523.0446248]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_left",
+            "point": 31,
+            "observed_px": [793.5458517, 552.1905943],
+            "projected_px": [794.1233934, 551.6113566]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_left",
+            "point": 32,
+            "observed_px": [871.4955491, 578.3961482],
+            "projected_px": [871.2656869, 579.8593366]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_left",
+            "point": 33,
+            "observed_px": [947.6355442, 608.1248258],
+            "projected_px": [947.4982641, 607.7738664]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_left",
+            "point": 34,
+            "observed_px": [1023.110077, 636.3831525],
+            "projected_px": [1022.779203, 635.3397732]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_left",
+            "point": 35,
+            "observed_px": [1097.191548, 663.3493761],
+            "projected_px": [1097.063991, 662.5409733]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_left",
+            "point": 36,
+            "observed_px": [448.1109415, 516.8160737],
+            "projected_px": [447.8020551, 516.3870693]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_left",
+            "point": 37,
+            "observed_px": [528.0197568, 544.8407506],
+            "projected_px": [528.3033227, 545.4358081]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_left",
+            "point": 38,
+            "observed_px": [608.0742682, 574.4161495],
+            "projected_px": [608.0696918, 574.1971568]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_left",
+            "point": 39,
+            "observed_px": [686.4196596, 603.074595],
+            "projected_px": [687.0549638, 602.6554069]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_left",
+            "point": 40,
+            "observed_px": [765.1088235, 631.2387949],
+            "projected_px": [765.2166323, 630.7957926]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_left",
+            "point": 41,
+            "observed_px": [842.079878, 658.9298392],
+            "projected_px": [842.5139578, 658.6038343]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_left",
+            "point": 42,
+            "observed_px": [918.2470593, 686.3769215],
+            "projected_px": [918.9063136, 686.064777]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_left",
+            "point": 43,
+            "observed_px": [993.295889, 713.8387079],
+            "projected_px": [994.3517752, 713.1631143]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_left",
+            "point": 44,
+            "observed_px": [1068.21018, 739.4036258],
+            "projected_px": [1068.805926, 739.8821871]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_left",
+            "point": 45,
+            "observed_px": [418.2470719, 597.2543761],
+            "projected_px": [418.3980638, 597.1592751]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_left",
+            "point": 46,
+            "observed_px": [498.8802086, 625.9876992],
+            "projected_px": [499.0118522, 625.8193776]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_left",
+            "point": 47,
+            "observed_px": [578.6409151, 653.8864703],
+            "projected_px": [578.8980132, 654.1766027]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_left",
+            "point": 48,
+            "observed_px": [658.2796325, 682.6231974],
+            "projected_px": [658.0093619, 682.2161442]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_left",
+            "point": 49,
+            "observed_px": [735.7837083, 710.345844],
+            "projected_px": [736.3026117, 709.9237439]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_left",
+            "point": 50,
+            "observed_px": [814.0203529, 737.3725625],
+            "projected_px": [813.7364273, 737.2850811]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_left",
+            "point": 51,
+            "observed_px": [890.2184267, 763.3837712],
+            "projected_px": [890.2697504, 764.2852542]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_left",
+            "point": 52,
+            "observed_px": [965.3533987, 790.8693844],
+            "projected_px": [965.8603699, 790.9083425]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_left",
+            "point": 53,
+            "observed_px": [1040.371033, 817.068252],
+            "projected_px": [1040.463711, 817.1370404]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_right",
+            "point": 0,
+            "observed_px": [223.39364, 193.4537153],
+            "projected_px": [222.9818537, 194.0935172]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_right",
+            "point": 1,
+            "observed_px": [304.2525585, 224.984958],
+            "projected_px": [304.0885511, 224.4220157]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_right",
+            "point": 2,
+            "observed_px": [384.5277521, 255.5084405],
+            "projected_px": [384.6116051, 254.5612016]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_right",
+            "point": 3,
+            "observed_px": [464.6617293, 284.5571608],
+            "projected_px": [464.4881237, 284.480792]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_right",
+            "point": 4,
+            "observed_px": [543.655106, 314.4434211],
+            "projected_px": [543.6722476, 314.1585499]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_right",
+            "point": 5,
+            "observed_px": [621.6861494, 342.6642432],
+            "projected_px": [622.1303807, 343.5783444]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_right",
+            "point": 6,
+            "observed_px": [699.863965, 371.6334385],
+            "projected_px": [699.8370256, 372.72845]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_right",
+            "point": 7,
+            "observed_px": [776.4267789, 401.475657],
+            "projected_px": [776.7711615, 401.6000585]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_right",
+            "point": 8,
+            "observed_px": [853.7185172, 429.9442679],
+            "projected_px": [852.9131135, 430.1859859]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_right",
+            "point": 9,
+            "observed_px": [193.0433582, 275.1501345],
+            "projected_px": [193.430617, 274.5861309]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_right",
+            "point": 10,
+            "observed_px": [275.2954178, 304.6768683],
+            "projected_px": [274.690234, 304.5964367]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_right",
+            "point": 11,
+            "observed_px": [356.1563653, 333.4101473],
+            "projected_px": [355.3679441, 334.3974724]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_right",
+            "point": 12,
+            "observed_px": [435.7085641, 363.9140396],
+            "projected_px": [435.4004452, 363.9633292]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_right",
+            "point": 13,
+            "observed_px": [513.5544213, 393.564424],
+            "projected_px": [514.7417324, 393.2751564]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_right",
+            "point": 14,
+            "observed_px": [593.0749802, 423.0658129],
+            "projected_px": [593.3582949, 422.3193258]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_right",
+            "point": 15,
+            "observed_px": [671.1161783, 451.0447176],
+            "projected_px": [671.2249195, 451.0858252]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_right",
+            "point": 16,
+            "observed_px": [748.0414104, 479.4752908],
+            "projected_px": [748.3210411, 479.5668584]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_right",
+            "point": 17,
+            "observed_px": [823.8764787, 507.5795295],
+            "projected_px": [824.6275862, 507.7556303]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_right",
+            "point": 18,
+            "observed_px": [164.0129255, 355.3570771],
+            "projected_px": [163.9691699, 355.149971]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_right",
+            "point": 19,
+            "observed_px": [245.9242412, 384.4582212],
+            "projected_px": [245.3596376, 384.8305394]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_right",
+            "point": 20,
+            "observed_px": [325.7247132, 413.6701102],
+            "projected_px": [326.1738578, 414.2839625]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_right",
+            "point": 21,
+            "observed_px": [407.0458359, 444.002804],
+            "projected_px": [406.3472165, 443.4883356]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_right",
+            "point": 22,
+            "observed_px": [485.2881247, 472.9870689],
+            "projected_px": [485.8327433, 472.4278548]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_right",
+            "point": 23,
+            "observed_px": [565.2089136, 499.9411712],
+            "projected_px": [564.5962671, 501.0910837]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_right",
+            "point": 24,
+            "observed_px": [643.0283244, 529.0728294],
+            "projected_px": [642.612183, 529.4694394]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_right",
+            "point": 25,
+            "observed_px": [719.7402691, 557.1759747],
+            "projected_px": [719.8597705, 557.5558775]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_right",
+            "point": 26,
+            "observed_px": [796.7421216, 585.2943849],
+            "projected_px": [796.320006, 585.3437553]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_right",
+            "point": 27,
+            "observed_px": [134.8546231, 435.0961966],
+            "projected_px": [134.6141496, 435.7375137]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_right",
+            "point": 28,
+            "observed_px": [216.7690336, 465.136645],
+            "projected_px": [216.111848, 465.0813827]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_right",
+            "point": 29,
+            "observed_px": [296.2514723, 493.9359373],
+            "projected_px": [297.043199, 494.1814488]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_right",
+            "point": 30,
+            "observed_px": [377.4637088, 522.501173],
+            "projected_px": [377.3413516, 523.0195006]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_right",
+            "point": 31,
+            "observed_px": [457.8435255, 551.6686138],
+            "projected_px": [456.9575266, 551.5824977]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_right",
+            "point": 32,
+            "observed_px": [535.9442836, 580.6882989],
+            "projected_px": [535.8561264, 579.8609367]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_right",
+            "point": 33,
+            "observed_px": [614.3304645, 607.8625952],
+            "projected_px": [614.0104596, 607.8474292]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_right",
+            "point": 34,
+            "observed_px": [691.0748955, 635.9622052],
+            "projected_px": [691.3990202, 635.5354694]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_right",
+            "point": 35,
+            "observed_px": [768.2849799, 662.4531909],
+            "projected_px": [768.0022658, 662.9183742]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_right",
+            "point": 36,
+            "observed_px": [105.6087677, 516.6695174],
+            "projected_px": [105.3867931, 516.3015581]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_right",
+            "point": 37,
+            "observed_px": [187.0363772, 544.6519398],
+            "projected_px": [186.9657483, 545.3061017]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_right",
+            "point": 38,
+            "observed_px": [267.6843871, 575.388036],
+            "projected_px": [267.9928548, 574.0505482]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_right",
+            "point": 39,
+            "observed_px": [348.296556, 601.3282273],
+            "projected_px": [348.3980732, 602.5201276]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_right",
+            "point": 40,
+            "observed_px": [428.9426629, 631.1888855],
+            "projected_px": [428.1299489, 630.7043346]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_right",
+            "point": 41,
+            "observed_px": [507.1647613, 659.4102904],
+            "projected_px": [507.1506687, 658.5953929]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_right",
+            "point": 42,
+            "observed_px": [585.8597707, 686.9249492],
+            "projected_px": [585.4317381, 686.1869224]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_right",
+            "point": 43,
+            "observed_px": [662.3751127, 714.06922],
+            "projected_px": [662.9502164, 713.4727894]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_right",
+            "point": 44,
+            "observed_px": [738.9826299, 741.0398845],
+            "projected_px": [739.6854549, 740.4461205]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_right",
+            "point": 45,
+            "observed_px": [76.46859007, 597.3300574],
+            "projected_px": [76.31424461, 596.7916985]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_right",
+            "point": 46,
+            "observed_px": [158.5737156, 625.4582831],
+            "projected_px": [157.9452887, 625.4584714]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_right",
+            "point": 47,
+            "observed_px": [239.1717873, 653.2554347],
+            "projected_px": [239.0439803, 653.8483695]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_right",
+            "point": 48,
+            "observed_px": [319.6362642, 681.8626701],
+            "projected_px": [319.5361129, 681.9498709]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_right",
+            "point": 49,
+            "observed_px": [399.3675559, 710.3301613],
+            "projected_px": [399.3666635, 709.7548325]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_right",
+            "point": 50,
+            "observed_px": [478.5065253, 736.4412525],
+            "projected_px": [478.4947902, 737.2570505]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_right",
+            "point": 51,
+            "observed_px": [556.3502535, 764.2422846],
+            "projected_px": [556.8894559, 764.4510164]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_right",
+            "point": 52,
+            "observed_px": [634.4592843, 791.2156519],
+            "projected_px": [634.5256144, 791.3308473]
+          },
+          {
+            "capture": "s1_t0_p3_r0",
+            "camera": "cam_right",
+            "point": 53,
+            "observed_px": [711.1139201, 818.0584007],
+            "projected_px": [711.3809032, 817.8893738]
+          }
+        ],
+        "errors_px": [
+          1.084360318, 1.026232039, 1.231042271, 0.3510194078, 0.9392474132, 1.454335799, 0.333551223, 0.9151200066,
+          0.5024195967, 1.09701296, 0.4319777071, 0.5644351154, 0.4219704022, 0.1003642124, 1.231438911, 0.6645685934,
+          0.7374324773, 0.4441310757, 1.103136012, 0.3744013335, 1.744526296, 0.8892156966, 0.6149155572, 0.2040446876,
+          1.019862593, 0.7094734282, 0.1966456961, 1.416743093, 0.6815601434, 0.6670958667, 0.8212390998, 0.923835121,
+          1.012520374, 1.200469969, 0.30923949, 0.4248563955, 0.5030533026, 0.3780464103, 0.8009021887, 0.2487054652,
+          0.2844009533, 0.1000519641, 0.7441722685, 0.1521536746, 0.565775406, 0.5730779333, 0.1467329107, 0.2020907596,
+          0.7944194739, 0.5334113512, 0.804591714, 0.3343292759, 0.826922723, 1.455492582, 0.7927962173, 0.2735650119,
+          0.4869429906, 0.3315564544, 0.9712610136, 1.335287233, 0.7597039142, 0.5771346188, 0.9504650215, 0.6469274429,
+          0.7800971324, 0.3759698374, 0.4496827329, 0.6514285588, 0.9940759679, 0.6132364458, 0.4390389655, 1.086232252,
+          0.8049763955, 1.055299611, 0.6360064295, 0.4045844849, 0.6414611003, 0.6196473018, 0.3917757654, 0.1956277543,
+          0.3581791707, 0.7832380497, 0.9063159682, 0.2125377895, 0.3916847883, 0.8110061061, 0.5066821645,
+          0.3643047436, 0.8022169105, 0.9144398255, 0.5795724212, 0.3404337585, 0.6570057393, 0.5715550028,
+          0.7640875015, 0.3171799266, 0.5099720921, 0.2091967181, 0.6315983447, 0.5202208546, 0.9493195504, 0.269019563,
+          0.6402755377, 0.2904933573, 1.060305134, 0.8621335166, 0.7749482712, 0.4646278852, 1.00113061, 0.2332467473,
+          0.9755274285, 0.3190998143, 0.8426555301, 0.4748976103, 0.5387749205, 0.3250460585, 1.453004792, 0.3922811434,
+          0.5419272658, 0.570203526, 0.1221381456, 0.7217709874, 0.3634484536, 0.9910792319, 0.7289892349, 1.018610075,
+          0.8378043764, 0.3603347395, 0.4512211805, 1.534192939, 0.4956806612, 0.3956426936, 1.480968347, 0.7010763749,
+          0.2399091017, 0.4402883759, 0.5055762491, 0.4608723214, 0.738092473, 0.8192897775, 1.16761343, 0.4389995595,
+          1.110441973, 0.454603597, 0.6177731778, 0.6966795493, 0.5292317342, 0.8570279892, 0.725031385, 0.8930807183,
+          0.5011921431, 1.075107963, 0.1782656188, 0.2864519892, 0.6038722576, 0.4177043163, 0.6804752642, 0.4297948715,
+          0.1713014371, 0.2177540234, 0.2136013791, 0.8416248154, 0.7351809888, 0.3591575008, 0.9537579903,
+          0.2841335678, 0.515868506, 0.523332075, 0.7236865938, 0.692470404, 0.09389562243, 0.5736655375, 0.8123022763,
+          0.58529922, 0.7052197978, 0.8917547427, 0.3782773912, 0.892576667, 0.9115828809, 0.5734463811, 0.8082040163,
+          0.130886107, 0.4939346078, 0.1547072988, 1.179660621, 0.5199182629, 0.2057893735, 0.3231561225, 0.8423388853,
+          0.3809686645, 0.354815716, 0.5679070164, 0.4276476741, 0.2103307161, 0.6484586294, 0.3171041001, 0.8119963699,
+          0.6230915583, 0.7034598671, 0.5468391918, 0.2781804991, 0.5289202435, 0.4595145736, 0.821145525, 0.307632999,
+          0.7865617577, 0.3446475487, 0.3871576946, 0.4126649844, 0.4412811721, 0.2231815654, 0.4731703685,
+          0.3635212256, 0.9559575757, 0.1559379143, 0.2669927913, 0.6390243349, 0.4660031973, 0.3370485699, 1.074127511,
+          0.4860552039, 0.5319053263, 1.350679608, 0.6874663493, 0.09928120414, 0.417513373, 0.4600751506,
+          0.07317080982, 0.5975965162, 0.2484763826, 0.4841079409, 0.4895338233, 0.932451405, 0.1892905974,
+          0.3815747039, 0.08981989409, 0.3499686436, 1.555549926, 0.1314508399, 0.5341555554, 0.9852960375,
+          0.1804996949, 0.05943557038, 0.1630980208, 1.053738167, 0.7280447997, 0.5158477546, 0.574487142, 0.4060377824,
+          0.8462289812, 0.7663058358, 1.184015276, 0.4405996122, 0.6268032439, 0.5047628006, 0.6926500444, 0.3637277992,
+          0.331871195, 0.452225496, 0.1571236312, 0.9757170079, 0.9372438292, 0.1427639656, 0.6355008324, 0.588755074,
+          0.05833072096, 0.4036879765, 0.9809365008, 1.250257875, 0.4606837631, 0.4911956538, 0.9330609743,
+          0.4781020582, 0.6139881313, 0.5974372619, 0.1574548138, 0.4490783177, 0.718336616, 0.8580369756, 0.2407224452,
+          0.6611753242, 0.04530259391, 0.1083586752, 0.1539806108, 0.4860820136, 1.212141385, 0.04459600211,
+          0.7716679802, 0.4382015624, 0.7234058299, 1.178929163, 0.7408835462, 0.1484319253, 0.9440332303, 0.7942973055,
+          0.8973975946, 0.8977348062, 0.7932663504, 1.147737283, 0.6090903255, 0.4083682592, 0.07509821273,
+          0.6638032277, 0.7517532245, 0.2721357919, 0.6598483378, 0.5173057097, 1.67715531, 0.5766098482, 0.1617923206,
+          0.2104346593, 0.8209336613, 0.7258428883, 1.27380176, 0.6178620541, 0.3268252299, 0.9850549204, 0.3138644881,
+          0.390814949, 0.4104706365, 0.8028644957, 0.4546057357, 1.06983607, 0.3510945857, 0.08903369919, 0.4924836053,
+          1.324590985, 0.8047646948, 0.4844217646, 0.1892342236, 0.2756813889, 0.5145800703, 0.6698814808, 0.3368271665,
+          0.2999818596, 0.3996576265, 0.2533833251, 0.4768376406, 0.8453262598, 0.7767472021, 0.6079944392, 0.46540939,
+          0.4639373064, 0.6188741932, 0.9716049589, 0.7538642782, 0.7258315972, 0.3821108382, 0.3085984567,
+          0.3205871791, 0.314741626, 0.4684650691, 0.9696312697, 0.6380057681, 0.4209568935, 0.8179675046, 1.481133621,
+          0.3768531792, 1.094585724, 0.8184045553, 0.5286356278, 0.6591684768, 0.2190404889, 0.7611374121, 0.4559317632,
+          0.5428668568, 0.7294178962, 1.25352395, 0.7641558865, 0.1784452916, 0.2136871179, 0.3876547412, 0.4886087116,
+          0.6689014828, 0.2970971384, 0.9029428986, 0.5084658198, 0.1154174154, 0.7608642676, 0.586346716, 0.9509432144,
+          0.1896604111, 0.2853864945, 1.016328006, 1.095342779, 0.3661627469, 0.8408939512, 0.6841559831, 0.6105052889,
+          1.263494682, 0.3120364395, 1.222040605, 0.7984423922, 0.1162518335, 0.2942413447, 0.7714751801, 0.2116777883,
+          0.6763121141, 0.7606218211, 0.8676097995, 0.7805957657, 1.302933086, 0.5748679318, 0.3982546199, 0.4249929259,
+          0.6849198024, 0.6595049733, 0.8289192911, 0.5325737137, 0.8901741399, 0.8320455852, 0.3203641277,
+          0.5358733543, 0.5443554621, 0.4297287175, 0.6579637018, 1.372598217, 1.196215756, 0.9461996019, 0.8150193031,
+          0.8531678704, 0.8285370549, 0.9200645042, 0.5600471655, 0.6284269389, 0.6065528228, 0.1327940147,
+          0.5753294979, 0.8158824288, 0.5781939179, 0.1329272665, 0.315990629
+        ]
+      },
+      "estimate": {
+        "cameras": [
+          {
+            "id": "cam_left",
+            "intrinsics": [2319.135171, 2319.539481, 645.6679387, 509.8940158],
+            "distortion": [-0.08741783458, -0.1105718751, 0.0, 6.097758158e-5, 0.001727243026],
+            "tilt": [0.0, 0.0],
+            "cam_se3_ref": { "rotation": [-0.0, -0.0, -0.0, 1.0], "translation": [0.0, 0.0, 0.0] }
+          },
+          {
+            "id": "cam_right",
+            "intrinsics": [2316.481662, 2315.587282, 648.9187522, 504.113615],
+            "distortion": [-0.05147937264, -0.1897910035, 0.0, -0.0008279179645, 0.001857079748],
+            "tilt": [0.0, 0.0],
+            "cam_se3_ref": {
+              "rotation": [-0.001193310823, -0.0007731261648, -7.318775798e-5, 0.9999989865],
+              "translation": [-0.07992465996, 6.535848888e-5, -0.001009699084]
+            }
+          }
+        ],
+        "handeye": {
+          "rotation": [0.1304191767, -0.009997114813, 0.08648562208, 0.9876290464],
+          "translation": [-0.03953049409, 0.02335956751, 0.04810463025]
+        },
+        "laser_planes": [],
+        "offsets": {
+          "cameras": [
+            {
+              "rotation": [0.0005104901207, 0.001337648833, -0.0001054432568, 0.9999989695],
+              "translation": [-0.0001289296286, 6.457349517e-5, -0.0001121161925]
+            },
+            {
+              "rotation": [0.001703978617, 0.002110609657, -3.345702499e-5, 0.9999963203],
+              "translation": [-0.0002007247343, -8.998930777e-6, 0.0005599579132]
+            }
+          ],
+          "target": {
+            "rotation": [6.802228334e-5, -4.854854058e-5, 0.0001091383426, 0.9999999906],
+            "translation": [-7.470577288e-6, 3.809872223e-6, 5.303879857e-6]
+          },
+          "planes": [null, null]
+        }
+      },
+      "quality": {
+        "checks": [
+          {
+            "kind": "observability",
+            "message": "the data determines every estimated parameter (28 shared), with 5156 residual degrees of freedom",
+            "status": "pass"
+          },
+          { "kind": "convergence", "message": "the final solve converged", "status": "pass" },
+          {
+            "kind": "variance_factor",
+            "message": "no expected feature noise was stated (expected_feature_noise_px)",
+            "status": "not_applicable"
+          },
+          {
+            "camera": 0,
+            "kind": "projection_sigma",
+            "measurement": { "threshold": 1.0, "unit": "pixel", "value": 5.487730499 },
+            "message": "projection \u03c3 up to 5.488 px over the 1280\u00d71024 image (centre 4.544 px, corners 5.488 px)",
+            "status": "warn"
+          },
+          {
+            "camera": 0,
+            "kind": "feature_coverage",
+            "measurement": { "threshold": 0.5, "unit": "fraction", "value": 0.4166666667 },
+            "message": "features reached 20 of 48 cells (8 \u00d7 6) of the image, 42 %",
+            "status": "warn"
+          },
+          {
+            "camera": 0,
+            "kind": "view_outliers",
+            "measurement": { "threshold": 3.0, "unit": "sigma", "value": 1.430128175 },
+            "message": "every view's mean residual is within 3 \u03c3\u0302 (worst 1.43 \u03c3\u0302, \u03c3\u0302 = 0.483 px)",
+            "status": "pass"
+          },
+          {
+            "camera": 0,
+            "kind": "parameter_correlation",
+            "measurement": { "threshold": 0.99, "unit": "correlation", "value": 0.9077969224 },
+            "message": "no two parameters correlate above 0.99 (largest |\u03c1| = 0.908)",
+            "status": "pass"
+          },
+          {
+            "camera": 1,
+            "kind": "projection_sigma",
+            "measurement": { "threshold": 1.0, "unit": "pixel", "value": 5.464719807 },
+            "message": "projection \u03c3 up to 5.465 px over the 1280\u00d71024 image (centre 4.544 px, corners 5.465 px)",
+            "status": "warn"
+          },
+          {
+            "camera": 1,
+            "kind": "feature_coverage",
+            "measurement": { "threshold": 0.5, "unit": "fraction", "value": 0.4166666667 },
+            "message": "features reached 20 of 48 cells (8 \u00d7 6) of the image, 42 %",
+            "status": "warn"
+          },
+          {
+            "camera": 1,
+            "kind": "view_outliers",
+            "measurement": { "threshold": 3.0, "unit": "sigma", "value": 1.509996669 },
+            "message": "every view's mean residual is within 3 \u03c3\u0302 (worst 1.51 \u03c3\u0302, \u03c3\u0302 = 0.483 px)",
+            "status": "pass"
+          },
+          {
+            "camera": 1,
+            "kind": "parameter_correlation",
+            "measurement": { "threshold": 0.99, "unit": "correlation", "value": 0.9038471637 },
+            "message": "no two parameters correlate above 0.99 (largest |\u03c1| = 0.904)",
+            "status": "pass"
+          }
+        ],
+        "verdict": "warn"
+      },
+      "uncertainty": {
+        "labels": [
+          "cam0.fx",
+          "cam0.fy",
+          "cam0.cx",
+          "cam0.cy",
+          "cam1.fx",
+          "cam1.fy",
+          "cam1.cx",
+          "cam1.cy",
+          "cam0.k1",
+          "cam0.k2",
+          "cam0.p1",
+          "cam0.p2",
+          "cam1.k1",
+          "cam1.k2",
+          "cam1.p1",
+          "cam1.p2",
+          "gripper_se3_rig.rx",
+          "gripper_se3_rig.ry",
+          "gripper_se3_rig.rz",
+          "gripper_se3_rig.tx",
+          "gripper_se3_rig.ty",
+          "gripper_se3_rig.tz",
+          "base_se3_target.rx",
+          "base_se3_target.ry",
+          "base_se3_target.rz",
+          "base_se3_target.tx",
+          "base_se3_target.ty",
+          "base_se3_target.tz"
+        ],
+        "sigma": [
+          3.233852598, 3.230061718, 4.542185736, 1.947374663, 3.251241831, 3.232877891, 4.545422425, 1.947294066,
+          0.01733515211, 0.2218907559, 0.0002961274453, 0.0007863762213, 0.01693606665, 0.1960924337, 0.0002906717052,
+          0.0008669949765, 0.0008295054589, 0.001937804056, 0.0005113310089, 0.000113886576, 0.0001015476321,
+          0.0007513185094, 0.0002267519814, 0.0001721938636, 0.0005111251747, 8.158813825e-6, 8.182873058e-6,
+          9.570316029e-6
+        ],
+        "fixed": ["cam0.k3", "cam1.k3", "cam0.cam_se3_rig", "cam1.cam_se3_rig"],
+        "noise_px": 0.4828985804
+      },
+      "procedure": "auto_rig",
+      "stages": [
+        {
+          "id": "rig_handeye",
+          "workflow": "rig_handeye",
+          "cameras": ["cam_left", "cam_right"],
+          "views": 24,
+          "points": 2592,
+          "mean_reproj_px": 0.6125467537
+        }
+      ]
+    },
+    {
+      "version": 3,
+      "workflow": "rig_handeye",
+      "gate": "G5.1",
+      "gated": false,
+      "pass": true,
+      "cameras": ["cam_left", "cam_right"],
+      "views": 24,
+      "points": 2592,
+      "laser_pixels": 0,
+      "noise": {
+        "pixel_sigma_px": 0.5,
+        "outlier_fraction": 0.0,
+        "outlier_sigma_px": 0.0,
+        "dropout_fraction": 0.0,
+        "laser_sigma_px": 0.0,
+        "robot_rot_sigma_rad": 0.0,
+        "robot_trans_sigma_m": 0.0,
+        "seed": 2
+      },
+      "rows": [
+        { "label": "mean reprojection px", "value": 0.6267270297, "limit": 0.05 },
+        { "label": "cam_left fx rel", "value": 0.00464321517, "limit": 0.0001 },
+        { "label": "cam_left fy rel", "value": 0.004877970397, "limit": 0.0001 },
+        { "label": "cam_left cx px", "value": 6.873268488, "limit": 0.05 },
+        { "label": "cam_left cy px", "value": 1.843149932, "limit": 0.05 },
+        { "label": "cam_left k1 abs", "value": 0.0007043639481 },
+        { "label": "cam_left k2 abs", "value": 0.1194498503 },
+        { "label": "cam_left k3 abs", "value": 0.0 },
+        { "label": "cam_left p1 abs", "value": 0.0001513056653 },
+        { "label": "cam_left p2 abs", "value": 0.0006001721577 },
+        { "label": "cam_right fx rel", "value": 0.002414806112, "limit": 0.0001 },
+        { "label": "cam_right fy rel", "value": 0.001852746628, "limit": 0.0001 },
+        { "label": "cam_right cx px", "value": 5.22255191, "limit": 0.05 },
+        { "label": "cam_right cy px", "value": 0.8502611285, "limit": 0.05 },
+        { "label": "cam_right k1 abs", "value": 0.02229555938 },
+        { "label": "cam_right k2 abs", "value": 0.09580917826 },
+        { "label": "cam_right k3 abs", "value": 0.0 },
+        { "label": "cam_right p1 abs", "value": 0.0001346649986 },
+        { "label": "cam_right p2 abs", "value": 0.002241384593 },
+        { "label": "cam_right cam_se3_rig deg", "value": 0.3120253905 },
+        { "label": "cam_right cam_se3_rig mm", "value": 3.620496479 },
+        { "label": "hand-eye rotation deg", "value": 0.1731070586, "limit": 0.01 },
+        { "label": "hand-eye translation mm", "value": 2.614361075, "limit": 0.05 },
+        { "label": "base_se3_target rot deg", "value": 0.0180174566 },
+        { "label": "base_se3_target trans mm", "value": 0.01138229424 }
+      ],
+      "residuals": {
+        "count": 2592,
+        "mean_px": 0.6267270297,
+        "rms_axis_px": 0.4998546835,
+        "max_px": 2.114214022,
+        "per_camera_mean_px": [0.6252188283, 0.6282352311],
+        "errors_px": [
+          0.4191953051, 0.6933993235, 0.6964245486, 0.8719762991, 0.3029589889, 0.3700519659, 0.9380770606,
+          0.7280396824, 1.620723309, 1.018202588, 0.8194053358, 0.7711245596, 0.2687567411, 0.4214227727, 0.5793577529,
+          1.35948307, 0.0624800152, 0.1751232138, 0.3412920331, 0.2064270897, 1.020478727, 0.4454684274, 1.190925879,
+          0.302209783, 0.5349365613, 0.5264971591, 0.6985567991, 0.3731232685, 0.2800588656, 0.4582027965, 0.4099724947,
+          0.3199674285, 0.9633973278, 0.689686251, 0.7667703622, 0.5217671777, 1.238117053, 0.5965776408, 0.3220052972,
+          0.3401404772, 0.2924464113, 0.5762744957, 0.2142232976, 0.5059723198, 0.3077737481, 0.7466343425,
+          0.9340573747, 1.01775853, 0.2929914625, 0.6283318496, 0.2526584387, 0.1648865979, 0.5214469581, 0.5406543423,
+          0.5699803068, 0.9048684307, 0.3251100915, 0.4196215058, 1.363794797, 0.7807459436, 0.9869137074, 0.4223816891,
+          0.4108487229, 0.888820717, 0.5589027494, 1.111073666, 0.7768857653, 0.3805080561, 0.2563384678, 1.243837433,
+          0.7967866055, 0.6477260399, 0.9384855777, 0.8608314866, 0.08495722774, 0.9600616261, 0.7616193248,
+          0.2044885547, 0.3341275663, 0.7417389389, 0.7686571267, 0.6681867305, 0.05300538394, 0.6461664114,
+          0.03688422875, 0.0788751659, 0.5011354856, 0.7738485224, 0.5389497429, 0.6667349412, 0.6110669805,
+          0.3684826956, 0.4568675283, 0.2325666122, 0.5087431009, 0.5338334105, 0.7281342923, 0.9893424495,
+          0.8195497786, 0.3506878139, 0.3955003816, 0.4635255716, 0.564074305, 0.8111380616, 0.9562294736, 0.7693233146,
+          0.6942948311, 0.3280428463, 1.108492614, 0.7438114117, 0.5783435092, 0.9643850178, 0.4717328093, 1.338942547,
+          0.5929997109, 0.5578314873, 0.9752304572, 0.893354407, 0.4177239981, 0.2749410687, 0.5504663931, 0.9969984085,
+          0.1319855659, 0.3125942493, 0.1842390071, 0.2855316323, 0.2034956654, 0.2821688711, 0.7017689658, 1.042045003,
+          0.8315210727, 0.5481419009, 0.3846850191, 1.298988924, 0.6559860454, 0.6692528316, 0.2967861983,
+          0.04950273576, 1.055313975, 0.5988199135, 0.346535772, 0.6664597414, 0.2714373773, 0.1591287999, 0.6213263647,
+          0.2693655682, 0.5551909948, 0.3046280655, 0.4672318928, 1.480159167, 0.1038721535, 0.4152246851, 1.29902545,
+          0.362357437, 0.9400853099, 1.009478792, 0.7104712644, 0.4497092117, 0.7314861711, 0.3772033064, 0.07316300385,
+          1.072990449, 0.2329188302, 0.6815218847, 0.08387632741, 0.7519200368, 0.6215540085, 0.6462758489,
+          0.2499452515, 0.8288132331, 0.5583573288, 0.3114202251, 0.5686157651, 0.6486510015, 0.7379250028,
+          0.3745477331, 0.2644336625, 0.5237408526, 1.216674206, 0.3471415067, 0.8931339247, 0.4500814779, 0.9153715156,
+          1.058999963, 0.5779759765, 0.2690848691, 0.8047272231, 0.2757797733, 0.3016079048, 0.8799442878, 0.7279007317,
+          0.8020668241, 0.7836091946, 0.3758904861, 0.442876687, 0.5240000771, 0.6339108302, 0.332699409, 0.3893638382,
+          1.1294238, 1.13847183, 0.1823832493, 0.7985918576, 0.6522431191, 0.3098328738, 0.9498954288, 0.1051794521,
+          0.5452633704, 0.3921759913, 0.6013680378, 0.39665188, 0.6489172594, 1.380665489, 1.507791847, 1.021683389,
+          0.7983133802, 0.6416687458, 0.9848677639, 0.9053486575, 0.6836433724, 0.8734053799, 0.1270418573,
+          0.2248834745, 0.1236379441, 0.2962577034, 0.7047541491, 0.524894782, 0.9398219113, 0.6103390943, 0.3758101093,
+          0.8298689992, 0.3016812437, 0.8504010546, 1.199244817, 0.9752659136, 0.487565869, 1.148052328, 1.444232302,
+          1.369582274, 0.8385953448, 0.6331997778, 0.976378499, 0.6977778555, 0.5188151075, 0.6763746799, 0.7711675505,
+          0.4212229513, 0.3306276975, 0.7355594614, 0.3206871652, 0.2383527429, 1.579306677, 0.8479888363, 0.4928141373,
+          0.639862494, 0.5364983146, 0.06627171135, 0.5039795046, 0.9118342298, 0.2456779533, 0.7149784966,
+          0.5122905148, 0.859257858, 0.9217518997, 0.2447837824, 0.735973263, 1.686249441, 0.3866838052, 0.4996677074,
+          0.7010570516, 0.4389973689, 0.2652189637, 0.3910465063, 0.2788064713, 1.209253503, 0.4892621428, 0.6052965542,
+          0.3823697581, 0.6297527968, 0.3171369838, 0.3324424191, 0.7890775172, 0.7650880742, 0.4096615864,
+          0.5710497358, 1.017266384, 0.4278173364, 0.7078298797, 0.515953747, 0.7565129437, 0.4051260768, 0.7904170541,
+          0.5290996827, 0.5709607864, 0.296445023, 0.3089325451, 0.565939552, 1.101853326, 0.8851182505, 0.3065250264,
+          0.2236706592, 0.7714734584, 0.8929519646, 0.9763180551, 0.659845476, 0.4717898528, 0.5169397587, 1.094321417,
+          0.6525432802, 0.8885780029, 0.2464119955, 0.4420141579, 0.5287832856, 0.5758202438, 0.239563168, 1.006907302,
+          0.345739744, 0.3673231996, 0.7351363421, 0.7174770679, 0.8781492272, 1.159587876, 0.4278199625, 0.5452721907,
+          0.5956040924, 0.2348033791, 0.6271278759, 0.5518411053, 0.8115132046, 1.113205825, 0.6657980544, 0.7006480082,
+          0.713803151, 0.6781872849, 0.6752753999, 0.3109156969, 0.8514819427, 0.5578331467, 0.4879753414, 0.2502017511,
+          0.9742309726, 0.5118529591, 0.7074736265, 0.3974199328, 0.3607908687, 0.3829520204, 0.4219411308,
+          0.3828818896, 0.3029358185, 0.2489480318, 0.7945567372, 0.3141462161, 0.6742042686, 0.535372095, 0.7673271762,
+          0.2620606948, 0.8649181052, 0.2908947211, 1.178278801, 0.3148655097, 0.9186433003, 0.5854964896, 1.265171082,
+          0.7295129099, 0.119721911, 0.6369468565, 0.7232647472, 0.4397724113, 0.2530491365, 1.146682131, 0.3057044134,
+          0.6051260591, 0.2911931048, 1.258820033, 0.1644968473, 0.6873425257, 0.6426298642, 0.769248338, 0.436369946,
+          0.7180771359, 0.8635289811, 0.4124527947, 0.5663176425, 0.6788283043, 0.5101333855, 0.2594039932,
+          0.01603815066, 0.6321516352, 0.9202653786, 0.8739921333, 0.5049782555, 0.7822454875, 0.241589394,
+          0.2860630124, 0.3254029633, 1.28635425, 0.2750469773, 0.9063552882, 0.5188549791, 1.058434003, 0.2700551254,
+          0.3432102192, 0.512863309, 0.4029877717, 0.3086317898, 0.6574924665, 0.7371277583, 1.902250209, 0.9273974068,
+          0.4417427244, 0.4208211214, 0.8875142795, 0.4633307878, 0.2408675292, 0.5251366689, 1.115461069, 0.6589370672,
+          0.8637261042, 1.093077273, 0.3846594864, 0.938050281, 0.8887785708, 1.26541809, 0.9499984854, 0.2827533446,
+          0.5703714758, 0.9963642226, 0.5066938985, 0.3385488946, 1.575603739, 1.058565857, 0.9275890588
+        ]
+      },
+      "estimate": {
+        "cameras": [
+          {
+            "id": "cam_left",
+            "intrinsics": [2308.033313, 2307.488962, 633.1267315, 513.8431499],
+            "distortion": [-0.07929563605, -0.09944985032, 0.0, 0.0001513056653, -0.0006001721577],
+            "tilt": [0.0, 0.0],
+            "cam_se3_ref": { "rotation": [-0.0, -0.0, -0.0, 1.0], "translation": [0.0, 0.0, 0.0] }
+          },
+          {
+            "id": "cam_right",
+            "intrinsics": [2324.399452, 2323.096149, 645.2225519, 511.1497389],
+            "distortion": [-0.04770444062, -0.07580917826, 0.0, 0.0001346649986, 0.002241384593],
+            "tilt": [0.0, 0.0],
+            "cam_se3_ref": {
+              "rotation": [-0.0004206807246, -0.002690169828, -1.928327617e-5, 0.9999962928],
+              "translation": [-0.07992492393, 0.0001775028679, 0.003615363201]
+            }
+          }
+        ],
+        "handeye": {
+          "rotation": [0.1298513252, -0.01285729628, 0.08617408948, 0.9876980053],
+          "translation": [-0.03941211526, 0.02270892307, 0.05075098096]
+        },
+        "laser_planes": [],
+        "offsets": {
+          "cameras": [
+            {
+              "rotation": [-0.0003100202395, -0.001477928479, -4.072615656e-5, 0.999998859],
+              "translation": [-2.546504774e-6, 9.961129149e-5, 0.002612461471]
+            },
+            {
+              "rotation": [0.0001107422154, 0.001212232604, -2.165502248e-5, 0.9999992589],
+              "translation": [-8.663058566e-5, -8.05307264e-5, -0.001196705757]
+            }
+          ],
+          "target": {
+            "rotation": [0.0001390634943, -6.023542735e-5, 4.189188614e-5, 0.9999999876],
+            "translation": [9.650867337e-6, 9.440055757e-7, 5.960388848e-6]
+          },
+          "planes": [null, null]
+        }
+      },
+      "quality": {
+        "checks": [
+          {
+            "kind": "observability",
+            "message": "the data determines every estimated parameter (28 shared), with 5156 residual degrees of freedom",
+            "status": "pass"
+          },
+          { "kind": "convergence", "message": "the final solve converged", "status": "pass" },
+          {
+            "kind": "variance_factor",
+            "message": "no expected feature noise was stated (expected_feature_noise_px)",
+            "status": "not_applicable"
+          },
+          {
+            "camera": 0,
+            "kind": "projection_sigma",
+            "measurement": { "threshold": 1.0, "unit": "pixel", "value": 5.514965718 },
+            "message": "projection \u03c3 up to 5.515 px over the 1280\u00d71024 image (centre 4.626 px, corners 5.515 px)",
+            "status": "warn"
+          },
+          {
+            "camera": 0,
+            "kind": "feature_coverage",
+            "measurement": { "threshold": 0.5, "unit": "fraction", "value": 0.4166666667 },
+            "message": "features reached 20 of 48 cells (8 \u00d7 6) of the image, 42 %",
+            "status": "warn"
+          },
+          {
+            "camera": 0,
+            "kind": "view_outliers",
+            "measurement": { "threshold": 3.0, "unit": "sigma", "value": 1.370489445 },
+            "message": "every view's mean residual is within 3 \u03c3\u0302 (worst 1.37 \u03c3\u0302, \u03c3\u0302 = 0.498 px)",
+            "status": "pass"
+          },
+          {
+            "camera": 0,
+            "kind": "parameter_correlation",
+            "measurement": { "threshold": 0.99, "unit": "correlation", "value": 0.9047205721 },
+            "message": "no two parameters correlate above 0.99 (largest |\u03c1| = 0.905)",
+            "status": "pass"
+          },
+          {
+            "camera": 1,
+            "kind": "projection_sigma",
+            "measurement": { "threshold": 1.0, "unit": "pixel", "value": 5.496317768 },
+            "message": "projection \u03c3 up to 5.496 px over the 1280\u00d71024 image (centre 4.627 px, corners 5.496 px)",
+            "status": "warn"
+          },
+          {
+            "camera": 1,
+            "kind": "feature_coverage",
+            "measurement": { "threshold": 0.5, "unit": "fraction", "value": 0.4166666667 },
+            "message": "features reached 20 of 48 cells (8 \u00d7 6) of the image, 42 %",
+            "status": "warn"
+          },
+          {
+            "camera": 1,
+            "kind": "view_outliers",
+            "measurement": { "threshold": 3.0, "unit": "sigma", "value": 1.386769612 },
+            "message": "every view's mean residual is within 3 \u03c3\u0302 (worst 1.39 \u03c3\u0302, \u03c3\u0302 = 0.498 px)",
+            "status": "pass"
+          },
+          {
+            "camera": 1,
+            "kind": "parameter_correlation",
+            "measurement": { "threshold": 0.99, "unit": "correlation", "value": 0.905011967 },
+            "message": "no two parameters correlate above 0.99 (largest |\u03c1| = 0.905)",
+            "status": "pass"
+          }
+        ],
+        "verdict": "warn"
+      },
+      "uncertainty": {
+        "labels": [
+          "cam0.fx",
+          "cam0.fy",
+          "cam0.cx",
+          "cam0.cy",
+          "cam1.fx",
+          "cam1.fy",
+          "cam1.cx",
+          "cam1.cy",
+          "cam0.k1",
+          "cam0.k2",
+          "cam0.p1",
+          "cam0.p2",
+          "cam1.k1",
+          "cam1.k2",
+          "cam1.p1",
+          "cam1.p2",
+          "gripper_se3_rig.rx",
+          "gripper_se3_rig.ry",
+          "gripper_se3_rig.rz",
+          "gripper_se3_rig.tx",
+          "gripper_se3_rig.ty",
+          "gripper_se3_rig.tz",
+          "base_se3_target.rx",
+          "base_se3_target.ry",
+          "base_se3_target.rz",
+          "base_se3_target.tx",
+          "base_se3_target.ty",
+          "base_se3_target.tz"
+        ],
+        "sigma": [
+          3.30517985, 3.288777625, 4.627778362, 1.974516198, 3.293278845, 3.278505651, 4.627820191, 1.974087372,
+          0.01718020526, 0.2000059122, 0.0002890751724, 0.0008456061792, 0.01746442613, 0.2083563614, 0.0003022693444,
+          0.000885964942, 0.00084201531, 0.001974665713, 0.0005203861455, 0.0001163340758, 0.000103195185,
+          0.0007655969972, 0.0002308451511, 0.0001753345597, 0.0005201734081, 8.251652106e-6, 8.277991435e-6,
+          9.690067844e-6
+        ],
+        "fixed": ["cam0.k3", "cam1.k3", "cam0.cam_se3_rig", "cam1.cam_se3_rig"],
+        "noise_px": 0.4981723378
+      },
+      "procedure": "auto_rig",
+      "stages": [
+        {
+          "id": "rig_handeye",
+          "workflow": "rig_handeye",
+          "cameras": ["cam_left", "cam_right"],
+          "views": 24,
+          "points": 2592,
+          "mean_reproj_px": 0.6267270297
+        }
+      ]
+    },
+    {
+      "version": 3,
+      "workflow": "rig_handeye",
+      "gate": "G5.1",
+      "gated": false,
+      "pass": true,
+      "cameras": ["cam_left", "cam_right"],
+      "views": 24,
+      "points": 2592,
+      "laser_pixels": 0,
+      "noise": {
+        "pixel_sigma_px": 0.5,
+        "outlier_fraction": 0.0,
+        "outlier_sigma_px": 0.0,
+        "dropout_fraction": 0.0,
+        "laser_sigma_px": 0.0,
+        "robot_rot_sigma_rad": 0.0,
+        "robot_trans_sigma_m": 0.0,
+        "seed": 3
+      },
+      "rows": [
+        { "label": "mean reprojection px", "value": 0.620098832, "limit": 0.05 },
+        { "label": "cam_left fx rel", "value": 0.001126390376, "limit": 0.0001 },
+        { "label": "cam_left fy rel", "value": 0.000983484446, "limit": 0.0001 },
+        { "label": "cam_left cx px", "value": 7.718751468, "limit": 0.05 },
+        { "label": "cam_left cy px", "value": 4.191292874, "limit": 0.05 },
+        { "label": "cam_left k1 abs", "value": 0.0225655464 },
+        { "label": "cam_left k2 abs", "value": 0.1900523451 },
+        { "label": "cam_left k3 abs", "value": 0.0 },
+        { "label": "cam_left p1 abs", "value": 0.0006584327718 },
+        { "label": "cam_left p2 abs", "value": 0.002021166593 },
+        { "label": "cam_right fx rel", "value": 0.0001799901417, "limit": 0.0001 },
+        { "label": "cam_right fy rel", "value": 0.0002546442322, "limit": 0.0001 },
+        { "label": "cam_right cx px", "value": 2.307156567, "limit": 0.05 },
+        { "label": "cam_right cy px", "value": 0.269689244, "limit": 0.05 },
+        { "label": "cam_right k1 abs", "value": 0.006037593001 },
+        { "label": "cam_right k2 abs", "value": 0.09367899136 },
+        { "label": "cam_right k3 abs", "value": 0.0 },
+        { "label": "cam_right p1 abs", "value": 0.0001911781313 },
+        { "label": "cam_right p2 abs", "value": 0.000105825239 },
+        { "label": "cam_right cam_se3_rig deg", "value": 0.1850426666 },
+        { "label": "cam_right cam_se3_rig mm", "value": 0.4736422611 },
+        { "label": "hand-eye rotation deg", "value": 0.2232093923, "limit": 0.01 },
+        { "label": "hand-eye translation mm", "value": 0.6075248899, "limit": 0.05 },
+        { "label": "base_se3_target rot deg", "value": 0.02258179684 },
+        { "label": "base_se3_target trans mm", "value": 0.01018995342 }
+      ],
+      "residuals": {
+        "count": 2592,
+        "mean_px": 0.620098832,
+        "rms_axis_px": 0.4947972626,
+        "max_px": 2.312742555,
+        "per_camera_mean_px": [0.6320964839, 0.6081011801],
+        "errors_px": [
+          0.6621254145, 0.5118089671, 0.4096123246, 0.3318451429, 0.558411129, 0.09364085066, 0.7872919704, 0.934066897,
+          0.3128525215, 0.9985583745, 0.4724663821, 0.08331011813, 1.115054259, 0.5548478115, 0.3711327786,
+          0.7222848686, 0.7371593508, 0.1963886645, 0.7891907187, 0.8241233766, 0.9887759556, 0.770635202, 1.006501206,
+          0.7947633216, 0.2073442346, 0.2863493447, 0.6827529864, 1.378627316, 0.7795485395, 0.2576348104, 0.8308253717,
+          0.316922806, 1.111961186, 0.305574281, 0.09172164784, 0.5403890914, 0.2481098363, 1.032831506, 0.7949061483,
+          1.084019104, 0.5473584408, 0.8510661395, 0.236748557, 0.7321087378, 0.3775271575, 0.8664482742, 1.405211945,
+          0.4075245252, 0.4074644167, 0.3383661798, 0.3661309507, 1.108247567, 0.72606476, 0.6668045284, 0.1016257384,
+          0.6575245409, 0.6553906402, 0.9968421768, 0.783780873, 0.6555006081, 0.3606519986, 0.7158388888, 0.4653720107,
+          0.2509416921, 0.5461833431, 1.304708164, 1.008679061, 0.3085544478, 0.3498888019, 0.2130177884, 0.8403619223,
+          0.411690098, 0.2378566222, 0.4571543082, 0.7771626998, 0.9263138453, 1.534557512, 0.460104462, 0.4818088592,
+          1.022579456, 1.153987443, 0.306035627, 0.7849058012, 0.3859975124, 0.6447101145, 0.6288164892, 1.37222279,
+          0.2184425181, 0.922134227, 0.4423794405, 0.1180359002, 0.3533473164, 0.3391193396, 0.5492972125, 0.838436331,
+          0.6694141755, 0.1737889843, 0.5023570528, 0.5319989265, 0.717789979, 0.7804650894, 0.6029774909, 0.352383312,
+          0.8266982196, 0.7597461163, 0.2270735824, 0.4573987269, 1.50717887, 0.4233807467, 0.301103164, 0.082547456,
+          0.3575882787, 0.3847682242, 0.2600599546, 0.3118920286, 0.2795280665, 1.187773542, 0.4133900596, 0.791373359,
+          0.7812441229, 0.8161671653, 1.411800118, 0.2153683112, 0.2499523352, 0.2743229428, 0.6950113956, 1.073420937,
+          0.6817122791, 0.6019616013, 0.5459002957, 0.7652974054, 0.3076339331, 0.8892134283, 0.6682536807,
+          0.5782896902, 0.1368149543, 0.3102116479, 0.6052256928, 0.7865344274, 0.8357202122, 0.4835394803,
+          0.4982171048, 1.974429603, 0.2708679792, 0.6518514376, 0.347858958, 0.7475022353, 0.3692757878, 0.1370165564,
+          0.5030956945, 0.7686543772, 0.771462536, 0.9876732166, 1.016464631, 0.9444403125, 0.6249456469, 0.4119199979,
+          0.9226399842, 0.5583703108, 0.5078058067, 0.7544936702, 0.5200551281, 0.2520428949, 0.2967539357,
+          0.1424002709, 0.7387394108, 0.5825061085, 1.182550834, 0.488933249, 0.7199230495, 0.5141129565, 0.6145562041,
+          0.7027051482, 0.6637080134, 0.6301854001, 0.4609524107, 0.6276977249, 0.8260947856, 0.2480051009,
+          0.6417349199, 0.4632435609, 0.5553140927, 0.4947504481, 0.4939202991, 0.1836047459, 0.4247535736,
+          0.5082829945, 0.8656146349, 1.187156097, 1.073543292, 0.4732575966, 1.328283239, 0.3953636367, 0.5796978915,
+          0.1768864903, 0.7300996039, 0.6585889604, 0.4042935401, 0.4718601456, 0.5790233556, 0.448717274, 0.1519924211,
+          0.7644225652, 0.6517439186, 0.6890024301, 1.000760866, 0.05597625074, 0.971689953, 0.2197974417, 0.2459374487,
+          0.5295502393, 0.1434675612, 0.7280400214, 0.8295540635, 0.2101291875, 0.5773731404, 0.8587112206,
+          0.6408154766, 1.279808054, 0.4388484095, 0.7284765986, 0.751060898, 0.7449083705, 0.3732263439, 0.6353453478,
+          0.2165519068, 0.6304389666, 0.655461368, 0.7942405786, 0.6805616571, 0.7573664472, 0.9500806694, 1.231113198,
+          1.353241373, 0.2576899197, 0.466887761, 0.4097856838, 0.7653273288, 0.616327715, 0.5803690096, 0.04010753907,
+          0.8432854336, 0.1189942015, 1.29446773, 0.2159687449, 0.510583136, 0.5206661874, 0.7164345328, 0.9173176385,
+          1.012468246, 0.2643381263, 0.3815644225, 0.782390313, 0.1779956875, 0.4848544252, 0.5425966783, 0.1684996022,
+          0.9023528971, 0.5991390991, 0.4835133454, 0.3932648168, 0.9379479159, 0.6773134879, 0.3862486579, 1.144372152,
+          0.6142739957, 0.3253299466, 0.4653722041, 0.2313019684, 0.3501075921, 1.299824664, 0.7901520771, 0.4868291658,
+          0.6369219289, 1.317613913, 0.7045025913, 0.3254828112, 0.7795780284, 0.1332358841, 0.6878255383, 0.7974784815,
+          0.1269532847, 1.023435105, 0.542979976, 0.2475234564, 0.5671046919, 0.1611057671, 1.259508816, 0.2214343688,
+          1.005576031, 0.8264141634, 0.7196028313, 0.820813351, 1.100143849, 1.018063522, 0.3774861406, 0.6370086037,
+          0.6248854316, 1.474382094, 0.5193018169, 0.3387302128, 0.4198667207, 0.8379885044, 0.3974571578, 0.2465403638,
+          1.236555217, 0.07813109283, 0.354756147, 0.6313958783, 0.9141092618, 0.4386591945, 0.7292913487, 0.2651012772,
+          0.06012107121, 0.442647654, 1.226223807, 0.235343676, 0.8627068612, 0.5412049462, 1.559669103, 0.6331291286,
+          0.6243936445, 0.7165511808, 1.017840638, 1.096792237, 0.4671900827, 0.5958104273, 0.4025119664, 0.4181036894,
+          0.9344592085, 0.1913461516, 0.2360389611, 0.05479488695, 0.487603624, 0.9689082694, 1.00469333, 0.735329756,
+          0.6435219512, 0.6689614698, 0.7291884486, 0.7850571183, 0.4375751747, 0.9268072783, 0.537879717, 0.6931426783,
+          0.6999300688, 0.8425881393, 0.3568965789, 0.8048967355, 0.9641783804, 0.4542060011, 0.4969159596,
+          0.8692014257, 0.4960876506, 1.050402137, 0.3923880979, 0.3887259371, 1.122553752, 1.108660226, 0.08946318733,
+          0.9011316638, 0.8064606735, 0.2638157526, 0.3478827152, 0.6072605905, 0.3435979381, 0.7031010856,
+          0.4172639997, 0.3703650264, 0.6732606563, 0.468259928, 1.123696602, 0.3468821811, 0.409089352, 0.3294476026,
+          0.421916532, 0.9461279273, 0.2691987667, 0.5558735013, 0.7574459314, 0.8540130679, 0.1548230911, 0.6235043443,
+          0.2857731125, 0.1547192304, 0.9352777472, 1.106504855, 0.9590971424, 0.1373525263, 1.036443191, 0.7072289652,
+          0.42937747, 0.8725602316, 0.074585951, 0.1024152214, 0.6422925975, 0.903309276, 0.1358957591, 0.2865135718,
+          0.5735093188, 0.2218450313, 1.127463103, 0.3595848484, 0.1702710921, 0.4454822481, 0.4996398174, 0.5502471886,
+          0.7963451855, 1.000910373, 0.6002887049, 1.017721741, 0.5333042437, 1.179285611, 0.1466540368, 0.4723849169,
+          0.7538811932, 0.8105706215, 0.7388391253, 0.1506450385, 1.404276305, 0.4924140739, 0.7730758152, 0.9057312203,
+          0.2910810099, 0.7078612974, 0.7708699278, 0.3641949452, 0.4907027328, 0.3281513652, 1.001200958, 0.0342926281,
+          0.2272900593
+        ]
+      },
+      "estimate": {
+        "cameras": [
+          {
+            "id": "cam_left",
+            "intrinsics": [2316.188126, 2316.519496, 647.7187515, 516.1912929],
+            "distortion": [-0.1025655464, 0.2100523451, 0.0, 0.0006584327718, 0.002021166593],
+            "tilt": [0.0, 0.0],
+            "cam_se3_ref": { "rotation": [-0.0, -0.0, -0.0, 1.0], "translation": [0.0, 0.0, 0.0] }
+          },
+          {
+            "id": "cam_right",
+            "intrinsics": [2318.382639, 2318.209531, 642.3071566, 512.2696892],
+            "distortion": [-0.076037593, 0.1136789914, 0.0, -0.0001911781313, -0.000105825239],
+            "tilt": [0.0, 0.0],
+            "cam_se3_ref": {
+              "rotation": [-0.000887112522, 0.001347706435, 6.558681025e-5, 0.9999986962],
+              "translation": [-0.080186526, -4.298447266e-5, 0.0004332405531]
+            }
+          }
+        ],
+        "handeye": {
+          "rotation": [0.1288858484, -0.009830479626, 0.08668774679, 0.9878142712],
+          "translation": [-0.03935688792, 0.02303323292, 0.04875136733]
+        },
+        "laser_planes": [],
+        "offsets": {
+          "cameras": [
+            {
+              "rotation": [-0.001011321748, 0.00166311414, 7.396020573e-5, 0.9999981029],
+              "translation": [1.636915462e-5, -0.000111154207, 0.000597045463]
+            },
+            {
+              "rotation": [-0.0001242189923, 0.0003154073746, 8.261018932e-6, 0.9999999425],
+              "translation": [0.0002026051851, -6.695880991e-5, 0.0001132113258]
+            }
+          ],
+          "target": {
+            "rotation": [-0.0001842042002, 6.377651665e-5, -2.890213002e-5, 0.9999999806],
+            "translation": [4.306018936e-6, -4.696959634e-6, -7.951850212e-6]
+          },
+          "planes": [null, null]
+        }
+      },
+      "quality": {
+        "checks": [
+          {
+            "kind": "observability",
+            "message": "the data determines every estimated parameter (28 shared), with 5156 residual degrees of freedom",
+            "status": "pass"
+          },
+          { "kind": "convergence", "message": "the final solve converged", "status": "pass" },
+          {
+            "kind": "variance_factor",
+            "message": "no expected feature noise was stated (expected_feature_noise_px)",
+            "status": "not_applicable"
+          },
+          {
+            "camera": 0,
+            "kind": "projection_sigma",
+            "measurement": { "threshold": 1.0, "unit": "pixel", "value": 5.45946599 },
+            "message": "projection \u03c3 up to 5.459 px over the 1280\u00d71024 image (centre 4.602 px, corners 5.459 px)",
+            "status": "warn"
+          },
+          {
+            "camera": 0,
+            "kind": "feature_coverage",
+            "measurement": { "threshold": 0.5, "unit": "fraction", "value": 0.4166666667 },
+            "message": "features reached 20 of 48 cells (8 \u00d7 6) of the image, 42 %",
+            "status": "warn"
+          },
+          {
+            "camera": 0,
+            "kind": "view_outliers",
+            "measurement": { "threshold": 3.0, "unit": "sigma", "value": 1.570003582 },
+            "message": "every view's mean residual is within 3 \u03c3\u0302 (worst 1.57 \u03c3\u0302, \u03c3\u0302 = 0.499 px)",
+            "status": "pass"
+          },
+          {
+            "camera": 0,
+            "kind": "parameter_correlation",
+            "measurement": { "threshold": 0.99, "unit": "correlation", "value": 0.9080754935 },
+            "message": "no two parameters correlate above 0.99 (largest |\u03c1| = 0.908)",
+            "status": "pass"
+          },
+          {
+            "camera": 1,
+            "kind": "projection_sigma",
+            "measurement": { "threshold": 1.0, "unit": "pixel", "value": 5.415212757 },
+            "message": "projection \u03c3 up to 5.415 px over the 1280\u00d71024 image (centre 4.603 px, corners 5.415 px)",
+            "status": "warn"
+          },
+          {
+            "camera": 1,
+            "kind": "feature_coverage",
+            "measurement": { "threshold": 0.5, "unit": "fraction", "value": 0.4166666667 },
+            "message": "features reached 20 of 48 cells (8 \u00d7 6) of the image, 42 %",
+            "status": "warn"
+          },
+          {
+            "camera": 1,
+            "kind": "view_outliers",
+            "measurement": { "threshold": 3.0, "unit": "sigma", "value": 1.389846617 },
+            "message": "every view's mean residual is within 3 \u03c3\u0302 (worst 1.39 \u03c3\u0302, \u03c3\u0302 = 0.499 px)",
+            "status": "pass"
+          },
+          {
+            "camera": 1,
+            "kind": "parameter_correlation",
+            "measurement": { "threshold": 0.99, "unit": "correlation", "value": 0.9057338503 },
+            "message": "no two parameters correlate above 0.99 (largest |\u03c1| = 0.906)",
+            "status": "pass"
+          }
+        ],
+        "verdict": "warn"
+      },
+      "uncertainty": {
+        "labels": [
+          "cam0.fx",
+          "cam0.fy",
+          "cam0.cx",
+          "cam0.cy",
+          "cam1.fx",
+          "cam1.fy",
+          "cam1.cx",
+          "cam1.cy",
+          "cam0.k1",
+          "cam0.k2",
+          "cam0.p1",
+          "cam0.p2",
+          "cam1.k1",
+          "cam1.k2",
+          "cam1.p1",
+          "cam1.p2",
+          "gripper_se3_rig.rx",
+          "gripper_se3_rig.ry",
+          "gripper_se3_rig.rz",
+          "gripper_se3_rig.tx",
+          "gripper_se3_rig.ty",
+          "gripper_se3_rig.tz",
+          "base_se3_target.rx",
+          "base_se3_target.ry",
+          "base_se3_target.rz",
+          "base_se3_target.tx",
+          "base_se3_target.ty",
+          "base_se3_target.tz"
+        ],
+        "sigma": [
+          3.254203133, 3.250401849, 4.60061931, 1.950121767, 3.25962373, 3.249867014, 4.602631675, 1.950364181,
+          0.01746350934, 0.2254452152, 0.0003020453201, 0.0007815310102, 0.01726529155, 0.2087259971, 0.0002989513935,
+          0.0008410487466, 0.0008311535604, 0.001963116996, 0.0005150194525, 0.0001148914238, 0.0001023145331,
+          0.0007561785635, 0.0002285374953, 0.0001735746023, 0.0005148013317, 8.130318235e-6, 8.15687547e-6,
+          9.555918841e-6
+        ],
+        "fixed": ["cam0.k3", "cam1.k3", "cam0.cam_se3_rig", "cam1.cam_se3_rig"],
+        "noise_px": 0.4991365546
+      },
+      "procedure": "auto_rig",
+      "stages": [
+        {
+          "id": "rig_handeye",
+          "workflow": "rig_handeye",
+          "cameras": ["cam_left", "cam_right"],
+          "views": 24,
+          "points": 2592,
+          "mean_reproj_px": 0.620098832
+        }
+      ]
+    }
+  ],
+  "row_stats": [
+    { "label": "mean reprojection px", "mean": 0.6197908718, "std": 0.0057931676, "max": 0.6267270297, "limit": 0.05 },
+    {
+      "label": "cam_left fx rel",
+      "mean": 0.001971383574,
+      "std": 0.001931323908,
+      "max": 0.00464321517,
+      "limit": 0.0001
+    },
+    {
+      "label": "cam_left fy rel",
+      "mean": 0.002060120526,
+      "std": 0.00201090764,
+      "max": 0.004877970397,
+      "limit": 0.0001
+    },
+    { "label": "cam_left cx px", "mean": 6.753319553, "std": 0.8415260182, "max": 7.718751468, "limit": 0.05 },
+    { "label": "cam_left cy px", "mean": 2.713475674, "std": 1.050469172, "max": 4.191292874, "limit": 0.05 },
+    { "label": "cam_left k1 abs", "mean": 0.01022924831, "std": 0.009143517189, "max": 0.0225655464 },
+    { "label": "cam_left k2 abs", "mean": 0.1466913568, "std": 0.03099522904, "max": 0.1900523451 },
+    { "label": "cam_left k3 abs", "mean": 0.0, "std": 0.0, "max": 0.0 },
+    { "label": "cam_left p1 abs", "mean": 0.0002902386729, "std": 0.0002629511508, "max": 0.0006584327718 },
+    { "label": "cam_left p2 abs", "mean": 0.001449527259, "std": 0.0006124545325, "max": 0.002021166593 },
+    {
+      "label": "cam_right fx rel",
+      "mean": 0.001198199048,
+      "std": 0.0009230825088,
+      "max": 0.002414806112,
+      "limit": 0.0001
+    },
+    {
+      "label": "cam_right fy rel",
+      "mean": 0.001164299867,
+      "std": 0.0006709112415,
+      "max": 0.001852746628,
+      "limit": 0.0001
+    },
+    { "label": "cam_right cx px", "mean": 5.482820217, "std": 2.705439437, "max": 8.918752175, "limit": 0.05 },
+    { "label": "cam_right cy px", "mean": 3.002111787, "std": 3.461826055, "max": 7.886384987, "limit": 0.05 },
+    { "label": "cam_right k1 abs", "mean": 0.01561792658, "std": 0.006947403428, "max": 0.02229555938 },
+    { "label": "cam_right k2 abs", "mean": 0.1330930577, "std": 0.05424060959, "max": 0.2097910035 },
+    { "label": "cam_right k3 abs", "mean": 0.0, "std": 0.0, "max": 0.0 },
+    { "label": "cam_right p1 abs", "mean": 0.0003845870315, "std": 0.0003143301562, "max": 0.0008279179645 },
+    { "label": "cam_right p2 abs", "mean": 0.00140142986, "std": 0.0009294679676, "max": 0.002241384593 },
+    { "label": "cam_right cam_se3_rig deg", "mean": 0.220072711, "std": 0.06563176483, "max": 0.3120253905 },
+    { "label": "cam_right cam_se3_rig mm", "mean": 1.702917338, "std": 1.373801231, "max": 3.620496479 },
+    {
+      "label": "hand-eye rotation deg",
+      "mean": 0.1869423874,
+      "std": 0.02588366317,
+      "max": 0.2232093923,
+      "limit": 0.01
+    },
+    { "label": "hand-eye translation mm", "mean": 1.134846785, "std": 1.060456077, "max": 2.614361075, "limit": 0.05 },
+    { "label": "base_se3_target rot deg", "mean": 0.01878365835, "std": 0.002840514132, "max": 0.02258179684 },
+    { "label": "base_se3_target trans mm", "mean": 0.01049824563, "std": 0.0006345816041, "max": 0.01138229424 }
+  ],
+  "param_stats": [
+    {
+      "label": "cam_left fx",
+      "unit": "px",
+      "truth": 2318.8,
+      "mean": 2314.452203,
+      "std": 5.750903165,
+      "bias": -4.347796661,
+      "rmse": 6.399369288,
+      "predicted_sigma": 3.26441186,
+      "trials": 3
+    },
+    {
+      "label": "cam_left fy",
+      "unit": "px",
+      "truth": 2318.8,
+      "mean": 2314.51598,
+      "std": 6.270112344,
+      "bias": -4.284020185,
+      "rmse": 6.675505086,
+      "predicted_sigma": 3.256413731,
+      "trials": 3
+    },
+    {
+      "label": "cam_left cx",
+      "unit": "px",
+      "truth": 640.0,
+      "mean": 642.1711406,
+      "std": 7.899522741,
+      "bias": 2.171140561,
+      "rmse": 6.805548547,
+      "predicted_sigma": 4.59019447,
+      "trials": 3
+    },
+    {
+      "label": "cam_left cy",
+      "unit": "px",
+      "truth": 512.0,
+      "mean": 513.3094862,
+      "std": 3.182376851,
+      "bias": 1.309486197,
+      "rmse": 2.909714026,
+      "predicted_sigma": 1.957337543,
+      "trials": 3
+    },
+    {
+      "label": "cam_left k1",
+      "unit": "",
+      "truth": -0.08,
+      "mean": -0.08975967234,
+      "std": 0.01181039097,
+      "bias": -0.009759672342,
+      "rmse": 0.01372011033,
+      "predicted_sigma": 0.0173262889,
+      "trials": 3
+    },
+    {
+      "label": "cam_left k2",
+      "unit": "",
+      "truth": 0.02,
+      "mean": 1.020655955e-5,
+      "std": 0.1819868122,
+      "bias": -0.01998979344,
+      "rmse": 0.1499301784,
+      "predicted_sigma": 0.2157806278,
+      "trials": 3
+    },
+    {
+      "label": "cam_left k3",
+      "unit": "",
+      "truth": 0.0,
+      "mean": 0.0,
+      "std": 0.0,
+      "bias": 0.0,
+      "rmse": 0.0,
+      "trials": 3
+    },
+    {
+      "label": "cam_left p1",
+      "unit": "",
+      "truth": 0.0,
+      "mean": 0.0002902386729,
+      "std": 0.0003220480733,
+      "bias": 0.0002902386729,
+      "rmse": 0.0003916398791,
+      "predicted_sigma": 0.0002957493126,
+      "trials": 3
+    },
+    {
+      "label": "cam_left p2",
+      "unit": "",
+      "truth": 0.0,
+      "mean": 0.001049412487,
+      "std": 0.001436121475,
+      "bias": 0.001049412487,
+      "rmse": 0.001573604089,
+      "predicted_sigma": 0.0008045044702,
+      "trials": 3
+    },
+    {
+      "label": "cam_right fx",
+      "unit": "px",
+      "truth": 2318.8,
+      "mean": 2319.754584,
+      "std": 4.133343468,
+      "bias": 0.9545843228,
+      "rmse": 3.507266273,
+      "predicted_sigma": 3.268048135,
+      "trials": 3
+    },
+    {
+      "label": "cam_right fy",
+      "unit": "px",
+      "truth": 2318.8,
+      "mean": 2318.964321,
+      "std": 3.810911951,
+      "bias": 0.1643207234,
+      "rmse": 3.115932375,
+      "predicted_sigma": 3.253750185,
+      "trials": 3
+    },
+    {
+      "label": "cam_right cx",
+      "unit": "px",
+      "truth": 640.0,
+      "mean": 645.4828202,
+      "std": 3.313473075,
+      "bias": 5.482820217,
+      "rmse": 6.113977435,
+      "predicted_sigma": 4.591958097,
+      "trials": 3
+    },
+    {
+      "label": "cam_right cy",
+      "unit": "px",
+      "truth": 512.0,
+      "mean": 509.177681,
+      "std": 4.421215418,
+      "bias": -2.822318957,
+      "rmse": 4.582239061,
+      "predicted_sigma": 1.95724854,
+      "trials": 3
+    },
+    {
+      "label": "cam_right k1",
+      "unit": "",
+      "truth": -0.07,
+      "mean": -0.05840713542,
+      "std": 0.01538464507,
+      "bias": 0.01159286458,
+      "rmse": 0.01709345036,
+      "predicted_sigma": 0.01722192811,
+      "trials": 3
+    },
+    {
+      "label": "cam_right k2",
+      "unit": "",
+      "truth": 0.02,
+      "mean": -0.05064039681,
+      "std": 0.1532925638,
+      "bias": -0.07064039681,
+      "rmse": 0.143721278,
+      "predicted_sigma": 0.2043915974,
+      "trials": 3
+    },
+    {
+      "label": "cam_right k3",
+      "unit": "",
+      "truth": 0.0,
+      "mean": 0.0,
+      "std": 0.0,
+      "bias": 0.0,
+      "rmse": 0.0,
+      "trials": 3
+    },
+    {
+      "label": "cam_right p1",
+      "unit": "",
+      "truth": 0.0,
+      "mean": -0.0002948103657,
+      "std": 0.0004895878065,
+      "bias": -0.0002948103657,
+      "rmse": 0.0004966997402,
+      "predicted_sigma": 0.0002972974811,
+      "trials": 3
+    },
+    {
+      "label": "cam_right p2",
+      "unit": "",
+      "truth": 0.0,
+      "mean": 0.001330879701,
+      "std": 0.00125897314,
+      "bias": 0.001330879701,
+      "rmse": 0.001681640971,
+      "predicted_sigma": 0.000864669555,
+      "trials": 3
+    },
+    {
+      "label": "hand-eye rx",
+      "unit": "deg",
+      "truth": 0.0,
+      "mean": -0.03097228209,
+      "std": 0.08728256982,
+      "bias": -0.03097228209,
+      "rmse": 0.07770529961,
+      "predicted_sigma": 0.04779755886,
+      "trials": 3
+    },
+    {
+      "label": "hand-eye ry",
+      "unit": "deg",
+      "truth": 0.0,
+      "mean": 0.05816802919,
+      "std": 0.1979239187,
+      "bias": 0.05816802919,
+      "rmse": 0.1717540044,
+      "predicted_sigma": 0.1122154413,
+      "trials": 3
+    },
+    {
+      "label": "hand-eye rz",
+      "unit": "deg",
+      "truth": 0.0,
+      "mean": -0.00275818875,
+      "std": 0.01041112442,
+      "bias": -0.00275818875,
+      "rmse": 0.008936924131,
+      "predicted_sigma": 0.0295404932,
+      "trials": 3
+    },
+    {
+      "label": "hand-eye tx",
+      "unit": "mm",
+      "truth": 0.0,
+      "mean": -0.03836899291,
+      "std": 0.0789960258,
+      "bias": -0.03836899291,
+      "rmse": 0.07504950152,
+      "predicted_sigma": 0.1150373585,
+      "trials": 3
+    },
+    {
+      "label": "hand-eye ty",
+      "unit": "mm",
+      "truth": 0.0,
+      "mean": 0.0176768599,
+      "std": 0.1129380124,
+      "bias": 0.0176768599,
+      "rmse": 0.09389249774,
+      "predicted_sigma": 0.1023524501,
+      "trials": 3
+    },
+    {
+      "label": "hand-eye tz",
+      "unit": "mm",
+      "truth": 0.0,
+      "mean": 1.032463581,
+      "std": 1.41351426,
+      "bias": 1.032463581,
+      "rmse": 1.548546444,
+      "predicted_sigma": 0.7576980234,
+      "trials": 3
+    }
+  ]
+}

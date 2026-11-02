@@ -14,6 +14,7 @@ pub mod gt;
 pub mod library;
 pub mod load;
 pub mod poses;
+pub mod procedure;
 pub mod progress;
 pub mod project;
 pub mod render;

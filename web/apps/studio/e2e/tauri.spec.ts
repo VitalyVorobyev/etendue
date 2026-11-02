@@ -14,6 +14,16 @@ import { type Page, expect, test } from "@playwright/test";
 
 import { CALIBRATION, ROOT } from "./global-setup";
 
+/**
+ * A real run of `etendue calibrate` over 3 trials with noise, trimmed to the residuals of 4
+ * captures (both cameras) and as many errors per trial; otherwise as the CLI wrote it:
+ *
+ *     etendue gt examples/closed_loop_ur5e/scene.json examples/closed_loop_ur5e/scenario.json -o ds
+ *     echo '{"pixel_sigma_px": 0.5, "seed": 1}' > n.json
+ *     etendue calibrate ds --noise n.json --trials 3 -o run.json
+ */
+const NOISY_RUN = new URL("./fixtures/calibration_noise_3_trials.json", import.meta.url);
+
 async function installShell(page: Page): Promise<void> {
   await page.addInitScript(() => {
     const callbacks = new Map<number, (data: unknown) => void>();
@@ -104,8 +114,10 @@ async function installShell(page: Page): Promise<void> {
             (w.__calibrations as unknown[]).push({ dir: args.dir, options: args.options, keep: args.keep });
             const channel = (args.onProgress as { id: number }).id;
             callbacks.get(channel)?.({ index: 0, message: { kind: "step", stage: "calibrate", done: 0, total: 1 } });
-            // The native report on closed_loop_ur5e's exact observations (global setup).
-            return { kind: "ok", ...(w.__calibrationRun as object) };
+            // The native report on closed_loop_ur5e's exact observations (global setup), or,
+            // over several trials, a real run with noise (NOISY_RUN).
+            const trials = (args.options as { trials?: number }).trials ?? 1;
+            return { kind: "ok", ...((trials > 1 ? w.__noisyRun : w.__calibrationRun) as object) };
           }
           case "calibration_runs": {
             // Every run calibrated so far, kept where the studio asked.
@@ -259,13 +271,19 @@ test("generates a dataset through the native pipeline", async ({ page }) => {
   await scale.getByRole("radio", { name: "×1000" }).click();
   await expect(scale.getByRole("radio", { name: "×1000" })).toBeChecked();
 
-  // At a capture, the camera view shows what the calibration observes: every corner exactly…
+  // At a capture, the camera view shows the calibration's residuals there…
   await page
     .getByRole("button", { name: /capture/i })
     .nth(2)
     .click();
-  const view = page.getByTestId("observations").getByTestId("camera-view-cam_left");
+  const observations = page.getByTestId("observations");
+  const view = observations.getByTestId("camera-view-cam_left");
+  await expect(view).toHaveAttribute("data-residuals", /^[1-9]\d*$/);
+  await expect(view).not.toHaveAttribute("data-observed");
+  // …or what the calibration observes: every corner exactly…
+  await observations.getByRole("radio", { name: "Observations" }).click();
   await expect(view).toHaveAttribute("data-observed", /^[1-9]\d*$/);
+  await expect(view).not.toHaveAttribute("data-residuals");
   const exact = Number(await view.getAttribute("data-observed"));
   // …or, with noise, fewer of them once half are dropped.
   await calibrate.getByRole("radio", { name: "With noise" }).click();
@@ -284,6 +302,88 @@ test("generates a dataset through the native pipeline", async ({ page }) => {
   await kept.getByRole("row").nth(2).getByRole("button", { name: "Show" }).click();
   await expect(kept.getByRole("row").nth(2)).toContainText("shown");
   await expect(outcome).toContainText(/closed_loop_ur5e-\d{8}-\d{6}-exact/);
+});
+
+test("a calibration with noise over trials shows its parameters, residuals per view and verdict", async ({ page }) => {
+  await installShell(page);
+  const exact = JSON.parse(readFileSync(`${ROOT}${CALIBRATION}`, "utf8")) as object;
+  const noisy = JSON.parse(readFileSync(NOISY_RUN, "utf8")) as {
+    param_stats: { label: string }[];
+    reports: { residuals: { features: { capture: string; camera: string }[] } }[];
+  };
+  await page.addInitScript(
+    ([e, n]) => {
+      const w = window as unknown as { __calibrationRun: object; __noisyRun: object };
+      w.__calibrationRun = e;
+      w.__noisyRun = n;
+    },
+    [exact, noisy] as const,
+  );
+  await page.goto("/?example=closed_loop_ur5e");
+  await expect(page.getByRole("treeitem", { name: /cam_left/ })).toBeVisible({ timeout: 30_000 });
+  await page.getByRole("radio", { name: "Calibrate" }).click();
+  await page.getByTestId("dataset-panel").getByRole("button", { name: "Generate" }).click();
+  await expect(page.getByTestId("dataset-panel").getByRole("button", { name: "Cancel" })).toBeVisible();
+  await page.evaluate(() => (window as unknown as { __finishRun: () => void }).__finishRun());
+  await expect(page.getByTestId("dataset-result")).toBeVisible();
+
+  // With noise, over 3 trials.
+  const calibrate = page.getByTestId("calibrate-panel");
+  await calibrate.getByRole("radio", { name: "With noise" }).click();
+  const trials = calibrate.getByTestId("noise-form").getByRole("spinbutton", { name: "Trials" });
+  await trials.fill("3");
+  await trials.press("Enter");
+  await calibrate.getByRole("button", { name: "Calibrate" }).click();
+  const outcome = page.getByTestId("calibration-result");
+  await expect(outcome).toContainText("Closed-loop limits for reference");
+  // calibration-rs's own verdict on the first trial.
+  await expect(outcome.getByTestId("quality-verdict").first()).toHaveAttribute("data-verdict", "warn");
+  const calibrations = await page.evaluate(
+    () => (window as unknown as { __calibrations: { options: { trials?: number } }[] }).__calibrations,
+  );
+  expect(calibrations.at(-1)!.options.trials).toBe(3);
+
+  // The parameters over the trials: every one of param_stats, the ratio to the predicted σ tinted
+  // where it is far from 1, and a histogram of the chosen one.
+  await outcome.getByRole("tab", { name: "Parameters" }).click();
+  const params = outcome.getByTestId("param-stats");
+  await expect(params.getByRole("row")).toHaveCount(noisy.param_stats.length + 1);
+  await expect(params.getByRole("cell", { name: "cam_left fx", exact: true })).toBeVisible();
+  await expect(params.getByRole("cell", { name: "hand-eye tz", exact: true })).toBeVisible();
+  await expect(params.locator("[data-agreement=high]").first()).toBeVisible();
+  await expect(params.getByTestId("fixed-params")).toContainText("cam_left k3");
+  await expect(params.getByTestId("param-histogram")).toHaveAttribute("data-param", "cam_left fx");
+  await params.getByRole("row", { name: /cam_right k1/ }).click();
+  await expect(params.getByTestId("param-histogram")).toHaveAttribute("data-param", "cam_right k1");
+  await expect(params.getByRole("img", { name: "cam_right k1 over trials" })).toBeVisible();
+
+  // The residuals per view: one row per view of the first trial, and choosing one shows it in the
+  // camera view with its residuals.
+  await outcome.getByRole("tab", { name: "Per view" }).click();
+  const views = outcome.getByTestId("residual-views");
+  const features = noisy.reports[0]!.residuals.features;
+  const count = new Set(features.map((f) => `${f.capture}/${f.camera}`)).size;
+  await expect(views.getByRole("row")).toHaveCount(count + 1);
+  // Sorted by RMS, worst first.
+  await views.getByRole("button", { name: "RMS px" }).click();
+  await expect(views.getByRole("columnheader", { name: "RMS px" })).toHaveAttribute("aria-sort", "descending");
+  const pick = features.find((f) => f.camera === "cam_right")!;
+  const row = views.getByRole("row").filter({ hasText: pick.capture }).filter({ hasText: "cam_right" });
+  await row.click();
+  await expect(row).toHaveAttribute("aria-current", /.+/);
+  const view = page.getByTestId("observations").getByTestId("camera-view-cam_right");
+  const points = features.filter((f) => f.capture === pick.capture && f.camera === "cam_right").length;
+  await expect(view).toHaveAttribute("data-residuals", String(points));
+  await expect(view.getByTestId("residuals-cam_right")).toBeVisible();
+  await views.getByRole("radio", { name: "×100", exact: true }).click();
+  await expect(page.getByTestId("observations")).toContainText("the residual ×100");
+
+  // The procedure and its stages, and calibration-rs's checks.
+  await outcome.getByRole("tab", { name: "Solver" }).click();
+  await expect(outcome.getByTestId("stages")).toContainText("auto_rig");
+  await expect(outcome.getByTestId("stages").getByRole("cell", { name: "rig_handeye" })).toBeVisible();
+  await expect(outcome.getByTestId("quality")).toContainText("over 3 trials: 3 warn");
+  await expect(outcome.getByTestId("quality-checks")).toContainText("Image coverage");
 });
 
 test("a plain browser previews what a calibration observes", async ({ page }) => {

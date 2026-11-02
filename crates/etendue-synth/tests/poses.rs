@@ -4,7 +4,7 @@
 use std::path::Path;
 
 use etendue_kinematics::{RobotModel, bake, compile};
-use etendue_scene::{RobotManifest, SceneSpec, SphereGenerator};
+use etendue_scene::{GeneratorSpec, RobotManifest, SceneSpec, SphereGenerator};
 use etendue_synth::PixelCentre;
 use etendue_synth::board::layout;
 use etendue_synth::gt::{VisibilitySpec, project_points};
@@ -152,15 +152,65 @@ fn the_tour_is_no_longer_than_the_grid_order() {
     assert!(t <= g + 1e-9);
 }
 
+/// Eye-to-hand (P18b): the board rides on the tool and the rig stands still.
+fn eye_to_hand() -> (SceneSpec, RobotModel, SphereGenerator) {
+    let scene: SceneSpec =
+        serde_json::from_str(&read("examples/eye_to_hand_ur5e/scene.json")).unwrap();
+    let (_, model) = setup();
+    let GeneratorSpec::Sphere(sphere) =
+        serde_json::from_str(&read("examples/eye_to_hand_ur5e/sphere.json")).unwrap();
+    (scene, model, sphere)
+}
+
 #[test]
-fn eye_to_hand_and_bad_specs_are_refused() {
+fn eye_to_hand_the_robot_holds_the_board_on_the_sphere_before_the_fixed_rig() {
+    let (scene, model, sphere) = eye_to_hand();
+    let generated = generate(&scene, std::slice::from_ref(&model), &sphere, 0.01).unwrap();
+    let rig = generated.candidates[0].world_se3_sensor;
+    let board = scene.targets.iter().find(|t| t.id == "board").unwrap();
+    let base = scene.robots[0].parent_se3_self;
+    let mut kept = 0;
+    for c in &generated.candidates {
+        // The sensor is the fixed rig for every candidate.
+        assert!((c.world_se3_sensor.translation.vector - rig.translation.vector).norm() < 1e-12);
+        assert!(c.world_se3_sensor.rotation.angle_to(&rig.rotation) < 1e-12);
+        let Some(q) = c.q.as_ref().filter(|_| c.status == CandidateStatus::Ok) else {
+            continue;
+        };
+        kept += 1;
+        // Where the joints put the board: on the sphere, at the rig's axis, facing it.
+        let tool = model.tcp_pose(q);
+        // The joints reach the tool pose the candidate asked for.
+        assert!(
+            (tool.translation.vector - c.base_se3_tool.translation.vector).norm() < 1e-6
+                && tool.rotation.angle_to(&c.base_se3_tool.rotation) < 1e-6
+        );
+        let world_se3_board = base * tool * board.parent_se3_self;
+        let centre = world_se3_board * Point3::origin();
+        let eye = Point3::from(rig.translation.vector);
+        assert!(((centre - eye).norm() - c.radius_m).abs() < 1e-6);
+        let axis = rig.rotation * Vector3::z();
+        assert!(((centre - eye).normalize() - axis).norm() < 1e-6);
+        let normal = world_se3_board.rotation * Vector3::z();
+        let tilt = normal.dot(&-axis).clamp(-1.0, 1.0).acos();
+        assert!(
+            (tilt - c.theta_rad).abs() < 1e-6,
+            "{tilt} vs θ {}",
+            c.theta_rad
+        );
+    }
+    assert!(kept >= 24, "{kept} kept");
+}
+
+#[test]
+fn a_sensor_and_target_both_fixed_and_bad_specs_are_refused() {
     let (scene, model) = setup();
     let robots = std::slice::from_ref(&model);
     let mut s = spec();
     s.look = "board".into();
     assert!(
         generate(&scene, robots, &s, 0.01).is_err(),
-        "the board is not on the tool"
+        "neither the board nor the rig's stand-in is on the tool"
     );
     let mut s = spec();
     s.radii_m.clear();

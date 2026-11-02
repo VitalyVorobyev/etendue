@@ -138,6 +138,11 @@ enum Command {
         /// Calibrate this camera of a rig alone (single-camera hand-eye).
         #[arg(long)]
         camera: Option<String>,
+        /// The calibration procedure: a built-in's id (intrinsics, stereo, handeye, rig_handeye,
+        /// laser_head, laser_rig) or a procedure file; without it, the choice by the dataset's
+        /// shape.
+        #[arg(long)]
+        procedure: Option<String>,
         /// Observations from `etendue detect` instead of the ground truth.
         #[arg(long)]
         features: Option<PathBuf>,
@@ -280,6 +285,31 @@ enum ScenarioCommand {
         /// Also write every candidate and why it was kept or not.
         #[arg(long)]
         candidates: Option<PathBuf>,
+        /// Baking sample period, seconds.
+        #[arg(long, default_value_t = 0.01)]
+        dt: f64,
+    },
+    /// Plan calibration poses: from the sphere generator's feasible candidates, the `budget`
+    /// that minimise the predicted system σ (how far, in mm, the calibrated cell would misplace
+    /// a point it knows in the robot's base frame).
+    Plan {
+        /// Scene file.
+        scene: PathBuf,
+        /// Generator spec, or a scenario with a `generator` (as for `sphere`).
+        #[arg(long)]
+        spec: PathBuf,
+        /// How many poses to keep.
+        #[arg(long)]
+        budget: usize,
+        /// The pixel noise σ the prediction assumes.
+        #[arg(long, default_value_t = 0.5)]
+        noise_px: f64,
+        /// Output scenario file (the chosen poses).
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Also write the plan: the picks, the σ after each, the grid's σ, each parameter's σ.
+        #[arg(long)]
+        report: Option<PathBuf>,
         /// Baking sample period, seconds.
         #[arg(long, default_value_t = 0.01)]
         dt: f64,
@@ -592,6 +622,7 @@ fn run(cli: Cli) -> Result<()> {
             noise,
             trials,
             camera,
+            procedure,
             features,
             laser_features,
             output,
@@ -600,7 +631,7 @@ fn run(cli: Cli) -> Result<()> {
             &dir,
             noise.as_deref(),
             trials,
-            camera,
+            (camera, procedure),
             (features.as_deref(), laser_features.as_deref()),
             (output.as_deref(), run.as_deref()),
         ),
@@ -676,6 +707,58 @@ fn run(cli: Cli) -> Result<()> {
                 "{kept} of {} candidate poses kept, {:.2} s of motion → {}",
                 generated.candidates.len(),
                 (trajectory.samples.len() - 1) as f64 * trajectory.dt,
+                output.display()
+            );
+            Ok(())
+        }
+        Command::Scenario {
+            command:
+                ScenarioCommand::Plan {
+                    scene,
+                    spec,
+                    budget,
+                    noise_px,
+                    output,
+                    report,
+                    dt,
+                },
+        } => {
+            let (scene_spec, models) = load_scene(&scene)?;
+            let mut json: serde_json::Value = read_json(&spec, "generator spec")?;
+            if let Some(generator) = json.get_mut("generator") {
+                json = generator.take();
+            }
+            let GeneratorSpec::Sphere(sphere) = serde_json::from_value(json)
+                .with_context(|| format!("generator spec {}", spec.display()))?;
+            let generated = etendue_synth::poses::generate(&scene_spec, &models, &sphere, dt)
+                .with_context(|| format!("generator {}", spec.display()))?;
+            let planned = etendue_synth::plan::plan(
+                &scene_spec,
+                &models,
+                &generated,
+                &sphere,
+                &etendue_synth::plan::PlanSpec { budget, noise_px },
+            )
+            .context("planning")?;
+            compile(&scene_spec, &planned.scenario, &models)
+                .map_err(|e| anyhow!("the planned scenario: {e}"))?;
+            std::fs::write(
+                &output,
+                serde_json::to_string_pretty(&planned.scenario)? + "\n",
+            )
+            .with_context(|| format!("writing {}", output.display()))?;
+            if let Some(path) = report {
+                std::fs::write(&path, serde_json::to_string_pretty(&planned)? + "\n")
+                    .with_context(|| format!("writing {}", path.display()))?;
+            }
+            println!(
+                "{} of {} feasible poses: system σ {:.4} mm (the grid thinned to {}: {:.4} mm; every feasible pose: {:.4} mm) → {}",
+                planned.chosen.len(),
+                planned.feasible,
+                planned.sigma_mm.last().copied().unwrap_or(f64::NAN),
+                budget,
+                planned.grid_sigma_mm,
+                planned.all_sigma_mm,
                 output.display()
             );
             Ok(())
@@ -761,7 +844,7 @@ fn run_calibrate(
     dir: &Path,
     noise: Option<&Path>,
     trials: u32,
-    camera: Option<String>,
+    (camera, procedure): (Option<String>, Option<String>),
     (features, laser_features): (Option<&Path>, Option<&Path>),
     (output, run): (Option<&Path>, Option<&Path>),
 ) -> Result<()> {
@@ -781,9 +864,16 @@ fn run_calibrate(
             "--noise and --trials apply to the analytic observations, not to --features"
         ));
     }
+    let procedure = procedure
+        .map(|name| etendue_cli::procedure::named(&name))
+        .transpose()?;
+    if let Some((id, p)) = &procedure {
+        println!("procedure: {id} ({} stage(s))", p.stages.len());
+    }
     let options = calibrate::Options {
         camera: camera.clone(),
         detected: features.is_some(),
+        procedure: procedure.clone(),
     };
     let mut reports = Vec::new();
     for k in 0..trials.max(1) {
@@ -808,7 +898,10 @@ fn run_calibrate(
                 },
             ),
         };
-        let report = calibrate::calibrate(&gt, &obs, &options)?;
+        let mut report = calibrate::calibrate(&gt, &obs, &options)?;
+        if k > 0 {
+            report.residuals.features.clear();
+        }
         if k == 0 || trials == 1 {
             println!(
                 "{}: {} ({} camera(s): {}; {} views, {} points, {} laser pixels){}",
@@ -847,9 +940,26 @@ fn run_calibrate(
         .iter()
         .any(|r| r.gated && !r.pass)
         .then(|| reports[0].check_name());
+    let params = (reports.len() > 1).then(|| calibrate::param_stats(&gt, &reports));
+    if let Some(params) = &params {
+        println!(
+            "parameters over {} trials (predicted σ: calibration-rs's covariance):",
+            reports.len()
+        );
+        for p in params {
+            let predicted = p.predicted_sigma.map_or(String::new(), |s| {
+                format!("  predicted σ {s:10.3e}  std/σ {:5.2}", p.std / s)
+            });
+            println!(
+                "  {:<22} {:>3}  truth {:11.4e}  bias {:10.3e}  std {:10.3e}{predicted}",
+                p.label, p.unit, p.truth, p.bias, p.std
+            );
+        }
+    }
     let doc = calibrate::Run {
         reports,
         row_stats: stats,
+        param_stats: params,
     };
     if let Some(out) = output {
         std::fs::write(out, serde_json::to_string_pretty(&doc)? + "\n")
@@ -862,6 +972,7 @@ fn run_calibrate(
             trials: trials.max(1),
             camera,
             detected: features.is_some(),
+            procedure: procedure.map(|(id, procedure)| calibrate::RunProcedure { id, procedure }),
         };
         calibrate::write_run(folder, dir, &options, &doc)?;
         println!("run → {}", folder.display());

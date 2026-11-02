@@ -1,7 +1,10 @@
-import type { EtendueScene, GeneratedPoses, GeneratorSpec, SceneSpec } from "@etendue/wasm";
+import type { EtendueScene, GeneratedPoses, GeneratorSpec, PlannedPoses, SceneSpec } from "@etendue/wasm";
+import { LineChart, type Series } from "@vitavision/charts";
 import { Button, Callout, Input, NumberInput, ReadoutStrip, Select, Switch } from "@vitavision/ui";
-import { Check } from "lucide-react";
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { Check, Sparkles } from "lucide-react";
+import { type ReactNode, useDeferredValue, useEffect, useMemo, useState } from "react";
+
+import { toast } from "@vitavision/workbench";
 
 import { describeFailure } from "../kernel/etendue";
 
@@ -138,11 +141,143 @@ function Range({
   );
 }
 
+/** The most poses the σ curve is drawn for. */
+const CURVE_POSES = 40;
+
 /**
- * The sphere pose generator: the sensor (a frame the robot's tool carries) on spheres around the
- * target, looking at its centre, at every radius, polar angle θ and azimuth φ. The candidates are
- * computed as the form changes and drawn in 3D; **Apply** makes the kept ones the scenario (one
- * undoable edit), each with its joint configuration stored.
+ * Suggest poses (P18): the planner's picks among the kept candidates, the predicted system σ
+ * against the number of poses beside the evenly thinned grid's, and **Apply** for the chosen
+ * budget. The picks for a budget are the first picks of a larger one, so one plan draws the curve.
+ */
+function SuggestPoses({
+  session,
+  spec,
+  generated,
+  kept,
+  onApply,
+}: {
+  session: EtendueScene;
+  spec: GeneratorSpec;
+  generated: GeneratedPoses;
+  kept: number;
+  onApply: (generated: GeneratedPoses) => void;
+}) {
+  const [budget, setBudget] = useState(12);
+  const [noise, setNoise] = useState(0.5);
+  const cap = Math.min(kept, CURVE_POSES);
+  const shown = Math.max(1, Math.min(budget, cap));
+  const input = useDeferredValue({ spec, noise, cap });
+  const curve = useMemo((): { ok: PlannedPoses } | { error: string } | null => {
+    if (input.cap === 0) return null;
+    try {
+      return { ok: session.planPoses(input.spec, { budget: input.cap, noise_px: input.noise }) };
+    } catch (e) {
+      return { error: describeFailure(e).message };
+    }
+  }, [session, input]);
+  const plan = curve && "ok" in curve ? curve.ok : null;
+  const series = useMemo<Series[]>(() => {
+    if (!plan) return [];
+    // From three poses on: fewer barely determine the calibration, and their σ would flatten the rest.
+    const at = (values: (number | null)[]) =>
+      values.map((y, k) => ({ x: k + 1, y: y ?? Number.NaN })).filter((p) => p.x >= 3);
+    return [
+      { name: "suggested", points: at(plan.sigma_mm) },
+      { name: "grid", points: at(plan.grid_sigma_curve_mm) },
+    ];
+  }, [plan]);
+  if (kept === 0) return null;
+  if (curve && "error" in curve) {
+    return (
+      <Callout tone="warning" title="Cannot suggest poses">
+        {curve.error}
+      </Callout>
+    );
+  }
+  const planned = plan?.sigma_mm[shown - 1];
+  const grid = plan?.grid_sigma_curve_mm[shown - 1];
+  const apply = () => {
+    try {
+      const chosen = session.planPoses(spec, { budget: shown, noise_px: noise });
+      onApply({ candidates: generated.candidates, scenario: chosen.scenario });
+    } catch (e) {
+      toast({ title: "Cannot suggest poses", description: describeFailure(e).message, tone: "error" });
+    }
+  };
+  return (
+    <div className="space-y-2 border-t border-border pt-3" data-testid="suggest-poses">
+      <h3 className="text-xs font-medium">Suggest poses</h3>
+      <p className="text-xs text-fg-muted">
+        The poses, among the kept ones, that calibrate the cell best: the smallest predicted system σ, how far the
+        calibrated cell would misplace a point it knows in the robot&apos;s base (a rig hand-eye with the rig refined,
+        robot poses exact).
+      </p>
+      <div className="grid grid-cols-[minmax(4.5rem,auto)_1fr] gap-x-3 gap-y-1.5">
+        <Row label="poses">
+          <NumberInput
+            aria-label="Pose budget"
+            value={shown}
+            precision={0}
+            min={1}
+            max={cap}
+            step={1}
+            unit="×"
+            onValueChange={(v) => setBudget(Math.round(v))}
+          />
+        </Row>
+        <Row label="noise">
+          <NumberInput
+            aria-label="Pixel noise"
+            value={noise}
+            precision={2}
+            min={0.01}
+            step="any"
+            unit="px"
+            onValueChange={(v) => v > 0 && setNoise(v)}
+          />
+        </Row>
+      </div>
+      {plan && (
+        <>
+          <ReadoutStrip
+            items={[
+              { label: "suggested σ", value: planned === undefined ? "–" : `${planned.toFixed(4)} mm` },
+              { label: "grid σ", value: grid == null ? "–" : `${grid.toFixed(4)} mm` },
+            ]}
+          />
+          <LineChart
+            series={series}
+            label="Predicted system σ against the number of poses"
+            xLabel="poses"
+            yLabel="σ (mm)"
+            variant="fluid"
+            height={190}
+            underlay={(x, y) => (
+              <line
+                x1={x.project(shown)}
+                x2={x.project(shown)}
+                y1={y.project(y.domain[0])}
+                y2={y.project(y.domain[1])}
+                className="stroke-signal"
+                strokeWidth={1.5}
+              />
+            )}
+          />
+          <Button variant="primary" icon={<Sparkles className="size-4" />} onClick={apply}>
+            Apply {shown} suggested poses
+          </Button>
+        </>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The sphere pose generator: the sensor on spheres around the target, looking at its centre, at
+ * every radius, polar angle θ and azimuth φ: eye-in-hand the robot's tool carries the sensor
+ * there, eye-to-hand it carries the target so the fixed sensor sees it from there. The candidates
+ * are computed as the form changes and drawn in 3D; **Apply** makes the kept ones the scenario
+ * (one undoable edit), each with its joint configuration stored; **Suggest poses** picks fewer.
  */
 export function GeneratorPanel({
   session,
@@ -177,7 +312,7 @@ export function GeneratorPanel({
   if (!spec) {
     return (
       <Callout tone="info" title="Nothing to generate for">
-        The generator needs a robot carrying a rig or a camera, and a target.
+        The generator needs a robot, a rig or a camera, and a target, one of them on the robot&apos;s tool.
       </Callout>
     );
   }
@@ -287,6 +422,7 @@ export function GeneratorPanel({
           >
             Apply {counts.ok ?? 0} poses
           </Button>
+          <SuggestPoses session={session} spec={spec} generated={generated} kept={counts.ok ?? 0} onApply={onApply} />
         </div>
       )}
     </div>

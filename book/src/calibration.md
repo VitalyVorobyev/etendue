@@ -35,6 +35,72 @@ the robot). A dataset without a robot is refused with "the dataset has no robot"
   length rounded to 100 px, the principal point at the image centre, and the tilt rounded to a
   whole degree.
 
+This choice by the dataset's shape is a procedure too, `auto`, and it is what runs without
+`--procedure`. The report names it (`auto_single`, `auto_rig`, `auto_head`, `auto_rig_laser`,
+`auto_rig_laser_scheimpflug`).
+
+## Procedures
+
+A **procedure** says how to calibrate, in stages. Each stage is one calibration-rs workflow with:
+- the camera model and the parameters it holds **fixed**, in calibration-rs's names (`fx`, `cx`,
+  `k3`, `tilt_y`);
+- what else is **free**: intrinsics refined with the rig, the robot poses refined under a prior
+  (and its σ), the hand-eye or the target held, a laser plane held;
+- how it solves: the iteration limit and the robust loss;
+- what it **starts from**: an earlier stage's result, the design (datasheet values), or the
+  truth (synthetic data only).
+
+The last stage's result is the procedure's. Its laser planes come from the latest stage that
+estimated them, and the report lists every stage (`stages`).
+
+```bash
+etendue calibrate out --procedure rig_handeye        # a built-in
+etendue calibrate out --procedure my_procedure.json  # a library item of kind procedure
+```
+
+| Built-in | Stages |
+|---|---|
+| `intrinsics` | each camera's intrinsics from its planar views (no robot needed) |
+| `stereo` | each camera's intrinsics, then the rig's extrinsics seeded from them (no robot needed) |
+| `handeye` | the camera's intrinsics, then its hand-eye with the robot poses refined; on a rig, each camera on its own |
+| `rig_handeye` | intrinsics per camera, the rig's extrinsics, then the rig's hand-eye, each seeded from the last |
+| `laser_head` | the device workflow (intrinsics, tilt, plane; datasheet tilt), then the hand-eye with the same camera model, seeded from it |
+| `laser_rig` | one joint solve of cameras, rig, planes and hand-eye, seeded from datasheet values |
+
+The built-ins are also files, `examples/library/procedures/<id>.json`: copy one into your bank
+or project and edit it. A procedure file is a library item:
+
+```json
+{ "version": 2, "id": "my_handeye", "name": "Hand-eye, principal point held",
+  "procedure": { "stages": [
+    { "id": "intrinsics", "problem": "planar_intrinsics",
+      "model": { "fix": { "intrinsics": ["cx", "cy"] } } },
+    { "id": "handeye", "problem": "single_cam_handeye",
+      "model": { "fix": { "intrinsics": ["cx", "cy"] } },
+      "seed": { "intrinsics": { "stage": "intrinsics" } },
+      "free": { "refine_robot_poses": true, "robot_rot_sigma_rad": 0.005 } } ] } }
+```
+
+| Stage field | Values |
+|---|---|
+| `problem` | `planar_intrinsics`, `rig_extrinsics`, `single_cam_handeye`, `rig_handeye`, `laserline_device`, `rig_handeye_laserline` |
+| `camera` | for a single-camera workflow, the camera; absent, each camera in turn |
+| `model.sensor` | `design` (Scheimpflug when the camera tilts), `identity`, `scheimpflug` |
+| `model.fix` | `intrinsics`, `distortion`, `sensor`: lists of parameter names held fixed |
+| `free` | `refine_intrinsics`, `refine_sensor`, `refine_rig`, `refine_robot_poses`, `robot_rot_sigma_rad`, `robot_trans_sigma_m`, `min_motion_angle_deg`, `fix_handeye`, `fix_target`, `fix_plane`, `fix_poses` |
+| `solver` | `max_iters`, `robust_loss` (`{"kind": "huber", "scale": 1.0}`, `cauchy`, `arctan`, `none`) |
+| `seed` | `intrinsics`, `sensor`, `handeye`: `"nominal"`, `"truth"` or `{"stage": "<id>"}`; `rig`: `{"stage": "<id>"}` |
+
+A procedure is checked against the dataset before anything runs: every workflow must fit
+(a robot for a hand-eye, lasers for a laser workflow, one camera for `laserline_device`), every
+seed must name an earlier stage, and an option must apply to its stage's workflow.
+
+**Known limitation.** A single camera with a Scheimpflug sensor tilted about both axes is
+ill-conditioned on the example scenarios' views: its tilt about y trades off against the principal
+point. `laser_head` recovers the hand-eye far better than `auto` there (0.59° against 2.95° on
+exact data), but neither passes. Holding the principal point (`model.fix.intrinsics`) gets the
+hand-eye to 0.006°, but the tilt about y stays 0.4° off. More varied views are the cure.
+
 ## Observations
 
 A calibration is given **observations**: the target points' pixels in every view, the
@@ -199,12 +265,35 @@ whole image chain — rendering, sensor, detection — at work.
 
 `-o report.json` writes the report:
 
-- `reports`: one per trial, each with the problem (`workflow`), the check's id (`gate`), whether
+- `reports`: one per trial, each with the procedure (`procedure`) and its `stages` (each stage's
+  workflow, cameras, views, points and mean reprojection error), the problem (`workflow`), the check's id (`gate`), whether
   it applied (`gated`) and passed (`pass`), the `cameras`, `views`, `points` and `laser_pixels`
   used, the `noise`, the `rows` (`label`, `value`, `limit` when there is one), the `residuals`
   (`count`, `mean_px`, `rms_axis_px`, `max_px`, `per_camera_mean_px` and every point's error
   `errors_px`), and the `estimate`;
-- `row_stats`: with several trials, each row's `mean`, `std` and `max`.
+- `row_stats`: with several trials, each row's `mean`, `std` and `max`;
+- `param_stats`: with several trials, each estimated parameter (`cam_left fx`, `hand-eye ty`, …)
+  with its `truth`, `mean`, `std`, `bias`, `rmse` and calibration-rs's `predicted_sigma`.
+
+Each report also holds:
+- `residuals.features`: every target point's residual, with its `capture`, `camera` and `point`
+  (its index in the target) and the `observed_px` and `projected_px` pixels. In a run of several
+  trials, only the first trial keeps them.
+- `uncertainty`: calibration-rs's predicted σ of every estimated parameter (`labels`, `sigma`,
+  in calibration-rs's units: px, radians, metres; `camN` is the report's `cameras[N]`), the
+  parameters held `fixed`, and the reprojection noise the residuals imply (`noise_px`).
+- `quality`: calibration-rs's quality verdict on the result (`verdict`: pass, warn or fail; and
+  its `checks`).
+
+**Predicted against observed.** The σ are calibration-rs's covariance, which is *conditional on
+the parameters held fixed*. The rig workflow holds the cameras' poses in the rig fixed while it
+solves the hand-eye (`refine_rig` is off by default). Its σ for the intrinsics and the hand-eye
+are then smaller than the spread you see over trials: 1.2–2.6 times smaller on
+`closed_loop_ur5e` at 0.5 px of noise. With `"free": {"refine_rig": true}` (a procedure), the
+covariance holds the rig too, and the predicted σ match the spread. The hand-eye's σ are in
+calibration-rs's tangent space, `estimate = truth · Exp(δ)`, and `param_stats` reports the
+hand-eye error that way: the rotation `log(R_trueᵀ R)` and the translation `R_trueᵀ (t − t_true)`,
+both in the hand-eye's own frame.
 
 The estimate's `offsets` place it beside the truth: each estimated camera in the true camera's
 frame, the estimated target in the true target's frame, and each laser plane, true and
@@ -217,7 +306,7 @@ way:
 
 | File | Holds |
 |---|---|
-| `config.json` | The dataset and the options: the noise, the trials, the camera, and whether the observations were detected. |
+| `config.json` | The dataset and the options: the noise, the trials, the camera, whether the observations were detected, and the procedure (by value) when one was named. |
 | `report.json` | The report, as above. |
 | `result.json` | calibration-rs's own export of the first trial, to use downstream. |
 
