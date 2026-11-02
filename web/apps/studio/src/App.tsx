@@ -35,6 +35,7 @@ import { type Jog, bakedQ, jogOverrides, motionSteps, reteach, robotFrames, teac
 import { JogPanel } from "./robot/JogPanel";
 import { stepAt, tcpPath } from "./scene/TcpPath";
 import { CoverageLegend, SliceMaps } from "./rigs/SliceMaps";
+import { useLibraryWorkspace } from "./library/Workspace";
 import { CameraGrid } from "./panels/CameraGrid";
 import { CellDialog } from "./panels/CellDialog";
 import { RobotLibrary } from "./robots/RobotLibrary";
@@ -81,7 +82,7 @@ const NO_OVERRIDES: readonly PoseOverride[] = [];
 const NO_CELLS: readonly Cell[] = [];
 
 /** The workspaces. Calibrate is in a browser too, as a preview of what a calibration observes. */
-const MODES: Mode[] = ["optics", "rigs", "setup", "motion", "images", "dataset"];
+const MODES: Mode[] = ["library", "optics", "rigs", "setup", "motion", "images", "dataset"];
 
 function storedMode(modes: Mode[]): Mode {
   try {
@@ -103,6 +104,7 @@ export function App() {
   const [studio] = useState(() => new Studio(createPlayhead(1, 0.01)));
   const [runner] = useState(() => new DatasetRunner(studio));
   const [calibration] = useState(() => new CalibrationRunner());
+  const studioState = useStudio(studio);
   const {
     current,
     failure,
@@ -118,8 +120,10 @@ export function App() {
     project,
     reopenable,
     bank,
-  } = useStudio(studio);
+  } = studioState;
   const bankName = bank?.manifest.name ?? null;
+  // The Library workspace: every item the project sees, to browse and edit.
+  const libraryPanels = useLibraryWorkspace(studio, studioState);
   const [cellDialog, setCellDialog] = useState(false);
   const [robotLibrary, setRobotLibrary] = useState(false);
   // The Optics workspace's head, kept across workspaces; it starts from the project's parts.
@@ -1119,14 +1123,37 @@ export function App() {
             exports={exports}
           />
         }
-        left={mode === "optics" ? opticsLeft : mode === "rigs" ? rigsLeft : left}
-        leftLabel={mode === "optics" || mode === "rigs" ? "Design" : "Scene frames"}
-        main={mode === "optics" ? opticsMain : mode === "rigs" ? rigsMain : main}
-        right={mode === "optics" ? opticsRight : mode === "rigs" ? rigsRight : right}
-        rightLabel={mode === "optics" || mode === "rigs" ? "Figures" : mode === "motion" ? "Program" : "Inspector"}
+        left={
+          mode === "library" ? libraryPanels.left : mode === "optics" ? opticsLeft : mode === "rigs" ? rigsLeft : left
+        }
+        leftLabel={
+          mode === "library" ? "Library items" : mode === "optics" || mode === "rigs" ? "Design" : "Scene frames"
+        }
+        main={
+          mode === "library" ? libraryPanels.main : mode === "optics" ? opticsMain : mode === "rigs" ? rigsMain : main
+        }
+        right={
+          mode === "library"
+            ? libraryPanels.right
+            : mode === "optics"
+              ? opticsRight
+              : mode === "rigs"
+                ? rigsRight
+                : right
+        }
+        rightLabel={
+          mode === "library"
+            ? "Layers"
+            : mode === "optics" || mode === "rigs"
+              ? "Figures"
+              : mode === "motion"
+                ? "Program"
+                : "Inspector"
+        }
         rightSize={{ defaultSize: 380, minSize: 260, maxSize: "50%" }}
         bottom={
           current &&
+          mode !== "library" &&
           mode !== "optics" &&
           mode !== "rigs" && (
             <PlaybackBar

@@ -50,6 +50,9 @@ export interface Cell {
 /** Writes `text` to `path` (relative to the project folder), creating folders as needed. */
 export type ProjectWriter = (path: string, text: string) => Promise<void>;
 
+/** Removes the file at `path` (relative to the folder); a folder is refused. */
+export type ProjectRemover = (path: string) => Promise<void>;
+
 /** Where a library reference resolves (ADR 0010 §1), highest first. */
 export type Layer = "project" | "bank" | "builtin";
 
@@ -62,6 +65,8 @@ export interface Project {
   location: string;
   /** How to write into it; `null` for a read-only project (the bundled examples). */
   write: ProjectWriter | null;
+  /** How to remove a file from it (a library item renamed or deleted); absent where it cannot. */
+  remove?: ProjectRemover | null;
   manifest: ProjectManifest;
   cells: Cell[];
   /**
@@ -88,6 +93,7 @@ export async function loadProject(
   root: string,
   write: ProjectWriter | null = null,
   location: string = root === "" ? source.name : root,
+  remove: ProjectRemover | null = null,
 ): Promise<Project> {
   const manifest = JSON.parse(await source.readText(join(root, PROJECT_FILE))) as ProjectManifest;
   if (manifest.version !== 1)
@@ -114,7 +120,7 @@ export async function loadProject(
   const layers = new Map<string, { layer: Layer; hides: Layer[] }>(
     [...own.keys()].map((ref) => [ref, { layer: "project", hides: [] }]),
   );
-  return { source, root, location, write, manifest, cells, library: own, own, layers, problems };
+  return { source, root, location, write, remove, manifest, cells, library: own, own, layers, problems };
 }
 
 /**
@@ -165,6 +171,8 @@ export interface Bank {
   location: string;
   /** How to write into it; `null` when it is read-only. */
   write: ProjectWriter | null;
+  /** How to remove a file from it; absent where it cannot. */
+  remove?: ProjectRemover | null;
   manifest: BankManifest;
   /** Its items, by reference. */
   library: Map<string, LibraryItem>;
@@ -176,13 +184,18 @@ export interface Bank {
 export const BANK_FILE = "etendue-bank.json";
 
 /** Read the bank at the root of `source`. A missing or unreadable manifest rejects. */
-export async function loadBank(source: FileSource, write: ProjectWriter | null, location = source.name): Promise<Bank> {
+export async function loadBank(
+  source: FileSource,
+  write: ProjectWriter | null,
+  location = source.name,
+  remove: ProjectRemover | null = null,
+): Promise<Bank> {
   const manifest = JSON.parse(await source.readText(BANK_FILE)) as BankManifest;
   if (manifest.version !== 1)
     throw new Error(`${BANK_FILE}: bank version ${manifest.version}; this studio reads version 1`);
   const problems: Bank["problems"] = [];
   const library = await readLibrary(source, "", problems);
-  return { source, location, write, manifest, library, problems };
+  return { source, location, write, remove, manifest, library, problems };
 }
 
 /**
@@ -231,26 +244,51 @@ export async function useInProject(project: Project, ref: string): Promise<Proje
   const item = project.library.get(ref);
   const layer = project.layers.get(ref)?.layer;
   if (!item || !layer || layer === "project") throw new Error(`no library item \`${ref}\``);
-  const copy: LibraryItem = {
-    ...item,
-    version: 2,
-    origin: { layer, reference: ref, sha256: libraryItemHash(item) },
-  };
-  return saveLibraryItem(project, copy);
+  return saveLibraryItem(project, copyOf(item, layer, ref));
+}
+
+/**
+ * The project's copy of `item`, the item at `ref` in the bank or the built-ins: version 2, with
+ * its origin and the source's content hash. `id` keeps a copy's own id (an updated copy).
+ */
+export function copyOf(item: LibraryItem, layer: "bank" | "builtin", ref: string, id = item.id): LibraryItem {
+  return { ...item, id, version: 2, origin: { layer, reference: ref, sha256: libraryItemHash(item) } };
+}
+
+/**
+ * Replace the project's copy at `ref` with its source as it is now (`source`, the item its origin
+ * names), keeping the copy's id. Returns the project with it.
+ */
+export async function updateCopy(project: Project, ref: string, source: LibraryItem): Promise<Project> {
+  const copy = project.own.get(ref);
+  const origin = copy?.origin;
+  if (!copy || !origin) throw new Error(`\`${ref}\` is not a copy of a bank or built-in item`);
+  return saveLibraryItem(project, copyOf(source, origin.layer, origin.reference, copy.id));
 }
 
 /** Whether the project's copy at `ref` differs from its source now (the source's hash changed). */
-export function isStale(project: Project, sources: Map<string, LibraryItem>, ref: string): boolean {
+export function isStale(project: Project, sources: ReadonlyMap<string, LibraryItem>, ref: string): boolean {
   const origin = project.own.get(ref)?.origin;
   if (!origin) return false;
   const source = sources.get(origin.reference);
   return source !== undefined && libraryItemHash(source) !== origin.sha256;
 }
 
+/** The kind of an item, by the one part it holds. */
+export function kindOf(item: LibraryItem): LibraryKind | null {
+  return (Object.keys(LIBRARY_FOLDERS) as LibraryKind[]).find((k) => item[k] != null) ?? null;
+}
+
 /** The library folder an item belongs in, by the one part it holds. */
 export function folderOf(item: LibraryItem): string | null {
-  const kind = (Object.keys(LIBRARY_FOLDERS) as LibraryKind[]).find((k) => item[k] != null);
+  const kind = kindOf(item);
   return kind ? LIBRARY_FOLDERS[kind] : null;
+}
+
+/** The item's reference, `<folder>/<id>`, if it holds a part. */
+export function refOf(item: LibraryItem): string | null {
+  const folder = folderOf(item);
+  return folder ? `${folder}/${item.id}` : null;
 }
 
 const text = (doc: unknown) => `${JSON.stringify(doc, null, 2)}\n`;
@@ -298,6 +336,84 @@ export async function saveToBank(bank: Bank, item: LibraryItem): Promise<Bank> {
 }
 
 /**
+ * Remove the project's own item at `ref` (its file). Returns the project without it; a bank or
+ * built-in item it hid shows again once the project is layered (`withLayers`).
+ */
+export async function removeLibraryItem(project: Project, ref: string): Promise<Project> {
+  if (!project.own.has(ref)) throw new Error(`the project has no item \`${ref}\``);
+  writable(project);
+  if (!project.remove) throw new Error(`${project.location}: files cannot be removed here`);
+  await project.remove(`library/${ref}.json`);
+  const own = new Map(project.own);
+  own.delete(ref);
+  const library = new Map(project.library);
+  library.delete(ref);
+  const layers = new Map(project.layers);
+  layers.delete(ref);
+  return { ...project, own, library, layers };
+}
+
+/** Remove the bank's item at `ref` (its file). Returns the bank without it. */
+export async function removeFromBank(bank: Bank, ref: string): Promise<Bank> {
+  if (!bank.library.has(ref)) throw new Error(`the bank has no item \`${ref}\``);
+  if (!bank.write || !bank.remove) throw new Error(`${bank.location} is read-only`);
+  await bank.remove(`library/${ref}.json`);
+  const library = new Map(bank.library);
+  library.delete(ref);
+  return { ...bank, library };
+}
+
+/** Why `id` cannot be the id of an item in `folder` among the `taken` references; `null` when it can. */
+export function idProblem(
+  id: string,
+  folder: string,
+  taken: ReadonlySet<string> | ReadonlyMap<string, unknown>,
+): string | null {
+  if (id === "") return "An id is needed.";
+  if (id === "world" || !/^[A-Za-z0-9_-]+$/.test(id)) return "Use letters, digits, _ and - only.";
+  if (taken.has(`${folder}/${id}`)) return `\`${folder}/${id}\` exists already.`;
+  return null;
+}
+
+/**
+ * Rename the project's item at `ref` to `id`: the item is written under its new id, then the old
+ * file is removed. Project defaults that named it follow it. Returns the project.
+ */
+export async function renameLibraryItem(project: Project, ref: string, id: string): Promise<Project> {
+  const item = project.own.get(ref);
+  const folder = item && folderOf(item);
+  if (!item || !folder) throw new Error(`the project has no item \`${ref}\``);
+  const problem = idProblem(id, folder, project.own);
+  if (problem) throw new Error(problem);
+  if (!project.remove) throw new Error(`${project.location}: files cannot be removed here`);
+  let next = await saveLibraryItem(project, { ...item, id });
+  next = await removeLibraryItem(next, ref);
+  const defaults = next.manifest.defaults;
+  const renamed = `${folder}/${id}`;
+  if (defaults && Object.values(defaults).includes(ref)) {
+    const manifest: ProjectManifest = {
+      ...next.manifest,
+      defaults: Object.fromEntries(Object.entries(defaults).map(([k, v]) => [k, v === ref ? renamed : v])),
+    };
+    await writable(next)(PROJECT_FILE, text(manifest));
+    next = { ...next, manifest };
+  }
+  return next;
+}
+
+/** Rename the bank's item at `ref` to `id` (written anew, then the old file removed). Returns the bank. */
+export async function renameInBank(bank: Bank, ref: string, id: string): Promise<Bank> {
+  const item = bank.library.get(ref);
+  const folder = item && folderOf(item);
+  if (!item || !folder) throw new Error(`the bank has no item \`${ref}\``);
+  const problem = idProblem(id, folder, bank.library);
+  if (problem) throw new Error(problem);
+  if (!bank.remove) throw new Error(`${bank.location}: files cannot be removed here`);
+  const next = await saveToBank(bank, { ...item, id });
+  return removeFromBank(next, ref);
+}
+
+/**
  * Make `write`'s folder a new project named `name`: a manifest whose defaults are `starter`'s, and
  * copies of the items those defaults name (ADR 0010 §3: a project owns what it uses; the rest of
  * the built-ins stay visible as their layer). No cells yet.
@@ -308,12 +424,7 @@ export async function createProject(write: ProjectWriter, name: string, starter:
   for (const ref of refs) {
     const item = ref ? starter.own.get(ref) : undefined;
     if (!item || !ref) continue;
-    const copy: LibraryItem = {
-      ...item,
-      version: 2,
-      origin: { layer: "builtin", reference: ref, sha256: libraryItemHash(item) },
-    };
-    await write(`library/${ref}.json`, text(copy));
+    await write(`library/${ref}.json`, text(copyOf(item, "builtin", ref)));
   }
   const manifest: ProjectManifest = { version: 1, name, cells: [], defaults };
   await write(PROJECT_FILE, text(manifest));

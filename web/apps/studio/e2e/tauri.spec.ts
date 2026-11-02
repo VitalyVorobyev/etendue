@@ -32,12 +32,14 @@ async function installShell(page: Page): Promise<void> {
     w.__requests = [];
     w.__calibrations = [];
     w.__cancelled = false;
-    // A project folder the user "picks", kept in sessionStorage so it survives a reload.
+    // A project folder the user "picks", and the user's bank, kept in sessionStorage so they
+    // survive a reload.
     const PROJECT = "/proj";
+    const BANK = "/bank";
     const disk = (): Record<string, string> =>
       JSON.parse(sessionStorage.getItem("fake-disk") ?? "{}") as Record<string, string>;
     const store = (files: Record<string, string>) => sessionStorage.setItem("fake-disk", JSON.stringify(files));
-    const inProject = (path: string) => path === PROJECT || path.startsWith(`${PROJECT}/`);
+    const inProject = (path: string) => [PROJECT, BANK].some((dir) => path === dir || path.startsWith(`${dir}/`));
     w.__TAURI_INTERNALS__ = {
       transformCallback: (cb: (data: unknown) => void) => {
         const id = next++;
@@ -57,6 +59,22 @@ async function installShell(page: Page): Promise<void> {
             files[args.path as string] = args.text as string;
             store(files);
             return null;
+          }
+          case "remove_file": {
+            const files = disk();
+            const path = args.path as string;
+            if (!inProject(path)) throw new Error(`${path}: not in a folder chosen in the studio`);
+            if (!(path in files)) throw new Error(`${path}: not a file`);
+            delete files[path];
+            store(files);
+            return null;
+          }
+          case "open_bank": {
+            const files = disk();
+            const path = `${BANK}/etendue-bank.json`;
+            files[path] ??= `${JSON.stringify({ version: 1, name: "My bank" }, null, 2)}\n`;
+            store(files);
+            return [BANK, JSON.parse(files[path]) as unknown];
           }
           case "open_project": {
             const text = disk()[`${args.dir as string}/etendue-project.json`];
@@ -457,4 +475,85 @@ test("a new project gets the starter library, takes a cell, and reopens", async 
   await expect(page.getByTestId("dataset-panel").getByRole("textbox", { name: "Output folder" })).toHaveValue(
     "/proj/datasets/bench",
   );
+});
+
+test("the Library workspace: a bank lens used in a project, edited, its copy updated, then deleted", async ({
+  page,
+}) => {
+  await installShell(page);
+  await page.goto("/?example=eye_in_hand_ur5e");
+  await expect(page.getByRole("treeitem", { name: /cam_left/ })).toBeVisible({ timeout: 30_000 });
+  const disk = () =>
+    page.evaluate(() => JSON.parse(sessionStorage.getItem("fake-disk") ?? "{}") as Record<string, string>);
+  const file = async (path: string) => {
+    const text = (await disk())[path];
+    return text === undefined ? undefined : (JSON.parse(text) as Record<string, unknown>);
+  };
+  const focal = async (path: string) =>
+    ((await file(path))?.lens as { focal_length_m?: number } | undefined)?.focal_length_m;
+
+  await page.getByRole("radio", { name: "Library" }).click();
+  const list = page.getByTestId("library-list");
+  const detail = page.getByTestId("library-detail");
+  // The examples are the built-in layer, and read-only.
+  await list.locator('[data-layer="builtin"][data-ref="lenses/lm25hc"]').click();
+  await expect(detail.getByText("Built-in items are read-only")).toBeVisible();
+  await expect(detail.getByRole("button", { name: "Use in project" })).toBeDisabled();
+
+  // A lens made in the bank.
+  await page.getByRole("button", { name: "New…" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("textbox", { name: "Name" }).fill("Bench lens");
+  await expect(dialog.getByRole("textbox", { name: /^Id/ })).toHaveValue("bench_lens");
+  await dialog.getByRole("button", { name: "Create" }).click();
+  await expect(page.getByText("Saved Bench lens")).toBeVisible();
+  expect(await file("/bank/library/lenses/bench_lens.json")).toMatchObject({
+    version: 2,
+    id: "bench_lens",
+    name: "Bench lens",
+    lens: { focal_length_m: 0.025 },
+  });
+
+  // A new project uses it: a copy, with its origin.
+  await page.getByRole("button", { name: "File" }).click();
+  await page.getByRole("menuitem", { name: "New project…" }).click();
+  await expect(page.getByText("Opened proj")).toBeVisible();
+  const bankLens = list.locator('[data-layer="bank"][data-ref="lenses/bench_lens"]');
+  const copy = list.locator('[data-layer="project"][data-ref="lenses/bench_lens"]');
+  await bankLens.click();
+  await detail.getByRole("button", { name: "Use in project" }).click();
+  await expect(copy).toBeVisible();
+  await expect(copy).toContainText("hides bank");
+  await expect(bankLens).toContainText("hidden by project");
+  expect(await file("/proj/library/lenses/bench_lens.json")).toMatchObject({
+    id: "bench_lens",
+    origin: { layer: "bank", reference: "lenses/bench_lens" },
+  });
+  await expect(detail.getByTestId("library-origin")).toContainText("lenses/bench_lens");
+
+  // The bank's lens is measured again: the project's copy is stale.
+  await bankLens.click();
+  await detail.getByRole("spinbutton", { name: "Focal length" }).fill("35");
+  await detail.getByRole("button", { name: "Save", exact: true }).click();
+  await expect.poll(() => focal("/bank/library/lenses/bench_lens.json")).toBe(0.035);
+  await expect(copy.getByText("stale")).toBeVisible();
+
+  // Update copy brings it up to date, keeping its id.
+  await copy.click();
+  await expect(detail.getByText("Its source has changed")).toBeVisible();
+  await detail.getByRole("button", { name: "Update copy" }).first().click();
+  await expect(copy.getByText("stale")).toHaveCount(0);
+  expect(await file("/proj/library/lenses/bench_lens.json")).toMatchObject({
+    id: "bench_lens",
+    lens: { focal_length_m: 0.035 },
+    origin: { layer: "bank", reference: "lenses/bench_lens" },
+  });
+
+  // Deleting the copy removes its file; the bank's lens shows through again.
+  await detail.getByRole("button", { name: "Delete…" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Delete" }).click();
+  await expect(copy).toHaveCount(0);
+  expect(await file("/proj/library/lenses/bench_lens.json")).toBeUndefined();
+  await expect(bankLens).not.toContainText("hidden by project");
+  expect(await file("/bank/library/lenses/bench_lens.json")).toBeDefined();
 });

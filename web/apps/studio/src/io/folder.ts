@@ -10,6 +10,8 @@ import type { FileSource } from "./source";
 export interface WritableSource extends FileSource {
   /** Write `text` to `path`, creating the folders it needs. */
   write: (path: string, text: string) => Promise<void>;
+  /** Remove the file at `path`; a folder, or a missing file, rejects. */
+  remove: (path: string) => Promise<void>;
 }
 
 /** The File System Access surface used here (Chromium's). */
@@ -19,6 +21,7 @@ interface DirectoryHandle {
   getDirectoryHandle(name: string, options?: { create?: boolean }): Promise<DirectoryHandle>;
   getFileHandle(name: string, options?: { create?: boolean }): Promise<FileHandle>;
   values(): AsyncIterable<DirectoryHandle | FileHandle>;
+  removeEntry(name: string, options?: { recursive?: boolean }): Promise<void>;
   queryPermission?(options: { mode: "read" | "readwrite" }): Promise<PermissionState>;
   requestPermission?(options: { mode: "read" | "readwrite" }): Promise<PermissionState>;
 }
@@ -97,6 +100,15 @@ export function folderSource(root: DirectoryHandle): WritableSource {
       const writable = await (await fileOf(root, path, true)).createWritable();
       await writable.write(text);
       await writable.close();
+    },
+    remove: async (path) => {
+      const p = parts(path);
+      const name = p.pop();
+      if (name === undefined) throw new Error(`${path}: not a file`);
+      const dir = await folderOf(root, p, false);
+      // A folder is not a file: `getFileHandle` refuses it before anything is removed.
+      await dir.getFileHandle(name);
+      await dir.removeEntry(name);
     },
   };
 }

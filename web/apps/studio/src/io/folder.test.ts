@@ -42,8 +42,16 @@ function memoryFolder(name: string, files: Map<string, string>, prefix = ""): Di
     },
     getFileHandle(child, options) {
       const path = `${prefix}${child}`;
+      if (children().get(child) === "directory")
+        return Promise.reject(new DOMException("a folder", "TypeMismatchError"));
       if (!files.has(path) && !options?.create) return Promise.reject(notFound());
       return Promise.resolve(file(path));
+    },
+    removeEntry(child) {
+      const path = `${prefix}${child}`;
+      if (!files.has(path)) return Promise.reject(notFound());
+      files.delete(path);
+      return Promise.resolve();
     },
     values() {
       const entries = [...children()].map(([child, kind]) =>
@@ -74,5 +82,19 @@ describe("a project folder opened in the browser", () => {
     await source.write("cell_1/scene.json", "{ }");
     expect(files.get("cell_1/scene.json")).toBe("{ }");
     await expect(source.readText("../outside.json")).rejects.toThrow(/outside the project/);
+  });
+
+  it("removes files, and refuses folders, missing files and paths out of it", async () => {
+    const files = new Map([
+      ["library/lenses/a.json", "A"],
+      ["library/lenses/b.json", "B"],
+    ]);
+    const source = folderSource(memoryFolder("bank", files));
+    await source.remove("library/lenses/a.json");
+    expect([...files.keys()]).toEqual(["library/lenses/b.json"]);
+    await expect(source.remove("library/lenses")).rejects.toThrow("a folder");
+    await expect(source.remove("library/lenses/a.json")).rejects.toThrow("not found");
+    await expect(source.remove("../b.json")).rejects.toThrow(/outside the project/);
+    expect([...files.keys()]).toEqual(["library/lenses/b.json"]);
   });
 });

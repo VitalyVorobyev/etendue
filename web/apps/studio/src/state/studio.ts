@@ -4,7 +4,7 @@
  * or on mount) never set React state from an effect.
  */
 
-import type { LibraryItem, ScenarioSpec, SceneSpec } from "@etendue/wasm";
+import { type LibraryItem, type ScenarioSpec, type SceneSpec, validateLibraryItem } from "@etendue/wasm";
 import { type Playhead, toast } from "@vitavision/workbench";
 import { useSyncExternalStore } from "react";
 
@@ -17,10 +17,17 @@ import {
   type Project,
   type ProjectWriter,
   addCell,
+  copyOf,
   createProject,
   loadBank,
   loadProject,
+  refOf,
+  removeFromBank,
+  removeLibraryItem,
+  renameInBank,
+  renameLibraryItem,
   saveToBank,
+  updateCopy,
   useInProject as copyIntoProject,
   withLayers,
   saveLibraryItem as writeLibraryItem,
@@ -35,6 +42,7 @@ import {
   openBankDir,
   openProjectDir,
   pickDirectory,
+  removeFile,
   saveDialog,
   saveScene,
   writeText,
@@ -93,7 +101,12 @@ export interface StudioState {
   reopenable: string | null;
   /** The user's bank (ADR 0010), once it has opened. */
   bank: Bank | null;
+  /** The built-in library (the reference project's), once it has loaded. */
+  builtin: Map<string, LibraryItem> | null;
 }
+
+/** Where the Library workspace writes: the user's bank or the open project. */
+export type Store = "bank" | "project";
 
 /** One entry of the undo or redo stack: the document before (or after) an edit. */
 interface Step {
@@ -205,6 +218,7 @@ export class Studio {
     project: null,
     reopenable: null,
     bank: null,
+    builtin: null,
   };
   readonly #listeners = new Set<() => void>();
   #generation = 0;
@@ -665,7 +679,7 @@ export class Studio {
         // An example asked for by name wins; otherwise the project last opened, if it still opens.
         const project = (id === "" ? await this.#reopen() : null) ?? starter;
         for (const p of project.problems) console.warn(`project: ${p.path}: ${p.message}`);
-        this.#set({ project, loading: false });
+        this.#set({ project, loading: false, builtin: starter.own });
         if (this.#state.current === null && this.#generation === 0) {
           // A project without cells yet starts from an example, to save into it as a cell.
           const from = project.cells.length > 0 ? project : starter;
@@ -761,6 +775,7 @@ export class Studio {
           fsSource(dir, folderName(dir)),
           (path, text) => writeText(absolute(dir, path), text),
           dir,
+          (path) => removeFile(absolute(dir, path)),
         );
       } else if (canOpenFolders()) {
         const remembered = await rememberedFolder(BANK_KEY);
@@ -856,6 +871,118 @@ export class Studio {
     }
   };
 
+  /** Save `item` into `store` (the Library workspace's edits, new items, duplicates). */
+  readonly putItem = (store: Store, item: LibraryItem): Promise<boolean> =>
+    store === "bank" ? this.saveToBank(item) : this.saveLibraryItem(item);
+
+  /** Delete the item at `ref` from `store`. */
+  readonly deleteItem = async (store: Store, ref: string): Promise<boolean> => {
+    const { bank, project } = this.#state;
+    const name = (store === "bank" ? bank?.library : project?.own)?.get(ref)?.name ?? ref;
+    try {
+      if (store === "bank") {
+        if (!bank) throw new Error("no bank is open");
+        this.#set({ bank: await removeFromBank(bank, ref) });
+      } else {
+        if (!project) throw new Error("no project is open");
+        this.#set({ project: await removeLibraryItem(project, ref) });
+      }
+      toast({ title: `Deleted ${name}`, tone: "success", duration: 2500 });
+      return true;
+    } catch (e) {
+      toast({ title: `Could not delete ${name}`, description: message(e), tone: "error" });
+      return false;
+    }
+  };
+
+  /** Give the item at `ref` in `store` the id `id` (a new file; the old one removed). */
+  readonly renameItem = async (store: Store, ref: string, id: string): Promise<boolean> => {
+    const { bank, project } = this.#state;
+    try {
+      if (store === "bank") {
+        if (!bank) throw new Error("no bank is open");
+        this.#set({ bank: await renameInBank(bank, ref, id) });
+      } else {
+        if (!project) throw new Error("no project is open");
+        this.#set({ project: await renameLibraryItem(project, ref, id) });
+      }
+      toast({ title: `Renamed to ${id}`, tone: "success", duration: 2500 });
+      return true;
+    } catch (e) {
+      toast({ title: "Could not rename the item", description: message(e), tone: "error" });
+      return false;
+    }
+  };
+
+  /**
+   * Copy `item`, the item at `ref` in the bank or the built-ins, into the open project (ADR 0010
+   * §3), with its origin. A project item with its reference is replaced.
+   */
+  readonly useItemInProject = async (layer: "bank" | "builtin", ref: string, item: LibraryItem): Promise<boolean> => {
+    const project = this.#state.project;
+    if (!project) return false;
+    try {
+      this.#set({ project: await writeLibraryItem(project, copyOf(item, layer, ref)) });
+      toast({
+        title: `${item.name} is in the project`,
+        description: `${project.manifest.name} library`,
+        tone: "success",
+        duration: 2500,
+      });
+      return true;
+    } catch (e) {
+      toast({ title: "Could not copy into the project", description: message(e), tone: "error" });
+      return false;
+    }
+  };
+
+  /** Replace the project's copy at `ref` with its source as it is now (keeping the copy's id). */
+  readonly updateCopy = async (ref: string): Promise<boolean> => {
+    const { project, bank, builtin } = this.#state;
+    const origin = project?.own.get(ref)?.origin;
+    if (!project || !origin) return false;
+    const source = (origin.layer === "bank" ? bank?.library : builtin)?.get(origin.reference);
+    try {
+      if (!source)
+        throw new Error(
+          `its source \`${origin.reference}\` is not in the ${origin.layer === "bank" ? "bank" : "built-ins"}`,
+        );
+      this.#set({ project: await updateCopy(project, ref, source) });
+      toast({
+        title: `Updated ${source.name}`,
+        description: `from the ${origin.layer === "bank" ? "bank" : "built-ins"}`,
+        tone: "success",
+        duration: 2500,
+      });
+      return true;
+    } catch (e) {
+      toast({ title: "Could not update the copy", description: message(e), tone: "error" });
+      return false;
+    }
+  };
+
+  /**
+   * Import library item files into `store`: each is checked first, and one whose reference the
+   * store has already is refused. Returns how many were imported.
+   */
+  readonly importItems = async (store: Store, files: { name: string; text: string }[]): Promise<number> => {
+    let imported = 0;
+    for (const file of files) {
+      try {
+        const item = validateLibraryItem(file.text);
+        const ref = refOf(item);
+        const { bank, project } = this.#state;
+        const taken = store === "bank" ? bank?.library : project?.own;
+        if (ref && taken?.has(ref)) throw new Error(`\`${ref}\` exists already: rename or delete it first`);
+        if (!(await this.putItem(store, item))) continue;
+        imported++;
+      } catch (e) {
+        toast({ title: `Could not import ${file.name}`, description: message(e), tone: "error" });
+      }
+    }
+    return imported;
+  };
+
   /** Save the open scene and scenario as a new cell `id` of the open project. */
   readonly saveAsCell = async (id: string): Promise<boolean> => {
     this.commit();
@@ -922,6 +1049,10 @@ export class Studio {
 /** Where the desktop app remembers the last project folder. */
 const PROJECT_KEY = "etendue-studio:project";
 
+function message(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
+}
+
 /** Where the browser remembers the bank folder's handle. */
 const BANK_KEY = "bank";
 
@@ -931,7 +1062,7 @@ async function browserBank(handle: Parameters<typeof folderSource>[0]): Promise<
   if (!(await source.has(BANK_FILE))) {
     await source.write(BANK_FILE, `${JSON.stringify({ version: 1, name: handle.name }, null, 2)}\n`);
   }
-  const bank = await loadBank(source, source.write, handle.name);
+  const bank = await loadBank(source, source.write, handle.name, source.remove);
   await rememberFolder(handle, BANK_KEY);
   return bank;
 }
@@ -948,13 +1079,19 @@ async function tauriProject(dir: string): Promise<Project> {
   } catch {
     // Remembering the project is a convenience.
   }
-  return loadProject(fsSource(dir, folderName(dir)), "", (path, text) => writeText(absolute(dir, path), text), dir);
+  return loadProject(
+    fsSource(dir, folderName(dir)),
+    "",
+    (path, text) => writeText(absolute(dir, path), text),
+    dir,
+    (path) => removeFile(absolute(dir, path)),
+  );
 }
 
 /** A project folder opened in the browser. */
 async function browserProject(handle: Parameters<typeof folderSource>[0]): Promise<Project> {
   const source = folderSource(handle);
-  const project = await loadProject(source, "", source.write, handle.name);
+  const project = await loadProject(source, "", source.write, handle.name, source.remove);
   await rememberFolder(handle);
   return project;
 }

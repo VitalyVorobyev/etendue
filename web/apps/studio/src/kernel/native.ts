@@ -393,6 +393,11 @@ export function writeText(path: string, text: string): Promise<void> {
   return invoke<void>("write_text", { path, text });
 }
 
+/** Remove a file in a writable folder (a library item renamed or deleted). Folders are refused. */
+export function removeFile(path: string): Promise<void> {
+  return invoke<void>("remove_file", { path });
+}
+
 /**
  * Save a scene (and its scenario) to files in writable folders. The scene's robot manifest paths
  * are rewritten relative to its new folder (found relative to `from`, the folder it was read
