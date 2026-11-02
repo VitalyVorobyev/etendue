@@ -50,6 +50,12 @@ export function newPart(kind: LibraryKind, project: Project | null): Partial<Lib
       if (!start) throw new Error("A rig needs a camera or a head in the library to start from.");
       return { rig: { layout: toLayout(start) } };
     }
+    case "procedure":
+      return {
+        procedure: structuredClone(
+          firstOf(project, "procedure")?.procedure ?? { stages: [{ id: "intrinsics", problem: "planar_intrinsics" }] },
+        ),
+      };
   }
 }
 
