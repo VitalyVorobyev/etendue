@@ -6,6 +6,11 @@
   "lens": {
     "focal_length_m": 0.05,
     "min_f_number": 1.8,
+    "principal_gap_m": 0,
+    "entrance_pupil_m": 0,
+    "focusing": {
+      "type": "unit"
+    },
     "mount": "c_mount",
     "fov_diagonal_deg": 15.3
   }

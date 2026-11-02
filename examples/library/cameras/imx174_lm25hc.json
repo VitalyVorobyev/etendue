@@ -33,7 +33,12 @@
       "lens": {
         "name": "Kowa LM25HC",
         "focal_length_m": 0.025,
-        "f_number": 4
+        "f_number": 4,
+        "principal_gap_m": 0,
+        "entrance_pupil_m": 0,
+        "focusing": {
+          "type": "unit"
+        }
       },
       "focus_distance_m": 0.5
     }
