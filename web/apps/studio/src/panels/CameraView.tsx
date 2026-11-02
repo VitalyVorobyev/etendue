@@ -154,6 +154,7 @@ export function CameraView({
   playhead,
   renderedAt,
   observedAt,
+  residualsAt,
 }: {
   session: EtendueScene;
   runtime: FrameTreeRuntime;
@@ -168,6 +169,11 @@ export function CameraView({
   renderedAt?: ((camera: string, k: number) => string | null) | undefined;
   /** What the calibration observes of `camera` at sample `k`, if `k` is a capture (P13). */
   observedAt?: ((camera: string, k: number) => ObservedView | null) | undefined;
+  /**
+   * A calibration's residuals of `camera` at sample `k`, as drawn, with how many points they
+   * are; drawn over the image whether or not the projected targets are.
+   */
+  residualsAt?: ((camera: string, k: number) => { marks: MeasurePrimitive[]; points: number } | null) | undefined;
 }) {
   const k = usePlayhead(playhead);
   const [view, setView] = useState<StageView | null>(null);
@@ -193,6 +199,7 @@ export function CameraView({
     () => (observed ? [...primitives, ...observedMarks(observed)] : primitives),
     [primitives, observed],
   );
+  const residuals = residualsAt?.(camera.id, k) ?? null;
   const [w, h] = [camera.resolution[0], camera.resolution[1]];
   return (
     <div
@@ -201,6 +208,7 @@ export function CameraView({
       data-visible={visible}
       data-stripes={stripes}
       data-observed={observed ? observed.points.length : undefined}
+      data-residuals={residuals ? residuals.points : undefined}
     >
       <ImageStage
         image={{ width: w, height: h }}
@@ -251,6 +259,11 @@ export function CameraView({
         {overlay && (
           <div className="absolute inset-0 overflow-hidden">
             <Overlay width={w} height={h} primitives={marks} />
+          </div>
+        )}
+        {residuals && (
+          <div className="absolute inset-0 overflow-hidden" data-testid={`residuals-${camera.id}`}>
+            <Overlay width={w} height={h} primitives={residuals.marks} />
           </div>
         )}
       </ImageStage>
