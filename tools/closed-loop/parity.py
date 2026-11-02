@@ -5,7 +5,8 @@
 
 Runs closed_loop.py's `main` on `<dir>` (with its arguments), captures its comparison rows
 instead of printing them, and checks that the report's rows have the same labels and values
-within max(1e-9, 1e-6 · |value|).
+within max(1e-9, 1e-6 · |value|). The native triangulated stripe rows (G5.3c) have no
+counterpart in the script and are left out.
 """
 
 import json
@@ -16,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 import closed_loop  # noqa: E402
 
 ABS, REL = 1e-9, 1e-6
+NATIVE_ONLY = " triangulated "
 
 
 def main() -> int:
@@ -29,7 +31,8 @@ def main() -> int:
     closed_loop.report = capture
     sys.argv = ["closed_loop.py", *args]
     closed_loop.main()
-    native = [(r["label"], r["value"]) for r in json.loads(Path(report_path).read_text())["reports"][0]["rows"]]
+    rows = json.loads(Path(report_path).read_text())["reports"][0]["rows"]
+    native = [(r["label"], r["value"]) for r in rows if NATIVE_ONLY not in r["label"]]
     if [label for label, _ in native] != [label for label, _ in captured]:
         print(f"G13.1: FAIL, the rows differ:\n  wheel  {[l for l, _ in captured]}\n  native {[l for l, _ in native]}")
         return 1

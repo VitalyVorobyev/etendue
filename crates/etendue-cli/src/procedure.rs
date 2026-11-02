@@ -10,8 +10,8 @@
 
 use anyhow::{Context, Result, bail, ensure};
 use etendue_scene::{
-    CameraChoice, Freedoms, LIBRARY_VERSION, LibraryItem, Loss, Problem, ProcedurePart, Seed,
-    Seeds, SensorChoice, SolverChoice, Stage,
+    CameraChoice, FixLists, Freedoms, LIBRARY_VERSION, LibraryItem, Loss, Problem, ProcedurePart,
+    Seed, Seeds, SensorChoice, SolverChoice, Stage,
 };
 use etendue_synth::dataset::GroundTruth;
 use etendue_synth::observe::{ObservationNoise, Observations};
@@ -136,10 +136,17 @@ pub fn builtin() -> Vec<LibraryItem> {
         robust_loss: None,
     });
     device.seed.sensor = Some(Seed::Nominal);
+    // The hand-eye holds the device stage's camera: the laser plane is in that camera's frame,
+    // and a camera re-estimated here would settle on another frame (and other rays) for it.
+    let held = |names: &[&str]| Some(names.iter().map(|n| (*n).to_owned()).collect());
     let mut head_he = stage("handeye", Problem::SingleCamHandeye);
     head_he.model = Some(CameraChoice {
         sensor: SensorChoice::Design,
-        ..CameraChoice::default()
+        fix: FixLists {
+            intrinsics: held(&["fx", "fy", "cx", "cy"]),
+            distortion: held(&["k1", "k2", "k3", "p1", "p2"]),
+            sensor: held(&["tilt_x", "tilt_y"]),
+        },
     });
     head_he.seed.intrinsics = Some(Seed::Stage("device".into()));
     head_he.seed.sensor = Some(Seed::Stage("device".into()));
@@ -183,7 +190,7 @@ pub fn builtin() -> Vec<LibraryItem> {
         item(
             "laser_head",
             "Laser triangulation head",
-            "The camera, its sensor tilt and its laser plane from the device workflow, seeded from the datasheet tilt; then the hand-eye with the same camera model, seeded from that result.",
+            "The camera, its sensor tilt and its laser plane from the device workflow, seeded from the datasheet tilt; then the hand-eye with that camera held, so the plane and the hand-eye share its frame.",
             vec![device, head_he],
         ),
         item(
@@ -231,10 +238,13 @@ fn patch(s: &Stage, eye_in_hand: bool, scheimpflug: bool, seeds: &SeedValues, n:
         camera["model"] = json!({"sensor": "scheimpflug"});
     }
     if let Some(m) = &s.model {
+        // An untilted model has no tilt to hold: its sensor list is moot, and calibration-rs
+        // refuses one.
+        let sensor = if scheimpflug { &m.fix.sensor } else { &None };
         for (slot, list) in [
             ("intrinsics", &m.fix.intrinsics),
             ("distortion", &m.fix.distortion),
-            ("sensor", &m.fix.sensor),
+            ("sensor", sensor),
         ] {
             put(&mut camera, &["fix", slot], list.as_ref().map(|l| json!(l)));
         }
@@ -674,22 +684,14 @@ fn run_stage(
             )?]
         }
         Problem::RigExtrinsics => vec![c::rig_extrinsics(truth, obs, gated, &resolve(&cams)?)?],
-        Problem::LaserlineDevice => {
-            // The hand-eye on the same views: the pinhole single-camera workflow, as before.
-            let handeye = StageRun {
-                patch: json!({"handeye_init": {"handeye_mode": handeye_mode(eye_in_hand)}}),
-                ..StageRun::default()
-            };
-            vec![c::head(
-                truth,
-                obs,
-                &poses,
-                eye_in_hand,
-                gated,
-                &resolve(&cams)?,
-                &handeye,
-            )?]
-        }
+        Problem::LaserlineDevice => vec![c::head(
+            truth,
+            obs,
+            &poses,
+            eye_in_hand,
+            gated,
+            &resolve(&cams)?,
+        )?],
         Problem::SingleCamHandeye => cams
             .iter()
             .map(|&i| c::single(truth, obs, &poses, i, eye_in_hand, gated, &resolve(&[i])?))
@@ -811,6 +813,7 @@ pub fn run(
         let had = pooled(earlier.clone());
         report = with_planes(&truth, report, &had);
     }
+    let mut report = crate::calibrate::with_triangulation(&truth, report)?;
     if !done.is_empty() {
         // Several stages: every stage's export, by stage id.
         let mut all = serde_json::Map::new();

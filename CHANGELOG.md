@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **The stripe triangulation row** of a laser calibration report (G5.3c): every true stripe
+  pixel triangulated with the calibrated camera, laser plane, hand-eye and robot pose, against the
+  true point in the robot's base, rms and largest per camera; the largest is checked at 0.05 mm on
+  exact data. It does not depend on how a Scheimpflug camera's projection splits between tilt,
+  principal point and camera frame.
 - **The studio's cell builder** (Setup ▸ New cell…): a stepper that makes a cell from library
   items — optics (a camera or a head), one camera or a rig design (with per-position names and
   cameras), eye-in-hand or eye-to-hand through a mount, a target sized against the field of view
@@ -103,6 +108,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the principal plane (pupil magnification ≠ 1) is refused. Its equivalent pinhole needs a skew,
   which calibration-rs no longer models. One-axis tilts, and any tilt with the pupil at the
   principal plane, are unchanged.
+
+### Fixed
+
+- **A triangulation head's result now holds together.** `auto` on a head and the `laser_head`
+  procedure estimated the laser plane with one camera solution and the hand-eye with another
+  (`auto` with an untilted model), so a stripe point triangulated in the robot's frame landed
+  0.1–13 mm off under 0.1 px of noise (`auto` on a Scheimpflug head 29 mm off even on exact
+  data).
+  Both now hold the device stage's camera for the hand-eye: about 0.013 mm
+  (`docs/measurements/head_triangulation.md`).
 
 ## [0.2.0] - 2026-10-20
 

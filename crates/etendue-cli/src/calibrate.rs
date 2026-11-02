@@ -18,17 +18,17 @@
 use std::collections::BTreeMap;
 
 use anyhow::{Context, Result, bail, ensure};
-use etendue_synth::dataset::{GroundTruth, GtCamera, GtHandeye};
+use etendue_synth::dataset::{GroundTruth, GtCamera, GtHandeye, GtLaser};
 use etendue_synth::laser::GtPlane;
 use etendue_synth::observe::{
     ObservationNoise, Observations, ObservedCapture, ObservedPoint, ObservedView,
 };
-use nalgebra::{Isometry3, Vector3};
+use nalgebra::{Isometry3, Point2, Point3, Vector3};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use vision_calibration_core::{
-    CorrespondenceView, NoMeta, PlanarDataset, Pt2, Pt3, RigDataset, RigView, RigViewObs,
-    SensorParams, View,
+    CameraParams, CorrespondenceView, NoMeta, PlanarDataset, Pt2, Pt3, RigDataset, RigView,
+    RigViewObs, SensorParams, View,
 };
 use vision_calibration_pipeline::common::RobotPoseMeta;
 use vision_calibration_pipeline::laserline_device::DeviceManualInit;
@@ -51,6 +51,8 @@ pub mod gate {
     /// G5.3.
     pub const PLANE_NORMAL_DEG: f64 = 0.01;
     pub const PLANE_DISTANCE_MM: f64 = 0.05;
+    /// G5.3c: the largest error of a stripe point triangulated in the robot's frame.
+    pub const TRIANGULATION_MM: f64 = 0.05;
 }
 
 /// One compared quantity: its error, and the gate's limit if it has one.
@@ -598,16 +600,20 @@ impl<'a> Truth<'a> {
         })
     }
 
-    /// The truth's plane of camera `i`'s own laser (the only laser, if none names it).
-    pub(crate) fn plane(&self, i: usize) -> Option<&GtPlane> {
+    /// Camera `i`'s own laser (the only laser, if none names it).
+    pub(crate) fn laser(&self, i: usize) -> Option<&GtLaser> {
         let id = &self.gt.cameras[i].id;
-        let laser = self
-            .gt
+        self.gt
             .lasers
             .iter()
             .find(|l| l.camera.as_deref() == Some(id.as_str()))
-            .or_else(|| (self.gt.lasers.len() == 1).then(|| &self.gt.lasers[0]))?;
-        laser.camera_planes.iter().find(|p| &p.frame == id)
+            .or_else(|| (self.gt.lasers.len() == 1).then(|| &self.gt.lasers[0]))
+    }
+
+    /// The truth's plane of camera `i`'s own laser.
+    pub(crate) fn plane(&self, i: usize) -> Option<&GtPlane> {
+        let id = &self.gt.cameras[i].id;
+        self.laser(i)?.camera_planes.iter().find(|p| &p.frame == id)
     }
 }
 
@@ -686,6 +692,110 @@ fn camera_of(v: &Value, id: &str, cam_se3_ref: Isometry3<f64>) -> EstimatedCamer
         tilt,
         cam_se3_ref,
     }
+}
+
+/// The calibration-rs model of an estimated camera: `like`'s (the truth's) projection and
+/// distortion kind with the estimate's values, and a Scheimpflug sensor when either is tilted.
+fn params_of(cam: &EstimatedCamera, like: &CameraParams) -> Result<CameraParams> {
+    let mut v = serde_json::to_value(like)?;
+    let [fx, fy, cx, cy] = cam.intrinsics;
+    v["intrinsics"] = json!({"fx": fx, "fy": fy, "cx": cx, "cy": cy});
+    let [k1, k2, k3, p1, p2] = cam.distortion;
+    let iters = v["distortion"]["iters"].as_u64().unwrap_or(8);
+    v["distortion"] = json!({
+        "type": "brown_conrady5", "k1": k1, "k2": k2, "k3": k3, "p1": p1, "p2": p2, "iters": iters,
+    });
+    let [tilt_x, tilt_y] = cam.tilt;
+    if v["sensor"]["type"] == "scheimpflug" || tilt_x != 0.0 || tilt_y != 0.0 {
+        v["sensor"] = json!({"type": "scheimpflug", "tilt_x": tilt_x, "tilt_y": tilt_y});
+    }
+    serde_json::from_value(v).context("an estimated camera model")
+}
+
+/// Each laser camera's stripe triangulated as the calibrated head measures it, against the truth
+/// (G5.3c): every true stripe pixel back-projected with the estimated camera, met with the
+/// estimated laser plane, and carried into the robot base through the estimated hand-eye and the
+/// true robot pose. Unlike the camera-frame rows, this does not depend on how an estimate splits
+/// the projection among sensor tilt, principal point and camera frame
+/// (`docs/derivations/scheimpflug_observability.md` §5): it is what a measurement inherits. It
+/// takes a report's estimate as a whole, so it also catches parts that come from different camera
+/// solutions.
+///
+/// # Errors
+///
+/// When an estimated camera does not make a model.
+pub(crate) fn triangulation_rows(truth: &Truth, estimate: &Estimate) -> Result<Vec<Row>> {
+    let (Some(he), Some(handeye)) = (estimate.handeye, truth.gt.handeye.as_ref()) else {
+        return Ok(vec![]);
+    };
+    let mut rows = Vec::new();
+    for (cam, plane) in estimate.cameras.iter().zip(&estimate.laser_planes) {
+        let Some(plane) = plane else { continue };
+        let Some(i) = truth.gt.cameras.iter().position(|c| c.id == cam.id) else {
+            continue;
+        };
+        let Some(laser) = truth.laser(i) else {
+            continue;
+        };
+        let model = params_of(cam, &truth.gt.cameras[i].params)?.build()?;
+        let (n, d) = (Vector3::from(plane.normal), plane.distance);
+        let ref_se3_cam = cam.cam_se3_ref.inverse();
+        let (mut sq, mut max, mut count) = (0.0, 0.0_f64, 0_usize);
+        for c in &truth.gt.captures {
+            let Some(base_se3_tcp) = c.base_se3_tcp else {
+                continue;
+            };
+            let (base_se3_cam, base_se3_target) = match handeye {
+                GtHandeye::EyeInHand {
+                    base_se3_target, ..
+                } => (base_se3_tcp * he * ref_se3_cam, *base_se3_target),
+                GtHandeye::EyeToHand {
+                    gripper_se3_target, ..
+                } => (
+                    he.inverse() * ref_se3_cam,
+                    base_se3_tcp * gripper_se3_target,
+                ),
+            };
+            let stripe = c.laser_stripes.iter().find(|s| s.laser == laser.id);
+            let seen = c.views[i].laser_points.iter().find(|s| s.laser == laser.id);
+            let (Some(stripe), Some(seen)) = (stripe, seen) else {
+                continue;
+            };
+            for p in seen.points.iter().filter(|p| p.occluded.is_none()) {
+                let (Some([u, v]), Some(b)) = (p.pixel, stripe.points.get(p.point)) else {
+                    continue;
+                };
+                let ray = model.backproject_pixel(&Point2::new(u, v)).direction;
+                let measured = base_se3_cam * Point3::from(ray * (-d / n.dot(&ray)));
+                let [x, y, z] = b.xyz_m.unwrap_or([b.position_m[0], b.position_m[1], 0.0]);
+                let e = (measured - base_se3_target * Point3::new(x, y, z)).norm();
+                sq += e * e;
+                max = max.max(e);
+                count += 1;
+            }
+        }
+        if count > 0 {
+            rows.push(Row::new(
+                format!("{} triangulated rms mm", cam.id),
+                (sq / count as f64).sqrt() * 1e3,
+                None,
+            ));
+            rows.push(Row::new(
+                format!("{} triangulated max mm", cam.id),
+                max * 1e3,
+                Some(gate::TRIANGULATION_MM),
+            ));
+        }
+    }
+    Ok(rows)
+}
+
+/// `report` with its [`triangulation_rows`]: the result of a procedure, as a whole.
+pub(crate) fn with_triangulation(truth: &Truth, mut report: Report) -> Result<Report> {
+    let rows = triangulation_rows(truth, &report.estimate)?;
+    report.rows.extend(rows);
+    report.pass = !report.gated || report.rows.iter().all(Row::within);
+    Ok(report)
 }
 
 fn plane_of(v: &Value) -> Option<Plane> {
@@ -1550,8 +1660,10 @@ pub(crate) fn rig_laser(
 }
 
 /// One camera carrying its laser: the laserline device workflow (`device`) for intrinsics, tilt
-/// and plane, then the single-camera hand-eye workflow (`handeye`) on the same views for the
-/// hand-eye.
+/// and plane, then the single-camera hand-eye workflow on the same views for the hand-eye, with
+/// the device's camera held. The plane is in that camera's frame; a camera re-estimated for the
+/// hand-eye would settle on another frame, and the plane and the hand-eye would not compose
+/// (`docs/measurements/head_triangulation.md`).
 pub(crate) fn head(
     truth: &Truth,
     obs: &Observations,
@@ -1559,7 +1671,6 @@ pub(crate) fn head(
     eye_in_hand: bool,
     gated: bool,
     device_run: &StageRun,
-    handeye_run: &StageRun,
 ) -> Result<Report> {
     let mut views = Vec::new();
     let mut points = 0;
@@ -1599,14 +1710,31 @@ pub(crate) fn head(
     if let (Some(e), Some(t)) = (&plane, truth.plane(0)) {
         rows.extend(plane_rows(e, t, &truth.gt.cameras[0].id));
     }
-    // The hand-eye, from the same target views (by default a pinhole workflow: on a Scheimpflug
-    // camera its intrinsics absorb the tilt, so only its hand-eye is kept).
+    // The hand-eye, from the same target views, with the device's camera held.
+    let mut held = json!({"fix": {
+        "intrinsics": ["fx", "fy", "cx", "cy"],
+        "distortion": ["k1", "k2", "k3", "p1", "p2"],
+    }});
+    if tilted {
+        held["model"] = json!({"sensor": "scheimpflug"});
+        held["fix"]["sensor"] = json!(["tilt_x", "tilt_y"]);
+    }
+    let handeye_run = StageRun {
+        patch: json!({"handeye_init": {"handeye_mode": handeye_mode(eye_in_hand)}, "camera": held}),
+        seeds: SeedValues {
+            intrinsics: Some(vec![camera.intrinsics]),
+            distortion: Some(vec![Some(camera.distortion)]),
+            sensor: Some(vec![camera.tilt]),
+            ..SeedValues::default()
+        },
+        scheimpflug: tilted,
+    };
     let (he_export, _, _, _) = run_single(
         obs,
         poses,
         0,
         eye_in_hand,
-        handeye_run,
+        &handeye_run,
         truth.gt.cameras[0].resolution,
     )?;
     let (he, target) = if eye_in_hand {
