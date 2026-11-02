@@ -195,7 +195,7 @@ def observed_captures(gt: dict[str, Any], features: dict[str, Any] | None) -> li
 # ── Comparison ────────────────────────────────────────────────────────────────
 
 
-def intrinsics_rows(estimated: vc.PinholeCamera | vc.PinholeScheimpflugCamera, truth: dict[str, Any], name: str) -> list[tuple[str, float, float | None]]:
+def intrinsics_rows(estimated: vc.Camera, truth: dict[str, Any], name: str) -> list[tuple[str, float, float | None]]:
     k = truth["params"]["intrinsics"]
     e = estimated.intrinsics
     d_true = truth["params"]["distortion"]
@@ -337,7 +337,7 @@ def nominal_seed(cameras: list[dict[str, Any]]) -> dict[str, Any]:
 class SeededLaserlineConfig(vc.RigHandeyeLaserlineConfig):
     """The joint config with `handeye.manual_init` set.
 
-    The wheel does not expose `manual_init` (calibration-rs 0.11.0), but the Rust config it is
+    The wheel does not expose `manual_init` (calibration-rs 0.12.0), but the Rust config it is
     deserialised into accepts it, so it is added to the payload.
     """
 

@@ -140,7 +140,8 @@ pub fn with_iters(params: &CameraParams, iters: u32) -> Option<CameraParams> {
         DistortionParams::BrownConrady5 { params } => params.iters = iters,
         DistortionParams::Rational { params } => params.iters = iters,
         DistortionParams::ThinPrism { params } => params.iters = iters,
-        DistortionParams::None | DistortionParams::Division { .. } => return None,
+        DistortionParams::KannalaBrandt4 { params } => params.iters = iters,
+        _ => return None,
     }
     Some(p)
 }

@@ -49,6 +49,19 @@ fn eye_in_hand_scene_is_valid() {
 }
 
 #[test]
+fn fisheye_cameras_are_refused_until_etendue_supports_them() {
+    let mut v = eye_in_hand();
+    v["cameras"][0]["params"]["projection"] = json!({"type": "equidistant"});
+    v["cameras"][1]["params"]["distortion"] =
+        json!({"type": "kannala_brandt4", "k1": 0.0, "k2": 0.0, "k3": 0.0, "k4": 0.0, "iters": 0});
+    let err = scene(v).validate().unwrap_err();
+    let text = messages(&err);
+    assert!(text.contains("cameras[0].params.projection"), "{err}");
+    assert!(text.contains("cameras[1].params.distortion"), "{err}");
+    assert_eq!(err.issues.len(), 2, "{err}");
+}
+
+#[test]
 fn duplicate_ids_are_rejected_across_kinds() {
     let mut v = eye_in_hand();
     v["targets"][0]["id"] = json!("cam0");

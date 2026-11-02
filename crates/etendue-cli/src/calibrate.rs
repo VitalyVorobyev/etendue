@@ -894,8 +894,10 @@ fn k_json(k: &[f64; 4]) -> Value {
     json!({"fx": k[0], "fy": k[1], "cx": k[2], "cy": k[3]})
 }
 
+/// A Brown-Conrady seed as calibration-rs's `DistortionParams` (tagged, since 0.12; its kind must
+/// be the camera's configured model, which is Brown-Conrady for every camera etendue calibrates).
 fn d_json(d: &[f64; 5]) -> Value {
-    json!({"k1": d[0], "k2": d[1], "k3": d[2], "p1": d[3], "p2": d[4], "iters": 8})
+    json!({"type": "brown_conrady5", "k1": d[0], "k2": d[1], "k3": d[2], "p1": d[3], "p2": d[4], "iters": 8})
 }
 
 fn tilt_json(t: [f64; 2]) -> Value {

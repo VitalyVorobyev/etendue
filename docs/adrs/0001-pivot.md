@@ -80,7 +80,7 @@ first phase that has two library crates to check.
   `vision-calibration-pipeline`, for native calibration. It is native only and
   never reaches wasm.
   - It pulls calibration-rs's detectors (`vision-calibration-detect`). Their
-    calib-targets (0.16.1 at calibration-rs 0.11.0, the same as etendue's own) and
+    calib-targets (0.16.1 at calibration-rs 0.12.0, the same as etendue's own) and
     ringgrid resolve to nalgebra 0.35.
   - The graph may therefore hold a second nalgebra, used only by the detector
     stack (calib-targets, projective-grid, ringgrid). Its points cross into

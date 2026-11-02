@@ -47,7 +47,7 @@ use nalgebra::Point3;
 pub fn scheimpflug_tilt(params: &CameraParams) -> (f64, f64) {
     match &params.sensor {
         SensorParams::Scheimpflug { params } => (params.tilt_x, params.tilt_y),
-        SensorParams::Identity | SensorParams::Homography { .. } => (0.0, 0.0),
+        _ => (0.0, 0.0),
     }
 }
 

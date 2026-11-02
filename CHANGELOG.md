@@ -66,9 +66,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **calibration-rs 0.11.0** (was 0.9.0), **calib-targets 0.16.1** (was 0.15.5) and
-  **chess-corners 2.1** (was 1.2). The Python cross-check uses the `vision-calibration` 0.11.0
-  wheel.
+- **calibration-rs 0.12.0** (was 0.9.0, through 0.11.0), **calib-targets 0.16.1** (was 0.15.5)
+  and **chess-corners 2.1** (was 1.2). The Python cross-check uses the `vision-calibration` 0.12.0
+  wheel (one `Camera` class).
+- calibration-rs 0.12 measures `view_scatter` by leaving out one view at a time, so the predicted
+  σ in reports (`uncertainty`, `param_stats`) changes. On the laser examples it moves by up to
+  4 %; the estimates are unchanged (`docs/measurements/calibration_rs_0_12.md`).
+- A camera with calibration-rs 0.12's fisheye models (the equidistant projection, Kannala-Brandt
+  distortion) is refused by scene and library validation: etendue's optics, render remap and
+  calibration seeds assume a pinhole.
 - Camera intrinsics are `{fx, fy, cx, cy}`: calibration-rs dropped skew and the
   `"type": "fx_fy_cx_cy_skew"` tag. Older scenes still load (the extra keys are ignored); the
   examples, the library and the schemas use the new shape.

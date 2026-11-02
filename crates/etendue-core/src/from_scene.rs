@@ -76,7 +76,8 @@ fn mismatches(stored: &CameraParams, derived: &CameraParams) -> Vec<(&'static st
     let tilt = |p: &CameraParams| match &p.sensor {
         SensorParams::Scheimpflug { params } => Some((params.tilt_x, params.tilt_y)),
         SensorParams::Identity => Some((0.0, 0.0)),
-        SensorParams::Homography { .. } => None,
+        // A raw homography, or a sensor model newer than this check: no tilt to compare.
+        _ => None,
     };
     match (tilt(stored), tilt(derived)) {
         (Some(a), Some(b)) => {

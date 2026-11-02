@@ -252,7 +252,7 @@ Changes to them are lab-ui PRs (drafts until reviewed). `scripts/check-deps.ts` 
 studio imports only what it declares.
 
 **calibration-rs dependency: crates.io + `[patch.crates-io]`**
-- `vision-calibration-core = "0.11.0"` and `vision-calibration-dataset = "0.11.0"` come from
+- `vision-calibration-core = "0.12.0"` and `vision-calibration-dataset = "0.12.0"` come from
   crates.io, so the library crates are publishable.
 - The root `Cargo.toml` `[patch.crates-io]` redirects them to
   `../calibration-rs/crates/*` for local development. The sibling checkout must exist
@@ -281,7 +281,7 @@ match calibration-rs exactly.
 **One exception** (ADR 0001 amendment of 2026-10-19, user decision):
 - `vision-calibration-pipeline` (in `etendue-cli`, for `etendue calibrate`) pulls calibration-rs's
   detectors. The detector stack (calib-targets, projective-grid, ringgrid) runs on nalgebra 0.35, as
-  it does in calibration-rs. calibration-rs 0.11.0's detectors use calib-targets 0.16.1, the same
+  it does in calibration-rs. calibration-rs 0.12.0's detectors use calib-targets 0.16.1, the same
   copy as etendue's, on 0.35.
 - Its points cross into etendue only as plain arrays (`etendue-cli::detect`).
 - `cargo xtask check-layering` allows the second nalgebra for those crates only.

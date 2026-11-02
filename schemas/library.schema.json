@@ -471,6 +471,50 @@
             "type",
             "lambda"
           ]
+        },
+        {
+          "description": "Kannala-Brandt 4-parameter radial polynomial.",
+          "type": "object",
+          "properties": {
+            "iters": {
+              "description": "Maximum Newton iterations of [`DistortionModel::undistort`] (0 → 20).",
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            },
+            "k1": {
+              "description": "Coefficient of `r²`.",
+              "type": "number",
+              "format": "double"
+            },
+            "k2": {
+              "description": "Coefficient of `r⁴`.",
+              "type": "number",
+              "format": "double"
+            },
+            "k3": {
+              "description": "Coefficient of `r⁶`.",
+              "type": "number",
+              "format": "double"
+            },
+            "k4": {
+              "description": "Coefficient of `r⁸`.",
+              "type": "number",
+              "format": "double"
+            },
+            "type": {
+              "type": "string",
+              "const": "kannala_brandt4"
+            }
+          },
+          "required": [
+            "type",
+            "k1",
+            "k2",
+            "k3",
+            "k4",
+            "iters"
+          ]
         }
       ]
     },
@@ -1623,6 +1667,19 @@
             "type": {
               "type": "string",
               "const": "pinhole"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "description": "Equidistant (fisheye) projection.",
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "equidistant"
             }
           },
           "required": [

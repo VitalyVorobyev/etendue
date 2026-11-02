@@ -600,7 +600,7 @@ pub fn check(gt: &GroundTruth, procedure: &ProcedurePart) -> Result<()> {
             && (s.seed.rig.is_some() || s.seed.handeye.is_some())
         {
             problems.push(format!(
-                "stage `{}`: rig_handeye_laserline takes only intrinsics and sensor seeds (calibration-rs 0.11)",
+                "stage `{}`: rig_handeye_laserline takes only intrinsics and sensor seeds (calibration-rs 0.12)",
                 s.id
             ));
         }
