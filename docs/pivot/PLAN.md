@@ -817,6 +817,10 @@ green; upstream changes (calibration-rs, lab-ui) stay drafts.
       path and `library check`.
     - **G14.2:** a project that uses user-bank items still passes `project check` after the bank
       is removed (its copies are complete).
+  - *Status (2026-11-02), P14a–c:* done (#54, #59, #56): library v2 with the `mount` kind, the
+    bank and `etendue library`, the layered studio library, and the Library workspace.
+    - Its forms are written by hand, not generated from the schema (see #56).
+    - G14.1 and G14.2 are not yet measured or recorded in `docs/measurements/`.
 - **P15 — Guided cell builder.** A Setup stepper that writes an ordinary `scene.json`:
   1. optics: a camera or head from the bank, or "design in Optics";
   2. rig: one camera, or a rig design;
@@ -829,6 +833,7 @@ green; upstream changes (calibration-rs, lab-ui) stay drafts.
   Each step checks reach and visibility live.
   - **Gate G15.1:** the builder recreates `examples/eye_in_hand_ur5e` and
     `examples/eye_to_hand_ur5e` from bank items (scenes equal to 1e-12; Playwright).
+  - *Status (2026-11-02):* done (#63). G15.1 passes (`docs/measurements/g15_cell_builder.md`).
 - **P16 — Calibration procedure bank** (ADR 0011).
   - **`CalibrationProcedure`:** ordered stages, each with:
     - a calibration-rs workflow and the devices it covers;
@@ -848,6 +853,12 @@ green; upstream changes (calibration-rs, lab-ui) stay drafts.
     - **G16.1:** `auto` reproduces the current reports bit for bit.
     - **G16.2:** each built-in recovers the truth on exact data within G5.1 / G5.3 on its
       example cell.
+  - *Status (2026-11-02), P16a:* the engine, the procedure kind and the built-ins are done
+    (#57). The built-ins are `intrinsics`, `stereo`, `handeye`, `rig_handeye`, `laser_head` and
+    `laser_rig`; both mountings share `handeye`. G16.1 and G16.2 pass
+    (`docs/measurements/g16_procedures.md`).
+    - Not started: the studio's procedure editor.
+    - Not started: the upstream draft for `rig_handeye_laserline`'s steps.
 - **P17 — Simulation lab.**
   - **Report v3:**
     - per view and per feature, residuals with ids (camera, view, point, observed and projected
@@ -867,6 +878,9 @@ green; upstream changes (calibration-rs, lab-ui) stay drafts.
     - **G17.1:** on `closed_loop_ur5e` with 200 noisy trials, the empirical std of fx, cx and the
       hand-eye matches calibration-rs's predicted σ to within 15 %.
     - **G17.2:** the per-feature residuals reproduce the report's RMS exactly.
+  - *Status (2026-11-02), P17a–b:* done (#58, #60): report v3 and the Calibrate tabs (Per view,
+    Parameters, Solver). G17.1 passes with the rig refined, and G17.2 passes
+    (`docs/measurements/g17_sim_lab.md`).
 - **P18 — Calibration pose planning.**
   - **Generator:**
     - It supports eye-to-hand; it refuses it today (`etendue-synth/src/poses.rs`).
@@ -884,6 +898,13 @@ green; upstream changes (calibration-rs, lab-ui) stay drafts.
     - **G18.1:** for the same N, the planned poses give a system σ no larger than the grid's,
       and P17's empirical std confirms it (within 15 %).
     - **G18.2:** the eye-to-hand example yields a feasible tour.
+  - *Status (2026-11-02), P18a–c:* done (#61, #62, #64): `etendue scenario plan`, eye-to-hand
+    generation, and the studio's Suggest poses (wasm `planPoses`).
+    - G18.1 passes: 0.0362 mm planned against 0.0462 mm for the grid at 8 poses, with 0.0377 mm
+      measured.
+    - G18.2 passes (`docs/measurements/g18_pose_planning.md`).
+    - etendue computes the rig and hand-eye σ terms itself. The upstream `next_view` draft is not
+      opened yet.
 
 ### Deferred (not planned; do not scaffold)
 
