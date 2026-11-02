@@ -286,12 +286,7 @@ impl SceneSpec {
             if let Some(optics) = &c.optics {
                 optics.check(issues, &format!("{path}.optics"));
             }
-            if let Err(e) = c.params.build() {
-                issues.push(
-                    format!("{path}.params"),
-                    format!("camera model does not build: {e}"),
-                );
-            }
+            issues.check_camera_model(&format!("{path}.params"), &c.params);
         }
         for (i, r) in self.rigs.iter().enumerate() {
             if let Some(layout) = &r.layout {

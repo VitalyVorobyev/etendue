@@ -436,9 +436,7 @@ impl LibraryItem {
             if c.resolution[0] == 0 || c.resolution[1] == 0 {
                 issues.push("camera.resolution", "must be non-zero");
             }
-            if let Err(e) = c.params.build() {
-                issues.push("camera.params", format!("camera model does not build: {e}"));
-            }
+            issues.check_camera_model("camera.params", &c.params);
             if let Some(o) = &c.optics {
                 o.check(&mut issues, "camera.optics");
             }

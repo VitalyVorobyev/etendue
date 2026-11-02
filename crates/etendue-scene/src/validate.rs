@@ -7,6 +7,7 @@
 use std::fmt;
 
 use nalgebra::Isometry3;
+use vision_calibration_core::{CameraParams, DistortionParams, ProjectionParams};
 
 /// One problem found while validating a spec document.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -95,6 +96,29 @@ impl Issues {
                     "rotation quaternion must be unit length (|q| = {norm:.12}); \
                      write it to full double precision"
                 ),
+            );
+        }
+    }
+
+    /// Check a camera model under `path` (its `params`): it builds, and etendue supports it.
+    ///
+    /// calibration-rs 0.12 adds the fisheye models (the equidistant projection and Kannala-Brandt
+    /// distortion). etendue's physical optics, render remap and calibration seeds assume a pinhole
+    /// with a polynomial or division distortion, so a scene may not use them yet.
+    pub(crate) fn check_camera_model(&mut self, path: &str, params: &CameraParams) {
+        if let Err(e) = params.build() {
+            self.push(path, format!("camera model does not build: {e}"));
+        }
+        if !matches!(params.projection, ProjectionParams::Pinhole) {
+            self.push(
+                format!("{path}.projection"),
+                "etendue supports only the pinhole projection (no fisheye cameras yet)",
+            );
+        }
+        if matches!(params.distortion, DistortionParams::KannalaBrandt4 { .. }) {
+            self.push(
+                format!("{path}.distortion"),
+                "etendue does not support Kannala-Brandt distortion (no fisheye cameras yet)",
             );
         }
     }
