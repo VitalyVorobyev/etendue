@@ -426,6 +426,9 @@ and ask; do not silently relax it.
   review (`docs/measurements/g5_3_laser_closed_loop.md`).
   *Update (2026-11-01):* on calibration-rs 0.11 the Scheimpflug variant passes G5.3 on exact
   data too (laser normal ≤ 1.3e-7°, hand-eye 1.1e-7°; `calibration_rs_0_11.md`).
+  *Update (2026-11-02):* it passes because calibration-rs holds p1 and p2 in that solve, so the
+  radial distortion reveals the tilt. Under 0.1 px of noise the tilts come out within about 0.1°
+  (`scheimpflug_observability.md`).
 
 ### P6 — Design overlays and egui retirement
 
@@ -868,6 +871,23 @@ green; upstream changes (calibration-rs, lab-ui) stay drafts.
       kernel on every edit. A run takes the procedure by value; an edited one is kept in the
       project or the bank.
     - Not started: the upstream draft for `rig_handeye_laserline`'s steps.
+  - *Update (2026-11-02):* the Scheimpflug head that no built-in calibrated is understood
+    (`docs/derivations/scheimpflug_observability.md`, `docs/measurements/scheimpflug_observability.md`).
+    - **Why its tilt is not determined.** With p1 and p2 free, a sensor tilt is matched by a
+      principal-point shift f·τ, p1, p2 and a rotation of the camera frame, and no pose set
+      separates them. With p1 and p2 held, the radial distortion determines it: about 0.1° at
+      0.1 px on that head.
+    - **Measurement is still right.** The camera-frame rows fail on calibrations whose laser
+      plane in the gripper frame is right to 0.4 µm.
+    - **A finding about every head.** `laser_head` and `auto` take the laser plane and the
+      hand-eye from stages that estimate the camera separately. Under 0.1 px of noise, the stripe
+      in the robot's frame is 0.2–0.3 mm off, against 5 µm when the hand-eye stage holds the
+      device stage's camera. `auto`'s pinhole hand-eye puts a Scheimpflug head 0.17 mm off even on
+      exact data.
+    - **Open, for the user:**
+      - whether the head built-ins should hold the camera in the hand-eye stage;
+      - whether G5.3 should check frame-invariant quantities for heads;
+      - whether to ask calibration-rs for a one-camera joint laser hand-eye.
 - **P17 — Simulation lab.**
   - **Report v3:**
     - per view and per feature, residuals with ids (camera, view, point, observed and projected

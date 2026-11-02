@@ -152,14 +152,16 @@ reprojection error, 0.0005 px above the white-noise runs.
 
 ### A Scheimpflug rig
 
-`laser_scheimpflug_ur5e` is `laser_ur5e` with tilted sensors (about 2.9° and 2.0° about x). It
-does **not** pass, even on exact observations: the plane normals are off by 0.0095° and 0.024°
-and the hand-eye rotation by 0.034°, against 0.01° limits, and the principal points miss by
-0.3–2 px. The tilt, the focal length and the principal point trade off along a nearly flat valley
-of calibration-rs's Scheimpflug model, so the solver stops short of the truth. Seeding it with
-datasheet values (focal length, principal point at the centre, the tilt to a whole degree) helps
-but does not close the gap. If you design a Scheimpflug head, expect its calibration to need more,
-and more varied, views than an untilted one.
+`laser_scheimpflug_ur5e` is `laser_ur5e` with tilted sensors (about 2.9° and 2.0° about x).
+Seeded from datasheet values (focal length, principal point at the centre, the tilt to a whole
+degree), it passes on exact observations, every row within 1e-6.
+
+A tilt is nearly indistinguishable from a shifted principal point and a rotated camera. Only the
+lens distortion separates them, and only while the tangential terms p1 and p2 are held, as
+calibration-rs holds them here. At 0.1 px of noise the tilts come out within about 0.1° and the
+principal points within 4–7 px. A single tilted camera with p1 and p2 free does not determine its
+tilt at all, though it still projects correctly; see
+[Calibration](../calibration.md#scheimpflug-cameras-and-laser-heads).
 
 ## Where it is
 

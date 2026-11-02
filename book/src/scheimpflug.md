@@ -106,9 +106,11 @@ always pivoting on the hinge. Press "Scheimpflug" to put it on the laser plane.
 - **Mounts limit the tilt.** A Scheimpflug mount or tilt adapter allows only so much.
   etendue's optimiser keeps tilts below 0.5 rad (28.6°); whether your mount reaches the tilt it
   proposes is for you to check.
-- **Calibrating a tilted camera is harder.** calibration-rs models the tilt, but the tilt, the
-  focal length and the principal point trade off against one another; see [Ground truth and
-  closed-loop calibration](models/closed_loop.md#a-scheimpflug-rig).
+- **A calibration hardly sees the tilt.** A tilt projects almost exactly like a shifted principal
+  point in a rotated camera. Only the lens distortion tells them apart, and only with the
+  tangential terms held. A calibrated tilt is therefore no measurement of where focus lies,
+  though the camera still projects correctly; see
+  [Calibration](calibration.md#scheimpflug-cameras-and-laser-heads).
 
 ## The derivation
 
