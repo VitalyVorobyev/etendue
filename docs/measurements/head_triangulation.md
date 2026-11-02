@@ -9,7 +9,7 @@ check of the calibration as a measuring device, and the fix.
 - etendue `7bad250` with this change (branch `feat/head-triangulation-check`).
 - calibration-rs `v0.12.0` (`8d5d1f08`), a clean worktree of the tag, built with `--config`
   patches. The rows marked *joint* use calibration-rs `98ef7517` with the one-camera change of
-  `rig_handeye_laserline` (calibration-rs PR, "one camera").
+  `rig_handeye_laserline` (calibration-rs#268).
 
 **Datasets** (`etendue gt`, `laser_ur5e`'s scenario: 24 views, 3614 stripe points):
 - `head`: `laser_ur5e` keeping `cam_left`, with the laser on it. Untilted, f = 2318.8 px.

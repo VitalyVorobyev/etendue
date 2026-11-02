@@ -893,7 +893,7 @@ green; upstream changes (calibration-rs, lab-ui) stay drafts.
       missed errors within the plane.
     - **The fix.** `auto`'s head hand-eye and `laser_head`'s second stage hold the device stage's
       camera: 0.013 mm rms, the noise's floor (the rigs reach the same).
-    - **Upstream.** calibration-rs's joint laser hand-eye opened to one camera (a PR, ready for
+    - **Upstream.** calibration-rs's joint laser hand-eye opened to one camera (calibration-rs#268, ready for
       review). On the head it is right and no more precise than the held camera (0.014–0.016 mm).
 - **P17 — Simulation lab.**
   - **Report v3:**
