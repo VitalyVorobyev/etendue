@@ -116,3 +116,73 @@ fn ids_kinds_and_defaults_are_checked() {
         "{err}"
     );
 }
+
+/// Gate G14.1, the CLI's side: `etendue library check` passes on every built-in item. (The
+/// studio's side, the byte-for-byte round trip, is `web/apps/studio/src/io/g14.test.ts`.)
+#[test]
+fn g14_1_every_built_in_item_passes_library_check() {
+    let contents = etendue_cli::library::check(&root().join("examples")).unwrap();
+    let counts = contents.counts();
+    assert!(counts.values().sum::<usize>() > 20, "{counts:?}");
+}
+
+/// Gate G14.2, the CLI's side: a project whose items are copies of bank items (as the studio's
+/// `copyOf` writes them: the item, version 2, and its origin with the source's content hash)
+/// passes `project check` once the bank is gone, and `--bank` notes what the bank no longer has.
+#[test]
+fn g14_2_a_project_of_bank_copies_passes_without_the_bank() {
+    use etendue_cli::library::{import, init_bank, read_item};
+
+    let dir = root().join("target/project_check/g14_2");
+    let _ = std::fs::remove_dir_all(&dir);
+    let (bank, project) = (dir.join("bank"), dir.join("project"));
+    init_bank(&bank, "G14.2 bank").unwrap();
+    let refs = [
+        "cameras/imx174_lm25hc",
+        "lasers/stingray_660",
+        "targets/chess_9x6_20mm",
+    ];
+    for r in refs {
+        import(
+            &root().join(format!("examples/library/{r}.json")),
+            &bank,
+            false,
+        )
+        .unwrap();
+    }
+    for r in refs {
+        let text = std::fs::read_to_string(bank.join(format!("library/{r}.json"))).unwrap();
+        let source = read_item(&text).unwrap();
+        let mut copy: serde_json::Value = serde_json::from_str(&text).unwrap();
+        copy["version"] = serde_json::json!(2);
+        copy["origin"] = serde_json::json!({
+            "layer": "bank",
+            "reference": r,
+            "sha256": etendue_core::library::content_hash(&source),
+        });
+        let path = project.join(format!("library/{r}.json"));
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, serde_json::to_string_pretty(&copy).unwrap()).unwrap();
+    }
+    let manifest = serde_json::json!({
+        "version": 1, "name": "G14.2", "cells": [],
+        "defaults": {"camera": refs[0], "laser": refs[1], "target": refs[2]},
+    });
+    std::fs::write(project.join("etendue-project.json"), manifest.to_string()).unwrap();
+
+    // With the bank: nothing has changed.
+    let s = check(&project, Some(&bank)).unwrap();
+    assert!(s.notes.is_empty(), "{:?}", s.notes);
+
+    // Without it: still a valid project, and the bank's absence is a note, not a problem.
+    std::fs::remove_dir_all(&bank).unwrap();
+    let s = check(&project, None).unwrap();
+    assert_eq!(s.library.values().sum::<usize>(), 3);
+    let s = check(&project, Some(&bank)).unwrap();
+    assert_eq!(s.notes.len(), 3, "{:?}", s.notes);
+    assert!(
+        s.notes.iter().all(|n| n.contains("no longer has")),
+        "{:?}",
+        s.notes
+    );
+}

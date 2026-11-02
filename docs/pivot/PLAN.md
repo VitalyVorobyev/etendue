@@ -820,7 +820,8 @@ green; upstream changes (calibration-rs, lab-ui) stay drafts.
   - *Status (2026-11-02), P14a–c:* done (#54, #59, #56): library v2 with the `mount` kind, the
     bank and `etendue library`, the layered studio library, and the Library workspace.
     - Its forms are written by hand, not generated from the schema (see #56).
-    - G14.1 and G14.2 are not yet measured or recorded in `docs/measurements/`.
+    - *P14d:* G14.1 and G14.2 pass (`docs/measurements/g14_bank.md`). Four built-in lens items
+      did not round-trip until they were written with their defaulted fields.
 - **P15 — Guided cell builder.** A Setup stepper that writes an ordinary `scene.json`:
   1. optics: a camera or head from the bank, or "design in Optics";
   2. rig: one camera, or a rig design;
