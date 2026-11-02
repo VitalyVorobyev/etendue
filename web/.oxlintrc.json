@@ -127,6 +127,23 @@
       }
     },
     {
+      "files": ["apps/studio/src/**/*.{ts,tsx}"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "@vitavision/ui",
+                "importNames": ["toast", "Toaster"],
+                "message": "The studio's Toaster shows @vitavision/workbench's toasts: import toast from there."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
       "files": ["**/*.test.{ts,tsx}", "**/*.stories.{ts,tsx}"],
       "rules": {
         "vitavision/tokens-only": "off"

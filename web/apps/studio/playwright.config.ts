@@ -6,7 +6,7 @@ import { defineConfig } from "@playwright/test";
  */
 export default defineConfig({
   testDir: "e2e",
-  testMatch: ["studio.spec.ts", "tauri.spec.ts"],
+  testMatch: ["studio.spec.ts", "tauri.spec.ts", "cell_builder.spec.ts"],
   globalSetup: "./e2e/global-setup.ts",
   timeout: 60_000,
   fullyParallel: true,

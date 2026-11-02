@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **The studio's cell builder** (Setup ▸ New cell…): a stepper that makes a cell from library
+  items — optics (a camera or a head), one camera or a rig design (with per-position names and
+  cameras), eye-in-hand or eye-to-hand through a mount, a target sized against the field of view
+  at the working distance, and a robot with its base and start pose. The cell shows in the 3-D
+  view as it is built, the kernel checks what each camera sees of the target and aims the robot by
+  IK, and the result is an ordinary scene with an empty program, one undoable edit. Bank and
+  built-in items it uses are copied into a writable project. It recreates `eye_in_hand_ur5e` and
+  `eye_to_hand_ur5e` exactly (`docs/measurements/g15_cell_builder.md`).
+- Built-in library items for those examples: the mounts `flange_plate_30mm` and
+  `board_holder_10mm`, the rig `stereo_80mm_parallel` and the camera `python1300_pinhole_right`.
 - **The bank** (ADR 0010): a user library shared by every project, in the same layout as a
   project's library, with an `etendue-bank.json` manifest. `etendue library init|import|check|list`
   make, fill, check and list it; `list` shows each item from the layer it resolves to (project,

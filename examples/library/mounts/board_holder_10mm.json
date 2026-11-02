@@ -1,0 +1,21 @@
+{
+  "version": 2,
+  "id": "board_holder_10mm",
+  "name": "Board holder, 10 mm",
+  "description": "A holder on the tool flange that carries a calibration board 10 mm out, facing along the flange's axis, as in examples/eye_to_hand_ur5e.",
+  "mount": {
+    "flange_se3_device": {
+      "rotation": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "translation": [
+        0,
+        0,
+        0.01
+      ]
+    }
+  }
+}

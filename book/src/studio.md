@@ -148,6 +148,45 @@ then on, the layout's fields — number of cameras, radius, working distance, ti
 phase, image x direction, the camera model, and **One laser per camera** — lay the rig out again
 on every change. The fields are those of a [rig layout](scenes.md#rig-layouts).
 
+### Cell builder
+
+**New cell…** (above the frame tree) builds a cell from [library](library.md) items, step by
+step, in place of the open one. The steps replace the frame tree and the Inspector; the 3-D view
+shows the cell as it is built. Each step marks what it still needs.
+
+1. **Optics**: a camera or a head (a camera with its line laser) from the library. **Design
+   optics…** opens the Optics workspace, where a new design is saved to the library. With a rig
+   design and no optics chosen, the design's own cameras are used.
+2. **Rig**: **One camera** (the optics, on a rig frame), or a **Rig design** from the library,
+   whose layout places the optics at each of its positions. Each position's camera can be renamed
+   and can be given its own library camera (a stereo pair of two calibrated units, say). The rig
+   keeps its [layout](scenes.md#rig-layouts) only while its cameras are the layout's own; renamed
+   or individually chosen cameras make a plain rig.
+3. **Mounting**:
+   - **Eye-in-hand**: the rig rides on the robot's tool flange;
+   - **Eye-to-hand**: the rig stands on a fixed **stand** frame (its pose on the world, and the
+     rig's pose on it), and the robot holds the target on its flange.
+
+   What sits on the flange goes through a **mount** from the library (its flange-to-device pose),
+   or through a pose you type.
+4. **Target**: a target from the library and, eye-in-hand, where it lies in the cell. The step
+   compares the target with the camera's field of view at the **working distance** (the rig
+   design's, else a head's window or a camera's focus distance, else 0.5 m; you can type
+   another): it warns when the target spans less than a fifth or more than nine tenths of the
+   image width there.
+5. **Robot**: a robot from the robot library, its id, its base on the world, and the joints the
+   cell starts at. **Aim at the target** asks the kernel's inverse kinematics for joints that face
+   the rig and the target at the working distance (the rig over the target, or the target in front
+   of the rig), and says when no joints reach that pose.
+6. **Review**: the description, what the cell is made of, and anything still missing.
+
+From the Target step on, the kernel checks the cell at its start pose: how many of the target's
+points each camera sees, and how far the target is along each camera's axis. **Build cell** makes
+the cell the open document as one undoable edit, with an empty program; **Cancel** puts back what
+was open. The result is an ordinary `scene.json` (and `scenario.json`): save it with **Save as
+cell** (into an open project) or **Save**. The bank and built-in items the cell used are copied
+into the open project's library when it can be written.
+
 ## Motion
 
 The robot program. The panel on the right switches between **Program**, **Jog** and

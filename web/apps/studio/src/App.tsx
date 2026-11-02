@@ -36,6 +36,7 @@ import { JogPanel } from "./robot/JogPanel";
 import { stepAt, tcpPath } from "./scene/TcpPath";
 import { CoverageLegend, SliceMaps } from "./rigs/SliceMaps";
 import { useLibraryWorkspace } from "./library/Workspace";
+import { useCellBuilder } from "./cell/CellBuilder";
 import { CameraGrid } from "./panels/CameraGrid";
 import { CellDialog } from "./panels/CellDialog";
 import { RobotLibrary } from "./robots/RobotLibrary";
@@ -179,6 +180,8 @@ export function App() {
       // Remembering the workspace is a convenience.
     }
   };
+  // The cell builder (Setup): while it is open its steps replace the Navigator and the Inspector.
+  const cellBuilder = useCellBuilder(studio, studioState, library, () => setMode("optics"));
 
   // The selection survives edits (unless they remove it) but not another document.
   const selected =
@@ -972,7 +975,9 @@ export function App() {
     headParams && headAnalysis ? <OpticsReadouts params={headParams} analysis={headAnalysis} /> : null;
 
   const left =
-    current && tree && mode === "setup" ? (
+    current && mode === "setup" && cellBuilder.active ? (
+      cellBuilder.left
+    ) : current && tree && mode === "setup" ? (
       <Navigator
         tree={tree}
         selected={selected}
@@ -982,10 +987,16 @@ export function App() {
         onAddRobot={addRobot}
         onBrowseRobots={() => setRobotLibrary(true)}
         onRemove={removable ? remove : null}
+        onNewCell={() => {
+          setSelected(null);
+          cellBuilder.start();
+        }}
       />
     ) : null;
   const right =
-    current && mode === "setup" ? (
+    current && mode === "setup" && cellBuilder.active ? (
+      cellBuilder.right
+    ) : current && mode === "setup" ? (
       <Inspector
         current={current}
         preview={editing}
