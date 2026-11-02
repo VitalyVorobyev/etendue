@@ -44,6 +44,7 @@ export const KIND_LABEL: Record<LibraryKind, [string, string]> = {
   head: ["Head", "Heads"],
   rig: ["Rig", "Rigs"],
   mount: ["Mount", "Mounts"],
+  procedure: ["Procedure", "Procedures"],
 };
 
 /**

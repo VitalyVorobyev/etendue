@@ -60,7 +60,7 @@ import { GeneralForm, LaserForm, LensForm, MountForm, SensorForm, SourceForm } f
 import { newPart } from "./templates";
 
 /** The kinds edited as JSON (their parts are nested documents). */
-const JSON_KINDS: readonly LibraryKind[] = ["target", "camera", "head", "rig"];
+const JSON_KINDS: readonly LibraryKind[] = ["target", "camera", "head", "rig", "procedure"];
 
 type DialogState =
   | { mode: "new" }
