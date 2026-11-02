@@ -1,9 +1,10 @@
 //! `etendue detect` — detect the target in a rendered dataset (P5-1b, P7-5).
 //!
 //! Reads a dataset directory (`gt.json` from `etendue gt`, images from
-//! `etendue render`), finds the corners of every image with chess-corners'
-//! Radon detector (the G4.2 default), labels them with calib-targets' detector
-//! for the target's kind, and writes `features.json`: per view, the detected
+//! `etendue render`), finds the corners of every image with chess-corners
+//! ([`Corners`]: ChESS with the saddle-point refiner on a chessboard, Radon on
+//! the other kinds), labels them with calib-targets' detector for the target's
+//! kind, and writes `features.json`: per view, the detected
 //! pixel of each target point. `tools/closed-loop` calibrates from it.
 //!
 //! The target is `gt.json`'s `target.geometry`; a dataset written before it
@@ -244,6 +245,73 @@ enum Labeller {
     PuzzlePole(Box<pole::PuzzlePole>),
 }
 
+/// How `etendue detect` finds and locates corners.
+///
+/// Both were measured on etendue's own renders (G4.2, P5-1b, P5-1c), whose clean, box-filtered
+/// corners suit some refiners better than a real camera's would: the comparison says which is
+/// better on synthetic images, not on real ones.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Corners {
+    /// chess-corners' Radon detector (Duda & Frese) locates every corner. A chessboard's are
+    /// found by Radon too; the other kinds' by ChESS, then moved to the Radon corner.
+    Radon,
+    /// ChESS finds the corners and its saddle-point image refiner locates them.
+    SaddlePoint,
+}
+
+impl Corners {
+    /// The default for a target of `kind` (a printed target's kind name).
+    ///
+    /// - A chessboard: the saddle point. On the closed-loop renders it is about 5 times more
+    ///   accurate than Radon (0.012 against 0.058 px RMS), and its calibration is within the
+    ///   white-noise spread of that error (P5-1c).
+    /// - The other kinds: Radon. Their marker bits and edges near a corner disturb the saddle
+    ///   fit, which loses or mis-places a few corners of a turned ChArUco board and a PuzzlePole.
+    #[must_use]
+    pub fn default_for(kind: &str) -> Self {
+        if kind == "chessboard" {
+            Self::SaddlePoint
+        } else {
+            Self::Radon
+        }
+    }
+
+    /// The name on the command line and in `features.json`.
+    #[must_use]
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Radon => "radon",
+            Self::SaddlePoint => "saddle_point",
+        }
+    }
+}
+
+impl std::str::FromStr for Corners {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "radon" => Ok(Self::Radon),
+            "saddle_point" => Ok(Self::SaddlePoint),
+            _ => Err(format!(
+                "unknown corner detector `{s}` (radon, saddle_point)"
+            )),
+        }
+    }
+}
+
+/// The corner front end of a [`Detector`].
+enum Front {
+    /// One detector finds and locates.
+    One(DetectorConfig),
+    /// `finder` finds; each of its corners moves to the `locator`'s corner within
+    /// [`LOCATE_PX`], and one with none is dropped.
+    Located {
+        finder: DetectorConfig,
+        locator: DetectorConfig,
+    },
+}
+
 /// A ChESS corner is located at the Radon corner within this distance.
 const LOCATE_PX: f32 = 1.0;
 /// Radon's response floor, relative to the frame's strongest corner, when it
@@ -251,11 +319,12 @@ const LOCATE_PX: f32 = 1.0;
 /// dimly lit part of the board, which ChESS's absolute floor keeps).
 const LOCATE_THRESHOLD_REL: f32 = 0.05;
 
-/// A target's detector: corners at chess-corners' Radon positions, labelled
-/// by calib-targets' detector for the target's kind and matched to the
-/// target's points (`etendue_synth::board::layout` order, as in `gt.json`).
+/// A target's detector: corners from chess-corners ([`Corners`]), labelled by
+/// calib-targets' detector for the target's kind and matched to the target's
+/// points (`etendue_synth::board::layout` order, as in `gt.json`).
 ///
-/// A chessboard is labelled from Radon's corners alone (G4.2, P5-1b). The
+/// A chessboard is labelled from one detector's corners: by default ChESS with
+/// the saddle-point refiner (P5-1c), or Radon's alone (G4.2, P5-1b). The
 /// other kinds' labellers are tuned on calib-targets' ChESS front end: its
 /// absolute response floor and their corner-strength floors (on ChESS's
 /// scale) keep marker bits and edges out of the grid, where Radon's
@@ -264,24 +333,36 @@ const LOCATE_THRESHOLD_REL: f32 = 0.05;
 /// locates them: each ChESS corner moves to the Radon corner within
 /// `LOCATE_PX` (Radon run with the floor `LOCATE_THRESHOLD_REL`), keeping
 /// ChESS's axes and strength, and one Radon does not confirm is dropped.
+///
+/// With [`Corners::SaddlePoint`] (a chessboard's default), ChESS (calib-targets'
+/// configuration) finds the corners and its saddle-point refiner locates them.
 pub struct Detector {
     kind: &'static str,
     points: Vec<BoardPoint>,
-    radon: DetectorConfig,
-    /// The corner finder Radon locates, when it is not Radon itself.
-    finder: Option<DetectorConfig>,
+    corners: Corners,
+    front: Front,
     labeller: Labeller,
 }
 
 impl Detector {
-    /// The detector for a scene target.
+    /// The detector for a scene target, with its kind's corners ([`Corners::default_for`]).
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::with_corners`].
+    pub fn new(geometry: &TargetGeometry) -> Result<Self> {
+        Self::with_corners(geometry, None)
+    }
+
+    /// The detector for a scene target, finding corners as `corners` says (`None`: the
+    /// kind's default, [`Corners::default_for`]).
     ///
     /// # Errors
     ///
     /// If the target has nothing to detect (a plain rectangle), is not one
     /// calib-targets prints (a `board` PuzzleBoard named by layout, a ring
     /// grid), or calib-targets rejects it.
-    pub fn new(geometry: &TargetGeometry) -> Result<Self> {
+    pub fn with_corners(geometry: &TargetGeometry, corners: Option<Corners>) -> Result<Self> {
         if matches!(geometry, TargetGeometry::Rectangle { .. }) {
             return Err(anyhow!(
                 "the target is a plain rectangle: it has no features to detect"
@@ -324,23 +405,32 @@ impl Detector {
                 ));
             }
         };
-        // chess-corners' Radon preset (G4.2). `detect_corners` reports a config
-        // chess-corners rejects as "no corners" in every view, so check it here.
-        let finder = (kind != "chessboard").then(default_chess_config);
-        let radon = if finder.is_some() {
-            DetectorConfig::radon().with_threshold(LOCATE_THRESHOLD_REL)
-        } else {
-            DetectorConfig::radon()
+        let corners = corners.unwrap_or_else(|| Corners::default_for(kind));
+        let front = match corners {
+            // chess-corners' Radon preset (G4.2).
+            Corners::Radon if kind == "chessboard" => Front::One(DetectorConfig::radon()),
+            Corners::Radon => Front::Located {
+                finder: default_chess_config(),
+                locator: DetectorConfig::radon().with_threshold(LOCATE_THRESHOLD_REL),
+            },
+            Corners::SaddlePoint => Front::One(
+                default_chess_config().with_refiner(chess_corners::ImageRefiner::saddle_point()),
+            ),
         };
-        chess_corners::Detector::new(radon).map_err(|e| anyhow!("Radon detector config: {e}"))?;
-        if let Some(c) = finder {
-            chess_corners::Detector::new(c).map_err(|e| anyhow!("ChESS detector config: {e}"))?;
+        // `detect_corners` reports a config chess-corners rejects as "no corners"
+        // in every view, so check it here.
+        let configs = match &front {
+            Front::One(c) => vec![*c],
+            Front::Located { finder, locator } => vec![*finder, *locator],
+        };
+        for c in configs {
+            chess_corners::Detector::new(c).map_err(|e| anyhow!("corner detector config: {e}"))?;
         }
         Ok(Self {
             kind,
             points,
-            radon,
-            finder,
+            corners,
+            front,
             labeller,
         })
     }
@@ -369,13 +459,19 @@ impl Detector {
             }
             Labeller::PuzzlePole(_) => "calib-targets-puzzleboard pole labels, matched by pole id",
         };
-        let corners = if self.finder.is_some() {
-            format!(
+        let corners = match (&self.front, self.corners) {
+            (Front::Located { .. }, _) => format!(
                 "chess-corners ChESS (calib-targets default_chess_config) located by Radon \
                  (DetectorConfig::radon, threshold {LOCATE_THRESHOLD_REL}) within {LOCATE_PX} px"
-            )
-        } else {
-            "chess-corners Radon (DetectorConfig::radon)".to_owned()
+            ),
+            (Front::One(_), Corners::Radon) => {
+                "chess-corners Radon (DetectorConfig::radon)".to_owned()
+            }
+            (Front::One(_), Corners::SaddlePoint) => {
+                "chess-corners ChESS (calib-targets default_chess_config) with the saddle-point \
+                 image refiner"
+                    .to_owned()
+            }
         };
         format!("{corners}, {labeller}")
     }
@@ -389,10 +485,12 @@ impl Detector {
             height,
             data: gray,
         };
-        let radon = detect_corners(&image, &self.radon);
-        let corners = match &self.finder {
-            Some(finder) => locate(&detect_corners(&image, finder), &radon),
-            None => radon,
+        let corners = match &self.front {
+            Front::One(c) => detect_corners(&image, c),
+            Front::Located { finder, locator } => locate(
+                &detect_corners(&image, finder),
+                &detect_corners(&image, locator),
+            ),
         };
         match &self.labeller {
             Labeller::Chessboard(l) => l.label(gray, width, height, &corners),
@@ -482,11 +580,20 @@ fn dataset_target(dir: &Path, gt: &GroundTruth) -> Result<TargetGeometry> {
 pub const LASER_FEATURES: &str = "laser_features.json";
 
 pub fn run(dir: &Path, ctl: &Control) -> Result<Features> {
+    run_with(dir, None, ctl)
+}
+
+/// [`run`], finding corners as `corners` says (`None`: the target kind's default).
+///
+/// # Errors
+///
+/// As [`run`].
+pub fn run_with(dir: &Path, corners: Option<Corners>, ctl: &Control) -> Result<Features> {
     let path = dir.join("gt.json");
     let text =
         std::fs::read_to_string(&path).with_context(|| format!("reading {}", path.display()))?;
     let gt: GroundTruth = serde_json::from_str(&text).context("parsing gt.json")?;
-    let detector = Detector::new(&dataset_target(dir, &gt)?)?;
+    let detector = Detector::with_corners(&dataset_target(dir, &gt)?, corners)?;
     // Features index gt.json's points, which closed_loop.py reads: they must
     // be the layout's, in its order.
     if detector.points() != gt.target.points.as_slice() {

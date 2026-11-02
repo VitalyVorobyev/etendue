@@ -120,6 +120,12 @@ enum Command {
     Detect {
         /// Dataset directory (gt.json, images/).
         dir: PathBuf,
+        /// How corners are found and located: `saddle_point` (ChESS with its saddle-point
+        /// refiner) or `radon` (chess-corners' Radon detector). Without it, the saddle point on
+        /// a chessboard and Radon on the other kinds. Both were compared on synthetic renders
+        /// only.
+        #[arg(long)]
+        corners: Option<etendue_cli::detect::Corners>,
     },
     /// Calibrate a dataset (`etendue gt`'s directory) with calibration-rs and
     /// compare the result with its ground truth. On exact observations this is
@@ -604,8 +610,8 @@ fn run(cli: Cli) -> Result<()> {
             println!("{summary} → {}", output.display());
             Ok(())
         }
-        Command::Detect { dir } => {
-            let features = detect::run(&dir, &console())?;
+        Command::Detect { dir, corners } => {
+            let features = detect::run_with(&dir, corners, &console())?;
             for line in detect::summary_table(&features.summary()) {
                 println!("{line}");
             }

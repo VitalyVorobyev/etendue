@@ -61,7 +61,7 @@ uv run --locked --project tools/closed-loop tools/closed-loop/parity.py report.j
 uv run --locked --project tools/closed-loop tools/closed-loop/closed_loop.py target/gt [--camera ID]     # the wheel's closed loop (cross-check since P13)
 # P5-1b image-level loop (Blender, local only): gt, then render linear at s = 4, detect, calibrate
 cargo run --release -p etendue-cli -- render examples/closed_loop_ur5e/{scene,scenario}.json -o target/gt --supersample 4 --samples 16 --sensor examples/closed_loop_ur5e/sensor_linear.json
-cargo run --release -p etendue-cli -- detect target/gt                                                    # features.json (Radon + calib-targets labels, checked vs GT); with laser images laser_features.json and G5.2 (width/beam column)
+cargo run --release -p etendue-cli -- detect target/gt                                                    # features.json (saddle-point corners on a chessboard, Radon on other kinds, + calib-targets labels, checked vs GT; --corners); with laser images laser_features.json and G5.2 (width/beam column)
 uv run --locked --project tools/closed-loop tools/closed-loop/closed_loop.py target/gt --features target/gt/features.json
 uv run --locked --project tools/closed-loop python -m unittest discover -s tools/closed-loop              # closed-loop input tests
 
@@ -174,7 +174,7 @@ seeded observation noise (`etendue-synth::observe`), trials, single heads (laser
 eye-to-hand; CI runs it, and `parity.py` checks its rows against the wheel's (G13.1). `examples/closed_loop_ur5e` is its
 scene; its scenario is the sphere pose generator's (`etendue scenario sphere`, P7-6), which keeps its
 spec in `generator`, so `--spec <scenario.json>` regenerates it. CI runs it. The image-level loop (P5-1b) renders
-the same dataset, `etendue detect` finds the board (chess-corners Radon, calib-targets labels, the
+the same dataset, `etendue detect` finds the board (chess-corners: ChESS + saddle point on a chessboard since P5-1c, Radon on other kinds; calib-targets labels, the
 180° ambiguity settled by square colour, every label checked against the GT but never corrected)
 and writes `features.json`, and `closed_loop.py --features` calibrates from it. It needs Blender,
 so it runs locally. With a laser on the rig (P5-3, `examples/laser_ur5e`) the dataset is
