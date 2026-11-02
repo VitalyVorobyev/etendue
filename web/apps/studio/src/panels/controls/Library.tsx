@@ -41,12 +41,22 @@ export function Pick({
         options={[
           ...(match ? [] : [{ value: CURRENT, label: current }]),
           ...extra,
-          ...items.map(([ref, i]) => ({ value: ref, label: i.name })),
+          ...items.map(([ref, i]) => ({ value: ref, label: `${i.name}${layerTag(project, ref)}` })),
         ]}
         onValueChange={(ref) => ref !== "" && ref !== CURRENT && onPick(ref)}
       />
     </>
   );
+}
+
+/** Where an item comes from, when not the project itself (ADR 0010): ` · bank`, ` · built-in`. */
+export function layerTag(project: Project | null, ref: string): string {
+  const layer = project?.layers.get(ref)?.layer;
+  return layer === "bank"
+    ? " · bank"
+    : layer === "builtin" && !project?.layers.get(ref)?.hides.length && project?.write
+      ? " · built-in"
+      : "";
 }
 
 /** Save to the project's library; a note instead when the project is read-only (`onSave` null). */
