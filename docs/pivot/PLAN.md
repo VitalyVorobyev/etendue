@@ -1028,6 +1028,14 @@ PR, merged when green.
     `Workspace.tsx`. The File menu's exports (`panels/exports.ts`) and the edit shortcuts
     (`state/shortcuts.ts`) are their own modules. `App` keeps the selection, the shared 3-D view
     and the layout.
+  - **`state/studio.ts` is split** (1187 → 775 lines). The parts moved out:
+    - its types (`state/types.ts`);
+    - where it reads from: the repository, files, project and bank folders (`state/sources.ts`);
+    - the bank's and project's library items (`state/library.ts`, a `LibraryItems` helper the store
+      delegates to through a two-method host).
+
+    The store keeps the document, its edit history and opening and saving. Its public API is
+    unchanged.
 - **Release 0.3.0**, and a decision on publishing to crates.io and npm (§7).
 
 After P19: **a real-data track**, P20 (user decision, 2026-11-11).
