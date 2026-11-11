@@ -3,9 +3,7 @@
 871 crates/etendue-cli/src/detect/mod.rs
 971 crates/etendue-cli/src/main.rs
 824 crates/etendue-core/src/head.rs
-1149 crates/etendue-core/src/laser/intersect.rs
-815 crates/etendue-core/src/laser/project.rs
-809 crates/etendue-core/src/scene/entity.rs
+1148 crates/etendue-core/src/laser/intersect.rs
 2109 crates/etendue-wasm/src/lib.rs
 955 tools/robot-assets/build.py
 1246 web/apps/studio/src/App.tsx

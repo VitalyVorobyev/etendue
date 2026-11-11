@@ -64,7 +64,8 @@
 //!
 //! The geometric circle of confusion is the exit pupil (diameter `m_p · f / N`) projected from
 //! the image point onto the sensor. It uses the sensor's axial position at the image's lateral
-//! position, as [`crate::optics::coc`] does; with `e = 0` and `g = 0` the two agree.
+//! position (the thick-lens formulas of `docs/derivations/scheimpflug_pobf.md` do the same; with
+//! `e = 0` and `g = 0` the two agree).
 //!
 //! - **Exact:** without tilt; and with tilt, its zero locus (the plane of best focus, the
 //!   conjugate of the sensor plane) and the blur's centre (the chief ray).

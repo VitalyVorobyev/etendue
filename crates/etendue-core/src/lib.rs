@@ -1,10 +1,5 @@
-//! Geometric and physical kernel for **etendue** — an interactive tool for
-//! designing laser-triangulation optical systems.
-//!
-//! This crate holds the headless core: scene geometry, the thick-lens
-//! and circle-of-confusion optics model, the laser-line model, and the
-//! analysis layer that turns a posed camera + laser + target into a working
-//! volume, a defocus map, and a projected laser line.
+//! Geometric and physical kernel for **etendue**: the physical camera model, the laser-line
+//! model, triangulation heads and rig coverage.
 //!
 //! # Relationship to `vision-calibration-core`
 //!
@@ -25,24 +20,22 @@
 //! # Modules
 //!
 //! - [`error`]: the crate's typed [`Error`] enum and [`Result`] alias.
-//! - [`geom`]: pure geometry — triangle meshes and primitive constructors.
-//! - [`scene`]: the posed-entity scene — cameras, lasers, and targets.
+//! - [`optics`]: [`optics::PhysicalCamera`] (ADR 0008) and a paraxial trace that checks it.
 //! - [`from_scene`]: the bridge from `etendue-scene` documents to the camera model: a scene in
 //!   projection frames, for everything that projects.
-//! - [`optics`]: the thick-lens defocus physics — conjugates, the Scheimpflug
-//!   plane of best focus, and the geometric circle of confusion.
 //! - [`head`]: a laser-triangulation head (a physical camera and a line laser on its body)
 //!   analysed in its laser plane: blur, resolution, the Scheimpflug drawing, the optimiser.
-//! - [`laser`]: the laser-line model — the laser fan plane, its Gaussian-beam
-//!   cross-section width, the stripe where it strikes a target, and the
-//!   projection of that stripe into the camera's pixel space.
-//! - [`analysis`]: derived quantities over a scene — currently the per-target
-//!   defocus map.
-//! - [`solver`]: design-space solvers — the Scheimpflug
-//!   solver that proposes optimal sensor tilt and focus distance for a target
-//!   working geometry.
+//! - [`rig`]: a rig layout's coverage and each camera's sharp range.
+//! - [`laser`]: the laser-line model — the fan plane, its Gaussian-beam width, and the stripe
+//!   where it strikes a target ([`scene`]'s posed laser and target entities).
+//! - [`geom`]: triangle meshes, for mesh targets.
+//! - [`library`]: a library item's content hash (ADR 0010).
+//! - [`solver`]: the in-tree Nelder–Mead.
+//!
+//! The egui-era analysis layer (working volume, defocus map, voxel overlap), the `Scene`
+//! aggregate, `CameraEntity`, `ThickLens`, the CoC formulas and the Scheimpflug solver were removed
+//! in P19f: nothing outside their own tests used them.
 
-pub mod analysis;
 pub mod error;
 pub mod from_scene;
 pub mod geom;
@@ -55,8 +48,7 @@ pub mod scene;
 pub mod solver;
 
 pub use error::{Error, Result};
-pub use optics::ThickLens;
-pub use scene::{CameraEntity, LaserEntity, MeshTarget, PhysicalOptics, Scene, TargetEntity};
+pub use scene::{LaserEntity, MeshTarget, TargetEntity};
 
 /// Re-export of the upstream calibration kernel.
 ///
@@ -67,24 +59,12 @@ pub use vision_calibration_core as calibration;
 
 #[cfg(test)]
 mod tests {
-    /// Smoke-check that vision-calibration-core is wired and nalgebra unifies.
-    ///
-    /// Previously this called `probe_calibration_link()` directly; now it uses
-    /// `Scene::default_mvp()` which exercises the same path-dep boundary while
-    /// also covering the real scene construction contract.
+    /// calibration-rs's pose type is this crate's: one nalgebra across the boundary (the hard
+    /// pin), so a pose passes between them without conversion.
     #[test]
-    fn calibration_path_dep_resolves() {
-        let scene = crate::Scene::default_mvp();
-        assert_eq!(
-            scene.cameras.len(),
-            1,
-            "default MVP scene must have 1 camera"
-        );
-        assert_eq!(scene.lasers.len(), 1, "default MVP scene must have 1 laser");
-        assert_eq!(
-            scene.targets.len(),
-            1,
-            "default MVP scene must have 1 target"
-        );
+    fn calibration_types_are_this_crates_nalgebra() {
+        let pose: crate::calibration::Iso3 = nalgebra::Isometry3::identity();
+        let back: nalgebra::Isometry3<f64> = pose;
+        assert_eq!(back, nalgebra::Isometry3::identity());
     }
 }

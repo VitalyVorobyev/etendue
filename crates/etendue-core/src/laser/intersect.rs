@@ -14,8 +14,7 @@
 //! the laser stripe **one straight 3D segment**, with no polyline stitching
 //! across triangle boundaries. The general triangle-mesh intersection (a
 //! piecewise-linear curve) is [`stripe_segments_on_mesh`]. The output type is
-//! still a polyline so the projection layer ([`super::project`]) and the mesh
-//! intersection share one interface.
+//! still a polyline so the planar and mesh intersections share one interface.
 //!
 //! # The construction
 //!

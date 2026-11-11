@@ -3,8 +3,8 @@
 //! A line laser emits a planar *fan* of light: rays leaving a common origin,
 //! all lying in one plane, spreading over an angular extent. [`LaserPlane`]
 //! captures that geometry, built from a [`LaserEntity`], in **world**
-//! coordinates so the intersection and projection layers ([`super::intersect`],
-//! [`super::project`]) can work directly against the scene's other entities.
+//! coordinates so the intersection ([`super::intersect`]) works directly against the scene's
+//! other entities.
 //!
 //! # Laser-local convention
 //!
