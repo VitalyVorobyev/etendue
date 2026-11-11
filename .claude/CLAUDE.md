@@ -95,7 +95,7 @@ across the whole workspace.
 
 | Crate | Features | Notes |
 |---|---|---|
-| `etendue-core` | none | the Scheimpflug solver is always built: an in-tree deterministic Nelder–Mead (`solver::nelder_mead`), no `getrandom` (G9.3) |
+| `etendue-core` | none | the head optimiser runs on an in-tree deterministic Nelder–Mead (`solver::nelder_mead`), no `getrandom` (G9.3) |
 | `etendue-scene` | `schemars` | JSON Schema derives (xtask enables it to emit `schemas/`) |
 | `etendue-kinematics` | `opw` | analytic OPW IK via `rs-opw-kinematics` (`default-features = false`) |
 | `etendue-synth` | `images`, `schemars` | canonical camera, remap LUT, GT, dataset, render jobs, pose generator; `images` = EXR ingest + PNG + the laser-image compositor (native render path, off in wasm); `schemars` = JSON Schema of the observation noise (for etendue-cli's report schemas) |
@@ -129,18 +129,20 @@ xtask (emit-schemas, check-layering, app)
 `cargo xtask check-layering` enforces these rules (ADR 0001 §2).
 
 **`etendue-core`** — concrete-`f64` geometric and physical kernel. Modules:
-- `scene` — `CameraEntity`, `LaserEntity`, `TargetEntity`, `Scene`
-- `optics::thick_lens` — `ThickLens`, `coc_diameter`, `coc_diameter_px`,
-  `sync_intrinsics_from_physical`
-- `optics::coc` — Scheimpflug plane-of-best-focus and off-axis CoC
+- `optics::camera` — `PhysicalCamera` (ADR 0008): projection, blur, depth of field;
+  `optics::paraxial` — the independent ray trace it is tested against
+- `from_scene` — `resolve` (projection frames), `derive` (optics → the equivalent pinhole)
+- `scene` — `LaserEntity`, `TargetEntity` (with `MeshTarget`): what the laser model consumes
 - `laser` — `LaserPlane`, `GaussianBeamWidth` (waist at `waist_distance_m` from the laser: where it is
-  focused), `stripe_on_target`, `project_stripe`
-- `analysis` — `defocus_map`, `working_volume`
-- `optics::camera` — `PhysicalCamera` (ADR 0008); `from_scene` — `resolve` (projection frames)
+  focused), `stripe_on_target`, `stripe_on_cylinder`, `stripe_segments_on_mesh`
 - `head` — a triangulation head (P10): samples (with the stripe's imaged width), map, section (2-D,
   and the camera in 3-D as `solid`), Scheimpflug hinge, optimiser
 - `rig` — `coverage` of a `RigLayout` (P11): per-voxel camera views and laser–camera pairs;
   `sharpness`, each camera's sharp range along its axis, judged as `coverage` judges it
+- `solver::nelder_mead`, `geom` (meshes), `library` (content hash)
+
+The egui-era kernel (`CameraEntity`, `ThickLens`, `optics::coc`, the analysis layer, the
+Scheimpflug solver, `laser::project`) was removed in P19f; `docs/kernel.md` records what it was.
 
 **Physical cameras** (ADR 0008, P9) — `etendue-core::optics::camera::PhysicalCamera` is the camera
 model: a body (mechanical frame M, the image-plane datum) with a sensor and a thick lens with pupils,
@@ -329,8 +331,9 @@ Aim for under 500 lines, tests included. **800 is the limit**, and CI enforces i
 
 Physical optics parameters (focal length mm, f-number, focus distance m, principal-plane
 gap mm) are the **source of truth**. `fx`/`fy` in the underlying `CameraModel` are
-**derived** via `CameraEntity::sync_intrinsics_from_physical`. Never store the derived
-pixel focal lengths as authoritative.
+**derived** (`etendue-core::from_scene::derive`, through `PhysicalCamera`), and a scene camera's
+`params` must hold the derived pinhole (checked at 1e-9). Never store the derived pixel focal
+lengths as authoritative.
 
 ### Serde conventions — mirror calibration-rs exactly
 
@@ -343,7 +346,7 @@ pixel focal lengths as authoritative.
 ## Constraints
 
 1. **calibration-rs is a dependency, never a fork or vendor.** Any new functionality
-   added to `vision-calibration-core` (e.g. `ThickLens` → `ApertureModel<S>`) is a
+   added to `vision-calibration-core` (e.g. an aperture model, ADR 0008) is a
    separate upstream PR with explicit user review before merge.
 
 2. **Commit only when explicitly asked.** Never commit speculatively.
@@ -373,33 +376,26 @@ These are hard-won lessons from M4; do not break them:
 
 **Gotcha 1**: `ScheimpflugParams::compile()` is a *geometric sensor-plane remap* (it
 produces a homography that remaps pixels onto the tilted sensor). It is NOT the defocus
-/ focus model. Do not call it to compute CoC or the plane of best focus — those live in
-`optics::coc`.
+/ focus model. Do not call it to compute CoC or the plane of best focus — those are
+`PhysicalCamera`'s.
 
 **Gotcha 2**: `CameraParams::build()` compiles the Scheimpflug tilt into a homography
 and the resulting `CameraModel` **loses the tilt angles** — they are baked into the
-homography matrix and are not recoverable from the built model. Therefore `CameraEntity`
-must retain `CameraParams` as the source of truth for tilt. Never reconstruct
-`ScheimpflugParams` from a built `CameraModel`.
+homography matrix and are not recoverable from the built model. Therefore keep
+`CameraParams` (as the scene documents and `PhysicalCamera` do) as the source of truth for tilt.
+Never reconstruct `ScheimpflugParams` from a built `CameraModel`.
 
-**Gotcha 3**: The Scheimpflug plane-of-best-focus derivation (see
-`docs/derivations/scheimpflug_pobf.md`) produces two distance regimes (a) and (b).
-Regime (b) contains a `1/z` term that regime (a) does not. The regime is chosen by the
-sign of `z - s_o` where `z` is the depth of the object point and `s_o` is the focus
-distance. Mixing regimes silently produces wrong CoC values — the unit tests guard this.
+**Gotcha 3**: calibration-rs's (OpenCV's) tilted plane is the virtual image plane in front of the
+projection centre; the real sensor is its reflection through the lens. `PhysicalCamera` (ADR 0008)
+defines its sensor so its projection equals calibration-rs's to 1e-12 px and uses calibration-rs's
+tilt angles throughout. (The removed thick-lens CoC formulas, `docs/derivations/scheimpflug_pobf.md`,
+measured tilt with the opposite sign of `tilt_x`: mind it when reading that derivation.)
 
-**Gotcha 4**: calibration-rs's (OpenCV's) `tilt_x` is the **negative** of `optics::coc`'s
-`tau_x`; `tilt_y` equals `tau_y`. calibration-rs's tilted plane is the virtual image plane in front
-of the projection centre; the real sensor is its reflection through the lens. Every bridge from
-`CameraParams` to the defocus physics applies `optics::coc_tilt` (`ThickLens`, the Scheimpflug
-solver). `PhysicalCamera` (ADR 0008) defines its sensor so its projection equals calibration-rs's
-to 1e-12 px, and `tests/camera_frames.rs` pins the legacy model against it.
-
-**Gotcha 5**: a pinhole's centre of projection is the **entrance pupil**, not a principal or
+**Gotcha 4**: a pinhole's centre of projection is the **entrance pupil**, not a principal or
 nodal point; the camera's pose is its **mechanical frame** (the image-plane datum). Only
 `PhysicalCamera` converts between them; never offset a pose by an optical distance elsewhere.
 
-**Gotcha 6**: kernel math that crosses into wasm must be bit-identical (G0.1). `+ − × ÷` and `sqrt`
+**Gotcha 5**: kernel math that crosses into wasm must be bit-identical (G0.1). `+ − × ÷` and `sqrt`
 are exactly rounded everywhere, but `sin`, `cos`, `atan2`, `asin`, `acos` and `hypot` are not:
 native builds call the system libm, wasm Rust's port. Use the `libm` crate for every transcendental
 in kernel code (`optics::camera`, `optics::paraxial`, `head`, `etendue-kinematics::rot`), and build
@@ -458,5 +454,5 @@ against a ground truth). P20 follows (user decision, 2026-11-11): real data, sta
 simulated twin of a real calibration on calibration-rs's real datasets. Private datasets give
 aggregate numbers only in anything committed; their paths live in the git-ignored `local/`.
 
-Promoting `ThickLens` to `ApertureModel<S>` in calibration-rs is deferred (ADR 0008): no
+Promoting an aperture model to calibration-rs (`ApertureModel<S>`) is deferred (ADR 0008): no
 phase needs it upstream.

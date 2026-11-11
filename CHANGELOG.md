@@ -130,6 +130,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- **The egui-era optics kernel in `etendue-core`** (P19f, about 4,800 lines): `CameraEntity`,
+  `ThickLens`, the thick-lens CoC formulas (`optics::coc`, `psf`), the working volume, defocus map
+  and voxel overlap (`analysis`), the `Scene` aggregate, the Scheimpflug solver and
+  `laser::project`. Nothing outside the crate's own tests used them once the physical camera
+  (ADR 0008) replaced them. Their product equivalents are `PhysicalCamera`'s blur, `Head::map`,
+  `rig::coverage` and `Head::optimise`. `docs/kernel.md` records what they were.
 - A physical camera whose sensor tilts about both axes behind a lens with its entrance pupil off
   the principal plane (pupil magnification ≠ 1) is refused. Its equivalent pinhole needs a skew,
   which calibration-rs no longer models. One-axis tilts, and any tilt with the pupil at the

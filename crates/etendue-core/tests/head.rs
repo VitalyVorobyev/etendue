@@ -11,10 +11,18 @@ use etendue_core::calibration::{
 };
 use etendue_core::head::{Beam, Head, Search, Setting, Window};
 use etendue_core::optics::camera::{Focusing, Lens, PhysicalCamera};
-use etendue_core::optics::coc::pobf_tilt_tan;
 use nalgebra::{Isometry3, Matrix3, Point3, Rotation3, Translation3, UnitQuaternion, Vector3};
 
 const PITCH: f64 = 5.86e-6;
+
+/// The plane of best focus's tilt for a sensor tilted by `tau`, as the thick-lens derivation gives
+/// it (`docs/derivations/scheimpflug_pobf.md`, (11)–(14)): `tan θ = (s_o + g) / v0 · tan τ`, with
+/// `v0 = f (s_o + g) / (s_o + g − f)`. An independent closed form for the head's hinge rule.
+fn pobf_tilt_tan(tau: f64, s_o: f64, g: f64, f: f64) -> f64 {
+    let d = s_o + g;
+    let v0 = f * d / (d - f);
+    d / v0 * tau.tan()
+}
 
 fn as_built() -> CameraParams {
     CameraParams {
@@ -96,7 +104,7 @@ fn the_scheimpflug_setting_matches_the_hinge_formula() {
     let tan_theta = -normal.y / normal.z;
     let s_o = setting.focus_distance_m - v0; // from H′, as the legacy model measures it (g = 0)
     let tau_core = (tan_theta * v0 / s_o).atan();
-    assert!((pobf_tilt_tan(tau_core, s_o, 0.0, 0.025).unwrap() - tan_theta).abs() < 1e-12);
+    assert!((pobf_tilt_tan(tau_core, s_o, 0.0, 0.025) - tan_theta).abs() < 1e-12);
     assert!(
         (setting.tilt[0] - (-tau_core)).abs() < 1e-9,
         "tilt_x {} vs {}",

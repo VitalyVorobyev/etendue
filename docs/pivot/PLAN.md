@@ -148,7 +148,7 @@ etendue/                                   (cargo workspace + bun workspace)
   only `lens` and `sensor_width`, with no `shift_x/y`.
   Known limitation, documented rather than fixed: Cycles depth of field assumes a focal
   plane parallel to the sensor, so Scheimpflug **defocus** is wrong in photometric
-  renders. etendue-core's `optics::coc` remains the reference for it.
+  renders. etendue-core's `PhysicalCamera` (its blur) remains the reference for it.
 - **ADR-0005 Blender is a thin renderer.** `etendue-cli` writes `job.json` (the baked
   frames for the capture events, meshes, materials from a small PBR subset, lights, and
   canonical camera parameters). It then invokes
@@ -1005,6 +1005,13 @@ PR, merged when green.
   egui-era `analysis`, `solver::scheimpflug`, `scene`, `laser::project`) are removed or kept for a
   named reason; `LibraryItem` becomes an enum (same JSON); gate tooling (`measure`, `corners`)
   moves behind a feature; etendue-cli's library API is narrowed or not published.
+  - **The prune is done:** about 4,800 lines removed. The removed parts are `CameraEntity`,
+    `ThickLens`, `optics::{coc, psf}`, `analysis`, `Scene`, `solver::scheimpflug` and
+    `laser::project`. G9.2's subject (the Scheimpflug solver) is gone; the Nelder–Mead it
+    measured stays (`head::optimise`), and G9.2's record stays as history. The derivation's
+    plane-of-best-focus closed form is kept as an independent check in `tests/head.rs`. The kept
+    `geom`, `scene::{LaserEntity, TargetEntity}` and `laser::{plane, width, intersect}` serve
+    `etendue-synth`'s stripes.
 - **P19g — Studio structure.** `App.tsx` split by workspace and `state/studio.ts` by concern
   (history, I/O, bank, notifications); subscriptions narrow enough that playback re-renders only
   what moves; Optics and Rigs designs kept across reloads; one way to show a kernel error; a units

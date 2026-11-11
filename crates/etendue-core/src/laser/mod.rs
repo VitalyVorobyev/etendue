@@ -1,17 +1,15 @@
-//! The laser-line model: the laser fan, its cross-section width, where it
-//! strikes a target, and how that stripe projects into the camera.
+//! The laser-line model: the laser fan, its cross-section width, and where it strikes a target.
 //!
-//! It turns a posed [`LaserEntity`](crate::scene::LaserEntity) into the
-//! geometry and physics of a projected laser line: the 3D stripe on the target
-//! and its 2D image in the camera. Everything here is pure `f64`, with no
-//! rendering dependency.
+//! It turns a posed [`LaserEntity`](crate::scene::LaserEntity) into the geometry of a laser line
+//! on a target. Everything here is pure `f64`, with no rendering dependency. `etendue-synth`
+//! images the stripe (its `laser` and `laser_render`), through the physical camera.
 //!
 //! # The pipeline
 //!
 //! ```text
 //! LaserEntity ──► LaserPlane ──┐
-//!                              ├──► LaserStripe ──► ProjectedStripe
-//! TargetEntity ────────────────┘    (intersect)      (project)
+//!                              ├──► LaserStripe
+//! TargetEntity ────────────────┘    (intersect)
 //!                                       ▲
 //!                       WidthModel ─────┘
 //! ```
@@ -24,23 +22,16 @@
 //!    the per-component override hook; [`GaussianBeamWidth`] is the default
 //!    Gaussian-beam law `w(d) = w0·sqrt(1 + (d/zR)²)`.
 //! 3. [`stripe_on_target`] / [`LaserStripe`] ([`intersect`]) — the laser fan
-//!    plane intersected with a planar [`TargetEntity`](crate::scene::TargetEntity),
-//!    clipped to the fan extent and the target rectangle, and sampled into a
-//!    3D polyline with a per-sample width. **Scope: plane∩plane only — a
-//!    single straight segment, no triangle-mesh stitching.**
-//! 4. [`project_stripe`] / [`ProjectedStripe`] ([`project`]) — the 3D stripe
-//!    pushed through the scene camera into pixel space, with a per-vertex
-//!    pixel width that combines the geometric cross-section and the defocus
-//!    blur **in quadrature**.
+//!    plane intersected with a [`TargetEntity`](crate::scene::TargetEntity) (a rectangle, a
+//!    cylinder or a mesh), clipped to the fan extent and the target, and sampled into a 3D
+//!    polyline with a per-sample width.
 
 pub mod intersect;
 pub mod plane;
-pub mod project;
 pub mod width;
 
 pub use intersect::{
     LaserStripe, StripeSample, stripe_on_cylinder, stripe_on_target, stripe_segments_on_mesh,
 };
 pub use plane::LaserPlane;
-pub use project::{ProjectedPoint, ProjectedStripe, project_stripe};
 pub use width::{GaussianBeamWidth, WidthModel};
