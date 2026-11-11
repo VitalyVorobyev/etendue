@@ -342,6 +342,49 @@ fn a_staged_procedure_recovers_a_rig_and_names_its_stages() {
 }
 
 #[test]
+fn the_joint_laser_solve_starts_from_a_rig_handeye_stage_and_the_design_planes() {
+    // calibration-rs#256: the joint solve takes an earlier rig hand-eye result as a whole, and
+    // initial planes, instead of solving the rig again.
+    let gt = truth(&example("laser_ur5e"), "laser_ur5e", "joint_seeded");
+    let obs = observe(&gt, &ObservationNoise::default());
+    let staged: etendue_scene::ProcedurePart = serde_json::from_str(
+        r#"{ "stages": [
+            { "id": "handeye", "problem": "rig_handeye" },
+            { "id": "joint", "problem": "rig_handeye_laserline",
+              "seed": { "rig": { "stage": "handeye" }, "planes": "nominal" } } ] }"#,
+    )
+    .unwrap();
+    let options = Options {
+        procedure: Some(("staged".into(), staged)),
+        ..Options::default()
+    };
+    let report = calibrate(&gt, &obs, &options).unwrap();
+    print!("{}", report.table());
+    assert!(report.gated && report.pass);
+    assert_eq!(report.workflow, Workflow::RigHandeyeLaserline);
+    // Its rig comes only from a rig hand-eye result.
+    let wrong: etendue_scene::ProcedurePart = serde_json::from_str(
+        r#"{ "stages": [
+            { "id": "rig", "problem": "rig_extrinsics" },
+            { "id": "joint", "problem": "rig_handeye_laserline", "seed": { "rig": { "stage": "rig" } } } ] }"#,
+    )
+    .unwrap();
+    let err = calibrate(
+        &gt,
+        &obs,
+        &Options {
+            procedure: Some(("wrong".into(), wrong)),
+            ..Options::default()
+        },
+    )
+    .unwrap_err();
+    assert!(
+        format!("{err:#}").contains("from a rig_handeye stage"),
+        "{err:#}"
+    );
+}
+
+#[test]
 fn a_procedure_that_does_not_fit_the_dataset_is_refused_before_it_runs() {
     let gt = truth(&example("closed_loop_ur5e"), "closed_loop_ur5e", "misfit");
     let obs = observe(&gt, &ObservationNoise::default());

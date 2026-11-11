@@ -98,7 +98,10 @@ impl Problem {
             .filter(|slot| match *slot {
                 "sensor" => tilted,
                 "rig" => self.rig(),
-                "handeye" => self.handeye(),
+                // The joint laser solve takes its hand-eye with its rig: from a `rig_handeye`
+                // stage's result (calibration-rs's `JointManualInit`).
+                "handeye" => self.handeye() && self != Self::RigHandeyeLaserline,
+                "planes" => self.laser(),
                 _ => true,
             })
             .collect()
@@ -133,7 +136,7 @@ pub const FREEDOM_KEYS: [&str; 11] = [
 ];
 
 /// A stage's seed slots ([`Seeds`] fields), by their document names, in their order.
-pub const SEED_SLOTS: [&str; 4] = ["intrinsics", "sensor", "rig", "handeye"];
+pub const SEED_SLOTS: [&str; 5] = ["intrinsics", "sensor", "rig", "handeye", "planes"];
 
 /// The kinds of [`Seed`] slot `slot` takes (`nominal`, `truth`, `stage`): a rig only from an
 /// earlier stage, since calibration-rs takes the target's pose per view with it.
@@ -422,12 +425,17 @@ pub struct Seeds {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sensor: Option<Seed>,
     /// The cameras' poses in the rig: from an earlier rig stage only (calibration-rs takes the
-    /// target's pose per view with them).
+    /// target's pose per view with them). A `rig_handeye_laserline` stage takes a `rig_handeye`
+    /// stage's whole result here (its cameras, rig and hand-eye) as the joint solve's start.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rig: Option<Seed>,
     /// The hand-eye transform.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub handeye: Option<Seed>,
+    /// The laser planes, one per camera in its frame (laser workflows): the design's (nominal or
+    /// truth: in a simulation the design is the truth) or an earlier stage's estimate.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub planes: Option<Seed>,
 }
 
 impl Seeds {
@@ -437,6 +445,7 @@ impl Seeds {
             ("sensor", &self.sensor),
             ("rig", &self.rig),
             ("handeye", &self.handeye),
+            ("planes", &self.planes),
         ]
         .into_iter()
         .filter_map(|(k, s)| s.as_ref().map(|s| (k, s)))

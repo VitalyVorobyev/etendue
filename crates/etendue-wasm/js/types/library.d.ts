@@ -684,8 +684,14 @@ export interface Seeds {
    */
   intrinsics?: Seed | null;
   /**
+   * The laser planes, one per camera in its frame (laser workflows): the design's (nominal or
+   * truth: in a simulation the design is the truth) or an earlier stage's estimate.
+   */
+  planes?: Seed | null;
+  /**
    * The cameras' poses in the rig: from an earlier rig stage only (calibration-rs takes the
-   * target's pose per view with them).
+   * target's pose per view with them). A `rig_handeye_laserline` stage takes a `rig_handeye`
+   * stage's whole result here (its cameras, rig and hand-eye) as the joint solve's start.
    */
   rig?: Seed | null;
   /**

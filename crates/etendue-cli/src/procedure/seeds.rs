@@ -2,10 +2,10 @@
 //! stage's estimate.
 
 use anyhow::{Context, Result, bail, ensure};
-use etendue_scene::{Seed, Stage};
+use etendue_scene::{Problem, Seed, Stage};
 use nalgebra::Isometry3;
 
-use crate::calibrate::{Report, SeedValues, Truth, Workflow};
+use crate::calibrate::{Plane, Report, SeedValues, Truth, Workflow};
 
 /// The design's starting values, as a user would enter them from datasheets: per camera.
 pub(super) fn nominal(truth: &Truth) -> (Vec<[f64; 4]>, Vec<[f64; 2]>) {
@@ -121,6 +121,16 @@ pub(super) fn seeds(
             .iter()
             .find(|r| !r.rig_se3_target.is_empty())
             .with_context(|| format!("stage `{id}` did not calibrate a rig"))?;
+        if s.problem == Problem::RigHandeyeLaserline {
+            // The joint solve starts from a rig hand-eye result as a whole (calibration-rs's
+            // `JointManualInit::rig_handeye`): its cameras, rig, hand-eye and target poses.
+            ensure!(
+                from.workflow == Workflow::RigHandeye,
+                "a rig_handeye_laserline stage seeds its rig from a rig_handeye stage; `{id}` ran {}",
+                from.workflow
+            );
+            out.rig_handeye = Some(from.export.clone());
+        }
         out.cam_se3_rig = Some(
             ids.iter()
                 .map(|cid| {
@@ -134,6 +144,37 @@ pub(super) fn seeds(
         );
         out.rig_se3_target = Some(from.rig_se3_target.clone());
     }
+    // The laser planes, per camera in its frame.
+    out.planes = match &s.seed.planes {
+        None => None,
+        Some(Seed::Nominal | Seed::Truth) => Some(
+            (0..n)
+                .map(|i| {
+                    truth.plane(i).map(|p| Plane {
+                        normal: p.normal,
+                        distance: p.distance,
+                    })
+                })
+                .collect(),
+        ),
+        Some(Seed::Stage(id)) => {
+            let reports = reports_of(done, id)?;
+            let planes = ids
+                .iter()
+                .map(|cid| {
+                    reports.iter().find_map(|r| {
+                        let j = r.estimate.cameras.iter().position(|c| &c.id == cid)?;
+                        r.estimate.laser_planes.get(j).copied().flatten()
+                    })
+                })
+                .collect::<Vec<_>>();
+            ensure!(
+                cams.iter().all(|&i| planes[i].is_some()),
+                "stage `{id}` estimated no laser plane for some camera of this stage"
+            );
+            Some(planes)
+        }
+    };
     let frame_of = |cams: &[usize]| -> Isometry3<f64> {
         if s.problem.rig() {
             truth.cam_se3_rig[0]

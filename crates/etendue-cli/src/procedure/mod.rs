@@ -157,14 +157,6 @@ pub fn check(gt: &GroundTruth, procedure: &ProcedurePart) -> Result<()> {
                 gt.cameras.len()
             ));
         }
-        if s.problem == Problem::RigHandeyeLaserline
-            && (s.seed.rig.is_some() || s.seed.handeye.is_some())
-        {
-            problems.push(format!(
-                "stage `{}`: rig_handeye_laserline takes only intrinsics and sensor seeds (etendue does not pass it a rig or hand-eye seed yet)",
-                s.id
-            ));
-        }
         match cameras_of(&truth, s) {
             Err(e) => problems.push(format!("{e}")),
             // calibration-rs reads every option the stage sets (seeds aside: they come from the

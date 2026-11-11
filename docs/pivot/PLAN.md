@@ -974,6 +974,16 @@ PR, merged when green.
   - **The bump is done** ([`calibration_rs_0_18.md`](../measurements/calibration_rs_0_18.md)):
     every gate holds, and only the Scheimpflug rig's results move (its tilts are now refined).
     Adopting #256, #261 and #268 is a follow-up PR.
+  - **Adoption measured** ([`p19d_upstream_adoption.md`](../measurements/p19d_upstream_adoption.md)):
+    - **#256 is adopted as seeds.** A laser rig's joint stage starts from a `rig_handeye` stage's
+      result, and a new `planes` seed takes the design or an earlier stage's planes. On the
+      examples it reaches the same minimum as the joint solve from datasheet values, so the
+      built-ins are unchanged.
+    - **#268 is not adopted.** A one-camera joint solve is no better under noise than the
+      device-then-hand-eye route.
+    - **#261 is not adopted.** The planner runs in wasm, which cannot take the pipeline crate,
+      and G18 already checks it against calibration-rs's covariance.
+    - **Finding:** the laser rigs' spread is up to 3.2 times calibration-rs's predicted σ (P20 T2).
 - **P19e — One source for procedures and report types.**
   - the procedure engine's pure parts (`auto`, the check, the config patches, which freedoms apply
     to which workflow) move to a crate wasm can use, and the studio stops re-implementing them;

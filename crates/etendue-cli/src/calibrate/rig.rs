@@ -231,7 +231,13 @@ pub(crate) fn rig_laser(
         CalibrationSession::<rig_handeye_laserline::RigHandeyeLaserlineProblem>::new();
     session.set_input(input)?;
     session.set_config(config(&run.patch)?)?;
-    rig_handeye_laserline::run_calibration(&mut session)?;
+    match run.seeds.joint_init(&all)? {
+        Some(seed) => rig_handeye_laserline::run_calibration_with_seed(
+            &mut session,
+            strict(seed, "joint seed")?,
+        )?,
+        None => rig_handeye_laserline::run_calibration(&mut session)?,
+    }
     let export = session.export()?;
     let (json, quality) = exported(&export, &sizes(truth, &all))?;
     let cameras = rig_estimate(truth, &export.cameras, &export.cam_se3_rig)?;

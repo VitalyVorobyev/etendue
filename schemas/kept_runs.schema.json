@@ -1271,8 +1271,19 @@
             }
           ]
         },
+        "planes": {
+          "description": "The laser planes, one per camera in its frame (laser workflows): the design's (nominal or\ntruth: in a simulation the design is the truth) or an earlier stage's estimate.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Seed"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "rig": {
-          "description": "The cameras' poses in the rig: from an earlier rig stage only (calibration-rs takes the\ntarget's pose per view with them).",
+          "description": "The cameras' poses in the rig: from an earlier rig stage only (calibration-rs takes the\ntarget's pose per view with them). A `rig_handeye_laserline` stage takes a `rig_handeye`\nstage's whole result here (its cameras, rig and hand-eye) as the joint solve's start.",
           "anyOf": [
             {
               "$ref": "#/$defs/Seed"

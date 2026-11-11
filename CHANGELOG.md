@@ -87,6 +87,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `covariance_linearity` check now has a label in the studio.
 - **A kept run that does not read is shown, with the reason** (a newer etendue's run, or a
   damaged one), instead of disappearing from the studio's list.
+- **A laser rig's joint stage can start from a rig hand-eye stage, and laser planes can be
+  seeded** (calibration-rs#256): a `rig_handeye_laserline` stage's rig seed takes a `rig_handeye`
+  stage's result as a whole, and a new `planes` seed takes the design's planes or an earlier
+  stage's, on both laser workflows. Measured in `docs/measurements/p19d_upstream_adoption.md`.
 - **One table says which calibration workflow takes which option and seed** (P19e). The
   procedure check, `auto`, the CLI and the studio's procedure editor all read it (wasm
   `procedureRules`), so the editor offers exactly what the check accepts. "Refine intrinsics
