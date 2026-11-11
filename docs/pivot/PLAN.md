@@ -991,9 +991,76 @@ PR, merged when green.
   and labels pass.
 - **Release 0.3.0**, and a decision on publishing to crates.io and npm (§7).
 
-After P19: **a real-data track** (user decision, 2026-11-11). calibration-rs's real datasets with
-robot poses (the public `kuka_1` and `DS8`, and private sets that stay local) are the data; its
-0.18 dataset runner calibrates them. The design comes before the phase.
+After P19: **a real-data track**, P20 (user decision, 2026-11-11).
+
+### P20 — Real data: a simulated twin of a real calibration
+
+**Why.** Every result so far is synthetic. The planner predicts σ, the sim lab measures scatter,
+and the detectors are checked on renders. None of it says how a real cell behaves: the real
+detector's noise, whether the camera model fits the real lens, whether the planner's σ holds. P20
+calibrates real datasets and builds each one's **twin**: the same cell, the same robot poses and
+the same seen points, simulated. The differences between the real calibration and its twin are
+where etendue's simulation is wrong. (User decisions of 2026-11-11: a real-data track after P19,
+and the twin first.)
+
+**Data.** calibration-rs's real datasets with robot poses, described by its `dataset.toml`
+manifests:
+- `kuka_1`: public, one camera on a KUKA arm, a chessboard, 30 poses;
+- `DS8`: public, three cameras on a Denso arm, 42 poses;
+- `scheimpflug_rig` and `rtv3d`: private. Each is six Scheimpflug cameras with lasers, eye-to-hand,
+  ChArUco, with real laser images.
+
+**Private data.**
+- A dataset is named by id in a git-ignored `local/datasets.toml` (id → manifest path).
+- Committed measurements may name a private dataset and give aggregate numbers only: reprojection
+  error, σ, ratios, verdicts.
+- Images, robot poses, calibrated parameters and paths never leave the machine.
+- Gates on private data run locally. CI runs the public ones where it can (`kuka_1` is in
+  calibration-rs's LFS).
+
+**Steps** (one PR each):
+
+- **P20a — Calibrate a real dataset.** `etendue real calibrate <id | dataset.toml>`.
+  - It runs calibration-rs's dataset runner (`calibrate_dataset`: detection, cached, then the
+    manifest's workflow) and reports what a run without truth can: residuals per feature and per
+    view, σ, the quality verdict, and the views the runner rejected, with reasons.
+  - It is kept as a run, like a synthetic one, and `Report` gains a "no truth" form.
+  - **Gate R1:** on `kuka_1` and `DS8`, the report's estimates and residuals equal calibration-rs's
+    own run of the same manifest (the same code: any difference is etendue's).
+- **P20b — The twin.** From a real calibration, `etendue-synth` builds a `GroundTruth` directly:
+  - the calibrated cameras, rig and hand-eye as the truth;
+  - the manifest's target as calibration-rs lays it out;
+  - the real robot poses;
+  - in each view, exactly the points the real detector found.
+
+  No scene or robot model is needed, since a real cell's robot may not be in the library.
+  Observations get noise at the level the real residuals imply (calibration-rs's `noise`), and
+  the twin is calibrated with the same workflow and config, N trials.
+  - **Gate T1:** the twin recovers its truth on exact data (the G5.1 limits), and its scatter over
+    trials matches its predicted σ (std/σ within 15 %, as G17.1).
+  - **Characterisation T2** (`docs/measurements/p20_twin.md`), real against twin, per camera:
+    - residual RMS ratio;
+    - residual whiteness: spatial structure across the image, and per view;
+    - the real σ against the twin's scatter;
+    - the real result's distance from the twin's estimate, in σ.
+
+    A ratio near 1 with white residuals means the noise model and camera model hold. Structure
+    means a model error, and its shape says which.
+- **P20c — The planner on real poses.** The P18 planner's σ for the real pose set (from the
+  twin), against the real covariance and a split-half check on the real data: calibrate two halves
+  of the views, and the difference of their estimates against √2·σ.
+  - **Gate P1:** the planner's system σ is within 25 % of the split-half estimate on `kuka_1` and
+    `DS8`. The bar is set after T2, and recorded as measured if it is mis-set.
+- **P20d — Laser rigs.**
+  - etendue's stripe detector (`detect/laser.rs`) becomes a `LaserPixelExtractor` for the dataset
+    runner, so the private rigs' laser images calibrate their planes.
+  - The twin gains the laser: stripes simulated at the same poses, and G5.3c triangulation on the
+    twin against the real stripe residuals.
+- **P20e — Studio.** Open a dataset by id, calibrate it, and show the real report beside its
+  twin's: residual maps, σ, verdicts.
+
+**Not in P20:** real-image import into a scene (the twin needs none), and robot models for
+real cells.
 
 ### Deferred (not planned; do not scaffold)
 

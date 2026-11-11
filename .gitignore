@@ -48,3 +48,6 @@ __pycache__/
 # capability schemas tauri-build generates.
 web/apps/studio/src-tauri/target/
 web/apps/studio/src-tauri/gen/
+
+# Real datasets by id (P20): local paths, never committed.
+/local/
