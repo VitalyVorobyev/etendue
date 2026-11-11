@@ -68,6 +68,7 @@ uv run --locked --project tools/closed-loop python -m unittest discover -s tools
 # Workspace policy (CI job `checks`)
 cargo xtask check-layering                                 # ADR 0001 dependency rules + single nalgebra
 cargo xtask check-layering --manifest-path web/apps/studio/src-tauri/Cargo.toml   # the shell's nalgebra pin
+cargo xtask check-file-size [--update]                     # no source file over 800 lines (shrinking allowances)
 
 # Studio Tauri shell (own cargo workspace; CI job `studio-tauri`; needs web/apps/studio/dist to exist)
 cargo clippy --manifest-path web/apps/studio/src-tauri/Cargo.toml --all-targets -- -D warnings
@@ -299,6 +300,19 @@ match calibration-rs exactly.
 
 ## Conventions
 
+### Small files, split by responsibility
+
+A source file holds one responsibility, and it is split by responsibility long before it is big.
+Aim for under 500 lines, tests included. **800 is the limit**, and CI enforces it
+(`cargo xtask check-file-size`, `xtask/file-size-allowances.txt`).
+- Files that were over the limit when the rule came in have an allowance, which only shrinks.
+  A change that touches one of them leaves it smaller, never larger. Lower the allowance with
+  `--update` in the same PR.
+- Do this as part of the work, unasked. When a change would push a file past the limit, split it
+  first, in its own commit: `git mv` the file to `<name>/mod.rs`, then move items verbatim into
+  modules named for what they do.
+- Never raise an allowance or the limit to make a change fit.
+
 ### Coordinate frames
 
 - **World**: +Z up, right-handed.
@@ -398,6 +412,7 @@ All must be clean:
 
 ```bash
 cargo fmt --all --check
+cargo xtask check-file-size
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace --locked
 cargo build --workspace
