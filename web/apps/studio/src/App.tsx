@@ -1,5 +1,5 @@
 import { type FrameTreeRuntime, type Iso3, invertIso3 } from "@vitavision/three";
-import { Button, Callout, ConfirmDialog, Empty, Panel, SegmentedControl, Select } from "@vitavision/ui";
+import { Button, Callout, ConfirmDialog, Empty } from "@vitavision/ui";
 import {
   AppShell,
   PlaybackBar,
@@ -9,21 +9,16 @@ import {
   toast,
   usePlaybackClock,
 } from "@vitavision/workbench";
-import { Box, ChevronDown, ChevronUp, Minimize2, Pin } from "lucide-react";
+import { Box, Minimize2 } from "lucide-react";
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import library, { type LibraryRobot } from "virtual:etendue-robots";
 
 import { type Cell, defaultOf } from "./io/project";
 import { fileUrl, isTauri } from "./io/tauri";
-import { describeFailure } from "./kernel/etendue";
 import { type Bodies, type PoseOverride, bodyPoses, posed } from "./kernel/posed";
-import type { GeneratedPoses } from "@etendue/wasm";
 import { scenarioFromPoses } from "./kernel/native";
-import { useThrottledPlayhead } from "./kernel/useThrottled";
-import { type Jog, bakedQ, jogOverrides, motionSteps, reteach, robotFrames, teach } from "./robot/jog";
-import { JogPanel } from "./robot/JogPanel";
-import { stepAt, tcpPath } from "./scene/TcpPath";
 import { useLibraryWorkspace } from "./library/Workspace";
+import { useMotionWorkspace } from "./motion/Workspace";
 import { useOpticsWorkspace } from "./optics/Workspace";
 import { useRigsWorkspace } from "./rigs/Workspace";
 import { useCellBuilder } from "./cell/CellBuilder";
@@ -31,13 +26,10 @@ import { CameraGrid } from "./panels/CameraGrid";
 import { CellDialog } from "./panels/CellDialog";
 import { ErrorBoundary } from "./panels/ErrorBoundary";
 import { RobotLibrary } from "./robots/RobotLibrary";
-import { GeneratorPanel } from "./panels/GeneratorPanel";
 import { exportsOf } from "./panels/exports";
 import { Header, type Mode } from "./panels/Header";
 import { Inspector } from "./panels/Inspector";
-import { JointChart, type JointQuantity } from "./panels/JointChart";
 import { Navigator } from "./panels/Navigator";
-import { StepList } from "./panels/StepList";
 import { type GizmoTarget, Viewport } from "./panels/Viewport";
 import {
   type EntityList,
@@ -116,15 +108,7 @@ export function App() {
   const [selection, setSelection] = useState<Scoped<string | null>>({ opened: 0, value: null });
   const [runtime, setRuntime] = useState<FrameTreeRuntime | null>(null);
   const [focusCamera, setFocusCamera] = useState<string | null>(null);
-  const [chartOpen, setChartOpen] = useState(true);
-  const [quantity, setQuantity] = useState<JointQuantity>("position");
   const [insetOpen, setInsetOpen] = useState(true);
-  const [motionPanel, setMotionPanel] = useState<"program" | "generate" | "jog">("program");
-  // A robot jogged at the playhead (P12); it lapses when the playhead moves or the program bakes.
-  const [jogState, setJog] = useState<(Jog & { baked: unknown }) | null>(null);
-  const [jogRobot, setJogRobot] = useState<string | null>(null);
-  const [preview, setPreview] = useState<GeneratedPoses | null>(null);
-  const [chartRobot, setChartRobot] = useState<string | null>(null);
   const [speed, setSpeed] = useState(1);
   const [loop, setLoop] = useState(false);
 
@@ -151,28 +135,20 @@ export function App() {
   const setSelected = (id: string | null) => setSelection({ opened, value: id });
   // The frame tree's runtime: a new one for every bake.
   const onRuntime = useCallback((r: FrameTreeRuntime) => setRuntime(r), []);
-  const jogK = useThrottledPlayhead(playhead, 50);
-  const jogging = current !== null && mode === "motion" && motionPanel === "jog" && !playing;
-  const jogFrames = useMemo(() => {
-    const robot = jogRobot ?? current?.loaded.scene.robots?.[0]?.id;
-    return robot && current ? { robot, frames: robotFrames(current.loaded.robots, robot) } : null;
-  }, [current, jogRobot]);
-  const jog = useMemo<Jog | null>(() => {
-    if (!jogging || !current || !jogFrames) return null;
-    if (jogState && jogState.baked === current.baked && jogState.k === jogK && jogState.robot === jogFrames.robot) {
-      return jogState;
-    }
-    const q = bakedQ(current.baked, jogFrames.robot, jogK);
-    return q ? { robot: jogFrames.robot, q, k: jogK } : null;
-  }, [jogging, current, jogFrames, jogState, jogK]);
-  const updateJog = (j: Jog) => current && setJog({ ...j, baked: current.baked });
-  const jogOverridesNow = useMemo(
-    () =>
-      jog && runtime && current && jogFrames?.frames
-        ? jogOverrides(current.session, runtime, current.loaded.scene, current.baked.frames, jogFrames.frames.base, jog)
-        : NO_OVERRIDES,
-    [jog, runtime, current, jogFrames],
-  );
+  const robots = current?.baked.robots ?? [];
+  const selectedRobot = robots.find((r) => r.id === selected || (selected !== null && selected.startsWith(`${r.id}/`)));
+  // The Motion workspace (its jogged robot drawn over the bake, its paths in the 3-D view).
+  const motion = useMotionWorkspace({
+    active: mode === "motion",
+    studio,
+    current,
+    opened,
+    playing,
+    playhead,
+    runtime,
+    selectedRobot: selectedRobot?.id ?? null,
+  });
+  const jogOverridesNow = motion.overrides;
   // World poses with the edit in progress (or the jogged robot) drawn over the bake.
   const editOverrides = editing?.overrides ?? NO_OVERRIDES;
   const overrides = useMemo(
@@ -217,9 +193,7 @@ export function App() {
 
   const scene = current?.loaded.scene;
   const cameras = scene?.cameras ?? [];
-  const robots = current?.baked.robots ?? [];
-  const selectedRobot = robots.find((r) => r.id === selected || (selected !== null && selected.startsWith(`${r.id}/`)));
-  const shownRobot = robots.find((r) => r.id === chartRobot)?.id ?? selectedRobot?.id ?? robots[0]?.id ?? null;
+  const { shownRobot } = motion;
   // The generated image of a camera at sample `k`, if `k` is a capture it rendered.
   const renderedAt = useCallback(
     (camera: string, k: number): string | null => {
@@ -268,28 +242,7 @@ export function App() {
       );
   };
 
-  const scenario = current?.loaded.scenario ?? null;
   const exports = useMemo(() => exportsOf(current, shownRobot), [current, shownRobot]);
-  // The motion report, for the Motion workspace (computed when it shows).
-  const report = useMemo(() => {
-    if (mode !== "motion" || !current?.loaded.scenario) return null;
-    try {
-      return current.session.motionReport(current.loaded.scenario);
-    } catch {
-      return null;
-    }
-  }, [mode, current]);
-  const unresolved = scenario?.steps.some((s) => s.type === "ptp_pose" && s.q === undefined) ?? false;
-  const resolveIk = () => {
-    if (!current || !scenario) return;
-    try {
-      studio.setScenario(current.session.resolveScenario(scenario), "resolve IK");
-    } catch (e) {
-      const failure = describeFailure(e);
-      toast({ title: failure.title, description: failure.message, tone: "error" });
-    }
-  };
-
   const add = (list: EntityList) => {
     if (!current) return;
     // Attach to the selected frame (a link, an entity), else to the world.
@@ -373,22 +326,8 @@ export function App() {
     handled && isRobot(selected)
       ? `${selected}/${current?.loaded.robots.find((r) => r.id === selected)?.manifest.base_link}`
       : selected;
-  const jogGizmo: GizmoTarget | null =
-    jog && current && jogFrames?.frames
-      ? {
-          frame: jogFrames.frames.tcp,
-          parent: jogFrames.frames.base,
-          placement: current.session.robotTcp(jog.robot, jog.q).base_se3_tcp,
-          onPreview: (pose) => {
-            const answer = current.session.robotIk(jog.robot, pose, jog.q, { restarts: 0 });
-            updateJog({ ...jog, q: answer.converged ? answer.q : jog.q, unreachable: !answer.converged });
-          },
-          onCommit: () => {},
-          onCancel: () => {},
-        }
-      : null;
   const gizmo: GizmoTarget | null =
-    jogGizmo ??
+    motion.gizmo ??
     (handled && handleFrame !== null && selected !== null
       ? {
           frame: handleFrame,
@@ -411,56 +350,6 @@ export function App() {
         }
       : null);
 
-  // Each robot's TCP over the program (the Motion workspace).
-  const tcpPaths = useMemo(
-    () =>
-      current
-        ? (current.loaded.scene.robots ?? []).flatMap((r) => {
-            const frames = robotFrames(current.loaded.robots, r.id);
-            const path = frames && tcpPath(current.baked, frames.tcp);
-            return path ? [path] : [];
-          })
-        : [],
-    [current],
-  );
-
-  // The robot motion at (or that led to) the playhead, which the TCP path highlights.
-  const pathStep = mode === "motion" && current ? stepAt(report, current.baked.samples[jogK]?.t ?? 0, true) : -1;
-  const paths = useMemo(
-    () => ({ data: tcpPaths, report, current: pathStep, onSeek: (k: number) => playhead.set(k) }),
-    [tcpPaths, report, pathStep, playhead],
-  );
-
-  // The jogged robot's steps, any of which can be re-taught at the jogged pose; the last that ran
-  // by the playhead is offered first.
-  const jogSteps = useMemo(() => (jog ? motionSteps(current?.loaded.scenario ?? null, jog.robot) : []), [jog, current]);
-  const jogStep = jog
-    ? (jogSteps.filter((s) => s.index <= stepAt(report, current?.baked.samples[jog.k]?.t ?? 0)).at(-1)?.index ?? null)
-    : null;
-  const reteachJog = (index: number) => {
-    const scenario = current?.loaded.scenario;
-    const step = scenario?.steps[index];
-    if (!jog || !current || !scenario || !step) return;
-    const next = reteach(step, jog.q, current.session.robotTcp(jog.robot, jog.q).base_se3_tcp);
-    if (next) {
-      studio.setScenario(
-        { ...scenario, steps: scenario.steps.map((s, i) => (i === index ? next : s)) },
-        `re-teach step ${index + 1}`,
-      );
-    }
-  };
-
-  // The jogged pose as a program step (and a capture), the playhead at its end.
-  const teachJog = (capture: boolean) => {
-    if (!jog || !current) return;
-    const tcp = current.session.robotTcp(jog.robot, jog.q).base_se3_tcp;
-    const scenario = teach(current.loaded.scenario, jog.robot, jog.q, tcp, capture);
-    if (studio.setScenario(scenario, capture ? "teach a capture" : "teach a pose")) {
-      const baked = studio.get().current?.baked;
-      if (baked) playhead.set(baked.samples.length - 1);
-    }
-  };
-
   const viewport = current ? (
     <Viewport
       current={current}
@@ -468,12 +357,12 @@ export function App() {
       selected={selected}
       onSelect={setSelected}
       onRuntime={onRuntime}
-      candidates={mode === "motion" && motionPanel === "generate" ? preview?.candidates : null}
+      candidates={motion.candidates}
       overrides={overrides}
       bodies={bodies}
       poses={bodyPose}
       gizmo={gizmo}
-      paths={mode === "motion" ? paths : undefined}
+      paths={mode === "motion" ? motion.paths : undefined}
       estimate={estimate}
     />
   ) : null;
@@ -541,54 +430,7 @@ export function App() {
           3D view
         </Button>
       )}
-      {mode === "motion" && robots.length > 0 && (
-        <div className={`flex shrink-0 flex-col border-t border-line bg-surface ${chartOpen ? "h-60" : ""}`}>
-          <div className="flex h-8 items-center gap-2 px-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              icon={chartOpen ? <ChevronDown className="size-4" /> : <ChevronUp className="size-4" />}
-              onClick={() => setChartOpen(!chartOpen)}
-              aria-expanded={chartOpen}
-            >
-              Joints
-            </Button>
-            {robots.length > 1 && shownRobot && (
-              <Select
-                aria-label="Robot"
-                value={shownRobot}
-                options={robots.map((r) => ({ value: r.id, label: r.id }))}
-                onValueChange={(v) => v !== "" && setChartRobot(v)}
-                className="w-40"
-              />
-            )}
-            {chartOpen && (
-              <SegmentedControl
-                value={quantity}
-                options={[
-                  { value: "position", label: "Position" },
-                  { value: "velocity", label: "Velocity" },
-                  { value: "acceleration", label: "Acceleration" },
-                ]}
-                onValueChange={(v) => v !== "" && setQuantity(v as JointQuantity)}
-                aria-label="Joint quantity"
-              />
-            )}
-          </div>
-          {chartOpen && shownRobot && (
-            <div className="min-h-0 flex-1 px-2 pb-2">
-              <JointChart
-                baked={current.baked}
-                robot={shownRobot}
-                joints={current.loaded.robots.find((r) => r.id === shownRobot)?.manifest.joints ?? []}
-                quantity={quantity}
-                playhead={playhead}
-                height={150}
-              />
-            </div>
-          )}
-        </div>
-      )}
+      {mode === "motion" && motion.chart}
     </div>
   ) : (
     <div className="grid h-full place-items-center p-6">
@@ -656,96 +498,7 @@ export function App() {
         onRenamed={setSelected}
       />
     ) : current && mode === "motion" ? (
-      <div className="flex h-full min-h-0 flex-col">
-        <div className="border-b border-line p-2">
-          <SegmentedControl
-            value={motionPanel}
-            options={[
-              { value: "program", label: "Program" },
-              { value: "jog", label: "Jog" },
-              { value: "generate", label: "Generate poses" },
-            ]}
-            onValueChange={(v) => {
-              if (v === "program" || v === "generate" || v === "jog") setMotionPanel(v);
-              if (v === "jog") studio.setPlaying(false);
-            }}
-            aria-label="Motion panel"
-          />
-        </div>
-        <div className="min-h-0 flex-1 overflow-auto">
-          {motionPanel === "jog" ? (
-            jog ? (
-              <JogPanel
-                session={current.session}
-                robots={current.loaded.robots}
-                jog={jog}
-                onJog={updateJog}
-                onReset={(robot) => {
-                  setJog(null);
-                  setJogRobot(robot);
-                }}
-                onTeach={teachJog}
-                steps={jogSteps}
-                defaultStep={jogStep}
-                onReteach={reteachJog}
-              />
-            ) : (
-              <Empty>{playing ? "Pause to jog." : "The cell has no robot to jog."}</Empty>
-            )
-          ) : motionPanel === "generate" ? (
-            <GeneratorPanel
-              key={opened}
-              session={current.session}
-              scene={current.loaded.scene}
-              initial={current.loaded.scenario?.generator ?? null}
-              onPreview={setPreview}
-              onApply={(generated) => {
-                if (studio.setScenario(generated.scenario, "generate poses")) setMotionPanel("program");
-              }}
-            />
-          ) : (
-            <Panel
-              title="Program"
-              bodyClassName="p-0"
-              actions={
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  icon={<Pin className="size-3.5" />}
-                  disabled={!unresolved}
-                  title={
-                    unresolved
-                      ? "Store every PTP pose's joint configuration, so the IK branch can never change"
-                      : "Every PTP pose's configuration is stored"
-                  }
-                  onClick={resolveIk}
-                >
-                  Resolve IK
-                </Button>
-              }
-            >
-              {report && (
-                <div
-                  className="border-b border-line px-3 py-2 font-mono text-xs text-fg-muted"
-                  data-testid="motion-summary"
-                >
-                  {report.duration_s.toFixed(2)} s · {report.captures} captures ·{" "}
-                  {report.steps.reduce((n, s) => n + (s.warnings?.length ?? 0), 0)} warnings
-                </div>
-              )}
-              <StepList
-                scenario={current.loaded.scenario}
-                baked={current.baked}
-                report={report}
-                playhead={playhead}
-                onSteps={(steps, label) =>
-                  current.loaded.scenario && studio.setScenario({ ...current.loaded.scenario, steps }, label)
-                }
-              />
-            </Panel>
-          )}
-        </div>
-      </div>
+      motion.right
     ) : null;
 
   // A pane that fails to render shows why, and starts again in another workspace or document.
