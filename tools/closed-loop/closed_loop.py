@@ -223,8 +223,8 @@ def rig_rows(
     `per_camera(i, camera)`'s rows per camera, then hand-eye and the target. calibration-rs's rig
     frame is the reference camera's (index 0), so etendue's rig frame is mapped onto it."""
     rig_se3_ref = cam_se3_rig[0].inv()
-    rot_err, trans_err = difference(Iso.pose(result.gripper_se3_rig), gripper_se3_rig * rig_se3_ref)
-    tr_err, tt_err = difference(Iso.pose(result.base_se3_target), base_se3_target)
+    rot_err, trans_err = difference(Iso.pose(result.handeye.gripper_se3_rig), gripper_se3_rig * rig_se3_ref)
+    tr_err, tt_err = difference(Iso.pose(result.handeye.base_se3_target), base_se3_target)
     rows = [("mean reprojection px", result.mean_reproj_error, GATE["mean_reproj_px"])]
     for i, camera in enumerate(cameras):
         rows += intrinsics_rows(result.cameras[i], camera, camera["id"])
@@ -474,8 +474,8 @@ def main() -> int:
         config.handeye_init.handeye_mode = "EyeInHand"
         result = vc.run_single_cam_handeye(vc.SingleCamHandeyeInput(views=views), config)
         truth_gripper_se3_camera = gripper_se3_rig * cam_se3_rig[i].inv()
-        rot_err, trans_err = difference(Iso.pose(result.gripper_se3_camera), truth_gripper_se3_camera)
-        tr_err, tt_err = difference(Iso.pose(result.base_se3_target), base_se3_target)
+        rot_err, trans_err = difference(Iso.pose(result.handeye.gripper_se3_camera), truth_gripper_se3_camera)
+        tr_err, tt_err = difference(Iso.pose(result.handeye.base_se3_target), base_se3_target)
         rows = [("mean reprojection px", result.mean_reproj_error, GATE["mean_reproj_px"])]
         rows += intrinsics_rows(result.camera, cameras[i], name)
         rows += [

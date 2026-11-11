@@ -855,16 +855,12 @@ fn run_calibrate(
     (output, run): (Option<&Path>, Option<&Path>),
 ) -> Result<()> {
     use etendue_synth::dataset::GroundTruth;
-    use etendue_synth::observe::{ObservationNoise, observe};
+    use etendue_synth::observe::ObservationNoise;
     let gt: GroundTruth = read_json(&dir.join("gt.json"), "ground truth")?;
     let noise: ObservationNoise = match noise {
         Some(p) => read_json(p, "observation noise")?,
         None => ObservationNoise::default(),
     };
-    let problems = noise.problems();
-    if !problems.is_empty() {
-        return Err(anyhow!("observation noise: {}", problems.join("; ")));
-    }
     if features.is_some() && (noise != ObservationNoise::default() || trials > 1) {
         return Err(anyhow!(
             "--noise and --trials apply to the analytic observations, not to --features"
@@ -876,64 +872,50 @@ fn run_calibrate(
     if let Some((id, p)) = &procedure {
         println!("procedure: {id} ({} stage(s))", p.stages.len());
     }
-    let options = calibrate::Options {
-        camera: camera.clone(),
+    let detected = features
+        .map(|f| {
+            let laser = laser_features
+                .map(Path::to_path_buf)
+                .unwrap_or_else(|| f.with_file_name(detect::LASER_FEATURES));
+            calibrate::read_detected(&gt, f, &laser)
+        })
+        .transpose()?;
+    let options = calibrate::RunOptions {
+        noise,
+        trials: trials.max(1),
+        camera,
         detected: features.is_some(),
-        procedure: procedure.clone(),
+        procedure: procedure.map(|(id, procedure)| calibrate::RunProcedure { id, procedure }),
     };
-    let mut reports = Vec::new();
-    for k in 0..trials.max(1) {
-        let obs = match features {
-            Some(f) => {
-                let found: detect::Features = read_json(f, "features")?;
-                let laser_path = laser_features
-                    .map(Path::to_path_buf)
-                    .unwrap_or_else(|| f.with_file_name(detect::LASER_FEATURES));
-                let stripes: Option<detect::laser::LaserFeatures> = if gt.lasers.is_empty() {
-                    None
-                } else {
-                    Some(read_json(&laser_path, "laser features")?)
-                };
-                calibrate::from_features(&gt, &found, stripes.as_ref())?
-            }
-            None => observe(
-                &gt,
-                &ObservationNoise {
-                    seed: noise.seed + u64::from(k),
-                    ..noise
-                },
-            ),
-        };
-        let mut report = calibrate::calibrate(&gt, &obs, &options)?;
-        if k > 0 {
-            report.residuals.features.clear();
-        }
-        if k == 0 || trials == 1 {
-            println!(
-                "{}: {} ({} camera(s): {}; {} views, {} points, {} laser pixels){}",
-                dir.display(),
-                report.workflow,
-                report.cameras.len(),
-                report.cameras.join(", "),
-                report.views,
-                report.points,
-                report.laser_pixels,
-                if report.noise.is_some() {
-                    format!(", noise seed {}", noise.seed + u64::from(k))
-                } else {
-                    String::new()
-                },
-            );
-            print!("{}", report.table());
-            println!(
-                "  reprojection: mean {:.4} px, rms per axis {:.4} px over {} points",
-                report.residuals.mean_px, report.residuals.rms_axis_px, report.residuals.count
-            );
-        }
-        reports.push(report);
-    }
-    let stats = (reports.len() > 1).then(|| calibrate::row_stats(&reports));
-    if let Some(stats) = &stats {
+    let doc = calibrate::run_trials(
+        &gt,
+        detected,
+        &options,
+        &etendue_cli::progress::Control::new(&|_| {}, None),
+    )?;
+    let reports = &doc.reports;
+    let report = &reports[0];
+    println!(
+        "{}: {} ({} camera(s): {}; {} views, {} points, {} laser pixels){}",
+        dir.display(),
+        report.workflow,
+        report.cameras.len(),
+        report.cameras.join(", "),
+        report.views,
+        report.points,
+        report.laser_pixels,
+        if report.noise.is_some() {
+            format!(", noise seed {}", noise.seed)
+        } else {
+            String::new()
+        },
+    );
+    print!("{}", report.table());
+    println!(
+        "  reprojection: mean {:.4} px, rms per axis {:.4} px over {} points",
+        report.residuals.mean_px, report.residuals.rms_axis_px, report.residuals.count
+    );
+    if let Some(stats) = &doc.row_stats {
         println!("{} trials:", reports.len());
         for s in stats {
             println!(
@@ -946,8 +928,7 @@ fn run_calibrate(
         .iter()
         .any(|r| r.gated && !r.pass)
         .then(|| reports[0].check_name());
-    let params = (reports.len() > 1).then(|| calibrate::param_stats(&gt, &reports));
-    if let Some(params) = &params {
+    if let Some(params) = &doc.param_stats {
         println!(
             "parameters over {} trials (predicted σ: calibration-rs's covariance):",
             reports.len()
@@ -962,24 +943,12 @@ fn run_calibrate(
             );
         }
     }
-    let doc = calibrate::Run {
-        reports,
-        row_stats: stats,
-        param_stats: params,
-    };
     if let Some(out) = output {
         std::fs::write(out, serde_json::to_string_pretty(&doc)? + "\n")
             .with_context(|| format!("writing {}", out.display()))?;
         println!("report → {}", out.display());
     }
     if let Some(folder) = run {
-        let options = calibrate::RunOptions {
-            noise,
-            trials: trials.max(1),
-            camera,
-            detected: features.is_some(),
-            procedure: procedure.map(|(id, procedure)| calibrate::RunProcedure { id, procedure }),
-        };
         calibrate::write_run(folder, dir, &options, &doc)?;
         println!("run → {}", folder.display());
     }

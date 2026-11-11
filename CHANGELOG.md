@@ -77,6 +77,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **calibration-rs 0.18.0** (from 0.12.0; crates and the `vision-calibration` wheel), P19c/P19d.
+  The hand-eye exports now carry their hand-eye as one tagged value (`handeye.mode`), so a run's
+  `result.json` has the new shape. What moved in the reports is recorded in
+  `docs/measurements/calibration_rs_0_18.md`.
+- **calibration-rs's results are read through its own types.** `etendue calibrate` no longer
+  reads the workflows' exports as untyped JSON with silent defaults: a field calibration-rs
+  renames is a compile error. A config, seed or input key that calibration-rs does not read is now
+  an error naming it, where it was silently dropped.
 - **Docs brought up to date** (P19a): the README and the book's studio chapter describe the
   Library workspace, calibration procedures, the simulation lab and Suggest poses; the roadmap
   records the upstream calibration-rs PRs as merged and adds P19, a consolidation phase.

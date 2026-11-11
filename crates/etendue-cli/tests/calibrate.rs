@@ -169,6 +169,7 @@ fn a_dataset_directory_runs_trials_and_keeps_the_run() {
             .iter()
             .map(|r| etendue_cli::calibrate::Report {
                 export: serde_json::Value::Null,
+                rig_se3_target: Vec::new(),
                 ..r.clone()
             })
             .collect::<Vec<_>>()
@@ -178,7 +179,7 @@ fn a_dataset_directory_runs_trials_and_keeps_the_run() {
         &std::fs::read_to_string(runs.join("noisy").join(RUN_RESULT)).unwrap(),
     )
     .unwrap();
-    assert!(result["gripper_se3_rig"].is_object(), "{result}");
+    assert!(result["handeye"]["gripper_se3_rig"].is_object(), "{result}");
     assert!(read_runs(&runs.join("missing")).unwrap().is_empty());
     assert!(
         steps.lock().unwrap().len() >= 4,

@@ -1,0 +1,273 @@
+//! Trials of a dataset and the runs kept from them (ADR 0009 `runs/<name>/`).
+
+use anyhow::{Context, Result, ensure};
+use etendue_synth::dataset::GroundTruth;
+use etendue_synth::observe::{ObservationNoise, Observations};
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+
+use super::observations::from_features;
+use super::report::Report;
+use super::stats::{ParamStats, RowStats, param_stats, row_stats};
+use super::{Options, calibrate};
+
+/// How [`run_dir`] calibrates a dataset directory.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default, deny_unknown_fields)]
+pub struct RunOptions {
+    /// Noise on the analytic observations (`seed` is the first trial's).
+    pub noise: ObservationNoise,
+    /// Trials, with seeds `seed, seed + 1, …` (at least one).
+    pub trials: u32,
+    /// Calibrate this camera of a rig alone.
+    pub camera: Option<String>,
+    /// Calibrate `etendue detect`'s observations (`features.json`, `laser_features.json`)
+    /// instead of the ground truth's.
+    pub detected: bool,
+    /// The procedure to run, by value (so a kept run says exactly what ran); `None` for `auto`.
+    pub procedure: Option<RunProcedure>,
+}
+
+/// A procedure as a run keeps it: its id and its stages.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RunProcedure {
+    pub id: String,
+    pub procedure: etendue_scene::ProcedurePart,
+}
+
+/// What [`run_dir`] found: every trial's report and, with several, each row's spread.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Run {
+    pub reports: Vec<Report>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub row_stats: Option<Vec<RowStats>>,
+    /// With several trials, each estimated parameter's spread ([`param_stats`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub param_stats: Option<Vec<ParamStats>>,
+}
+
+/// Calibrate the dataset in `dir` (`gt.json`, and `etendue detect`'s files when `detected`),
+/// reporting each trial through `ctl`. [`write_run`] keeps the run.
+///
+/// # Errors
+///
+/// Unreadable files, bad noise, a failed workflow, or cancellation (`progress::Cancelled`).
+pub fn run_dir(
+    dir: &std::path::Path,
+    options: &RunOptions,
+    ctl: &crate::progress::Control,
+) -> Result<Run> {
+    let gt: GroundTruth = crate::read_json(&dir.join("gt.json"), "ground truth")?;
+    let detected = if options.detected {
+        Some(read_detected(
+            &gt,
+            &dir.join("features.json"),
+            &dir.join(crate::detect::LASER_FEATURES),
+        )?)
+    } else {
+        None
+    };
+    run_trials(&gt, detected, options, ctl)
+}
+
+/// `etendue detect`'s observations of `gt`'s dataset: `features`, and `laser` when the dataset
+/// has lasers.
+///
+/// # Errors
+///
+/// Unreadable files, or files that do not match the ground truth.
+pub fn read_detected(
+    gt: &GroundTruth,
+    features: &std::path::Path,
+    laser: &std::path::Path,
+) -> Result<Observations> {
+    let found: crate::detect::Features = crate::read_json(features, "features")?;
+    let stripes: Option<crate::detect::laser::LaserFeatures> = if gt.lasers.is_empty() {
+        None
+    } else {
+        Some(crate::read_json(laser, "laser features")?)
+    };
+    from_features(gt, &found, stripes.as_ref())
+}
+
+/// Calibrate `gt`'s dataset `options.trials` times: on `detected` observations (once), or on
+/// the truth's own with `options.noise`, seeded `seed, seed + 1, …`. Each trial is reported
+/// through `ctl`.
+///
+/// # Errors
+///
+/// Bad noise, noise or trials on detected observations, a failed workflow, or cancellation
+/// (`progress::Cancelled`).
+pub fn run_trials(
+    gt: &GroundTruth,
+    detected: Option<Observations>,
+    options: &RunOptions,
+    ctl: &crate::progress::Control,
+) -> Result<Run> {
+    use crate::progress::Stage;
+    let problems = options.noise.problems();
+    ensure!(
+        problems.is_empty(),
+        "observation noise: {}",
+        problems.join("; ")
+    );
+    ensure!(
+        options.detected == detected.is_some(),
+        "the run's options and its observations disagree on whether they are detected"
+    );
+    let trials = options.trials.max(1);
+    ensure!(
+        detected.is_none() || (options.noise == ObservationNoise::default() && trials == 1),
+        "noise and trials apply to the analytic observations, not to detected ones"
+    );
+    let calibrate_options = Options {
+        camera: options.camera.clone(),
+        detected: options.detected,
+        procedure: options
+            .procedure
+            .as_ref()
+            .map(|p| (p.id.clone(), p.procedure.clone())),
+    };
+    let mut reports = Vec::with_capacity(trials as usize);
+    for k in 0..trials {
+        ctl.check()?;
+        ctl.step(Stage::Calibrate, k as usize, trials as usize);
+        let obs = match &detected {
+            Some(obs) => obs.clone(),
+            None => etendue_synth::observe::observe(
+                gt,
+                &ObservationNoise {
+                    seed: options.noise.seed.wrapping_add(u64::from(k)),
+                    ..options.noise
+                },
+            ),
+        };
+        let mut report = calibrate(gt, &obs, &calibrate_options)?;
+        if k > 0 {
+            // Every point's residual is kept for the first trial only.
+            report.residuals.features.clear();
+        }
+        ctl.log(format!(
+            "trial {}: {}, mean reprojection {:.4} px, {}",
+            k + 1,
+            report.workflow,
+            report.residuals.mean_px,
+            if !report.gated {
+                "closed-loop check not applied"
+            } else if report.pass {
+                "closed-loop check: PASS"
+            } else {
+                "closed-loop check: FAIL"
+            }
+        ));
+        reports.push(report);
+    }
+    ctl.step(Stage::Calibrate, trials as usize, trials as usize);
+    Ok(Run {
+        row_stats: (reports.len() > 1).then(|| row_stats(&reports)),
+        param_stats: (reports.len() > 1).then(|| param_stats(gt, &reports)),
+        reports,
+    })
+}
+
+/// A kept run's version.
+pub const RUN_VERSION: u32 = 1;
+
+/// A kept run's files ([ADR 0009](https://github.com/VitalyVorobyev/etendue/blob/main/docs/adrs/0009-project-folder.md),
+/// `runs/<name>/`): what was calibrated and how; the report ([`Run`]); calibration-rs's own
+/// export of the first trial.
+pub const RUN_CONFIG: &str = "config.json";
+
+pub const RUN_REPORT: &str = "report.json";
+
+pub const RUN_RESULT: &str = "result.json";
+
+/// What a kept run calibrated, and how.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RunConfig {
+    pub version: u32,
+    /// The dataset directory, as given.
+    pub dataset: String,
+    pub options: RunOptions,
+}
+
+/// Keep `run` of `dataset` in `folder` (created): [`RUN_CONFIG`], [`RUN_REPORT`] and
+/// [`RUN_RESULT`].
+///
+/// # Errors
+///
+/// When a file cannot be written.
+pub fn write_run(
+    folder: &std::path::Path,
+    dataset: &std::path::Path,
+    options: &RunOptions,
+    run: &Run,
+) -> Result<()> {
+    std::fs::create_dir_all(folder).with_context(|| format!("creating {}", folder.display()))?;
+    let config = RunConfig {
+        version: RUN_VERSION,
+        dataset: dataset.to_string_lossy().into_owned(),
+        options: options.clone(),
+    };
+    let result = run
+        .reports
+        .first()
+        .map_or(Value::Null, |r| r.export.clone());
+    for (name, text) in [
+        (RUN_CONFIG, serde_json::to_string_pretty(&config)?),
+        (RUN_REPORT, serde_json::to_string_pretty(run)?),
+        (RUN_RESULT, serde_json::to_string_pretty(&result)?),
+    ] {
+        let path = folder.join(name);
+        std::fs::write(&path, text + "\n")
+            .with_context(|| format!("writing {}", path.display()))?;
+    }
+    Ok(())
+}
+
+/// A kept run, read back.
+#[derive(Clone, Debug, Serialize)]
+pub struct StoredRun {
+    /// Its folder's name.
+    pub name: String,
+    pub config: RunConfig,
+    pub run: Run,
+}
+
+/// The runs kept under `folder` (one subfolder each), by name; a folder that does not hold a
+/// readable run is skipped. A missing `folder` has none.
+///
+/// # Errors
+///
+/// When `folder` exists but cannot be listed.
+pub fn read_runs(folder: &std::path::Path) -> Result<Vec<StoredRun>> {
+    if !folder.is_dir() {
+        return Ok(Vec::new());
+    }
+    let mut runs = Vec::new();
+    for entry in
+        std::fs::read_dir(folder).with_context(|| format!("listing {}", folder.display()))?
+    {
+        let path = entry?.path();
+        let read = || -> Result<StoredRun> {
+            Ok(StoredRun {
+                name: path
+                    .file_name()
+                    .context("a run folder has a name")?
+                    .to_string_lossy()
+                    .into_owned(),
+                config: crate::read_json(&path.join(RUN_CONFIG), "run config")?,
+                run: crate::read_json(&path.join(RUN_REPORT), "run report")?,
+            })
+        };
+        if path.is_dir()
+            && let Ok(run) = read()
+        {
+            runs.push(run);
+        }
+    }
+    runs.sort_by(|a, b| a.name.cmp(&b.name));
+    Ok(runs)
+}
