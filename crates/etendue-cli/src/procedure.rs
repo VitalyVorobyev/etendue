@@ -17,7 +17,6 @@ use etendue_synth::dataset::GroundTruth;
 use etendue_synth::observe::{ObservationNoise, Observations};
 use nalgebra::Isometry3;
 use serde_json::{Value, json};
-use vision_calibration_core::{DistortionParams, SensorParams};
 
 use crate::calibrate::{
     Options, Report, SeedValues, StageRun, StageSummary, Truth, Workflow, check_observations,
@@ -370,25 +369,10 @@ fn patch(s: &Stage, eye_in_hand: bool, scheimpflug: bool, seeds: &SeedValues, n:
     v
 }
 
-/// The design's starting values, as a user would enter them from datasheets
-/// ([`crate::calibrate::nominal_seed`]'s rounding): per camera.
+/// The design's starting values, as a user would enter them from datasheets: per camera.
 fn nominal(truth: &Truth) -> (Vec<[f64; 4]>, Vec<[f64; 2]>) {
     let cams: Vec<_> = truth.gt.cameras.iter().collect();
-    let seed = crate::calibrate::nominal_seed(&cams);
-    let n = |v: &Value, k: &str| v[k].as_f64().unwrap_or(f64::NAN);
-    let k = seed["per_cam_intrinsics"]
-        .as_array()
-        .into_iter()
-        .flatten()
-        .map(|v| [n(v, "fx"), n(v, "fy"), n(v, "cx"), n(v, "cy")])
-        .collect();
-    let t = seed["per_cam_sensors"]
-        .as_array()
-        .into_iter()
-        .flatten()
-        .map(|v| [n(v, "tilt_x"), n(v, "tilt_y")])
-        .collect();
-    (k, t)
+    crate::calibrate::nominal_values(&cams)
 }
 
 /// The true camera parameters, per camera.
@@ -402,15 +386,8 @@ fn true_cameras(truth: &Truth) -> CameraValues {
     for c in &truth.gt.cameras {
         let i = &c.params.intrinsics;
         k.push([i.fx, i.fy, i.cx, i.cy]);
-        d.push(match &c.params.distortion {
-            DistortionParams::BrownConrady5 { params: p } => Some([p.k1, p.k2, p.k3, p.p1, p.p2]),
-            DistortionParams::None => Some([0.0; 5]),
-            _ => None,
-        });
-        t.push(match c.params.sensor {
-            SensorParams::Scheimpflug { params } => [params.tilt_x, params.tilt_y],
-            _ => [0.0, 0.0],
-        });
+        d.push(crate::calibrate::distortion_of(&c.params));
+        t.push(crate::calibrate::tilt_of(&c.params));
     }
     (k, d, t)
 }
@@ -501,7 +478,7 @@ fn seeds(
         let reports = reports_of(done, id)?;
         let from = reports
             .iter()
-            .find(|r| r.export.get("rig_se3_target").is_some())
+            .find(|r| !r.rig_se3_target.is_empty())
             .with_context(|| format!("stage `{id}` did not calibrate a rig"))?;
         out.cam_se3_rig = Some(
             ids.iter()
@@ -514,10 +491,7 @@ fn seeds(
                 })
                 .collect::<Result<_>>()?,
         );
-        out.rig_se3_target = Some(
-            serde_json::from_value(from.export["rig_se3_target"].clone())
-                .context("the rig's target poses")?,
-        );
+        out.rig_se3_target = Some(from.rig_se3_target.clone());
     }
     let frame_of = |cams: &[usize]| -> Isometry3<f64> {
         if s.problem.rig() {
@@ -613,7 +587,7 @@ pub fn check(gt: &GroundTruth, procedure: &ProcedurePart) -> Result<()> {
             && (s.seed.rig.is_some() || s.seed.handeye.is_some())
         {
             problems.push(format!(
-                "stage `{}`: rig_handeye_laserline takes only intrinsics and sensor seeds (calibration-rs 0.12)",
+                "stage `{}`: rig_handeye_laserline takes only intrinsics and sensor seeds (etendue does not pass it a rig or hand-eye seed yet)",
                 s.id
             ));
         }
@@ -665,23 +639,9 @@ fn run_stage(
     };
     use crate::calibrate as c;
     Ok(match s.problem {
-        Problem::RigHandeye => vec![c::rig(
-            truth,
-            obs,
-            &poses,
-            eye_in_hand,
-            gated,
-            &resolve(&cams)?,
-        )?],
+        Problem::RigHandeye => vec![c::rig(truth, obs, &poses, gated, &resolve(&cams)?)?],
         Problem::RigHandeyeLaserline => {
-            vec![c::rig_laser(
-                truth,
-                obs,
-                &poses,
-                eye_in_hand,
-                gated,
-                &resolve(&cams)?,
-            )?]
+            vec![c::rig_laser(truth, obs, &poses, gated, &resolve(&cams)?)?]
         }
         Problem::RigExtrinsics => vec![c::rig_extrinsics(truth, obs, gated, &resolve(&cams)?)?],
         Problem::LaserlineDevice => vec![c::head(
