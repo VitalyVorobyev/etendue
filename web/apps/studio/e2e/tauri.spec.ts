@@ -31,6 +31,14 @@ async function installShell(page: Page): Promise<void> {
     const w = window as unknown as Record<string, unknown>;
     w.__requests = [];
     w.__calibrations = [];
+    // Event listeners the studio registers (`tauri://close-requested`), and whether the window
+    // was destroyed: a test fires the event and checks.
+    w.__listeners = {};
+    w.__destroyed = false;
+    w.__fire = (event: string) => {
+      const id = (w.__listeners as Record<string, number>)[event];
+      if (id !== undefined) callbacks.get(id)?.({ event, id: 0, payload: null });
+    };
     w.__cancelled = false;
     // A project folder the user "picks", and the user's bank, kept in sessionStorage so they
     // survive a reload.
@@ -40,6 +48,7 @@ async function installShell(page: Page): Promise<void> {
       JSON.parse(sessionStorage.getItem("fake-disk") ?? "{}") as Record<string, string>;
     const store = (files: Record<string, string>) => sessionStorage.setItem("fake-disk", JSON.stringify(files));
     const inProject = (path: string) => [PROJECT, BANK].some((dir) => path === dir || path.startsWith(`${dir}/`));
+    w.__TAURI_EVENT_PLUGIN_INTERNALS__ = { unregisterListener: () => undefined };
     w.__TAURI_INTERNALS__ = {
       transformCallback: (cb: (data: unknown) => void) => {
         const id = next++;
@@ -48,6 +57,7 @@ async function installShell(page: Page): Promise<void> {
       },
       unregisterCallback: (id: number) => callbacks.delete(id),
       convertFileSrc: (path: string) => path,
+      metadata: { currentWindow: { label: "main" }, currentWebview: { windowLabel: "main", label: "main" } },
       invoke: async (cmd: string, args: Record<string, unknown>) => {
         switch (cmd) {
           case "data_root":
@@ -167,6 +177,12 @@ async function installShell(page: Page): Promise<void> {
               ],
             };
           }
+          case "plugin:event|listen":
+            (w.__listeners as Record<string, number>)[args.event as string] = args.handler as number;
+            return args.handler;
+          case "plugin:window|destroy":
+            w.__destroyed = true;
+            return null;
           default:
             return null;
         }
@@ -636,6 +652,69 @@ test("the Library workspace: a bank lens used in a project, edited, its copy upd
   expect(await file("/proj/library/lenses/bench_lens.json")).toBeUndefined();
   await expect(bankLens).not.toContainText("hidden by project");
   expect(await file("/bank/library/lenses/bench_lens.json")).toBeDefined();
+});
+
+test("closing the window asks about unsaved changes, and closes on Discard", async ({ page }) => {
+  await installShell(page);
+  await page.goto("/?example=eye_in_hand_ur5e");
+  await expect(page.getByRole("treeitem", { name: /cam_left/ })).toBeVisible({ timeout: 30_000 });
+  const close = () =>
+    page.evaluate(() => (window as unknown as { __fire: (e: string) => void }).__fire("tauri://close-requested"));
+  const destroyed = () => page.evaluate(() => (window as unknown as { __destroyed: boolean }).__destroyed);
+
+  // Nothing unsaved: the window closes without a question.
+  await close();
+  await expect.poll(destroyed).toBe(true);
+  await page.evaluate(() => ((window as unknown as { __destroyed: boolean }).__destroyed = false));
+
+  await page.getByRole("treeitem", { name: /cam_left/ }).click();
+  const width = page.getByRole("spinbutton", { name: "width" });
+  await width.fill("640");
+  await width.press("Enter");
+  await expect(page.getByTestId("dirty")).toBeVisible();
+  await close();
+  const ask = page.getByRole("dialog", { name: "Discard unsaved changes?" });
+  await expect(ask).toContainText("Closing the window discards them");
+  await ask.getByRole("button", { name: "Cancel" }).click();
+  expect(await destroyed()).toBe(false);
+  await close();
+  await ask.getByRole("button", { name: "Discard" }).click();
+  await expect.poll(destroyed).toBe(true);
+});
+
+test("a Library draft survives another workspace, and another item asks before discarding it", async ({ page }) => {
+  await installShell(page);
+  await page.goto("/?example=eye_in_hand_ur5e");
+  await expect(page.getByRole("treeitem", { name: /cam_left/ })).toBeVisible({ timeout: 30_000 });
+  await page.getByRole("radio", { name: "Library" }).click();
+  const list = page.getByTestId("library-list");
+  const detail = page.getByTestId("library-detail");
+  await page.getByRole("button", { name: "New…" }).click();
+  await page.getByRole("dialog").getByRole("textbox", { name: "Name" }).fill("Bench lens");
+  await page.getByRole("dialog").getByRole("button", { name: "Create" }).click();
+  await expect(page.getByText("Saved Bench lens")).toBeVisible();
+  const focal = detail.getByRole("spinbutton", { name: "Focal length" });
+  await focal.fill("35");
+
+  // Another workspace and back: the draft is still there.
+  await page.getByRole("radio", { name: "Setup" }).click();
+  await page.getByRole("radio", { name: "Library" }).click();
+  await expect(focal).toHaveValue(/^35(\.0+)?$/);
+
+  // Another item asks first; Cancel keeps the draft, Discard opens the other item.
+  const other = list.locator('[data-layer="builtin"][data-ref="lenses/lm25hc"]');
+  await other.click();
+  const ask = page.getByRole("dialog", { name: "Discard unsaved changes?" });
+  await expect(ask).toContainText("Bench lens");
+  await ask.getByRole("button", { name: "Cancel" }).click();
+  await expect(focal).toHaveValue(/^35(\.0+)?$/);
+  await other.click();
+  await ask.getByRole("button", { name: "Discard" }).click();
+  await expect(detail.getByText("Built-in items are read-only")).toBeVisible();
+
+  // The bank's lens is as it was saved.
+  await list.locator('[data-layer="bank"][data-ref="lenses/bench_lens"]').click();
+  await expect(focal).toHaveValue(/^25(\.0+)?$/);
 });
 
 test("a cell built from built-in items copies them into the project, and saves as a cell", async ({ page }) => {

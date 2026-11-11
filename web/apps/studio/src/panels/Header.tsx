@@ -87,9 +87,12 @@ export function Header({
   mode: Mode;
   modes: Mode[];
   onMode: (mode: Mode) => void;
-  /** What Undo and Redo would do, latest last; empty when there is nothing to do. */
-  undo: string[];
-  redo: string[];
+  /**
+   * What Undo and Redo would do, latest last; empty when there is nothing to do, `null` where
+   * they do not apply (a workspace that does not show the cell): the buttons are absent.
+   */
+  undo: string[] | null;
+  redo: string[] | null;
   onUndo: () => void;
   onRedo: () => void;
   example: string;
@@ -119,8 +122,8 @@ export function Header({
 }) {
   const native = isTauri();
   const input = useRef<HTMLInputElement>(null);
-  const lastUndo = undo.at(-1);
-  const lastRedo = redo.at(-1);
+  const lastUndo = undo?.at(-1);
+  const lastRedo = redo?.at(-1);
   return (
     <div className="flex h-11 items-center gap-3 border-b border-line bg-surface px-3">
       <div className="flex shrink-0 items-center gap-2 text-sm font-semibold text-fg">
@@ -147,24 +150,28 @@ export function Header({
         aria-label="Workspace"
       />
       <div className="flex flex-1 items-center justify-end gap-1">
-        <Button
-          variant="ghost"
-          size="sm"
-          icon={<Undo2 className="size-4" />}
-          aria-label={lastUndo ? `Undo ${lastUndo}` : "Undo"}
-          title={lastUndo ? `Undo ${lastUndo} (${MOD}Z)` : "Nothing to undo"}
-          disabled={!lastUndo}
-          onClick={onUndo}
-        />
-        <Button
-          variant="ghost"
-          size="sm"
-          icon={<Redo2 className="size-4" />}
-          aria-label={lastRedo ? `Redo ${lastRedo}` : "Redo"}
-          title={lastRedo ? `Redo ${lastRedo} (${MOD}⇧Z)` : "Nothing to redo"}
-          disabled={!lastRedo}
-          onClick={onRedo}
-        />
+        {undo !== null && (
+          <>
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={<Undo2 className="size-4" />}
+              aria-label={lastUndo ? `Undo ${lastUndo}` : "Undo"}
+              title={lastUndo ? `Undo ${lastUndo} (${MOD}Z)` : "Nothing to undo"}
+              disabled={!lastUndo}
+              onClick={onUndo}
+            />
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={<Redo2 className="size-4" />}
+              aria-label={lastRedo ? `Redo ${lastRedo}` : "Redo"}
+              title={lastRedo ? `Redo ${lastRedo} (${MOD}⇧Z)` : "Nothing to redo"}
+              disabled={!lastRedo}
+              onClick={onRedo}
+            />
+          </>
+        )}
         <DropdownMenu
           align="end"
           trigger={
