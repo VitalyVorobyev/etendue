@@ -437,8 +437,10 @@ done, and so is P14–P18 (2026-11-01/02): component bank (ADR 0010) → guided 
 calibration procedure bank (ADR 0011) → simulation lab → calibration pose planning. The current
 phase is P19 (2026-11-11), consolidation before new features: docs, studio safety, a typed
 calibration-rs boundary, calibration-rs 0.18, one source for procedures and report types, pruning,
-the studio's structure, then release 0.3.0. Everything etendue calibrates is synthetic (scored
-against a ground truth); a real-data track is the open strategic decision after P19.
+the studio's structure, then release 0.3.0. Everything etendue calibrates so far is synthetic (scored
+against a ground truth). P20 follows (user decision, 2026-11-11): real data, starting with a
+simulated twin of a real calibration on calibration-rs's real datasets. Private datasets give
+aggregate numbers only in anything committed; their paths live in the git-ignored `local/`.
 
 Promoting `ThickLens` to `ApertureModel<S>` in calibration-rs is deferred (ADR 0008): no
 phase needs it upstream.
