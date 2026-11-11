@@ -13,7 +13,7 @@ import { Box, ChevronDown, ChevronUp, Minimize2, Pin } from "lucide-react";
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import library, { type LibraryRobot } from "virtual:etendue-robots";
 
-import { type Cell, defaultOf, itemsOf } from "./io/project";
+import { type Cell, defaultOf } from "./io/project";
 import { fileUrl, isTauri } from "./io/tauri";
 import { describeFailure } from "./kernel/etendue";
 import { type Bodies, type PoseOverride, bodyPoses, posed } from "./kernel/posed";
@@ -31,9 +31,6 @@ import { CameraGrid } from "./panels/CameraGrid";
 import { CellDialog } from "./panels/CellDialog";
 import { ErrorBoundary } from "./panels/ErrorBoundary";
 import { RobotLibrary } from "./robots/RobotLibrary";
-import { CALIBRATE_FORM, type CalibrateForm, CalibratePanel, noiseOf } from "./panels/CalibratePanel";
-import { CameraView } from "./panels/CameraView";
-import { DatasetPanel } from "./panels/DatasetPanel";
 import { GeneratorPanel } from "./panels/GeneratorPanel";
 import { exportsOf } from "./panels/exports";
 import { Header, type Mode } from "./panels/Header";
@@ -54,12 +51,8 @@ import {
   updateEntity,
 } from "./scene/edit";
 import { sceneTree } from "./scene/model";
-import { CalibrationRunner, useCalibrationRun } from "./state/calibrationRun";
-import { estimateDrawing, observedAt as observedIn } from "./calibrate/compare";
-import { ObservationPreview } from "./calibrate/ObservationPreview";
-import { useObservations } from "./calibrate/observations";
-import type { ViewChoice } from "./calibrate/ResidualViews";
-import { useResiduals } from "./calibrate/useResiduals";
+import { CalibrationRunner } from "./state/calibrationRun";
+import { useCalibrateWorkspace } from "./calibrate/Workspace";
 import { DatasetRunner } from "./state/datasetRun";
 import { useUnsavedGuard } from "./state/guard";
 import { useEditShortcuts } from "./state/shortcuts";
@@ -134,17 +127,6 @@ export function App() {
   const [chartRobot, setChartRobot] = useState<string | null>(null);
   const [speed, setSpeed] = useState(1);
   const [loop, setLoop] = useState(false);
-  // The Calibrate workspace: what it calibrates from, how much the 3-D view exaggerates the
-  // estimate, and the camera whose observations it shows.
-  const [calibrateForm, setCalibrateForm] = useState<CalibrateForm>(CALIBRATE_FORM);
-  const [estimateScale, setEstimateScale] = useState(100);
-  const [observedCamera, setObservedCamera] = useState<string | null>(null);
-  const calibrationRun = useCalibrationRun(calibration);
-  // A calibration's residuals in the camera view: which view was chosen, their magnification,
-  // and whether the view shows them or the observations of the form.
-  const [residualView, setResidualView] = useState<ViewChoice | null>(null);
-  const [residualScale, setResidualScale] = useState(10);
-  const [observationLayer, setObservationLayer] = useState<"observations" | "residuals">("residuals");
 
   const setMode = (m: Mode) => {
     setModeState(m);
@@ -248,67 +230,23 @@ export function App() {
     },
     [current, dataset],
   );
-  // What a calibration of the open scene observes (the Calibrate workspace): exact, or with the
-  // form's noise; a detector's observations are not previewed.
-  const observeNoise = useMemo(
-    () =>
-      mode !== "dataset"
-        ? null
-        : calibrateForm.source === "noisy"
-          ? noiseOf(calibrateForm.noise)
-          : calibrateForm.source === "exact"
-            ? {}
-            : null,
-    [mode, calibrateForm],
-  );
-  const { observations, error: observeError } = useObservations(current, observeNoise);
-  const observedAt = useCallback(
-    (camera: string, k: number) => (current ? observedIn(observations, current.baked, camera, k) : null),
-    [current, observations],
-  );
-  const shownCamera = cameras.find((c) => c.id === observedCamera) ?? cameras[0] ?? null;
-  // A project opened for writing keeps its datasets and calibration runs (ADR 0009); otherwise a
-  // dataset keeps its own runs.
-  const projectFolder =
-    project?.write && project.source.absolute ? project.source.absolute(project.root).replace(/[\\/]+$/, "") : null;
-  const cellName = project?.cells.some((c) => c.id === example) ? example.split("/").at(-1) : undefined;
-  const projectDatasets = projectFolder && cellName ? `${projectFolder}/datasets/${cellName}` : null;
-  // The calibration procedures the project sees (its own, the bank's, the built-ins), and where an
-  // edited one can be kept.
-  const procedures = useMemo(() => new Map(project ? itemsOf(project, "procedure") : []), [project]);
-  const saveProcedure = useMemo(
-    () =>
-      project?.write
-        ? { where: "project", put: studio.saveLibraryItem }
-        : bank?.write
-          ? { where: "bank", put: studio.saveToBank }
-          : null,
-    [project, bank, studio],
-  );
-  // The last calibration of this dataset (its first trial), drawn over the truth in 3-D.
-  const calibrated =
-    dataset && calibrationRun.result?.dir === dataset.output ? (calibrationRun.result.run.reports[0] ?? null) : null;
-  const estimate = useMemo(() => {
-    if (mode !== "dataset" || !calibrated || !current) return null;
-    const extent = (id: string) => {
-      try {
-        return current.session.targetExtent(id) ?? null;
-      } catch {
-        return null;
-      }
-    };
-    return estimateDrawing(calibrated, estimateScale, current.loaded.scene, current.baked, extent);
-  }, [mode, calibrated, current, estimateScale]);
-  const residualsAt = useResiduals(calibrated, current?.baked ?? null, residualScale);
-  const showResiduals = residualsAt !== undefined && observationLayer === "residuals";
-  // A view chosen in the residual table: its camera in the camera view, the playhead at its capture.
-  const chooseView = (v: ViewChoice) => {
-    const k = current?.baked.samples.findIndex((s) => s.capture?.id === v.capture) ?? -1;
-    if (k >= 0) playhead.set(k);
-    setObservedCamera(v.camera);
-    setResidualView(v);
-    setObservationLayer("residuals");
-  };
+  // The Calibrate workspace (its dataset, calibration and observations around the 3-D view).
+  const calibrate = useCalibrateWorkspace({
+    active: mode === "dataset",
+    studio,
+    current,
+    dataset,
+    project,
+    bank,
+    example,
+    runner,
+    calibration,
+    runtime,
+    poses,
+    playhead,
+    renderedAt,
+  });
+  const { estimate } = calibrate;
   const importPoses = (path: string) => {
     const ids = scene?.robots?.map((r) => r.id) ?? [];
     const robot = ids.length === 1 ? ids[0] : selectedRobot?.id;
@@ -564,43 +502,7 @@ export function App() {
           />
         </div>
       )}
-      {mode === "dataset" && (
-        <div className="row-span-2 min-h-0 overflow-auto border-r border-line p-4">
-          {isTauri() ? (
-            <DatasetPanel current={current} dataset={dataset} runner={runner} projectFolder={projectDatasets} />
-          ) : (
-            <ObservationPreview
-              form={calibrateForm}
-              onForm={setCalibrateForm}
-              lasers={(scene?.lasers ?? []).length > 0}
-              observations={observations}
-            />
-          )}
-          {dataset && (
-            <section className="mt-6 border-t border-line pt-4" aria-label="Calibrate">
-              <h2 className="mb-3 text-sm font-medium">Calibrate and compare</h2>
-              <CalibratePanel
-                dataset={dataset}
-                cameras={(current.loaded.scene.cameras ?? []).map((c) => c.id)}
-                lasers={(current.loaded.scene.lasers ?? []).length > 0}
-                runner={calibration}
-                form={calibrateForm}
-                onForm={setCalibrateForm}
-                scale={estimateScale}
-                onScale={setEstimateScale}
-                runsFolder={projectFolder ? `${projectFolder}/runs` : `${dataset.output}/runs`}
-                view={residualView}
-                onView={chooseView}
-                residualScale={residualScale}
-                onResidualScale={setResidualScale}
-                procedures={procedures}
-                tilted={(current.loaded.scene.cameras ?? []).some((c) => c.params.sensor.type === "scheimpflug")}
-                saveProcedure={saveProcedure}
-              />
-            </section>
-          )}
-        </div>
-      )}
+      {mode === "dataset" && calibrate.panel}
       {/* The 3D view stays mounted in every workspace: the camera images render its scene. */}
       <div
         className={
@@ -628,60 +530,7 @@ export function App() {
           />
         )}
       </div>
-      {mode === "dataset" && (
-        <section
-          className="flex min-h-0 min-w-0 flex-col border-t border-line"
-          aria-label="Observations"
-          data-testid="observations"
-        >
-          <div className="flex shrink-0 flex-wrap items-center gap-2 px-2 py-1 text-xs">
-            <span className="font-medium">Observations</span>
-            {cameras.length > 1 && shownCamera && (
-              <Select
-                aria-label="Observed camera"
-                value={shownCamera.id}
-                options={cameras.map((c) => ({ value: c.id, label: c.id }))}
-                onValueChange={setObservedCamera}
-              />
-            )}
-            {residualsAt && (
-              <SegmentedControl
-                aria-label="Camera view shows"
-                value={observationLayer}
-                options={[
-                  { value: "residuals", label: "Residuals" },
-                  { value: "observations", label: "Observations" },
-                ]}
-                onValueChange={(v) => (v === "residuals" || v === "observations") && setObservationLayer(v)}
-              />
-            )}
-            <span className="text-fg-muted">
-              {showResiduals
-                ? `The calibration's residuals${(calibrationRun.result?.run.reports.length ?? 1) > 1 ? " (first trial)" : ""} at each capture: a dot is an observed point (green within the RMS, amber up to twice it, red beyond), a cross its reprojection, the line the residual ×${residualScale}.`
-                : calibrateForm.source === "detected"
-                  ? "The detector's observations are in the dataset's images."
-                  : (observeError ??
-                    "At a capture, a dot is what the calibration observes (an outlier larger, in red) and a cross the truth; a cross without a dot was dropped.")}
-            </span>
-          </div>
-          {shownCamera && runtime && (
-            <div className="min-h-0 flex-1">
-              <CameraView
-                session={current.session}
-                runtime={runtime}
-                poses={poses ?? undefined}
-                camera={shownCamera}
-                targets={scene?.targets ?? []}
-                lasers={scene?.lasers ?? []}
-                playhead={playhead}
-                renderedAt={renderedAt}
-                observedAt={showResiduals ? undefined : observedAt}
-                residualsAt={showResiduals ? residualsAt : undefined}
-              />
-            </div>
-          )}
-        </section>
-      )}
+      {mode === "dataset" && calibrate.observations}
       {mode === "images" && !insetOpen && (
         <Button
           size="sm"
