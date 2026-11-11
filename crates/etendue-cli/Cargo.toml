@@ -29,12 +29,14 @@ calib-targets-puzzleboard = { workspace = true }
 chess-corners = { workspace = true }
 clap = { workspace = true }
 etendue-kinematics = { workspace = true }
-etendue-scene = { workspace = true }
-etendue-synth = { workspace = true, features = ["images"] }
+etendue-scene = { workspace = true, features = ["schemars"] }
+etendue-synth = { workspace = true, features = ["images", "schemars"] }
+# The report and run documents carry JSON Schemas (schemas/, the studio's types).
+schemars = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 nalgebra = { workspace = true }
-vision-calibration-core = { workspace = true }
+vision-calibration-core = { workspace = true, features = ["schemars"] }
 vision-calibration-dataset = { workspace = true }
-vision-calibration-pipeline = { workspace = true }
+vision-calibration-pipeline = { workspace = true, features = ["schemars"] }
 toml = { workspace = true }

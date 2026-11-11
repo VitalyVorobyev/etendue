@@ -8,6 +8,10 @@
  *
  * One file per schema: each is self-contained, so a shared definition (`Iso3Schema`) is
  * declared in more than one. `crates/etendue-wasm/js/index.d.ts` re-exports the public names.
+ *
+ * The native documents (`etendue calibrate`'s reports and kept runs, schemas emitted by
+ * etendue-cli's `schemas` test) are typed for the studio, which reads them from the desktop
+ * shell: `web/apps/studio/src/kernel/types/`.
  */
 
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
@@ -16,23 +20,27 @@ import { dirname, join, resolve } from "node:path";
 import { compileFromFile } from "json-schema-to-typescript";
 
 const ROOT = resolve(dirname(new URL(import.meta.url).pathname), "../..");
-const OUT = join(ROOT, "crates/etendue-wasm/js/types");
-const SCHEMAS = [
-  "scene",
-  "scenario",
-  "baked_scenario",
-  "robot_manifest",
-  "motion_report",
-  "captures",
-  "library",
-  "project",
-  "bank",
-  "procedure_rules",
+const WASM = join(ROOT, "crates/etendue-wasm/js/types");
+const STUDIO = join(ROOT, "web/apps/studio/src/kernel/types");
+const SCHEMAS: { name: string; out: string }[] = [
+  ...[
+    "scene",
+    "scenario",
+    "baked_scenario",
+    "robot_manifest",
+    "motion_report",
+    "captures",
+    "library",
+    "project",
+    "bank",
+    "procedure_rules",
+  ].map((name) => ({ name, out: WASM })),
+  { name: "kept_runs", out: STUDIO },
 ];
 
 const banner = `/**
  * DO NOT EDIT: generated from schemas/*.schema.json by \`bun run generate:types\` (in web/).
- * The source of truth is the \`etendue-scene\` Rust types.
+ * The source of truth is the Rust types (\`etendue-scene\`, \`etendue-cli::calibrate\`).
  */`;
 
 /** The index just past the `}` that closes the `{` at `open`, skipping comments and strings. */
@@ -102,8 +110,8 @@ function format(ts: string, path: string): string {
 
 const check = process.argv.includes("--check");
 let drifted = 0;
-mkdirSync(OUT, { recursive: true });
-for (const name of SCHEMAS) {
+for (const { name, out: OUT } of SCHEMAS) {
+  mkdirSync(OUT, { recursive: true });
   const schema = join(ROOT, "schemas", `${name}.schema.json`);
   const ts = await compileFromFile(schema, {
     bannerComment: banner,

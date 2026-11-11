@@ -6,6 +6,7 @@ use etendue_synth::observe::{ObservationNoise, Observations};
 use nalgebra::Isometry3;
 use serde_json::{Value, json};
 use vision_calibration_core::{NoMeta, PlanarDataset, View};
+use vision_calibration_pipeline::analysis::QualityReport;
 use vision_calibration_pipeline::common::RobotPoseMeta;
 use vision_calibration_pipeline::laserline_device::DeviceManualInit;
 use vision_calibration_pipeline::session::CalibrationSession;
@@ -28,7 +29,7 @@ use super::upstream::{
 type SingleRun = (
     single_cam_handeye::SingleCamHandeyeExport,
     Value,
-    Option<Value>,
+    Option<QualityReport>,
     usize,
     usize,
 );
@@ -102,7 +103,7 @@ pub(super) struct Solved {
     /// The capture of each of calibration-rs's views, in order.
     pub(super) views: Vec<usize>,
     /// calibration-rs's quality verdict.
-    pub(super) quality: Option<Value>,
+    pub(super) quality: Option<QualityReport>,
     /// calibration-rs's predicted uncertainty.
     pub(super) uncertainty: Option<Predicted>,
     /// A rig workflow's per-view target poses in the rig frame.

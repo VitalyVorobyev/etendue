@@ -34,8 +34,9 @@ pub use report::{
 };
 pub(crate) use rig::{rig, rig_extrinsics, rig_laser};
 pub use runs::{
-    RUN_CONFIG, RUN_REPORT, RUN_RESULT, RUN_VERSION, Run, RunConfig, RunOptions, RunProcedure,
-    StoredRun, read_detected, read_runs, run_dir, run_trials, write_run,
+    KeptRuns, RUN_CONFIG, RUN_REPORT, RUN_RESULT, RUN_VERSION, Run, RunConfig, RunOptions,
+    RunProcedure, StoredRun, UnreadableRun, read_detected, read_runs, run_dir, run_trials,
+    write_run,
 };
 pub use stats::{ParamStats, RowStats, param_stats, row_stats};
 pub(crate) use truth::{Truth, distortion_of, nominal_values, tilt_of};

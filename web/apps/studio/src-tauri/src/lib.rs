@@ -597,7 +597,7 @@ async fn calibrate_dataset(
 fn calibration_runs(
     folder: PathBuf,
     access: State<'_, Access>,
-) -> Result<Vec<etendue_cli::calibrate::StoredRun>, String> {
+) -> Result<etendue_cli::calibrate::KeptRuns, String> {
     let folder = access.readable(&folder)?;
     etendue_cli::calibrate::read_runs(&folder).map_err(|e| format!("{e:#}"))
 }

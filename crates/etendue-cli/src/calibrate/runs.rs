@@ -12,7 +12,7 @@ use super::stats::{ParamStats, RowStats, param_stats, row_stats};
 use super::{Options, calibrate};
 
 /// How [`run_dir`] calibrates a dataset directory.
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase", default, deny_unknown_fields)]
 pub struct RunOptions {
     /// Noise on the analytic observations (`seed` is the first trial's).
@@ -29,7 +29,7 @@ pub struct RunOptions {
 }
 
 /// A procedure as a run keeps it: its id and its stages.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct RunProcedure {
     pub id: String,
@@ -37,7 +37,7 @@ pub struct RunProcedure {
 }
 
 /// What [`run_dir`] found: every trial's report and, with several, each row's spread.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct Run {
     pub reports: Vec<Report>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -184,7 +184,7 @@ pub const RUN_REPORT: &str = "report.json";
 pub const RUN_RESULT: &str = "result.json";
 
 /// What a kept run calibrated, and how.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct RunConfig {
     pub version: u32,
@@ -228,7 +228,7 @@ pub fn write_run(
 }
 
 /// A kept run, read back.
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, schemars::JsonSchema)]
 pub struct StoredRun {
     /// Its folder's name.
     pub name: String,
@@ -236,38 +236,88 @@ pub struct StoredRun {
     pub run: Run,
 }
 
-/// The runs kept under `folder` (one subfolder each), by name; a folder that does not hold a
-/// readable run is skipped. A missing `folder` has none.
+/// The runs kept under a folder, and the folders that hold a run this etendue cannot read.
+#[derive(Clone, Debug, Default, Serialize, schemars::JsonSchema)]
+pub struct KeptRuns {
+    /// By name.
+    pub runs: Vec<StoredRun>,
+    /// By name: each folder with a run config that did not read, and why.
+    pub unreadable: Vec<UnreadableRun>,
+}
+
+/// A kept run that does not read: a newer etendue's, or damaged.
+#[derive(Clone, Debug, PartialEq, Serialize, schemars::JsonSchema)]
+pub struct UnreadableRun {
+    /// Its folder's name.
+    pub name: String,
+    pub reason: String,
+}
+
+/// The run kept in `path`, checked: its config's version and its reports' are ones this etendue
+/// reads.
+fn read_run(path: &std::path::Path, name: String) -> Result<StoredRun> {
+    #[derive(Deserialize)]
+    struct Versioned {
+        version: u32,
+    }
+    let newer = |what: &str, v: u32, reads: u32| {
+        anyhow::anyhow!(
+            "written by a newer etendue ({what} version {v}; this one reads up to {reads})"
+        )
+    };
+    let v: Versioned = crate::read_json(&path.join(RUN_CONFIG), "run config")?;
+    if v.version > RUN_VERSION {
+        return Err(newer("run", v.version, RUN_VERSION));
+    }
+    #[derive(Deserialize)]
+    struct Reports {
+        reports: Vec<Versioned>,
+    }
+    let r: Reports = crate::read_json(&path.join(RUN_REPORT), "run report")?;
+    if let Some(v) = r.reports.iter().map(|r| r.version).max()
+        && v > super::REPORT_VERSION
+    {
+        return Err(newer("report", v, super::REPORT_VERSION));
+    }
+    Ok(StoredRun {
+        name,
+        config: crate::read_json(&path.join(RUN_CONFIG), "run config")?,
+        run: crate::read_json(&path.join(RUN_REPORT), "run report")?,
+    })
+}
+
+/// The runs kept under `folder` (one subfolder each, holding a [`RUN_CONFIG`]), by name. A run
+/// that does not read is listed as [`UnreadableRun`] with the reason, never dropped silently; a
+/// subfolder without a run config is not a run. A missing `folder` has none.
 ///
 /// # Errors
 ///
 /// When `folder` exists but cannot be listed.
-pub fn read_runs(folder: &std::path::Path) -> Result<Vec<StoredRun>> {
+pub fn read_runs(folder: &std::path::Path) -> Result<KeptRuns> {
+    let mut kept = KeptRuns::default();
     if !folder.is_dir() {
-        return Ok(Vec::new());
+        return Ok(kept);
     }
-    let mut runs = Vec::new();
     for entry in
         std::fs::read_dir(folder).with_context(|| format!("listing {}", folder.display()))?
     {
         let path = entry?.path();
-        let read = || -> Result<StoredRun> {
-            Ok(StoredRun {
-                name: path
-                    .file_name()
-                    .context("a run folder has a name")?
-                    .to_string_lossy()
-                    .into_owned(),
-                config: crate::read_json(&path.join(RUN_CONFIG), "run config")?,
-                run: crate::read_json(&path.join(RUN_REPORT), "run report")?,
-            })
-        };
-        if path.is_dir()
-            && let Ok(run) = read()
-        {
-            runs.push(run);
+        if !path.join(RUN_CONFIG).is_file() {
+            continue;
+        }
+        let name = path
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        match read_run(&path, name.clone()) {
+            Ok(run) => kept.runs.push(run),
+            Err(e) => kept.unreadable.push(UnreadableRun {
+                name,
+                reason: format!("{e:#}"),
+            }),
         }
     }
-    runs.sort_by(|a, b| a.name.cmp(&b.name));
-    Ok(runs)
+    kept.runs.sort_by(|a, b| a.name.cmp(&b.name));
+    kept.unreadable.sort_by(|a, b| a.name.cmp(&b.name));
+    Ok(kept)
 }

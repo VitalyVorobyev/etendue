@@ -1,0 +1,933 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Run",
+  "description": "What [`run_dir`] found: every trial's report and, with several, each row's spread.",
+  "type": "object",
+  "properties": {
+    "param_stats": {
+      "description": "With several trials, each estimated parameter's spread ([`param_stats`]).",
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "$ref": "#/$defs/ParamStats"
+      }
+    },
+    "reports": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Report"
+      }
+    },
+    "row_stats": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "$ref": "#/$defs/RowStats"
+      }
+    }
+  },
+  "required": [
+    "reports"
+  ],
+  "$defs": {
+    "CheckKind": {
+      "description": "What a check examines; [`assess`] describes each check.",
+      "oneOf": [
+        {
+          "description": "Whether the data determines every estimated parameter.",
+          "type": "string",
+          "const": "observability"
+        },
+        {
+          "description": "Whether the final solve converged.",
+          "type": "string",
+          "const": "convergence"
+        },
+        {
+          "description": "Whether the reprojection noise matches the stated feature noise.",
+          "type": "string",
+          "const": "variance_factor"
+        },
+        {
+          "description": "How precisely the camera places a ray, at worst, over its image.",
+          "type": "string",
+          "const": "projection_sigma"
+        },
+        {
+          "description": "How much of the image the observed features reached.",
+          "type": "string",
+          "const": "feature_coverage"
+        },
+        {
+          "description": "Views whose residuals are far above the noise level.",
+          "type": "string",
+          "const": "view_outliers"
+        },
+        {
+          "description": "Camera parameters the data cannot tell apart.",
+          "type": "string",
+          "const": "parameter_correlation"
+        },
+        {
+          "description": "Whether the covariance describes the joint error of the shared\nparameters, or a combination of them errs well beyond its σ at\nsecond order.",
+          "type": "string",
+          "const": "covariance_linearity"
+        }
+      ]
+    },
+    "CheckStatus": {
+      "description": "The outcome of one check.",
+      "oneOf": [
+        {
+          "description": "Assessed, and nothing found.",
+          "type": "string",
+          "const": "pass"
+        },
+        {
+          "description": "Assessed, with a weakness.",
+          "type": "string",
+          "const": "warn"
+        },
+        {
+          "description": "Assessed, and failed.",
+          "type": "string",
+          "const": "fail"
+        },
+        {
+          "description": "Not assessed: the result lacks the check's inputs. The message says\nwhich.",
+          "type": "string",
+          "const": "not_applicable"
+        }
+      ]
+    },
+    "Estimate": {
+      "description": "What the calibration found, for drawing beside the truth.",
+      "type": "object",
+      "properties": {
+        "cameras": {
+          "description": "Per calibrated camera: `[fx, fy, cx, cy]`, `[k1, k2, k3, p1, p2]`, `[tilt_x, tilt_y]`.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EstimatedCamera"
+          }
+        },
+        "handeye": {
+          "description": "The hand-eye transform the workflow solves (`gripper_se3_camera`/`_rig` eye-in-hand,\n`camera_se3_base`/`rig_se3_base` eye-to-hand), its rig frame the reference camera's.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Iso3Schema"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "laser_planes": {
+          "description": "Laser planes in each camera's frame, `n·p + d = 0`.",
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Plane"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "offsets": {
+          "description": "The estimate in the truth's frames, to draw beside it; `None` without a hand-eye or a\ntarget pose.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Offsets"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "cameras",
+        "laser_planes"
+      ]
+    },
+    "EstimatedCamera": {
+      "type": "object",
+      "properties": {
+        "cam_se3_ref": {
+          "description": "`cam_se3_ref`: the camera from the reference camera (identity for it).",
+          "$ref": "#/$defs/Iso3Schema"
+        },
+        "distortion": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "format": "double"
+          },
+          "maxItems": 5,
+          "minItems": 5
+        },
+        "id": {
+          "type": "string"
+        },
+        "intrinsics": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "format": "double"
+          },
+          "maxItems": 4,
+          "minItems": 4
+        },
+        "tilt": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "format": "double"
+          },
+          "maxItems": 2,
+          "minItems": 2
+        }
+      },
+      "required": [
+        "id",
+        "intrinsics",
+        "distortion",
+        "tilt",
+        "cam_se3_ref"
+      ]
+    },
+    "FeatureResidual": {
+      "description": "One target point's reprojection residual.",
+      "type": "object",
+      "properties": {
+        "camera": {
+          "description": "The camera, by id.",
+          "type": "string"
+        },
+        "capture": {
+          "description": "The capture, by id.",
+          "type": "string"
+        },
+        "observed_px": {
+          "description": "The observed pixel.",
+          "type": "array",
+          "items": {
+            "type": "number",
+            "format": "double"
+          },
+          "maxItems": 2,
+          "minItems": 2
+        },
+        "point": {
+          "description": "The target point, by its index in the ground truth's target.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "projected_px": {
+          "description": "The pixel the estimate projects it to.",
+          "type": "array",
+          "items": {
+            "type": "number",
+            "format": "double"
+          },
+          "maxItems": 2,
+          "minItems": 2
+        }
+      },
+      "required": [
+        "capture",
+        "camera",
+        "point",
+        "observed_px",
+        "projected_px"
+      ]
+    },
+    "Iso3Schema": {
+      "description": "JSON Schema proxy for [`Iso3`] (`nalgebra::Isometry3<f64>`).\n\n`nalgebra` does not implement [`schemars::JsonSchema`], so `*Export` and\nparameter types that embed [`Iso3`] annotate the field with\n`#[cfg_attr(feature = \"schemars\", schemars(with = \"Iso3Schema\"))]`\n(or `Vec<Iso3Schema>` / `Option<Iso3Schema>`). This proxy mirrors the exact\nserde wire format of `Isometry3`:\n`{ \"rotation\": [qx, qy, qz, qw], \"translation\": [tx, ty, tz] }`.\n\nIt exists only to describe that shape to `schemars`; it is never\nconstructed at runtime.",
+      "type": "object",
+      "properties": {
+        "rotation": {
+          "description": "Unit quaternion `[qx, qy, qz, qw]` (i, j, k, w order).",
+          "type": "array",
+          "items": {
+            "type": "number",
+            "format": "double"
+          },
+          "maxItems": 4,
+          "minItems": 4
+        },
+        "translation": {
+          "description": "Translation `[tx, ty, tz]` in meters.",
+          "type": "array",
+          "items": {
+            "type": "number",
+            "format": "double"
+          },
+          "maxItems": 3,
+          "minItems": 3
+        }
+      },
+      "required": [
+        "rotation",
+        "translation"
+      ]
+    },
+    "Measurement": {
+      "description": "A check's measured value and the limit that decided its status.",
+      "type": "object",
+      "properties": {
+        "threshold": {
+          "description": "The limit it was compared to: the one it crossed, or, for a pass, the\nnearest one.",
+          "type": "number",
+          "format": "double"
+        },
+        "unit": {
+          "description": "The unit of both.",
+          "$ref": "#/$defs/Unit"
+        },
+        "value": {
+          "description": "The measured value; for a check over several items (views, parameter\npairs), the worst one.",
+          "type": "number",
+          "format": "double"
+        }
+      },
+      "required": [
+        "value",
+        "threshold",
+        "unit"
+      ]
+    },
+    "ObservationNoise": {
+      "description": "The noise of synthesised observations. Every field defaults to zero: exact observations.",
+      "type": "object",
+      "properties": {
+        "dropout_fraction": {
+          "description": "Share of seen target points the detector misses, in `[0, 1]`.",
+          "type": "number",
+          "format": "double",
+          "default": 0.0
+        },
+        "laser_sigma_px": {
+          "description": "Laser-stripe pixel noise, per axis (px).",
+          "type": "number",
+          "format": "double",
+          "default": 0.0
+        },
+        "outlier_fraction": {
+          "description": "Share of seen target points that are outliers, in `[0, 1]`.",
+          "type": "number",
+          "format": "double",
+          "default": 0.0
+        },
+        "outlier_sigma_px": {
+          "description": "An outlier's displacement, per axis (px).",
+          "type": "number",
+          "format": "double",
+          "default": 0.0
+        },
+        "pixel_sigma_px": {
+          "description": "Target-point pixel noise, per axis (px).",
+          "type": "number",
+          "format": "double",
+          "default": 0.0
+        },
+        "robot_rot_sigma_rad": {
+          "description": "The robot's reported TCP rotation error, per rotation-vector component (rad).",
+          "type": "number",
+          "format": "double",
+          "default": 0.0
+        },
+        "robot_trans_sigma_m": {
+          "description": "The robot's reported TCP translation error, per axis (m).",
+          "type": "number",
+          "format": "double",
+          "default": 0.0
+        },
+        "seed": {
+          "description": "The stream's seed.",
+          "type": "integer",
+          "format": "uint64",
+          "default": 0,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "Offsets": {
+      "description": "Where the estimate is relative to the truth. A drawing places each true frame where the\nscene has it and the estimate at that frame times its offset, at any robot pose.",
+      "type": "object",
+      "properties": {
+        "cameras": {
+          "description": "Per calibrated camera: the estimated camera in the true camera's frame\n(`true_se3_estimate`, projection frames), through the hand-eye and the rig.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Iso3Schema"
+          }
+        },
+        "planes": {
+          "description": "Per calibrated camera, its laser plane: true, then estimated, both in the true camera's\nframe with unit normals pointing the same way.",
+          "type": "array",
+          "items": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/$defs/Plane"
+            },
+            "maxItems": 2,
+            "minItems": 2
+          }
+        },
+        "target": {
+          "description": "The estimated target in the true target's frame.",
+          "$ref": "#/$defs/Iso3Schema"
+        }
+      },
+      "required": [
+        "cameras",
+        "target",
+        "planes"
+      ]
+    },
+    "ParamStats": {
+      "description": "One estimated parameter over trials, beside its truth and calibration-rs's predicted σ.",
+      "type": "object",
+      "properties": {
+        "bias": {
+          "description": "`mean − truth`.",
+          "type": "number",
+          "format": "double"
+        },
+        "label": {
+          "description": "`cam_left fx`, `hand-eye tx`, …",
+          "type": "string"
+        },
+        "mean": {
+          "type": "number",
+          "format": "double"
+        },
+        "predicted_sigma": {
+          "description": "calibration-rs's σ for it, the mean over the trials that have one.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "rmse": {
+          "description": "Root mean square of `value − truth`.",
+          "type": "number",
+          "format": "double"
+        },
+        "std": {
+          "description": "Sample standard deviation over the trials.",
+          "type": "number",
+          "format": "double"
+        },
+        "trials": {
+          "description": "Trials it was estimated in.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "truth": {
+          "type": "number",
+          "format": "double"
+        },
+        "unit": {
+          "description": "`px`, `deg`, `mm`, or empty (distortion coefficients).",
+          "type": "string"
+        }
+      },
+      "required": [
+        "label",
+        "unit",
+        "truth",
+        "mean",
+        "std",
+        "bias",
+        "rmse",
+        "trials"
+      ]
+    },
+    "Plane": {
+      "type": "object",
+      "properties": {
+        "distance": {
+          "type": "number",
+          "format": "double"
+        },
+        "normal": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "format": "double"
+          },
+          "maxItems": 3,
+          "minItems": 3
+        }
+      },
+      "required": [
+        "normal",
+        "distance"
+      ]
+    },
+    "Predicted": {
+      "description": "calibration-rs's predicted uncertainty of the estimate (its covariance's diagonal).",
+      "type": "object",
+      "properties": {
+        "fixed": {
+          "description": "The parameters held fixed (the σ are conditional on them).",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "labels": {
+          "description": "calibration-rs's parameter labels (`cam0.fx`, `gripper_se3_rig.tx`, …), `camN` being the\nreport's `cameras[N]`.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "noise_px": {
+          "description": "The reprojection noise σ the residuals imply (px).",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "sigma": {
+          "description": "The σ of each, in calibration-rs's units (px, radians, metres).",
+          "type": "array",
+          "items": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
+      "required": [
+        "labels",
+        "sigma",
+        "fixed"
+      ]
+    },
+    "QualityCheck": {
+      "description": "One check of a [`QualityReport`].",
+      "type": "object",
+      "properties": {
+        "camera": {
+          "description": "The camera, for a check made per camera; `None` for one about the\nwhole result.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint",
+          "minimum": 0
+        },
+        "kind": {
+          "description": "What the check examines.",
+          "$ref": "#/$defs/CheckKind"
+        },
+        "measurement": {
+          "description": "The measured value; absent for a check not applicable, and for the\nobservability and convergence checks, which read a status.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Measurement"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "message": {
+          "description": "One sentence on the outcome, or on why the check was not applicable.",
+          "type": "string"
+        },
+        "status": {
+          "description": "Its outcome.",
+          "$ref": "#/$defs/CheckStatus"
+        },
+        "subjects": {
+          "description": "What the check names: unobservable or at-bound parameter labels,\ncorrelated parameter pairs (`fx/cx`), or outlier views (`view 3`).",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "kind",
+        "status",
+        "message"
+      ]
+    },
+    "QualityReport": {
+      "description": "The verdict on a calibration result and the checks behind it.",
+      "type": "object",
+      "properties": {
+        "checks": {
+          "description": "Every check, the result-wide ones first, then each camera's.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/QualityCheck"
+          }
+        },
+        "verdict": {
+          "description": "The worst verdict of the assessed checks; `warn` when no check could\nbe assessed, since then nothing vouches for the result.",
+          "$ref": "#/$defs/Verdict"
+        }
+      },
+      "required": [
+        "verdict",
+        "checks"
+      ]
+    },
+    "Report": {
+      "description": "A calibration and its comparison with the truth.",
+      "type": "object",
+      "properties": {
+        "cameras": {
+          "description": "The calibrated cameras.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "estimate": {
+          "$ref": "#/$defs/Estimate"
+        },
+        "gate": {
+          "description": "`\"G5.1\"`, or `\"G5.3\"` with lasers.",
+          "type": "string"
+        },
+        "gated": {
+          "description": "Whether the gate applies (exact analytic observations).",
+          "type": "boolean"
+        },
+        "laser_pixels": {
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "noise": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ObservationNoise"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "pass": {
+          "description": "Whether every gated row is within its limit.",
+          "type": "boolean"
+        },
+        "points": {
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "procedure": {
+          "description": "The procedure that ran (ADR 0011): a built-in's id (`auto_rig`, …) or a library item's.",
+          "type": "string"
+        },
+        "quality": {
+          "description": "calibration-rs's quality verdict on the estimate (`analysis::quality`).",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/QualityReport"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "residuals": {
+          "$ref": "#/$defs/Residuals"
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Row"
+          }
+        },
+        "stages": {
+          "description": "What each stage gave, in order (the last is the report's own).",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StageSummary"
+          }
+        },
+        "uncertainty": {
+          "description": "calibration-rs's predicted uncertainty of the estimate.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Predicted"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "version": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "views": {
+          "description": "Views given to the solver, target points, laser pixels.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "workflow": {
+          "$ref": "#/$defs/Workflow"
+        }
+      },
+      "required": [
+        "version",
+        "workflow",
+        "gate",
+        "gated",
+        "pass",
+        "cameras",
+        "views",
+        "points",
+        "laser_pixels",
+        "rows",
+        "residuals",
+        "estimate"
+      ]
+    },
+    "Residuals": {
+      "description": "Reprojection residuals of the target points.",
+      "type": "object",
+      "properties": {
+        "count": {
+          "description": "Points with a residual.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "errors_px": {
+          "description": "Every point's Euclidean error (px), view-major.",
+          "type": "array",
+          "items": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "features": {
+          "description": "Every point's residual with where it is (the first trial's only, in a run of several).",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FeatureResidual"
+          }
+        },
+        "max_px": {
+          "description": "Largest Euclidean error (px).",
+          "type": "number",
+          "format": "double"
+        },
+        "mean_px": {
+          "description": "calibration-rs's mean Euclidean error (px).",
+          "type": "number",
+          "format": "double"
+        },
+        "per_camera_mean_px": {
+          "description": "Mean Euclidean error per camera (px), in the ground truth's camera order.",
+          "type": "array",
+          "items": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "rms_axis_px": {
+          "description": "Root mean square per image axis (px): `√(Σ(du² + dv²) / 2n)`.",
+          "type": "number",
+          "format": "double"
+        }
+      },
+      "required": [
+        "count",
+        "mean_px",
+        "rms_axis_px",
+        "max_px",
+        "per_camera_mean_px",
+        "errors_px"
+      ]
+    },
+    "Row": {
+      "description": "One compared quantity: its error, and the gate's limit if it has one.",
+      "type": "object",
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "limit": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "value": {
+          "type": "number",
+          "format": "double"
+        }
+      },
+      "required": [
+        "label",
+        "value"
+      ]
+    },
+    "RowStats": {
+      "description": "Statistics of a row over trials.",
+      "type": "object",
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "limit": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "max": {
+          "type": "number",
+          "format": "double"
+        },
+        "mean": {
+          "type": "number",
+          "format": "double"
+        },
+        "std": {
+          "type": "number",
+          "format": "double"
+        }
+      },
+      "required": [
+        "label",
+        "mean",
+        "std",
+        "max"
+      ]
+    },
+    "StageSummary": {
+      "description": "One stage of a procedure's run.",
+      "type": "object",
+      "properties": {
+        "cameras": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "id": {
+          "type": "string"
+        },
+        "mean_reproj_px": {
+          "type": "number",
+          "format": "double"
+        },
+        "points": {
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "views": {
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "workflow": {
+          "$ref": "#/$defs/Workflow"
+        }
+      },
+      "required": [
+        "id",
+        "workflow",
+        "cameras",
+        "views",
+        "points",
+        "mean_reproj_px"
+      ]
+    },
+    "Unit": {
+      "description": "The unit of a measured value.",
+      "oneOf": [
+        {
+          "description": "Pixels.",
+          "type": "string",
+          "const": "pixel"
+        },
+        {
+          "description": "A share in `[0, 1]`.",
+          "type": "string",
+          "const": "fraction"
+        },
+        {
+          "description": "A dimensionless ratio, such as σ̂²/σ₀².",
+          "type": "string",
+          "const": "ratio"
+        },
+        {
+          "description": "Multiples of the estimated noise level σ̂.",
+          "type": "string",
+          "const": "sigma"
+        },
+        {
+          "description": "An absolute correlation coefficient in `[0, 1]`.",
+          "type": "string",
+          "const": "correlation"
+        }
+      ]
+    },
+    "Verdict": {
+      "description": "The judgment of a result, or of one check.\n\nOrdered by severity: `Pass < Warn < Fail`.",
+      "oneOf": [
+        {
+          "description": "Nothing found that limits the result.",
+          "type": "string",
+          "const": "pass"
+        },
+        {
+          "description": "Usable, with a weakness worth knowing; the message says which.",
+          "type": "string",
+          "const": "warn"
+        },
+        {
+          "description": "The data does not support the result.",
+          "type": "string",
+          "const": "fail"
+        }
+      ]
+    },
+    "Workflow": {
+      "description": "The calibration-rs workflow a dataset was solved with.",
+      "type": "string",
+      "enum": [
+        "single_cam_handeye",
+        "rig_handeye",
+        "rig_handeye_laserline",
+        "laserline_device",
+        "planar_intrinsics",
+        "rig_extrinsics"
+      ]
+    }
+  }
+}

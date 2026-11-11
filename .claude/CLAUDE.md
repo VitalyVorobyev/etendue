@@ -19,7 +19,7 @@ gzip -9c crates/etendue-wasm/pkg/etendue_wasm_bg.wasm | wc -c       # gate G2.1:
 
 # web/ (bun workspace; build @etendue/wasm first — it is a workspace member)
 cd web && bun install
-bun run generate:types        # crates/etendue-wasm/js/types from schemas/ (CI: generate:types:check)
+bun run generate:types        # crates/etendue-wasm/js/types and the studio's kernel/types from schemas/ (CI: generate:types:check)
 bun run check:deps            # the studio imports only what it declares
 bun run typecheck && bun run lint && bun run format:check && bun run test && bun run build
 bun run format                # oxfmt over web/ and crates/etendue-wasm/{js,scripts,tests} (.oxfmtrc.json)
@@ -74,6 +74,7 @@ cargo xtask check-file-size [--update]                     # no source file over
 cargo clippy --manifest-path web/apps/studio/src-tauri/Cargo.toml --all-targets -- -D warnings
 cargo test --manifest-path web/apps/studio/src-tauri/Cargo.toml
 cargo xtask emit-schemas [--check]                         # schemas/*.schema.json from etendue-scene
+ETENDUE_WRITE_SCHEMAS=1 cargo test -p etendue-cli --test schemas   # schemas/{calibration_run,kept_runs}.schema.json (the test checks them)
 
 # Kinematics gates
 cargo test -p etendue-kinematics --all-features --test gates -- --nocapture   # G1.1, G1.2 (incl. OPW)
@@ -97,7 +98,7 @@ across the whole workspace.
 | `etendue-core` | none | the Scheimpflug solver is always built: an in-tree deterministic Nelder–Mead (`solver::nelder_mead`), no `getrandom` (G9.3) |
 | `etendue-scene` | `schemars` | JSON Schema derives (xtask enables it to emit `schemas/`) |
 | `etendue-kinematics` | `opw` | analytic OPW IK via `rs-opw-kinematics` (`default-features = false`) |
-| `etendue-synth` | `images` | canonical camera, remap LUT, GT, dataset, render jobs, pose generator; `images` = EXR ingest + PNG + the laser-image compositor (native render path, off in wasm) |
+| `etendue-synth` | `images`, `schemars` | canonical camera, remap LUT, GT, dataset, render jobs, pose generator; `images` = EXR ingest + PNG + the laser-image compositor (native render path, off in wasm); `schemars` = JSON Schema of the observation noise (for etendue-cli's report schemas) |
 | `etendue-cli` | none | lib `etendue_cli` (the pipeline) + binary `etendue` |
 | `etendue-wasm` | none | wasm32 build + G0.1 parity in CI job `wasm` |
 | `xtask` | none | not published; `emit-schemas`, `check-layering`, `app` (aliases `cargo app`, `cargo app-release`) |

@@ -4,9 +4,10 @@ use etendue_synth::observe::ObservationNoise;
 use nalgebra::Isometry3;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use vision_calibration_pipeline::analysis::QualityReport;
 
 /// One compared quantity: its error, and the gate's limit if it has one.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct Row {
     pub label: String,
     pub value: f64,
@@ -31,7 +32,7 @@ impl Row {
 }
 
 /// The calibration-rs workflow a dataset was solved with.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum Workflow {
     SingleCamHandeye,
@@ -56,7 +57,7 @@ impl std::fmt::Display for Workflow {
 }
 
 /// One target point's reprojection residual.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct FeatureResidual {
     /// The capture, by id.
     pub capture: String,
@@ -74,7 +75,7 @@ pub struct FeatureResidual {
 }
 
 /// calibration-rs's predicted uncertainty of the estimate (its covariance's diagonal).
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct Predicted {
     /// calibration-rs's parameter labels (`cam0.fx`, `gripper_se3_rig.tx`, …), `camN` being the
     /// report's `cameras[N]`.
@@ -88,7 +89,7 @@ pub struct Predicted {
 }
 
 /// Reprojection residuals of the target points.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct Residuals {
     /// Points with a residual.
     pub count: usize,
@@ -108,12 +109,13 @@ pub struct Residuals {
 }
 
 /// What the calibration found, for drawing beside the truth.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct Estimate {
     /// Per calibrated camera: `[fx, fy, cx, cy]`, `[k1, k2, k3, p1, p2]`, `[tilt_x, tilt_y]`.
     pub cameras: Vec<EstimatedCamera>,
     /// The hand-eye transform the workflow solves (`gripper_se3_camera`/`_rig` eye-in-hand,
     /// `camera_se3_base`/`rig_se3_base` eye-to-hand), its rig frame the reference camera's.
+    #[schemars(with = "Option<vision_calibration_core::Iso3Schema>")]
     pub handeye: Option<Isometry3<f64>>,
     /// Laser planes in each camera's frame, `n·p + d = 0`.
     pub laser_planes: Vec<Option<Plane>>,
@@ -124,36 +126,39 @@ pub struct Estimate {
 
 /// Where the estimate is relative to the truth. A drawing places each true frame where the
 /// scene has it and the estimate at that frame times its offset, at any robot pose.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct Offsets {
     /// Per calibrated camera: the estimated camera in the true camera's frame
     /// (`true_se3_estimate`, projection frames), through the hand-eye and the rig.
+    #[schemars(with = "Vec<vision_calibration_core::Iso3Schema>")]
     pub cameras: Vec<Isometry3<f64>>,
     /// The estimated target in the true target's frame.
+    #[schemars(with = "vision_calibration_core::Iso3Schema")]
     pub target: Isometry3<f64>,
     /// Per calibrated camera, its laser plane: true, then estimated, both in the true camera's
     /// frame with unit normals pointing the same way.
     pub planes: Vec<Option<[Plane; 2]>>,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct EstimatedCamera {
     pub id: String,
     pub intrinsics: [f64; 4],
     pub distortion: [f64; 5],
     pub tilt: [f64; 2],
     /// `cam_se3_ref`: the camera from the reference camera (identity for it).
+    #[schemars(with = "vision_calibration_core::Iso3Schema")]
     pub cam_se3_ref: Isometry3<f64>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct Plane {
     pub normal: [f64; 3],
     pub distance: f64,
 }
 
 /// A calibration and its comparison with the truth.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct Report {
     pub version: u32,
     pub workflow: Workflow,
@@ -175,7 +180,7 @@ pub struct Report {
     pub estimate: Estimate,
     /// calibration-rs's quality verdict on the estimate (`analysis::quality`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub quality: Option<Value>,
+    pub quality: Option<QualityReport>,
     /// calibration-rs's predicted uncertainty of the estimate.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub uncertainty: Option<Predicted>,
@@ -196,7 +201,7 @@ pub struct Report {
 }
 
 /// One stage of a procedure's run.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct StageSummary {
     pub id: String,
     pub workflow: Workflow,

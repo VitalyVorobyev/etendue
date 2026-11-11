@@ -12,7 +12,7 @@ use super::report::Report;
 use super::truth::Truth;
 
 /// Statistics of a row over trials.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct RowStats {
     pub label: String,
     pub mean: f64,
@@ -23,7 +23,7 @@ pub struct RowStats {
 }
 
 /// One estimated parameter over trials, beside its truth and calibration-rs's predicted σ.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct ParamStats {
     /// `cam_left fx`, `hand-eye tx`, …
     pub label: String,
