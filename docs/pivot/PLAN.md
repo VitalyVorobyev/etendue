@@ -1016,6 +1016,11 @@ PR, merged when green.
   (history, I/O, bank, notifications); subscriptions narrow enough that playback re-renders only
   what moves; Optics and Rigs designs kept across reloads; one way to show a kernel error; a units
   and labels pass.
+  - **`App.tsx` is split** (1246 → 481 lines). Each workspace is a hook returning its panes,
+    as the Library's already was: `optics/`, `rigs/`, `calibrate/`, `motion/` and `setup/`
+    `Workspace.tsx`. The File menu's exports (`panels/exports.ts`) and the edit shortcuts
+    (`state/shortcuts.ts`) are their own modules. `App` keeps the selection, the shared 3-D view
+    and the layout.
 - **Release 0.3.0**, and a decision on publishing to crates.io and npm (§7).
 
 After P19: **a real-data track**, P20 (user decision, 2026-11-11).

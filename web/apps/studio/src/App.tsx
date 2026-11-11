@@ -11,9 +11,9 @@ import {
 } from "@vitavision/workbench";
 import { Box, Minimize2 } from "lucide-react";
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
-import library, { type LibraryRobot } from "virtual:etendue-robots";
+import library from "virtual:etendue-robots";
 
-import { type Cell, defaultOf } from "./io/project";
+import type { Cell } from "./io/project";
 import { fileUrl, isTauri } from "./io/tauri";
 import { type Bodies, type PoseOverride, bodyPoses, posed } from "./kernel/posed";
 import { scenarioFromPoses } from "./kernel/native";
@@ -21,28 +21,14 @@ import { useLibraryWorkspace } from "./library/Workspace";
 import { useMotionWorkspace } from "./motion/Workspace";
 import { useOpticsWorkspace } from "./optics/Workspace";
 import { useRigsWorkspace } from "./rigs/Workspace";
+import { useSetupWorkspace } from "./setup/Workspace";
 import { useCellBuilder } from "./cell/CellBuilder";
 import { CameraGrid } from "./panels/CameraGrid";
 import { CellDialog } from "./panels/CellDialog";
 import { ErrorBoundary } from "./panels/ErrorBoundary";
-import { RobotLibrary } from "./robots/RobotLibrary";
 import { exportsOf } from "./panels/exports";
 import { Header, type Mode } from "./panels/Header";
-import { Inspector } from "./panels/Inspector";
-import { Navigator } from "./panels/Navigator";
-import { type GizmoTarget, Viewport } from "./panels/Viewport";
-import {
-  type EntityList,
-  IDENTITY,
-  addEntity,
-  entityOf,
-  newEntity,
-  removeEntity,
-  removeRobot,
-  uniqueId,
-  updateEntity,
-} from "./scene/edit";
-import { sceneTree } from "./scene/model";
+import { Viewport } from "./panels/Viewport";
 import { CalibrationRunner } from "./state/calibrationRun";
 import { useCalibrateWorkspace } from "./calibrate/Workspace";
 import { DatasetRunner } from "./state/datasetRun";
@@ -102,7 +88,6 @@ export function App() {
   // The Library workspace: every item the project sees, to browse and edit.
   const libraryPanels = useLibraryWorkspace(studio, studioState);
   const [cellDialog, setCellDialog] = useState(false);
-  const [robotLibrary, setRobotLibrary] = useState(false);
   const { playhead } = studio;
   const [mode, setModeState] = useState<Mode>(() => storedMode(MODES));
   const [selection, setSelection] = useState<Scoped<string | null>>({ opened: 0, value: null });
@@ -168,7 +153,6 @@ export function App() {
   const poses = useMemo(() => (runtime ? posed(runtime, overrides, bodies) : null), [runtime, overrides, bodies]);
   // What an editor shows and moves: bodies, not projection frames.
   const bodyPose = useMemo(() => (poses ? bodyPoses(poses, bodies) : null), [poses, bodies]);
-  const live = useMemo(() => ({ preview: studio.preview, commit: studio.commit, cancel: studio.cancel }), [studio]);
 
   usePlaybackClock({ playhead, playing, speed, loop, onEnd: () => studio.setPlaying(false) });
 
@@ -183,7 +167,6 @@ export function App() {
   const sceneShown = SCENE_MODES.includes(mode);
   useEditShortcuts(studio, sceneShown);
 
-  const tree = useMemo(() => (current ? sceneTree(current.loaded.scene, current.baked) : null), [current]);
   const markers = useMemo<PlaybackMarker[]>(
     () =>
       current?.baked.samples.flatMap((s, index) => (s.capture ? [{ index, label: `capture ${s.capture.id}` }] : [])) ??
@@ -243,112 +226,21 @@ export function App() {
   };
 
   const exports = useMemo(() => exportsOf(current, shownRobot), [current, shownRobot]);
-  const add = (list: EntityList) => {
-    if (!current) return;
-    // Attach to the selected frame (a link, an entity), else to the world.
-    const parent = selected !== null && current.baked.frames.includes(selected) ? selected : "world";
-    const entity = newEntity(current.loaded.scene, list, parent, {
-      camera: defaultOf(project, "camera"),
-      laser: defaultOf(project, "laser"),
-      target: defaultOf(project, "target"),
-    });
-    if (studio.edit(`add ${entity.id}`, (d) => ({ ...d, scene: addEntity(d.scene, list, entity) }))) {
-      setSelected(entity.id);
-    }
-  };
-  const addRobot = (lib: LibraryRobot) => {
-    if (!current) return;
-    const parent = selected !== null && current.baked.frames.includes(selected) ? selected : "world";
-    const id = uniqueId(current.loaded.scene, lib.id);
-    void studio
-      .addRobot(lib.manifest, id, (d, robot) => ({
-        ...d,
-        scene: {
-          ...d.scene,
-          robots: [
-            ...(d.scene.robots ?? []),
-            {
-              id,
-              parent,
-              parent_se3_self: IDENTITY,
-              // Repository-relative: the loader finds it in the robot library, and Save rebases it.
-              manifest: lib.manifest,
-              // Every joint at 0, or at the nearest limit.
-              initial_q: robot.manifest.joints.map((j) => Math.min(Math.max(0, j.lower), j.upper)),
-            },
-          ],
-        },
-      }))
-      .then((ok) => ok && setSelected(id));
-  };
-  const replaceRobot = (lib: LibraryRobot) => {
-    if (!current || selected === null || !isRobot(selected)) return;
-    const id = selected;
-    void studio.replaceRobot(lib.manifest, id, (d, robot) => ({
-      ...d,
-      scene: {
-        ...d.scene,
-        robots: (d.scene.robots ?? []).map((r) =>
-          r.id === id
-            ? {
-                ...r,
-                manifest: lib.manifest,
-                initial_q: robot.manifest.joints.map((j) => Math.min(Math.max(0, j.lower), j.upper)),
-              }
-            : r,
-        ),
-      },
-    }));
-  };
-  const loadLibraryRobot = useCallback((r: LibraryRobot) => studio.loadLibraryRobot(r.manifest, r.id), [studio]);
-  const isRobot = (id: string | null) => id !== null && (current?.loaded.scene.robots ?? []).some((r) => r.id === id);
-  const removable =
-    current !== null && selected !== null && (entityOf(current.loaded.scene, selected) !== null || isRobot(selected));
-  const remove = () => {
-    if (!current || selected === null) return;
-    const ok = isRobot(selected)
-      ? studio.edit(`remove ${selected}`, (d) => ({
-          ...d,
-          ...removeRobot(d.scene, d.scenario, selected),
-          robots: d.robots.filter((r) => r.id !== selected),
-        }))
-      : studio.edit(`remove ${selected}`, (d) => ({ ...d, scene: removeEntity(d.scene, selected) }));
-    if (ok) setSelected(null);
-  };
-
-  // The selection's handle in the Setup workspace: an entity on its frame, a robot on its base.
-  const shownScene = editing?.doc.scene ?? current?.loaded.scene;
-  const handled =
-    mode === "setup" && shownScene && selected !== null
-      ? (entityOf(shownScene, selected) ?? shownScene.robots?.find((r) => r.id === selected) ?? null)
-      : null;
-  const handleFrame =
-    handled && isRobot(selected)
-      ? `${selected}/${current?.loaded.robots.find((r) => r.id === selected)?.manifest.base_link}`
-      : selected;
-  const gizmo: GizmoTarget | null =
-    motion.gizmo ??
-    (handled && handleFrame !== null && selected !== null
-      ? {
-          frame: handleFrame,
-          parent: handled.parent,
-          placement: handled.parent_se3_self,
-          onPreview: (pose) =>
-            studio.preview(`move ${selected}`, (d) => ({
-              ...d,
-              scene: isRobot(selected)
-                ? {
-                    ...d.scene,
-                    robots: (d.scene.robots ?? []).map((r) =>
-                      r.id === selected ? { ...r, parent_se3_self: pose } : r,
-                    ),
-                  }
-                : updateEntity(d.scene, selected, (e) => ({ ...e, parent_se3_self: pose })),
-            })),
-          onCommit: studio.commit,
-          onCancel: studio.cancel,
-        }
-      : null);
+  // The Setup workspace (the frame tree, the Inspector, the selection's handle).
+  const setup = useSetupWorkspace({
+    active: mode === "setup",
+    studio,
+    current,
+    editing,
+    project,
+    failure,
+    selected,
+    onSelect: setSelected,
+    cellBuilder,
+    poses: bodyPose,
+    playhead,
+  });
+  const gizmo = motion.gizmo ?? setup.gizmo;
 
   const viewport = current ? (
     <Viewport
@@ -463,43 +355,8 @@ export function App() {
     onPlaced,
   });
 
-  const left =
-    current && mode === "setup" && cellBuilder.active ? (
-      cellBuilder.left
-    ) : current && tree && mode === "setup" ? (
-      <Navigator
-        tree={tree}
-        selected={selected}
-        onSelect={setSelected}
-        onAdd={add}
-        robots={library}
-        onAddRobot={addRobot}
-        onBrowseRobots={() => setRobotLibrary(true)}
-        onRemove={removable ? remove : null}
-        onNewCell={() => {
-          setSelected(null);
-          cellBuilder.start();
-        }}
-      />
-    ) : null;
-  const right =
-    current && mode === "setup" && cellBuilder.active ? (
-      cellBuilder.right
-    ) : current && mode === "setup" ? (
-      <Inspector
-        current={current}
-        preview={editing}
-        poses={bodyPose}
-        selected={selected}
-        failure={failure}
-        playhead={playhead}
-        live={live}
-        onEdit={studio.edit}
-        onRenamed={setSelected}
-      />
-    ) : current && mode === "motion" ? (
-      motion.right
-    ) : null;
+  const left = mode === "setup" ? setup.left : null;
+  const right = mode === "setup" ? setup.right : mode === "motion" ? motion.right : null;
 
   // A pane that fails to render shows why, and starts again in another workspace or document.
   const guarded = (pane: ReactNode) => (
@@ -608,16 +465,7 @@ export function App() {
           onSave={studio.saveAsCell}
         />
       )}
-      <RobotLibrary
-        open={robotLibrary}
-        onOpenChange={setRobotLibrary}
-        robots={library}
-        load={loadLibraryRobot}
-        attachTo={selected !== null && current?.baked.frames.includes(selected) ? selected : "world"}
-        replace={isRobot(selected) ? selected : null}
-        onAdd={addRobot}
-        onReplace={replaceRobot}
-      />
+      {setup.dialog}
       <ConfirmDialog
         open={question !== null}
         onOpenChange={(open) => !open && studio.answer(false)}
