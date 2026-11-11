@@ -964,10 +964,16 @@ PR, merged when green.
   - one trial loop (`etendue calibrate` calls `run_dir`);
   - `calibrate.rs` split by concern (report, rows, rigs, heads, statistics, runs).
   - **Gate:** G16.1 (`auto` bit for bit) and G16.2, G17.2 unchanged.
+  - **Done with P19d (one PR):** the exports are read through calibration-rs's types; configs,
+    seeds and inputs are still built as JSON but pass `strict`, which refuses a key calibration-rs
+    does not read; `run_trials` is the one loop; `calibrate/` has nine modules of 120–400 lines.
 - **P19d — calibration-rs 0.12 → 0.18.** Re-run the calibration gates (G5.x, G13.1, G16–G18) into
   `docs/measurements/calibration_rs_0_18.md`; seed `rig_handeye_laserline` stages from a
   `rig_handeye` stage (#256); use the joint one-camera laser hand-eye (#268) where it helps; use
   upstream `next_view` for the rig and hand-eye σ terms (#261) if G18.1 still holds.
+  - **The bump is done** ([`calibration_rs_0_18.md`](../measurements/calibration_rs_0_18.md)):
+    every gate holds, and only the Scheimpflug rig's results move (its tilts are now refined).
+    Adopting #256, #261 and #268 is a follow-up PR.
 - **P19e — One source for procedures and report types.**
   - the procedure engine's pure parts (`auto`, the check, the config patches, which freedoms apply
     to which workflow) move to a crate wasm can use, and the studio stops re-implementing them;
@@ -985,9 +991,9 @@ PR, merged when green.
   and labels pass.
 - **Release 0.3.0**, and a decision on publishing to crates.io and npm (§7).
 
-After P19, the open strategic choice (the user's): a real-data track (import images and robot
-poses, calibrate without a ground truth, check a cell against a real board) or deeper simulation
-(radiometry, collision checking, Monte Carlo sweeps).
+After P19: **a real-data track** (user decision, 2026-11-11). calibration-rs's real datasets with
+robot poses (the public `kuka_1` and `DS8`, and private sets that stay local) are the data; its
+0.18 dataset runner calibrates them. The design comes before the phase.
 
 ### Deferred (not planned; do not scaffold)
 
