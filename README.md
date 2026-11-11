@@ -28,8 +28,16 @@ calibration came to the truth.
   (distortion, Scheimpflug tilt), through an optional noisy sensor, with laser-stripe images.
 - **Targets**: chessboards, ChArUco boards, marker boards, PuzzleBoards and the PuzzlePole
   cylinder, drawn, ground-truthed and detected, every label checked against the truth.
-- **Calibration**: calibrate a dataset from exact, noisy or detected observations, compare every
-  estimate with the truth, and keep and compare the runs.
+- **Calibration**: calibrate a dataset from exact, noisy or detected observations with a staged
+  procedure (which parameters are fixed or free in each stage, and where each stage is seeded
+  from), compare every estimate with the truth, and keep and compare the runs. Over many noisy
+  trials, see each parameter's spread beside the solver's predicted σ, and every view's residuals.
+- **Pose planning**: suggest the robot poses that calibrate the cell best for a pose budget,
+  ranked by the predicted error of a measured point in the robot's base, in mm.
+- **Library**: sensors, lenses, lasers, cameras, heads, rigs, mounts, targets and calibration
+  procedures, plus imported robots, from the built-ins, your own bank and the project, with a
+  guided builder that turns
+  them into a cell: optics, rig, mounting, target, robot.
 
 ## Install
 
@@ -56,7 +64,8 @@ has the details and how to build from source.
    every camera sees, with the target projected through each camera's model.
 3. **Motion** lists the program with its timing and warnings; **Jog** moves the robot by hand,
    and **Generate poses** makes calibration viewpoints.
-4. **Optics** and **Rigs** design heads and rigs from the project's library.
+4. **Optics** and **Rigs** design heads and rigs from the project's library; **Library** browses
+   and edits it, and **New cell** in Setup builds a cell from it step by step.
 5. **Calibrate** generates the dataset (ground truth, Blender renders, detection), calibrates it,
    and draws the estimate beside the truth.
 

@@ -77,6 +77,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Docs brought up to date** (P19a): the README and the book's studio chapter describe the
+  Library workspace, calibration procedures, the simulation lab and Suggest poses; the roadmap
+  records the upstream calibration-rs PRs as merged and adds P19, a consolidation phase.
 - `etendue detect` finds a chessboard's corners with chess-corners' ChESS and its saddle-point
   refiner instead of Radon, and the studio's dataset generation with it. On the closed-loop renders
   it is about five times more accurate (0.012 against 0.058 px RMS), and the hand-eye from the

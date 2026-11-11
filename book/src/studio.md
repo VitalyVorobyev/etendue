@@ -14,8 +14,9 @@ in a browser, with [some limits](#in-a-browser).
 - **The header** shows the open cell (a ● after its name marks unsaved changes), the
   **workspace** switch, **Undo** and **Redo** (⌘Z and ⇧⌘Z; Ctrl+Z and Ctrl+⇧Z on Windows and
   Linux), the **File** menu and the light/dark theme.
-- **The workspaces** are Optics, Rigs, Setup, Motion, Images and Calibrate. Each has its own
-  panels around a main view.
+- **The workspaces** are Library, Optics, Rigs, Setup, Motion, Images and Calibrate. Each has its
+  own panels around a main view. Library is described in
+  [Projects and the library](library.md#in-the-studio).
 - **The playback bar** along the bottom plays, pauses, scrubs and loops the scenario at a chosen
   speed. Captures are marked on the timeline.
 
