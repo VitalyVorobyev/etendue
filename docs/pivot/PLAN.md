@@ -870,7 +870,8 @@ green; upstream changes (calibration-rs, lab-ui) stay drafts.
       items): stages, a fixed/free table per slot, seeds, options and solver, checked by the
       kernel on every edit. A run takes the procedure by value; an edited one is kept in the
       project or the bank.
-    - Not started: the upstream draft for `rig_handeye_laserline`'s steps.
+    - Upstream: `rig_handeye_laserline` seeded from an earlier rig hand-eye (calibration-rs#256,
+      merged 2026-11-02, released in 0.13+); etendue does not use it yet (P19d).
   - *Update (2026-11-02):* the Scheimpflug head that no built-in calibrated is understood
     (`docs/derivations/scheimpflug_observability.md`, `docs/measurements/scheimpflug_observability.md`).
     - **Why its tilt is not determined.** With p1 and p2 free, a sensor tilt is matched by a
@@ -893,8 +894,8 @@ green; upstream changes (calibration-rs, lab-ui) stay drafts.
       missed errors within the plane.
     - **The fix.** `auto`'s head hand-eye and `laser_head`'s second stage hold the device stage's
       camera: 0.013 mm rms, the noise's floor (the rigs reach the same).
-    - **Upstream.** calibration-rs's joint laser hand-eye opened to one camera (calibration-rs#268, ready for
-      review). On the head it is right and no more precise than the held camera (0.014–0.016 mm).
+    - **Upstream.** calibration-rs's joint laser hand-eye opened to one camera (calibration-rs#268, merged
+      2026-11-03; etendue does not use it yet, P19d). On the head it is right and no more precise than the held camera (0.014–0.016 mm).
 - **P17 — Simulation lab.**
   - **Report v3:**
     - per view and per feature, residuals with ids (camera, view, point, observed and projected
@@ -939,8 +940,54 @@ green; upstream changes (calibration-rs, lab-ui) stay drafts.
     - G18.1 passes: 0.0362 mm planned against 0.0462 mm for the grid at 8 poses, with 0.0377 mm
       measured.
     - G18.2 passes (`docs/measurements/g18_pose_planning.md`).
-    - etendue computes the rig and hand-eye σ terms itself. The upstream `next_view` draft is not
-      opened yet.
+    - etendue computes the rig and hand-eye σ terms itself. Upstream `next_view` for rig hand-eye
+      (calibration-rs#261) merged 2026-11-02; adopting it is P19d.
+
+### P19 — Consolidation (review of 2026-11-11)
+
+P14–P18 landed in a day. A review of the code, the studio and the docs found the cost: logic kept in
+two or three places, an untyped boundary to calibration-rs, a studio that can lose work, and
+documents that contradict each other. P19 pays that down before any new feature. Each step is one
+PR, merged when green.
+
+- **P19a — Docs truth pass.** CLAUDE.md, PLAN §6/§7 and the upstream PR states, README and the
+  book's studio chapter for P14–P18.
+- **P19b — Studio safety.**
+  - an error boundary, so a kernel error in a render no longer blanks the app;
+  - a confirm before unsaved work is dropped: opening a cell or project, closing the window
+    (Tauri `onCloseRequested`, `beforeunload`), switching Library items with a dirty draft;
+  - undo and save that act on what the workspace shows, or are absent where the scene is not shown.
+  - Playwright covers each.
+- **P19c — A typed calibration-rs boundary.**
+  - `calibrate.rs` and `procedure.rs` read and write calibration-rs's own export and config types,
+    not `serde_json::Value` with silent defaults; a config patch with an unknown key fails;
+  - one trial loop (`etendue calibrate` calls `run_dir`);
+  - `calibrate.rs` split by concern (report, rows, rigs, heads, statistics, runs).
+  - **Gate:** G16.1 (`auto` bit for bit) and G16.2, G17.2 unchanged.
+- **P19d — calibration-rs 0.12 → 0.18.** Re-run the calibration gates (G5.x, G13.1, G16–G18) into
+  `docs/measurements/calibration_rs_0_18.md`; seed `rig_handeye_laserline` stages from a
+  `rig_handeye` stage (#256); use the joint one-camera laser hand-eye (#268) where it helps; use
+  upstream `next_view` for the rig and hand-eye σ terms (#261) if G18.1 still holds.
+- **P19e — One source for procedures and report types.**
+  - the procedure engine's pure parts (`auto`, the check, the config patches, which freedoms apply
+    to which workflow) move to a crate wasm can use, and the studio stops re-implementing them;
+  - schemas for `gt.json`, `features.json` and the report, with the studio's types generated from
+    them, as for the scene documents;
+  - version checks and a migration path for stored runs, which today vanish silently when they do
+    not parse.
+- **P19f — Prune and type.** etendue-core modules with no consumer outside the crate (the
+  egui-era `analysis`, `solver::scheimpflug`, `scene`, `laser::project`) are removed or kept for a
+  named reason; `LibraryItem` becomes an enum (same JSON); gate tooling (`measure`, `corners`)
+  moves behind a feature; etendue-cli's library API is narrowed or not published.
+- **P19g — Studio structure.** `App.tsx` split by workspace and `state/studio.ts` by concern
+  (history, I/O, bank, notifications); subscriptions narrow enough that playback re-renders only
+  what moves; Optics and Rigs designs kept across reloads; one way to show a kernel error; a units
+  and labels pass.
+- **Release 0.3.0**, and a decision on publishing to crates.io and npm (§7).
+
+After P19, the open strategic choice (the user's): a real-data track (import images and robot
+poses, calibrate without a ground truth, check a cell against a real board) or deeper simulation
+(radiometry, collision checking, Monte Carlo sweeps).
 
 ### Deferred (not planned; do not scaffold)
 
@@ -960,19 +1007,21 @@ working volume left this list on 2026-10-19 (P11). After P8–P13:
 
 - Rust: the existing four gates plus `--all-features` per crate (new features:
   `schemars`, `opw`), a wasm32 build, `emit-schemas --check`, and the layering check.
-- Web: `bun run typecheck lint test` per package, plus the Playwright e2e and perf
-  harness (the perf job reports results but only fails on a >20% regression against
-  the committed baseline).
-- Blender jobs run **locally only**, not in CI. Gates G4.x and G5.x run via
-  `cargo xtask measure <gate>` and write to `docs/measurements/`.
+- Web: `bun run typecheck lint test` per package and the Playwright e2e. The perf harness
+  (G2.2, G8.1) needs a GPU and runs locally only (`bun run test:perf`).
+- Blender jobs run **locally only**, not in CI. Gates G4.x run via `etendue measure <gate>` and
+  write to `docs/measurements/`.
 
 ## 7. Publishing
 
 - crates.io: `etendue-{scene,kinematics,synth,core,cli}`. `etendue-wasm` publishes only
   to npm.
 - npm: `@etendue/wasm` from this repo; the 3D and workbench packages are published from
-  lab-ui under `@vitavision/*` (they incubate here unpublished, `private: true`). Use one version train per ecosystem, managed
-  with changesets (npm) and the existing release workflow (Rust).
+  lab-ui under `@vitavision/*` and consumed from npm (the incubated copies were dropped on
+  2026-10-17). Use one version train per ecosystem, managed with changesets (npm) and the
+  existing release workflow (Rust).
+- *Status (2026-11-11):* nothing is on crates.io or npm yet. `release.yml` builds GitHub release
+  assets only (v0.2.0, 2026-10-20). Whether to publish to the registries is decided in P19.
 - Publish no earlier than: `etendue-scene` after G1.1–G1.2, web packages after G2.2 and
   P2-4, and `etendue-synth` after G4.1–G4.3.
 

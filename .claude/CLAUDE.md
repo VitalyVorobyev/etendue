@@ -4,7 +4,7 @@
 
 ```bash
 cargo build --workspace                                    # build all crates
-cargo test --workspace --locked                            # run every test (335)
+cargo test --workspace --locked                            # run every test
 cargo clippy --workspace --all-targets -- -D warnings      # lint (must be clean)
 cargo fmt --all                                            # format
 cargo fmt --all --check                                    # CI format check
@@ -112,10 +112,11 @@ A crate is added to this table in the same change that creates it.
 
 Workspace at `/Users/vitalyvorobyev/vision/etendue/`. It is pivoting into a package
 family (`docs/pivot/PLAN.md`, `docs/adrs/0001-pivot.md`). New crates are created phase
-by phase, never up front. P0 and P1 are done.
+by phase, never up front. P0–P18 are done (see Roadmap).
 
 ```
 etendue-cli (lib `etendue_cli` + bin `etendue`) ──► etendue-kinematics, etendue-synth ──► etendue-scene ──► vision-calibration-{core,dataset}
+etendue-synth ──► etendue-kinematics, etendue-core (pose generator and planner, laser stripes)
 etendue-cli ──► vision-calibration-pipeline (native calibration, P13; detectors on their own nalgebra)
 web/apps/studio/src-tauri (Tauri shell, own workspace) ──► etendue-cli (lib)
 etendue-wasm (npm @etendue/wasm) ──► etendue-kinematics ──► etendue-scene, etendue-synth ──► etendue-core ──► etendue-scene, vision-calibration-core
@@ -199,7 +200,7 @@ target faces +Z, so print-down is −Y (`target = (x/1000 − w/2, h/2 − y/100
 only place board space meets the target frame. `job::target_cells` gives every target's cells.
 
 **Blender backend** (ADR 0005, P4) — `etendue render` writes `job.json` (etendue-synth
-`job` v2: meshes, boards as cells, lights, canonical cameras, per-capture `world_se3_frame`), runs the
+`job` v4: meshes, boards as cells, lights, canonical cameras, per-capture `world_se3_frame`), runs the
 embedded bpy-only script `crates/etendue-cli/blender/etendue_blender/render.py` (Cycles,
 fixed seed, Standard view, multilayer EXR with Depth and IndexOB), then remaps each EXR
 through the LUT to `images/<camera>/<capture>.png`. Conventions live only in
@@ -418,7 +419,7 @@ also run its gates (`cargo clippy/test --manifest-path web/apps/studio/src-tauri
 
 | Resource | Location |
 |---|---|
-| Pivot plan (phases P0–P6, gates) | `docs/pivot/PLAN.md` |
+| Pivot plan (phases P0–P19, gates) | `docs/pivot/PLAN.md` |
 | ADRs | `docs/adrs/` |
 | Gate measurements | `docs/measurements/` |
 | Original design doc (constraints partly superseded by ADR 0001) | `docs/handoff.md` |
@@ -432,9 +433,12 @@ also run its gates (`cargo clippy/test --manifest-path web/apps/studio/src-tauri
 
 `docs/pivot/PLAN.md` is the roadmap, with phases and their gates. P0–P5 and P7 are done
 (gates in `docs/measurements/`); P6-1/P6-3 are absorbed by P10/P11. P8–P13 (2026-10-19) are
-done. The next roadmap is P14–P18 (2026-11-01): component bank (ADR 0010) → guided cell builder
-→ calibration procedure bank (ADR 0011) → simulation lab → calibration pose planning. ADRs 0010
-and 0011 are accepted.
+done, and so is P14–P18 (2026-11-01/02): component bank (ADR 0010) → guided cell builder →
+calibration procedure bank (ADR 0011) → simulation lab → calibration pose planning. The current
+phase is P19 (2026-11-11), consolidation before new features: docs, studio safety, a typed
+calibration-rs boundary, calibration-rs 0.18, one source for procedures and report types, pruning,
+the studio's structure, then release 0.3.0. Everything etendue calibrates is synthetic (scored
+against a ground truth); a real-data track is the open strategic decision after P19.
 
 Promoting `ThickLens` to `ApertureModel<S>` in calibration-rs is deferred (ADR 0008): no
 phase needs it upstream.
