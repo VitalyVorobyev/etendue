@@ -300,9 +300,48 @@ pub(crate) struct SeedValues {
     /// `<frame>_se3_base` eye-to-hand, where the frame is the rig's (camera 0's) for a rig stage
     /// and the camera's for a single-camera stage.
     pub handeye: Option<Isometry3<f64>>,
+    /// The laser plane of each camera in its frame, where known.
+    pub planes: Option<Vec<Option<Plane>>>,
+    /// A `rig_handeye` stage's export (JSON), which the joint laser solve starts from.
+    pub rig_handeye: Option<Value>,
+}
+
+/// A plane as calibration-rs's `LaserPlane`: its normal of unit length.
+fn plane_json(p: &Plane) -> Value {
+    let [x, y, z] = p.normal;
+    let s = (x * x + y * y + z * z).sqrt();
+    json!({"normal": [x / s, y / s, z / s], "distance": p.distance / s})
 }
 
 impl SeedValues {
+    /// The joint laser solve's seed (`JointManualInit`), if the stage has one: a rig hand-eye
+    /// result to start from, and the planes of `cameras` (each must have one).
+    ///
+    /// # Errors
+    ///
+    /// When planes are seeded but a camera has none.
+    pub(crate) fn joint_init(&self, cameras: &[usize]) -> Result<Option<Value>> {
+        if self.rig_handeye.is_none() && self.planes.is_none() {
+            return Ok(None);
+        }
+        let planes = match &self.planes {
+            Some(p) => Some(
+                cameras
+                    .iter()
+                    .map(|&i| {
+                        p[i].as_ref()
+                            .map(plane_json)
+                            .with_context(|| format!("camera {i} has no laser plane to seed"))
+                    })
+                    .collect::<Result<Vec<_>>>()?,
+            ),
+            None => None,
+        };
+        Ok(Some(
+            json!({"rig_handeye": self.rig_handeye, "planes_cam": planes}),
+        ))
+    }
+
     pub(super) fn none(&self) -> bool {
         self.intrinsics.is_none()
             && self.sensor.is_none()
@@ -343,6 +382,10 @@ impl SeedValues {
         }
         if let Some(t) = &self.sensor {
             seed["sensor"] = tilt_json(t[i]);
+        }
+        if let Some(p) = self.planes.as_ref().and_then(|p| p[i].as_ref()) {
+            // The laserline device's plane (`DeviceManualInit::plane`).
+            seed["plane"] = plane_json(p);
         }
         seed
     }

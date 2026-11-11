@@ -48,6 +48,7 @@ const SEED_LABEL: Record<keyof Seeds, string> = {
   sensor: "Sensor tilt",
   rig: "Rig",
   handeye: "Hand-eye",
+  planes: "Laser planes",
 };
 const LOSSES = ["none", "huber", "cauchy", "arctan"] as const;
 
