@@ -57,6 +57,7 @@ export type {
 export type { ProjectManifest, ProjectDefaults } from "./types/project.js";
 export type { BankManifest } from "./types/bank.js";
 export type { CaptureExport, CaptureRow } from "./types/captures.js";
+export type { ProblemRules, ProcedureRules, SeedSlotRules, ShapeRule } from "./types/procedure-rules.js";
 export type {
   RobotManifest,
   ManifestJoint,
@@ -305,6 +306,14 @@ export function deriveOptics(optics: OpticsSpec | string, params: CameraParams |
  * @throws {@link EtendueError} `kind: "invalid"` with every problem found.
  */
 export function validateLibraryItem(text: string | object): import("./types/library.js").LibraryItem;
+
+/**
+ * The rules of calibration procedures: per workflow, whether it is a rig, hand-eye or laser
+ * workflow, the options (`Freedoms`) it takes and its seed slots; per seed slot, the seeds it
+ * takes; per dataset shape, the one-stage workflow. The same table checks a procedure
+ * (`validateLibraryItem`), so an editor built on it offers only what checks.
+ */
+export function procedureRules(): import("./types/procedure-rules.js").ProcedureRules;
 
 /**
  * The SHA-256 (hex) of a library item's content, `origin` left out (ADR 0010 §3): what a

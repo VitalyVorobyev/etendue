@@ -9,8 +9,8 @@ use std::path::Path;
 
 use anyhow::{Context, Result, bail};
 use etendue_scene::{
-    BakedScenario, BankManifest, CaptureExport, LibraryItem, MotionReport, ProjectManifest,
-    RobotManifest, ScenarioSpec, SceneSpec,
+    BakedScenario, BankManifest, CaptureExport, LibraryItem, MotionReport, ProcedureRules,
+    ProjectManifest, RobotManifest, ScenarioSpec, SceneSpec,
 };
 use schemars::{JsonSchema, schema_for};
 
@@ -32,6 +32,7 @@ pub fn run(root: &Path, check: bool) -> Result<()> {
         ("bank", render::<BankManifest>()?),
         ("motion_report", render::<MotionReport>()?),
         ("captures", render::<CaptureExport>()?),
+        ("procedure_rules", render::<ProcedureRules>()?),
     ];
 
     if !check {

@@ -27,6 +27,7 @@ const SCHEMAS = [
   "library",
   "project",
   "bank",
+  "procedure_rules",
 ];
 
 const banner = `/**

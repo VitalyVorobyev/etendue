@@ -17,6 +17,7 @@ import init, {
   rigSharpness as rawRigSharpness,
   validateLibraryItem as rawValidateLibraryItem,
   libraryItemHash as rawLibraryItemHash,
+  procedureRules as rawProcedureRules,
 } from "./etendue_wasm.js";
 
 export { init as default, initSync };
@@ -154,6 +155,10 @@ export function deriveOptics(optics, params) {
 
 export function validateLibraryItem(text) {
   return JSON.parse(rawValidateLibraryItem(typeof text === "string" ? text : JSON.stringify(text)));
+}
+
+export function procedureRules() {
+  return JSON.parse(rawProcedureRules());
 }
 
 export function libraryItemHash(item) {

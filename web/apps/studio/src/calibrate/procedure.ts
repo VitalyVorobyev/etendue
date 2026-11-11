@@ -1,13 +1,31 @@
 /**
- * Calibration procedures (ADR 0011) as the studio edits them: which workflow takes which options,
- * and edits that keep a procedure well formed (a renamed stage renames the seeds that name it, a
- * changed workflow drops what no longer applies). The rules mirror `etendue-scene::procedure`;
- * the kernel's `validateLibraryItem` has the last word.
+ * Calibration procedures (ADR 0011) as the studio edits them: what each option and workflow is
+ * called, and edits that keep a procedure well formed (a renamed stage renames the seeds that
+ * name it, a changed workflow drops what no longer applies). Which workflow takes which option
+ * and seed is the kernel's (`procedureRules`), the same table its check (`validateLibraryItem`)
+ * reads, so the editor offers exactly what checks.
  */
 
-import type { Freedoms, ProcedurePart, Seed, Seeds, Stage } from "@etendue/wasm";
+import {
+  type Freedoms,
+  type ProblemRules,
+  type ProcedurePart,
+  type Seed,
+  type Seeds,
+  type Stage,
+  procedureRules,
+} from "@etendue/wasm";
 
 export type Problem = Stage["problem"];
+
+let cached: ReturnType<typeof procedureRules> | undefined;
+/** The kernel's rules (read once, after the kernel is initialised). */
+const rules = () => (cached ??= procedureRules());
+const ruleOf = (p: Problem): ProblemRules => {
+  const r = rules().problems.find((x) => x.problem === p);
+  if (!r) throw new Error(`the kernel has no rules for workflow \`${p}\``);
+  return r;
+};
 
 /** The workflows, in the order a procedure usually runs them. */
 export const PROBLEMS: readonly { value: Problem; label: string; description: string }[] = [
@@ -21,12 +39,20 @@ export const PROBLEMS: readonly { value: Problem; label: string; description: st
 
 export const problemLabel = (p: Problem) => PROBLEMS.find((x) => x.value === p)?.label ?? p;
 
-/** Whether the workflow calibrates several cameras at once (`Problem::rig`). */
-export const isRig = (p: Problem) => p === "rig_extrinsics" || p === "rig_handeye" || p === "rig_handeye_laserline";
-/** Whether it solves a hand-eye (`Problem::handeye`). */
-export const isHandeye = (p: Problem) => p !== "planar_intrinsics" && p !== "rig_extrinsics";
-/** Whether it needs lasers (`Problem::laser`). */
-export const isLaser = (p: Problem) => p === "laserline_device" || p === "rig_handeye_laserline";
+/** Whether the workflow calibrates several cameras at once. */
+export const isRig = (p: Problem) => ruleOf(p).rig;
+/** Whether it solves a hand-eye. */
+export const isHandeye = (p: Problem) => ruleOf(p).handeye;
+/** Whether it needs lasers. */
+export const isLaser = (p: Problem) => ruleOf(p).laser;
+
+/** The workflow that calibrates a dataset of this shape in one stage (`auto`'s choice). */
+export function problemForDataset(cameras: number, lasers: boolean): Problem {
+  const rig = cameras > 1;
+  const r = rules().by_shape.find((x) => x.rig === rig && x.lasers === lasers);
+  if (!r) throw new Error("the kernel has no workflow for this dataset's shape");
+  return r.problem;
+}
 
 /** The parameters calibration-rs can hold fixed, per slot, by its own names. */
 export const FIX_PARAMS = {
@@ -36,7 +62,7 @@ export const FIX_PARAMS = {
 } as const;
 export type FixSlot = keyof typeof FIX_PARAMS;
 
-/** A freedom: what it means, its kind, and the workflows it applies to. */
+/** A freedom: what it is called and how it is entered. Where it applies is the kernel's. */
 export interface FreedomSpec {
   key: keyof Freedoms;
   label: string;
@@ -44,63 +70,39 @@ export interface FreedomSpec {
   /** For numbers: shown in this unit, stored as `scale ×` the shown value. */
   unit?: string;
   scale?: number;
+  /** Whether a stage of `p` takes it (the kernel's rules). */
   applies: (p: Problem) => boolean;
 }
 
-const robotPrior = (p: Problem) => isHandeye(p) && p !== "laserline_device";
+const spec = (s: Omit<FreedomSpec, "applies">): FreedomSpec => ({
+  ...s,
+  applies: (p) => ruleOf(p).freedoms.includes(s.key),
+});
 
 /** Every freedom, in the order the editor shows them (`Freedoms` in etendue-scene). */
 export const FREEDOMS: readonly FreedomSpec[] = [
-  {
-    key: "refine_intrinsics",
-    label: "Refine intrinsics with the rig",
-    kind: "bool",
-    applies: (p) => isRig(p) && isHandeye(p),
-  },
-  { key: "refine_sensor", label: "Refine sensor tilt with the rig", kind: "bool", applies: isRig },
-  { key: "refine_rig", label: "Refine the rig in the hand-eye", kind: "bool", applies: (p) => p === "rig_handeye" },
-  { key: "refine_robot_poses", label: "Refine robot poses", kind: "bool", applies: robotPrior },
-  {
-    key: "robot_rot_sigma_rad",
-    label: "Robot rotation σ",
-    kind: "number",
-    unit: "°",
-    scale: Math.PI / 180,
-    applies: robotPrior,
-  },
-  {
-    key: "robot_trans_sigma_m",
-    label: "Robot translation σ",
-    kind: "number",
-    unit: "mm",
-    scale: 1e-3,
-    applies: robotPrior,
-  },
-  { key: "min_motion_angle_deg", label: "Least motion between views", kind: "number", unit: "°", applies: robotPrior },
-  { key: "fix_handeye", label: "Hold the hand-eye", kind: "bool", applies: (p) => p === "rig_handeye_laserline" },
-  { key: "fix_target", label: "Hold the target", kind: "bool", applies: (p) => p === "rig_handeye_laserline" },
-  { key: "fix_plane", label: "Hold the laser plane", kind: "bool", applies: (p) => p === "laserline_device" },
-  {
-    key: "fix_poses",
-    label: "Target poses held",
-    kind: "indices",
-    applies: (p) => p === "planar_intrinsics" || p === "laserline_device",
-  },
+  spec({ key: "refine_intrinsics", label: "Refine intrinsics with the rig", kind: "bool" }),
+  spec({ key: "refine_sensor", label: "Refine sensor tilt with the rig", kind: "bool" }),
+  spec({ key: "refine_rig", label: "Refine the rig in the hand-eye", kind: "bool" }),
+  spec({ key: "refine_robot_poses", label: "Refine robot poses", kind: "bool" }),
+  spec({ key: "robot_rot_sigma_rad", label: "Robot rotation σ", kind: "number", unit: "°", scale: Math.PI / 180 }),
+  spec({ key: "robot_trans_sigma_m", label: "Robot translation σ", kind: "number", unit: "mm", scale: 1e-3 }),
+  spec({ key: "min_motion_angle_deg", label: "Least motion between views", kind: "number", unit: "°" }),
+  spec({ key: "fix_handeye", label: "Hold the hand-eye", kind: "bool" }),
+  spec({ key: "fix_target", label: "Hold the target", kind: "bool" }),
+  spec({ key: "fix_plane", label: "Hold the laser plane", kind: "bool" }),
+  spec({ key: "fix_poses", label: "Target poses held", kind: "indices" }),
 ];
 
 /** The seed slots a stage of `problem` has (`Seeds`); `sensor` only where a tilt is calibrated. */
 export function seedSlots(problem: Problem, tilted: boolean): (keyof Seeds)[] {
-  return [
-    "intrinsics",
-    ...(tilted ? (["sensor"] as const) : []),
-    ...(isRig(problem) ? (["rig"] as const) : []),
-    ...(isHandeye(problem) ? (["handeye"] as const) : []),
-  ];
+  const r = ruleOf(problem);
+  return (tilted ? r.seed_slots_tilted : r.seed_slots) as (keyof Seeds)[];
 }
 
-/** What a seed slot may start from: a rig only from an earlier stage. */
+/** What a seed slot may start from (a rig only from an earlier stage). */
 export const seedKinds = (slot: keyof Seeds): ("nominal" | "truth" | "stage")[] =>
-  slot === "rig" ? ["stage"] : ["nominal", "truth", "stage"];
+  (rules().seed_kinds.find((x) => x.slot === slot)?.kinds ?? []) as ("nominal" | "truth" | "stage")[];
 
 /** A seed as a select value: `""` (the workflow's own initialisation), `nominal`, `truth`, `stage:<id>`. */
 export const seedValue = (s: Seed | null | undefined): string =>
@@ -133,9 +135,8 @@ export function withProblem(stage: Stage, problem: Problem): Stage {
     const v = stage.free?.[f.key];
     if (v != null && f.applies(problem)) (free as Record<string, unknown>)[f.key] = v;
   }
-  const seed: Seeds = { ...stage.seed };
-  if (!isRig(problem)) delete seed.rig;
-  if (!isHandeye(problem)) delete seed.handeye;
+  const slots = new Set<string>(ruleOf(problem).seed_slots_tilted);
+  const seed = Object.fromEntries(Object.entries(stage.seed ?? {}).filter(([k]) => slots.has(k))) as Seeds;
   return tidy({
     ...stage,
     problem,

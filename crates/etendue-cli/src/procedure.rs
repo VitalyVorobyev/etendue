@@ -13,7 +13,7 @@ use etendue_scene::{
     CameraChoice, FixLists, Freedoms, LIBRARY_VERSION, LibraryItem, Loss, Problem, ProcedurePart,
     Seed, Seeds, SensorChoice, SolverChoice, Stage,
 };
-use etendue_synth::dataset::GroundTruth;
+use etendue_synth::dataset::{GroundTruth, GtHandeye};
 use etendue_synth::observe::{ObservationNoise, Observations};
 use nalgebra::Isometry3;
 use serde_json::{Value, json};
@@ -58,21 +58,13 @@ pub fn auto(gt: &GroundTruth, options: &Options) -> Result<(String, ProcedurePar
     }
     let truth = Truth::new(gt);
     let all: Vec<usize> = (0..gt.cameras.len()).collect();
-    Ok(match (gt.cameras.len(), gt.lasers.is_empty()) {
-        (1, true) => (
-            "auto_single".into(),
-            ProcedurePart {
-                stages: vec![stage("single_cam_handeye", Problem::SingleCamHandeye)],
-            },
-        ),
-        (_, true) => (
-            "auto_rig".into(),
-            ProcedurePart {
-                stages: vec![stage("rig_handeye", Problem::RigHandeye)],
-            },
-        ),
-        (1, false) => {
-            let mut s = stage("laserline_device", Problem::LaserlineDevice);
+    let problem = Problem::for_dataset(gt.cameras.len(), !gt.lasers.is_empty());
+    let one = |id: &str, s: Stage| (id.to_owned(), ProcedurePart { stages: vec![s] });
+    Ok(match problem {
+        Problem::SingleCamHandeye => one("auto_single", stage("single_cam_handeye", problem)),
+        Problem::RigHandeye => one("auto_rig", stage("rig_handeye", problem)),
+        Problem::LaserlineDevice => {
+            let mut s = stage("laserline_device", problem);
             // No target pose is held: a single camera has no gauge to fix, and the linear
             // estimate of any one pose is not exact.
             s.free.fix_poses = Some(vec![]);
@@ -81,23 +73,23 @@ pub fn auto(gt: &GroundTruth, options: &Options) -> Result<(String, ProcedurePar
                 robust_loss: None,
             });
             s.seed.sensor = Some(Seed::Nominal);
-            ("auto_head".into(), ProcedurePart { stages: vec![s] })
+            one("auto_head", s)
         }
-        (_, false) => {
-            let mut s = stage("rig_handeye_laserline", Problem::RigHandeyeLaserline);
+        Problem::RigHandeyeLaserline => {
+            let mut s = stage("rig_handeye_laserline", problem);
             if truth.scheimpflug(&all) {
                 // A Scheimpflug rig is seeded from nominal values (calibration-rs ADR 0022).
                 s.free.refine_intrinsics = Some(true);
                 s.free.refine_sensor = Some(true);
                 s.seed.intrinsics = Some(Seed::Nominal);
                 s.seed.sensor = Some(Seed::Nominal);
-                (
-                    "auto_rig_laser_scheimpflug".into(),
-                    ProcedurePart { stages: vec![s] },
-                )
+                one("auto_rig_laser_scheimpflug", s)
             } else {
-                ("auto_rig_laser".into(), ProcedurePart { stages: vec![s] })
+                one("auto_rig_laser", s)
             }
+        }
+        Problem::PlanarIntrinsics | Problem::RigExtrinsics => {
+            unreachable!("a dataset's one-stage workflow solves its hand-eye")
         }
     })
 }
@@ -293,11 +285,13 @@ fn patch(s: &Stage, eye_in_hand: bool, scheimpflug: bool, seeds: &SeedValues, n:
             &["rig", "refine_sensor"],
             f.refine_sensor.map(Value::from),
         );
-        put(
-            v,
-            &["handeye_optimize", "refine_cam_se3_rig"],
-            f.refine_rig.map(Value::from),
-        );
+        if s.problem == Problem::RigHandeye {
+            put(
+                v,
+                &["handeye_optimize", "refine_cam_se3_rig"],
+                f.refine_rig.map(Value::from),
+            );
+        }
         put(v, &["handeye_optimize", "robot_poses"], robot.clone());
         put(v, &["solver"], solver.clone());
         put(v, &["manual_init"], seeds.rig_manual_init(&all));
@@ -535,6 +529,15 @@ fn seeds(
     Ok(out)
 }
 
+/// Whether stage `s` calibrates a tilted (Scheimpflug) model of cameras `cams`.
+fn tilted(truth: &Truth, s: &Stage, cams: &[usize]) -> bool {
+    match s.model.as_ref().map(|m| m.sensor) {
+        None | Some(SensorChoice::Design) => truth.scheimpflug(cams),
+        Some(SensorChoice::Identity) => false,
+        Some(SensorChoice::Scheimpflug) => true,
+    }
+}
+
 /// The cameras a stage runs on, each run separately for a single-camera workflow.
 fn cameras_of(truth: &Truth, s: &Stage) -> Result<Vec<usize>> {
     let ids: Vec<&str> = truth.gt.cameras.iter().map(|c| c.id.as_str()).collect();
@@ -591,8 +594,18 @@ pub fn check(gt: &GroundTruth, procedure: &ProcedurePart) -> Result<()> {
                 s.id
             ));
         }
-        if let Err(e) = cameras_of(&truth, s) {
-            problems.push(format!("{e}"));
+        match cameras_of(&truth, s) {
+            Err(e) => problems.push(format!("{e}")),
+            // calibration-rs reads every option the stage sets (seeds aside: they come from the
+            // stages before it).
+            Ok(cams) => {
+                let eye_in_hand = !matches!(gt.handeye, Some(GtHandeye::EyeToHand { .. }));
+                let tilt = tilted(&truth, s, &cams);
+                let config = patch(s, eye_in_hand, tilt, &SeedValues::default(), cams.len());
+                if let Err(e) = crate::calibrate::check_config(s.problem, &config) {
+                    problems.push(format!("stage `{}`: {e:#}", s.id));
+                }
+            }
         }
     }
     ensure!(
@@ -613,11 +626,7 @@ fn run_stage(
 ) -> Result<Vec<Report>> {
     let cams = cameras_of(truth, s)?;
     let n = truth.gt.cameras.len();
-    let scheimpflug = |cams: &[usize]| match s.model.as_ref().map(|m| m.sensor) {
-        None | Some(SensorChoice::Design) => truth.scheimpflug(cams),
-        Some(SensorChoice::Identity) => false,
-        Some(SensorChoice::Scheimpflug) => true,
-    };
+    let scheimpflug = |cams: &[usize]| tilted(truth, s, cams);
     let eye_in_hand = if s.problem.handeye() {
         truth.eye_in_hand()?
     } else {
@@ -850,6 +859,38 @@ mod tests {
                     "{} is stale: run with ETENDUE_WRITE_PROCEDURES=1",
                     path.display()
                 );
+            }
+        }
+    }
+
+    /// `patch` routes every option a workflow takes (`Problem::takes`, the table validation and
+    /// the studio read) into calibration-rs's config, where calibration-rs reads it, and no
+    /// option the workflow does not take.
+    #[test]
+    fn every_option_a_workflow_takes_reaches_its_config_and_no_other() {
+        let value = |key: &str| match key {
+            "fix_poses" => json!([0]),
+            "robot_rot_sigma_rad" | "robot_trans_sigma_m" | "min_motion_angle_deg" => json!(0.5),
+            _ => json!(true),
+        };
+        for problem in Problem::ALL {
+            let bare = stage("s", problem);
+            let base = patch(&bare, true, true, &SeedValues::default(), 2);
+            crate::calibrate::check_config(problem, &base).unwrap();
+            for key in etendue_scene::FREEDOM_KEYS {
+                let mut s = bare.clone();
+                s.free = serde_json::from_value(json!({ key: value(key) })).unwrap();
+                let with = patch(&s, true, true, &SeedValues::default(), 2);
+                if problem.takes(key) {
+                    assert_ne!(with, base, "{key} does not reach {problem:?}'s config");
+                    crate::calibrate::check_config(problem, &with)
+                        .unwrap_or_else(|e| panic!("{key} on {problem:?}: {e:#}"));
+                } else {
+                    assert_eq!(
+                        with, base,
+                        "{key} changes {problem:?}'s config, which does not take it"
+                    );
+                }
             }
         }
     }
