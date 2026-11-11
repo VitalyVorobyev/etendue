@@ -227,7 +227,13 @@ pub(super) fn residuals(
 
 /// An export as JSON (what a run keeps), with calibration-rs's quality verdict for cameras of
 /// `sizes`.
-pub(super) fn exported<E>(export: &E, sizes: &[[u32; 2]]) -> Result<(Value, Option<Value>)>
+pub(super) fn exported<E>(
+    export: &E,
+    sizes: &[[u32; 2]],
+) -> Result<(
+    Value,
+    Option<vision_calibration_pipeline::analysis::QualityReport>,
+)>
 where
     E: Serialize + vision_calibration_pipeline::common::CalibratedCameras,
 {
@@ -236,8 +242,7 @@ where
         sizes,
         &vision_calibration_pipeline::analysis::QualityThresholds::default(),
     )
-    .ok()
-    .and_then(|q| serde_json::to_value(q).ok());
+    .ok();
     Ok((serde_json::to_value(export)?, quality))
 }
 

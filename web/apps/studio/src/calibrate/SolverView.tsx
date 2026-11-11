@@ -30,7 +30,7 @@ const VERDICT: Record<QualityCheck["status"], { text: string; tone: "normal" | "
 };
 
 /** calibration-rs's check kinds, for people. */
-const CHECK: Record<string, string> = {
+const CHECK: Record<QualityCheck["kind"], string> = {
   observability: "Observability",
   convergence: "Convergence",
   variance_factor: "Noise level",
@@ -38,6 +38,7 @@ const CHECK: Record<string, string> = {
   feature_coverage: "Image coverage",
   view_outliers: "Outlier views",
   parameter_correlation: "Parameter correlation",
+  covariance_linearity: "Covariance linearity",
 };
 
 /** calibration-rs's verdict as a chip. */
@@ -62,7 +63,7 @@ export function verdictCounts(reports: readonly CalibrationReport[]): string {
 
 function Check({ check, cameras }: { check: QualityCheck; cameras: readonly string[] }) {
   const v = VERDICT[check.status];
-  const camera = check.camera !== undefined ? (cameras[check.camera] ?? `camera ${check.camera}`) : null;
+  const camera = check.camera != null ? (cameras[check.camera] ?? `camera ${check.camera}`) : null;
   return (
     <li className="flex flex-col gap-0.5 border-t border-line py-1.5 first:border-t-0" data-status={check.status}>
       <div className="flex flex-wrap items-center gap-2">

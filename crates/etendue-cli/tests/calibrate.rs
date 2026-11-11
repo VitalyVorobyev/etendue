@@ -159,7 +159,22 @@ fn a_dataset_directory_runs_trials_and_keeps_the_run() {
     let _ = std::fs::remove_dir_all(&runs);
     write_run(&runs.join("noisy"), &dir, &options, &run).unwrap();
     std::fs::create_dir_all(runs.join("not-a-run")).unwrap();
-    let kept = read_runs(&runs).unwrap();
+    // A newer etendue's run, and a damaged one: listed with the reason, not dropped.
+    std::fs::create_dir_all(runs.join("future")).unwrap();
+    std::fs::write(runs.join("future/config.json"), r#"{"version": 99}"#).unwrap();
+    std::fs::create_dir_all(runs.join("damaged")).unwrap();
+    std::fs::write(runs.join("damaged/config.json"), "{").unwrap();
+    let listing = read_runs(&runs).unwrap();
+    let why: Vec<(&str, &str)> = listing
+        .unreadable
+        .iter()
+        .map(|u| (u.name.as_str(), u.reason.as_str()))
+        .collect();
+    assert_eq!(why.len(), 2, "{why:?}");
+    assert_eq!(why[0].0, "damaged");
+    assert_eq!(why[1].0, "future");
+    assert!(why[1].1.contains("newer etendue"), "{why:?}");
+    let kept = listing.runs;
     assert_eq!(kept.len(), 1);
     assert_eq!(kept[0].name, "noisy");
     assert_eq!(kept[0].config.options, options);
@@ -180,7 +195,8 @@ fn a_dataset_directory_runs_trials_and_keeps_the_run() {
     )
     .unwrap();
     assert!(result["handeye"]["gripper_se3_rig"].is_object(), "{result}");
-    assert!(read_runs(&runs.join("missing")).unwrap().is_empty());
+    let missing = read_runs(&runs.join("missing")).unwrap();
+    assert!(missing.runs.is_empty() && missing.unreadable.is_empty());
     assert!(
         steps.lock().unwrap().len() >= 4,
         "a step per trial and the end"

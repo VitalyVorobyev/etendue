@@ -1,6 +1,6 @@
 /**
  * DO NOT EDIT: generated from schemas/*.schema.json by `bun run generate:types` (in web/).
- * The source of truth is the `etendue-scene` Rust types.
+ * The source of truth is the Rust types (`etendue-scene`, `etendue-cli::calibrate`).
  */
 
 /**

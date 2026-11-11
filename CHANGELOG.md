@@ -81,6 +81,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   The hand-eye exports now carry their hand-eye as one tagged value (`handeye.mode`), so a run's
   `result.json` has the new shape. What moved in the reports is recorded in
   `docs/measurements/calibration_rs_0_18.md`.
+- **The report and kept-run documents have JSON Schemas** (`schemas/calibration_run.schema.json`,
+  `schemas/kept_runs.schema.json`), and the studio's types for them are generated from those
+  schemas, as the scene documents' are. calibration-rs's quality verdict is typed, so its new
+  `covariance_linearity` check now has a label in the studio.
+- **A kept run that does not read is shown, with the reason** (a newer etendue's run, or a
+  damaged one), instead of disappearing from the studio's list.
 - **One table says which calibration workflow takes which option and seed** (P19e). The
   procedure check, `auto`, the CLI and the studio's procedure editor all read it (wasm
   `procedureRules`), so the editor offers exactly what the check accepts. "Refine intrinsics

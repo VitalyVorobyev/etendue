@@ -168,7 +168,7 @@ export function NoiseFields({
 }
 
 function verdict(row: CalibrationRow, gated: boolean): { text: string; tone: "normal" | "defect" | "warning" } | null {
-  if (row.limit === undefined) return null;
+  if (row.limit == null) return null;
   const within = row.value <= row.limit;
   if (gated) return within ? { text: "PASS", tone: "normal" } : { text: "FAIL", tone: "defect" };
   return within ? null : { text: "outside", tone: "warning" };

@@ -985,8 +985,12 @@ PR, merged when green.
     `seed_kinds`/`for_dataset` are the one table. Validation, `auto`, the studio (wasm
     `procedureRules`, generated types) and a test of the CLI's config routing all read it. It
     found two disagreements: `refine_intrinsics` on `rig_extrinsics` (now allowed: calibration-rs
-    has it) and `refine_rig` routed for the laser rig (no longer). The schemas and the run
-    versioning come next.
+    has it) and `refine_rig` routed for the laser rig (no longer).
+  - **The report schemas and run versioning are done** (second PR): `calibration_run` and
+    `kept_runs` schemas from `etendue-cli::calibrate` (a test writes and checks them, since
+    nothing may depend on the CLI's library); the studio's report types are generated; a run a
+    newer etendue wrote, or a damaged one, is listed with its reason. `gt.json` and
+    `features.json` stay untyped on the studio side: the studio only names their paths.
 - **P19f — Prune and type.** etendue-core modules with no consumer outside the crate (the
   egui-era `analysis`, `solver::scheimpflug`, `scene`, `laser::project`) are removed or kept for a
   named reason; `LibraryItem` becomes an enum (same JSON); gate tooling (`measure`, `corners`)

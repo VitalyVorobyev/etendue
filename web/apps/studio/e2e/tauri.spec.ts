@@ -134,13 +134,14 @@ async function installShell(page: Page): Promise<void> {
             const kept = (w.__calibrations as { dir: string; options: object; keep: string }[]).filter((c) =>
               c.keep.startsWith(`${args.folder as string}/`),
             );
-            return kept
+            const runs = kept
               .map((c) => ({
                 name: c.keep.split("/").at(-1),
                 config: { version: 1, dataset: c.dir, options: c.options },
                 run: w.__calibrationRun,
               }))
               .sort((a, b) => (a.name! < b.name! ? -1 : 1));
+            return { runs, unreadable: [] };
           }
           case "generate_dataset": {
             (w.__requests as unknown[]).push(args.request);

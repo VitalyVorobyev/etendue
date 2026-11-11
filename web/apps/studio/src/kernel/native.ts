@@ -6,18 +6,30 @@
  * `etendue_cli::{progress, gt, render, detect}`.
  */
 
-import type {
-  BankManifest,
-  Iso3Schema,
-  ObservationNoise,
-  ProcedurePart,
-  ProjectManifest,
-  ScenarioSpec,
-  SceneSpec,
-} from "@etendue/wasm";
+import type { BankManifest, ObservationNoise, ProjectManifest, ScenarioSpec, SceneSpec } from "@etendue/wasm";
 import { Channel, invoke } from "@tauri-apps/api/core";
 
 import { normalize } from "../io/tauri";
+import type {
+  Estimate,
+  FeatureResidual,
+  Offsets,
+  ParamStats,
+  Plane,
+  Predicted,
+  QualityCheck,
+  QualityReport,
+  Report,
+  Row,
+  RowStats,
+  Run,
+  RunOptions,
+  KeptRuns,
+  StageSummary,
+  StoredRun,
+  UnreadableRun,
+  Workflow,
+} from "./types/kept-runs";
 
 /** A pipeline step (`etendue_cli::progress::Stage`). */
 export type Stage = "ground_truth" | "render" | "resample" | "detect" | "calibrate";
@@ -138,187 +150,42 @@ export function generateDataset(
 
 export type { ObservationNoise };
 
-/** How a dataset is calibrated (`etendue-cli::calibrate::RunOptions`). */
-export interface CalibrateOptions {
-  noise?: ObservationNoise;
-  trials?: number;
-  camera?: string | null;
-  /** `etendue detect`'s observations instead of the ground truth's. */
-  detected?: boolean;
-  /** The procedure, by value (`RunProcedure`); absent for the choice by the dataset's shape. */
-  procedure?: { id: string; procedure: ProcedurePart } | null;
-}
+/*
+ * The documents `etendue calibrate` writes, as the desktop shell passes them on: generated from
+ * their JSON Schemas (`schemas/kept_runs.schema.json`, from the `etendue-cli::calibrate` types)
+ * by `bun run generate:types`. Named here as the studio reads them.
+ */
 
+/** How a dataset is calibrated (`RunOptions`). */
+export type CalibrateOptions = RunOptions;
 /** One compared quantity: its error against the truth, and the gate's limit if it has one. */
-export interface CalibrationRow {
-  label: string;
-  value: number;
-  limit?: number;
-}
-
-/** The calibration-rs workflow a dataset was solved with (`etendue-cli::calibrate::Workflow`). */
-export type CalibrationWorkflow =
-  | "single_cam_handeye"
-  | "rig_handeye"
-  | "rig_handeye_laserline"
-  | "laserline_device"
-  | "planar_intrinsics"
-  | "rig_extrinsics";
-
-/** A calibration and its comparison with the truth (`etendue-cli::calibrate::Report`). */
-export interface CalibrationReport {
-  version: number;
-  workflow: CalibrationWorkflow;
-  gate: string;
-  /** The gate applies: exact analytic observations. */
-  gated: boolean;
-  pass: boolean;
-  cameras: string[];
-  views: number;
-  points: number;
-  laser_pixels: number;
-  noise: ObservationNoise | null;
-  rows: CalibrationRow[];
-  residuals: {
-    count: number;
-    mean_px: number;
-    rms_axis_px: number;
-    max_px: number;
-    per_camera_mean_px: number[];
-    /** Every target point's residual (the first trial's only, in a run of several). */
-    features?: FeatureResidual[];
-    errors_px: number[];
-  };
-  estimate: CalibrationEstimate;
-  /** calibration-rs's quality verdict on the estimate. */
-  quality?: QualityReport;
-  /** calibration-rs's predicted uncertainty of the estimate. */
-  uncertainty?: PredictedUncertainty;
-  /** The procedure that ran: a built-in's id or a library item's. */
-  procedure?: string;
-  /** What each stage gave, in order (the last is the report's own). */
-  stages?: StageSummary[];
-}
-
-/** One target point's reprojection residual (`etendue-cli::calibrate::FeatureResidual`). */
-export interface FeatureResidual {
-  capture: string;
-  camera: string;
-  /** The point's index in the ground truth's target. */
-  point: number;
-  observed_px: [number, number];
-  /** Where the estimate projects it. */
-  projected_px: [number, number];
-}
-
-/** calibration-rs's predicted σ of each parameter (`etendue-cli::calibrate::Predicted`). */
-export interface PredictedUncertainty {
-  /** calibration-rs's labels (`cam0.fx`, `gripper_se3_rig.rx`, …), `camN` being the report's `cameras[N]`. */
-  labels: string[];
-  /** In calibration-rs's units: px, radians, metres. */
-  sigma: number[];
-  /** Parameters held fixed (the σ are conditional on them). */
-  fixed: string[];
-  /** The reprojection noise σ the residuals imply (px). */
-  noise_px: number | null;
-}
-
+export type CalibrationRow = Row;
+/** The calibration-rs workflow a dataset was solved with. */
+export type CalibrationWorkflow = Workflow;
+/** A calibration and its comparison with the truth. */
+export type CalibrationReport = Report;
+/** calibration-rs's predicted σ of each parameter. */
+export type PredictedUncertainty = Predicted;
 /** A judgment of calibration-rs's quality report. */
-export type QualityVerdict = "pass" | "warn" | "fail";
-
-/** One check of calibration-rs's `QualityReport`. */
-export interface QualityCheck {
-  kind: string;
-  /** The camera (an index into the report's `cameras`) for a per-camera check. */
-  camera?: number;
-  status: QualityVerdict | "not_applicable";
-  measurement?: { value: number; threshold: number; unit: string };
-  subjects?: string[];
-  message: string;
-}
-
-/** calibration-rs's verdict on a result and the checks behind it (`analysis::QualityReport`). */
-export interface QualityReport {
-  verdict: QualityVerdict;
-  checks: QualityCheck[];
-}
-
-/** One stage of a procedure's run (`etendue-cli::calibrate::StageSummary`). */
-export interface StageSummary {
-  id: string;
-  workflow: CalibrationWorkflow;
-  cameras: string[];
-  views: number;
-  points: number;
-  mean_reproj_px: number;
-}
-
-/** One estimated parameter over trials (`etendue-cli::calibrate::ParamStats`). */
-export interface ParamStats {
-  /** `cam_left fx`, `hand-eye tx`, … */
-  label: string;
-  /** `px`, `deg`, `mm`, or empty (distortion coefficients). */
-  unit: string;
-  truth: number;
-  mean: number;
-  /** Sample standard deviation over the trials. */
-  std: number;
-  /** `mean − truth`. */
-  bias: number;
-  rmse: number;
-  /** calibration-rs's σ for it, the mean over the trials that have one. */
-  predicted_sigma?: number;
-  trials: number;
-}
-
-/** A plane `n·p + d = 0`. */
-export interface Plane {
-  normal: [number, number, number];
-  distance: number;
-}
-
-/** What a calibration found (`etendue-cli::calibrate::Estimate`). */
-export interface CalibrationEstimate {
-  cameras: {
-    id: string;
-    /** `[fx, fy, cx, cy]`. */
-    intrinsics: [number, number, number, number];
-    distortion: number[];
-    tilt: [number, number];
-    cam_se3_ref: Iso3Schema;
-  }[];
-  handeye: Iso3Schema | null;
-  laser_planes: (Plane | null)[];
-  /** The estimate in the truth's frames; `null` without a hand-eye or a target pose. */
-  offsets: CalibrationOffsets | null;
-}
-
-/** Where the estimate is relative to the truth (`etendue-cli::calibrate::Offsets`). */
-export interface CalibrationOffsets {
-  /** Per calibrated camera (the report's `cameras`): the estimated camera in the true camera's frame. */
-  cameras: Iso3Schema[];
-  /** The estimated target in the true target's frame. */
-  target: Iso3Schema;
-  /** Per calibrated camera, its laser plane: true, then estimated, in the true camera's frame. */
-  planes: ([Plane, Plane] | null)[];
-}
-
-/** A row's spread over trials. */
-export interface RowStats {
-  label: string;
-  mean: number;
-  std: number;
-  max: number;
-  limit?: number;
-}
-
-/** What a calibration run found (`etendue-cli::calibrate::Run`). */
-export interface CalibrationRun {
-  reports: CalibrationReport[];
-  row_stats?: RowStats[];
-  /** With several trials, each estimated parameter's spread. */
-  param_stats?: ParamStats[];
-}
+export type QualityVerdict = QualityReport["verdict"];
+/** What a calibration found. */
+export type CalibrationEstimate = Estimate;
+/** Where the estimate is relative to the truth. */
+export type CalibrationOffsets = Offsets;
+/** What a calibration run found. */
+export type CalibrationRun = Run;
+export type {
+  FeatureResidual,
+  KeptRuns,
+  ParamStats,
+  Plane,
+  QualityCheck,
+  QualityReport,
+  RowStats,
+  StageSummary,
+  StoredRun,
+  UnreadableRun,
+};
 
 export type CalibrationOutcome =
   | ({ kind: "ok" } & CalibrationRun)
@@ -338,17 +205,9 @@ export function calibrateDataset(
   return invoke<CalibrationOutcome>("calibrate_dataset", { runId, dir, options, keep, onProgress: channel });
 }
 
-/** A calibration run kept in a folder (`etendue-cli::calibrate::StoredRun`). */
-export interface StoredRun {
-  /** Its folder's name. */
-  name: string;
-  config: { version: number; dataset: string; options: CalibrateOptions };
-  run: CalibrationRun;
-}
-
-/** The runs kept in `folder`, one subfolder each, by name. */
-export function calibrationRuns(folder: string): Promise<StoredRun[]> {
-  return invoke<StoredRun[]>("calibration_runs", { folder });
+/** The runs kept in `folder`, one subfolder each, by name, and those that do not read, with why. */
+export function calibrationRuns(folder: string): Promise<KeptRuns> {
+  return invoke<KeptRuns>("calibration_runs", { folder });
 }
 
 /** Ask run `runId` to stop; `true` if it was still running. */

@@ -20,9 +20,10 @@ export function formatValue(v: number | undefined): string {
 }
 
 function Ratio({ stat }: { stat: ParamStats }) {
-  const agreement = sigmaAgreement(stat.std, stat.predicted_sigma);
-  if (agreement === null || stat.predicted_sigma === undefined) return <span className="text-fg-muted">—</span>;
-  const ratio = (stat.std / stat.predicted_sigma).toFixed(2);
+  const sigma = stat.predicted_sigma ?? undefined;
+  const agreement = sigmaAgreement(stat.std, sigma);
+  if (agreement === null || sigma === undefined) return <span className="text-fg-muted">—</span>;
+  const ratio = (stat.std / sigma).toFixed(2);
   return agreement === "ok" ? (
     <span data-agreement="ok">{ratio}</span>
   ) : (
@@ -41,7 +42,7 @@ function Ratio({ stat }: { stat: ParamStats }) {
 }
 
 function ParamHistogram({ stat, values }: { stat: ParamStats; values: number[] }) {
-  const sigma = stat.predicted_sigma;
+  const sigma = stat.predicted_sigma ?? undefined;
   const band = sigma !== undefined ? [stat.truth - sigma, stat.truth + sigma] : [];
   const bins = binValues(values, Math.max(5, Math.min(24, 2 * Math.ceil(Math.sqrt(values.length)))), [
     stat.truth,
@@ -113,7 +114,7 @@ export function ParamStatsView({ stats, reports }: { stats: ParamStats[]; report
               key: "sigma",
               header: "Predicted σ",
               numeric: true,
-              cell: (s: ParamStats) => formatValue(s.predicted_sigma),
+              cell: (s: ParamStats) => formatValue(s.predicted_sigma ?? undefined),
             },
             {
               key: "ratio",

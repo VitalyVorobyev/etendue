@@ -28,6 +28,7 @@ use crate::dataset::GroundTruth;
 
 /// The noise of synthesised observations. Every field defaults to zero: exact observations.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 #[serde(default, deny_unknown_fields)]
 pub struct ObservationNoise {
     /// Target-point pixel noise, per axis (px).
