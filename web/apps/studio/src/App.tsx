@@ -13,9 +13,8 @@ import { Box, ChevronDown, ChevronUp, Minimize2, Pin } from "lucide-react";
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import library, { type LibraryRobot } from "virtual:etendue-robots";
 
-import { exportFile, jsonText } from "./io/export";
 import { type Cell, defaultOf, itemsOf } from "./io/project";
-import { fileUrl, isTauri, parentDir } from "./io/tauri";
+import { fileUrl, isTauri } from "./io/tauri";
 import { describeFailure } from "./kernel/etendue";
 import { type Bodies, type PoseOverride, bodyPoses, posed } from "./kernel/posed";
 import type { GeneratedPoses } from "@etendue/wasm";
@@ -36,7 +35,8 @@ import { CALIBRATE_FORM, type CalibrateForm, CalibratePanel, noiseOf } from "./p
 import { CameraView } from "./panels/CameraView";
 import { DatasetPanel } from "./panels/DatasetPanel";
 import { GeneratorPanel } from "./panels/GeneratorPanel";
-import { type ExportItem, Header, type Mode } from "./panels/Header";
+import { exportsOf } from "./panels/exports";
+import { Header, type Mode } from "./panels/Header";
 import { Inspector } from "./panels/Inspector";
 import { JointChart, type JointQuantity } from "./panels/JointChart";
 import { Navigator } from "./panels/Navigator";
@@ -62,6 +62,7 @@ import type { ViewChoice } from "./calibrate/ResidualViews";
 import { useResiduals } from "./calibrate/useResiduals";
 import { DatasetRunner } from "./state/datasetRun";
 import { useUnsavedGuard } from "./state/guard";
+import { useEditShortcuts } from "./state/shortcuts";
 import { Studio, initialExample, useStudio } from "./state/studio";
 
 /** A value that belongs to one opened document: it resets when another one opens. */
@@ -89,12 +90,6 @@ function storedMode(modes: Mode[]): Mode {
 
 /** The workspaces that show the open cell, where Undo, Redo and Save act on it. */
 const SCENE_MODES: readonly Mode[] = ["setup", "motion", "images", "dataset"];
-
-/** Whether a key event belongs to a text field (which has its own undo). */
-function inField(e: KeyboardEvent): boolean {
-  const t = e.target as HTMLElement | null;
-  return t !== null && (t.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName));
-}
 
 export function App() {
   const [studio] = useState(() => new Studio(createPlayhead(1, 0.01)));
@@ -226,25 +221,9 @@ export function App() {
 
   useUnsavedGuard(studio);
 
-  // Undo, redo and save from the keyboard, except inside a text field, and only where the cell
-  // is shown: elsewhere they would change or save something out of sight.
+  // Undo, redo and save act only where the cell is shown.
   const sceneShown = SCENE_MODES.includes(mode);
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (!(e.metaKey || e.ctrlKey) || e.altKey) return;
-      const key = e.key.toLowerCase();
-      if (key === "s") {
-        e.preventDefault();
-        if (sceneShown) void studio.save(e.shiftKey);
-      } else if ((key === "z" || key === "y") && !inField(e) && sceneShown) {
-        e.preventDefault();
-        if (key === "y" || e.shiftKey) studio.redo();
-        else studio.undo();
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [studio, sceneShown]);
+  useEditShortcuts(studio, sceneShown);
 
   const tree = useMemo(() => (current ? sceneTree(current.loaded.scene, current.baked) : null), [current]);
   const markers = useMemo<PlaybackMarker[]>(
@@ -351,61 +330,8 @@ export function App() {
       );
   };
 
-  const exportDir = current?.loaded.origin ? parentDir(current.loaded.origin) : null;
   const scenario = current?.loaded.scenario ?? null;
-  // An export computed by the kernel; a failure (a scenario that does not compile) is shown.
-  const exporting = (title: string, name: string, type: string, text: () => string) => () => {
-    let body: string;
-    try {
-      body = text();
-    } catch (e) {
-      const failure = describeFailure(e);
-      toast({ title: `Could not export: ${failure.title}`, description: failure.message, tone: "error" });
-      return;
-    }
-    void exportFile(title, { name, text: body, type }, exportDir);
-  };
-  const exports: ExportItem[] =
-    current && scenario
-      ? [
-          ...(shownRobot
-            ? [
-                {
-                  label: `Captures of ${shownRobot} (CSV)…`,
-                  run: exporting("Export the capture poses", "captures.csv", "text/csv", () =>
-                    current.session.exportCaptures(scenario, shownRobot, "csv"),
-                  ),
-                },
-                {
-                  label: `Captures of ${shownRobot} (JSON)…`,
-                  run: exporting("Export the capture poses", "captures.json", "application/json", () =>
-                    current.session.exportCaptures(scenario, shownRobot, "json"),
-                  ),
-                },
-                {
-                  label: `Trajectory of ${shownRobot} (CSV)…`,
-                  run: exporting("Export the joint trajectory", "trajectory.csv", "text/csv", () =>
-                    current.session.exportTrajectory(scenario, shownRobot),
-                  ),
-                },
-                {
-                  label: "Motion report (JSON)…",
-                  run: exporting("Export the motion report", "motion_report.json", "application/json", () =>
-                    jsonText(current.session.motionReport(scenario)),
-                  ),
-                },
-              ]
-            : []),
-          {
-            label: "Scenario (JSON)…",
-            run: exporting("Export the scenario", "scenario.json", "application/json", () => jsonText(scenario)),
-          },
-          {
-            label: "Baked motion (JSON)…",
-            run: exporting("Export the baked motion", "baked.json", "application/json", () => jsonText(current.baked)),
-          },
-        ]
-      : [];
+  const exports = useMemo(() => exportsOf(current, shownRobot), [current, shownRobot]);
   // The motion report, for the Motion workspace (computed when it shows).
   const report = useMemo(() => {
     if (mode !== "motion" || !current?.loaded.scenario) return null;
