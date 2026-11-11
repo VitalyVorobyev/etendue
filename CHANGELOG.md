@@ -81,6 +81,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   The hand-eye exports now carry their hand-eye as one tagged value (`handeye.mode`), so a run's
   `result.json` has the new shape. What moved in the reports is recorded in
   `docs/measurements/calibration_rs_0_18.md`.
+- **One table says which calibration workflow takes which option and seed** (P19e). The
+  procedure check, `auto`, the CLI and the studio's procedure editor all read it (wasm
+  `procedureRules`), so the editor offers exactly what the check accepts. "Refine intrinsics
+  with the rig" is now offered and accepted on a rig-extrinsics stage, where calibration-rs has
+  it. A procedure whose stage options calibration-rs would not read is refused before it runs.
 - **calibration-rs's results are read through its own types.** `etendue calibrate` no longer
   reads the workflows' exports as untyped JSON with silent defaults: a field calibration-rs
   renames is a compile error. A config, seed or input key that calibration-rs does not read is now

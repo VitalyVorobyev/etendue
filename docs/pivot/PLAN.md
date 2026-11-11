@@ -981,6 +981,12 @@ PR, merged when green.
     them, as for the scene documents;
   - version checks and a migration path for stored runs, which today vanish silently when they do
     not parse.
+  - **The procedure rules are done** (one PR): `etendue-scene::Problem::takes`/`seed_slots`/
+    `seed_kinds`/`for_dataset` are the one table. Validation, `auto`, the studio (wasm
+    `procedureRules`, generated types) and a test of the CLI's config routing all read it. It
+    found two disagreements: `refine_intrinsics` on `rig_extrinsics` (now allowed: calibration-rs
+    has it) and `refine_rig` routed for the laser rig (no longer). The schemas and the run
+    versioning come next.
 - **P19f — Prune and type.** etendue-core modules with no consumer outside the crate (the
   egui-era `analysis`, `solver::scheimpflug`, `scene`, `laser::project`) are removed or kept for a
   named reason; `LibraryItem` becomes an enum (same JSON); gate tooling (`measure`, `corners`)
