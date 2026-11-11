@@ -11,7 +11,7 @@ import { useState } from "react";
 
 import { idProblem } from "../io/project";
 import { ProcedureEditor } from "./ProcedureEditor";
-import { type Problem, addStage, procedureIssues } from "./procedure";
+import { addStage, problemForDataset, procedureIssues } from "./procedure";
 
 /** The choice: a library reference (`null` for the choice by shape) and, once edited, the draft. */
 export interface ProcedureState {
@@ -36,12 +36,6 @@ export function procedureProblem(state: ProcedureState): string | null {
   if (!state.draft) return null;
   const issues = procedureIssues(state.draft, validateLibraryItem);
   return issues.length > 0 ? "The edited procedure does not check" : null;
-}
-
-/** A first stage for a dataset of this shape, to start editing from the choice by shape. */
-function firstStage(cameras: number, lasers: boolean): Problem {
-  if (lasers) return cameras > 1 ? "rig_handeye_laserline" : "laserline_device";
-  return cameras > 1 ? "rig_handeye" : "single_cam_handeye";
 }
 
 export function ProcedureChoice({
@@ -72,7 +66,7 @@ export function ProcedureChoice({
   const startEditing = () =>
     onChange({
       ...state,
-      draft: structuredClone(item?.procedure ?? addStage({ stages: [] }, firstStage(cameras.length, lasers))),
+      draft: structuredClone(item?.procedure ?? addStage({ stages: [] }, problemForDataset(cameras.length, lasers))),
     });
   const idIssue = idProblem(saveId, "procedures", procedures);
   const issues = state.draft ? procedureIssues(state.draft, validateLibraryItem) : [];

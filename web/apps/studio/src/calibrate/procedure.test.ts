@@ -1,13 +1,14 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-import { type ProcedurePart, initSync, validateLibraryItem } from "@etendue/wasm";
+import { type ProcedurePart, initSync, procedureRules, validateLibraryItem } from "@etendue/wasm";
 import { beforeAll, describe, expect, it } from "vitest";
 
 import {
   FREEDOMS,
   addStage,
   moveStage,
+  problemForDataset,
   procedureIssues,
   removeStage,
   renameStage,
@@ -107,6 +108,13 @@ describe("procedures", () => {
     expect(seedSlots("planar_intrinsics", false)).toEqual(["intrinsics"]);
     expect(seedOf(seedValue({ stage: "a" }))).toEqual({ stage: "a" });
     expect(seedOf("")).toBeUndefined();
+  });
+
+  it("labels every option the kernel knows, and no other", () => {
+    const known = new Set(procedureRules().problems.flatMap((p) => p.freedoms));
+    expect(new Set(FREEDOMS.map((f) => f.key))).toEqual(known);
+    expect(problemForDataset(1, false)).toBe("single_cam_handeye");
+    expect(problemForDataset(3, true)).toBe("rig_handeye_laserline");
   });
 
   it("reports a seed that points forward after a move", () => {

@@ -39,7 +39,7 @@ pub use runs::{
 };
 pub use stats::{ParamStats, RowStats, param_stats, row_stats};
 pub(crate) use truth::{Truth, distortion_of, nominal_values, tilt_of};
-pub(crate) use upstream::{SeedValues, StageRun, handeye_mode};
+pub(crate) use upstream::{SeedValues, StageRun, check_config, handeye_mode};
 pub(crate) use workflows::{head, intrinsics, single};
 
 use anyhow::Result;

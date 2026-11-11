@@ -17,6 +17,10 @@
 //! resolves and reads them and passes the contents in as [`RobotSource`]s;
 //! this crate does no I/O.
 
+mod library;
+
+pub use library::{procedure_rules_js, validate_library_item};
+
 use std::collections::BTreeMap;
 use std::fmt;
 
@@ -128,7 +132,7 @@ impl From<etendue_kinematics::Error> for Error {
 /// Result alias for this crate.
 pub type Result<T> = std::result::Result<T, Error>;
 
-fn parse<T: serde::de::DeserializeOwned>(what: &'static str, json: &str) -> Result<T> {
+pub(crate) fn parse<T: serde::de::DeserializeOwned>(what: &'static str, json: &str) -> Result<T> {
     serde_json::from_str(json).map_err(|e| Error::Parse {
         what,
         message: e.to_string(),
@@ -900,7 +904,7 @@ pub fn iso3_from_wire(wire: &[f64]) -> Result<Isometry3<f64>> {
 
 /// Turn an [`Error`] into a JS `Error` carrying `kind` and, for
 /// [`Error::Invalid`], `issues: {path, message}[]`.
-fn js_error(e: &Error) -> JsValue {
+pub(crate) fn js_error(e: &Error) -> JsValue {
     let err = js_sys::Error::new(&e.to_string());
     let obj: &JsValue = err.as_ref();
     // Setting a property on a fresh `Error` object cannot fail.
@@ -929,55 +933,6 @@ fn js_error(e: &Error) -> JsValue {
 pub fn expand_rig_js(layout_json: &str, rig: &str) -> std::result::Result<String, JsValue> {
     let expanded = expand_rig(layout_json, rig).map_err(|e| js_error(&e))?;
     serde_json::to_string(&expanded).map_err(|e| js_error(&Error::Input(e.to_string())))
-}
-
-/// A library item (ADR 0008 §5) parsed and checked: its version first, then its fields, its single
-/// part, and, for a camera design with optics, its params against what the optics give.
-///
-/// # Errors
-///
-/// [`Error::Invalid`] with every problem found.
-pub fn validate_library_item(text: &str) -> Result<etendue_scene::LibraryItem> {
-    let version: etendue_scene::Versioned = parse("library item", text)?;
-    etendue_scene::LibraryItem::check_version(version.version)
-        .map_err(|e| Error::invalid("library item", e))?;
-    let item: etendue_scene::LibraryItem = parse("library item", text)?;
-    let mut issues = item.validate().err().map(|e| e.issues).unwrap_or_default();
-    if let Some(c) = &item.camera
-        && let Some(o) = &c.optics
-    {
-        issues.extend(etendue_core::from_scene::check_derived(
-            o, &c.params, "camera",
-        ));
-    }
-    if issues.is_empty() {
-        Ok(item)
-    } else {
-        Err(Error::invalid("library item", ValidationError { issues }))
-    }
-}
-
-/// A library item, checked, as JSON text. See [`validate_library_item`].
-///
-/// # Errors
-///
-/// Throws an `Error` with `kind` (and `issues` for validation errors).
-#[wasm_bindgen(js_name = validateLibraryItem)]
-pub fn validate_library_item_js(text: &str) -> std::result::Result<String, JsValue> {
-    let item = validate_library_item(text).map_err(|e| js_error(&e))?;
-    serde_json::to_string(&item).map_err(|e| js_error(&Error::Input(e.to_string())))
-}
-
-/// A library item's content hash ([`etendue_core::library::content_hash`], ADR 0010): what a
-/// project's copy records of its source, to tell later whether the source changed.
-///
-/// # Errors
-///
-/// Throws as [`validate_library_item_js`] for an item that does not check.
-#[wasm_bindgen(js_name = libraryItemHash)]
-pub fn library_item_hash_js(text: &str) -> std::result::Result<String, JsValue> {
-    let item = validate_library_item(text).map_err(|e| js_error(&e))?;
-    Ok(etendue_core::library::content_hash(&item))
 }
 
 /// A head and, if given, a window (the design's own otherwise), from JSON.

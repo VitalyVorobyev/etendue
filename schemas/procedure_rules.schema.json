@@ -1,0 +1,166 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ProcedureRules",
+  "description": "The rules of procedures, as one document: what an editor needs to offer only what a stage\ntakes ([`rules`]).",
+  "type": "object",
+  "properties": {
+    "by_shape": {
+      "description": "The workflow that calibrates a dataset of each shape in one stage\n([`Problem::for_dataset`]).",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ShapeRule"
+      }
+    },
+    "problems": {
+      "description": "Per workflow, in [`Problem::ALL`]'s order.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ProblemRules"
+      }
+    },
+    "seed_kinds": {
+      "description": "Per seed slot, the kinds of seed it takes (`nominal`, `truth`, `stage`).",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/SeedSlotRules"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "problems",
+    "seed_kinds",
+    "by_shape"
+  ],
+  "$defs": {
+    "Problem": {
+      "description": "A calibration-rs workflow (`vision-calibration-pipeline`'s problem modules).",
+      "oneOf": [
+        {
+          "description": "One camera's intrinsics from planar views, no robot.",
+          "type": "string",
+          "const": "planar_intrinsics"
+        },
+        {
+          "description": "A rig's cameras and extrinsics from planar views, no robot.",
+          "type": "string",
+          "const": "rig_extrinsics"
+        },
+        {
+          "description": "One camera and its hand-eye.",
+          "type": "string",
+          "const": "single_cam_handeye"
+        },
+        {
+          "description": "A rig and its hand-eye.",
+          "type": "string",
+          "const": "rig_handeye"
+        },
+        {
+          "description": "One camera with its laser (a triangulation head): intrinsics, sensor tilt, plane; the\nhand-eye solved on the same views.",
+          "type": "string",
+          "const": "laserline_device"
+        },
+        {
+          "description": "A rig with lasers and its hand-eye, jointly.",
+          "type": "string",
+          "const": "rig_handeye_laserline"
+        }
+      ]
+    },
+    "ProblemRules": {
+      "description": "One workflow's rules.",
+      "type": "object",
+      "properties": {
+        "freedoms": {
+          "description": "The options ([`Freedoms`] fields) it takes.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "handeye": {
+          "description": "Solves a hand-eye (needs robot poses).",
+          "type": "boolean"
+        },
+        "laser": {
+          "description": "Needs lasers.",
+          "type": "boolean"
+        },
+        "problem": {
+          "$ref": "#/$defs/Problem"
+        },
+        "rig": {
+          "description": "Calibrates several cameras at once.",
+          "type": "boolean"
+        },
+        "seed_slots": {
+          "description": "Its seed slots for an untilted camera model, and for a tilted one.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "seed_slots_tilted": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "problem",
+        "rig",
+        "handeye",
+        "laser",
+        "freedoms",
+        "seed_slots",
+        "seed_slots_tilted"
+      ]
+    },
+    "SeedSlotRules": {
+      "description": "One seed slot's kinds.",
+      "type": "object",
+      "properties": {
+        "kinds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "slot": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "slot",
+        "kinds"
+      ]
+    },
+    "ShapeRule": {
+      "description": "The one-stage workflow of a dataset's shape.",
+      "type": "object",
+      "properties": {
+        "lasers": {
+          "description": "With lasers.",
+          "type": "boolean"
+        },
+        "problem": {
+          "$ref": "#/$defs/Problem"
+        },
+        "rig": {
+          "description": "More than one camera.",
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "rig",
+        "lasers",
+        "problem"
+      ]
+    }
+  }
+}

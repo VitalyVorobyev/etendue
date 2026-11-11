@@ -68,8 +68,9 @@ pub use light::{LightShape, LightSpec};
 pub use optics::{Focusing, LensOptics, OpticsSpec, SensorOptics};
 pub use printed::{CharucoLayout, MarkerCircle, Polarity, PrintedTarget};
 pub use procedure::{
-    CameraChoice, FixLists, Freedoms, Loss, Problem, ProcedurePart, Seed, Seeds, SensorChoice,
-    SolverChoice, Stage,
+    CameraChoice, FREEDOM_KEYS, FixLists, Freedoms, Loss, Problem, ProblemRules, ProcedurePart,
+    ProcedureRules, SEED_SLOTS, Seed, SeedSlotRules, Seeds, SensorChoice, ShapeRule, SolverChoice,
+    Stage, rules as procedure_rules, seed_kinds,
 };
 pub use project::{
     PROJECT_FILE, PROJECT_VERSION, ProjectDefaults, ProjectManifest, is_project_path, library_file,

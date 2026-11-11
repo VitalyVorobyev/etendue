@@ -59,6 +59,181 @@ impl Problem {
     pub fn laser(self) -> bool {
         matches!(self, Self::LaserlineDevice | Self::RigHandeyeLaserline)
     }
+
+    /// Every workflow, in the order a procedure usually runs them.
+    pub const ALL: [Self; 6] = [
+        Self::PlanarIntrinsics,
+        Self::RigExtrinsics,
+        Self::SingleCamHandeye,
+        Self::RigHandeye,
+        Self::LaserlineDevice,
+        Self::RigHandeyeLaserline,
+    ];
+
+    /// Whether a stage of this workflow takes the option `key` (a [`FREEDOM_KEYS`] name). The one
+    /// statement of which option applies where: validation, the CLI and the studio all read it.
+    #[must_use]
+    pub fn takes(self, key: &str) -> bool {
+        let robot_prior = self.handeye() && self != Self::LaserlineDevice;
+        match key {
+            "refine_intrinsics" | "refine_sensor" => self.rig(),
+            "refine_rig" => self == Self::RigHandeye,
+            "refine_robot_poses"
+            | "robot_rot_sigma_rad"
+            | "robot_trans_sigma_m"
+            | "min_motion_angle_deg" => robot_prior,
+            "fix_handeye" | "fix_target" => self == Self::RigHandeyeLaserline,
+            "fix_plane" => self == Self::LaserlineDevice,
+            "fix_poses" => matches!(self, Self::PlanarIntrinsics | Self::LaserlineDevice),
+            _ => false,
+        }
+    }
+
+    /// The seed slots ([`SEED_SLOTS`] names) a stage of this workflow has; `sensor` only where the
+    /// stage calibrates a tilt.
+    #[must_use]
+    pub fn seed_slots(self, tilted: bool) -> Vec<&'static str> {
+        SEED_SLOTS
+            .into_iter()
+            .filter(|slot| match *slot {
+                "sensor" => tilted,
+                "rig" => self.rig(),
+                "handeye" => self.handeye(),
+                _ => true,
+            })
+            .collect()
+    }
+
+    /// The workflow that calibrates a dataset of `cameras` cameras, with or without lasers, in
+    /// one stage: `auto`'s choice by the dataset's shape.
+    #[must_use]
+    pub fn for_dataset(cameras: usize, lasers: bool) -> Self {
+        match (cameras > 1, lasers) {
+            (false, false) => Self::SingleCamHandeye,
+            (true, false) => Self::RigHandeye,
+            (false, true) => Self::LaserlineDevice,
+            (true, true) => Self::RigHandeyeLaserline,
+        }
+    }
+}
+
+/// A stage's options ([`Freedoms`] fields), by their document names, in their order.
+pub const FREEDOM_KEYS: [&str; 11] = [
+    "refine_intrinsics",
+    "refine_sensor",
+    "refine_rig",
+    "refine_robot_poses",
+    "robot_rot_sigma_rad",
+    "robot_trans_sigma_m",
+    "min_motion_angle_deg",
+    "fix_handeye",
+    "fix_target",
+    "fix_plane",
+    "fix_poses",
+];
+
+/// A stage's seed slots ([`Seeds`] fields), by their document names, in their order.
+pub const SEED_SLOTS: [&str; 4] = ["intrinsics", "sensor", "rig", "handeye"];
+
+/// The kinds of [`Seed`] slot `slot` takes (`nominal`, `truth`, `stage`): a rig only from an
+/// earlier stage, since calibration-rs takes the target's pose per view with it.
+#[must_use]
+pub fn seed_kinds(slot: &str) -> &'static [&'static str] {
+    if slot == "rig" {
+        &["stage"]
+    } else {
+        &["nominal", "truth", "stage"]
+    }
+}
+
+/// The rules of procedures, as one document: what an editor needs to offer only what a stage
+/// takes ([`rules`]).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
+#[serde(deny_unknown_fields)]
+pub struct ProcedureRules {
+    /// Per workflow, in [`Problem::ALL`]'s order.
+    pub problems: Vec<ProblemRules>,
+    /// Per seed slot, the kinds of seed it takes (`nominal`, `truth`, `stage`).
+    pub seed_kinds: Vec<SeedSlotRules>,
+    /// The workflow that calibrates a dataset of each shape in one stage
+    /// ([`Problem::for_dataset`]).
+    pub by_shape: Vec<ShapeRule>,
+}
+
+/// The one-stage workflow of a dataset's shape.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
+#[serde(deny_unknown_fields)]
+pub struct ShapeRule {
+    /// More than one camera.
+    pub rig: bool,
+    /// With lasers.
+    pub lasers: bool,
+    pub problem: Problem,
+}
+
+/// One workflow's rules.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
+#[serde(deny_unknown_fields)]
+pub struct ProblemRules {
+    pub problem: Problem,
+    /// Calibrates several cameras at once.
+    pub rig: bool,
+    /// Solves a hand-eye (needs robot poses).
+    pub handeye: bool,
+    /// Needs lasers.
+    pub laser: bool,
+    /// The options ([`Freedoms`] fields) it takes.
+    pub freedoms: Vec<String>,
+    /// Its seed slots for an untilted camera model, and for a tilted one.
+    pub seed_slots: Vec<String>,
+    pub seed_slots_tilted: Vec<String>,
+}
+
+/// One seed slot's kinds.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
+#[serde(deny_unknown_fields)]
+pub struct SeedSlotRules {
+    pub slot: String,
+    pub kinds: Vec<String>,
+}
+
+/// The rules of procedures ([`ProcedureRules`]).
+#[must_use]
+pub fn rules() -> ProcedureRules {
+    let names = |v: Vec<&str>| v.into_iter().map(str::to_owned).collect();
+    ProcedureRules {
+        problems: Problem::ALL
+            .into_iter()
+            .map(|p| ProblemRules {
+                problem: p,
+                rig: p.rig(),
+                handeye: p.handeye(),
+                laser: p.laser(),
+                freedoms: names(FREEDOM_KEYS.into_iter().filter(|k| p.takes(k)).collect()),
+                seed_slots: names(p.seed_slots(false)),
+                seed_slots_tilted: names(p.seed_slots(true)),
+            })
+            .collect(),
+        seed_kinds: SEED_SLOTS
+            .into_iter()
+            .map(|slot| SeedSlotRules {
+                slot: slot.to_owned(),
+                kinds: names(seed_kinds(slot).to_vec()),
+            })
+            .collect(),
+        by_shape: [(false, false), (true, false), (false, true), (true, true)]
+            .into_iter()
+            .map(|(rig, lasers)| ShapeRule {
+                rig,
+                lasers,
+                problem: Problem::for_dataset(if rig { 2 } else { 1 }, lasers),
+            })
+            .collect(),
+    }
 }
 
 /// The sensor model a stage calibrates.
@@ -157,6 +332,29 @@ pub struct Freedoms {
 impl Freedoms {
     fn is_default(&self) -> bool {
         *self == Self::default()
+    }
+
+    /// The options set, by their [`FREEDOM_KEYS`] names, in that order.
+    #[must_use]
+    pub fn set(&self) -> Vec<&'static str> {
+        let set = [
+            self.refine_intrinsics.is_some(),
+            self.refine_sensor.is_some(),
+            self.refine_rig.is_some(),
+            self.refine_robot_poses.is_some(),
+            self.robot_rot_sigma_rad.is_some(),
+            self.robot_trans_sigma_m.is_some(),
+            self.min_motion_angle_deg.is_some(),
+            self.fix_handeye.is_some(),
+            self.fix_target.is_some(),
+            self.fix_plane.is_some(),
+            self.fix_poses.is_some(),
+        ];
+        FREEDOM_KEYS
+            .into_iter()
+            .zip(set)
+            .filter_map(|(k, s)| s.then_some(k))
+            .collect()
     }
 }
 
@@ -318,92 +516,40 @@ impl ProcedurePart {
                     "a rig stage calibrates every camera",
                 );
             }
+            let slots = s.problem.seed_slots(true);
             for (key, seed) in s.seed.all() {
+                let at = format!("{at}.seed.{key}");
                 if let Seed::Stage(id) = seed
                     && !seen.contains(&id.as_str())
                 {
+                    issues.push(at.clone(), format!("`{id}` is not an earlier stage"));
+                }
+                let kind = match seed {
+                    Seed::Nominal => "nominal",
+                    Seed::Truth => "truth",
+                    Seed::Stage(_) => "stage",
+                };
+                if !slots.contains(&key) {
                     issues.push(
-                        format!("{at}.seed.{key}"),
-                        format!("`{id}` is not an earlier stage"),
+                        at,
+                        format!("`{}` has no {key} to seed", problem_name(s.problem)),
+                    );
+                } else if !seed_kinds(key).contains(&kind) {
+                    issues.push(
+                        at,
+                        "a rig seeds only from an earlier stage (its per-view target poses come with it)",
                     );
                 }
             }
-            if !s.problem.rig() && s.seed.rig.is_some() {
-                issues.push(format!("{at}.seed.rig"), "only a rig stage has a rig");
-            }
-            if matches!(s.seed.rig, Some(Seed::Nominal | Seed::Truth)) {
-                issues.push(
-                    format!("{at}.seed.rig"),
-                    "a rig seeds only from an earlier stage (its per-view target poses come with it)",
-                );
-            }
-            if !s.problem.handeye() && s.seed.handeye.is_some() {
-                issues.push(
-                    format!("{at}.seed.handeye"),
-                    "this workflow has no hand-eye",
-                );
-            }
-            let f = &s.free;
-            let only = |set: bool, ok: bool, name: &str, issues: &mut Issues| {
-                if set && !ok {
+            for key in s.free.set() {
+                if !s.problem.takes(key) {
                     issues.push(
-                        format!("{at}.free.{name}"),
+                        format!("{at}.free.{key}"),
                         format!("does not apply to `{}`", problem_name(s.problem)),
                     );
                 }
-            };
-            let p = s.problem;
-            only(
-                f.refine_intrinsics.is_some(),
-                p.rig() && p.handeye(),
-                "refine_intrinsics",
-                issues,
-            );
-            only(f.refine_sensor.is_some(), p.rig(), "refine_sensor", issues);
-            only(
-                f.refine_rig.is_some(),
-                p == Problem::RigHandeye,
-                "refine_rig",
-                issues,
-            );
-            only(
-                f.refine_robot_poses.is_some()
-                    || f.robot_rot_sigma_rad.is_some()
-                    || f.robot_trans_sigma_m.is_some(),
-                p.handeye() && p != Problem::LaserlineDevice,
-                "refine_robot_poses",
-                issues,
-            );
-            only(
-                f.min_motion_angle_deg.is_some(),
-                p.handeye() && p != Problem::LaserlineDevice,
-                "min_motion_angle_deg",
-                issues,
-            );
-            only(
-                f.fix_handeye.is_some(),
-                p == Problem::RigHandeyeLaserline,
-                "fix_handeye",
-                issues,
-            );
-            only(
-                f.fix_target.is_some(),
-                p == Problem::RigHandeyeLaserline,
-                "fix_target",
-                issues,
-            );
-            only(
-                f.fix_plane.is_some(),
-                p == Problem::LaserlineDevice,
-                "fix_plane",
-                issues,
-            );
-            only(
-                f.fix_poses.is_some(),
-                matches!(p, Problem::PlanarIntrinsics | Problem::LaserlineDevice),
-                "fix_poses",
-                issues,
-            );
+            }
+            let f = &s.free;
             for (name, v) in [
                 ("robot_rot_sigma_rad", f.robot_rot_sigma_rad),
                 ("robot_trans_sigma_m", f.robot_trans_sigma_m),
@@ -457,6 +603,36 @@ mod tests {
             .err()
             .map(|e| e.issues.into_iter().map(|i| i.path).collect())
             .unwrap_or_default()
+    }
+
+    #[test]
+    fn every_option_has_its_key_and_the_rules_cover_every_workflow() {
+        let all: Freedoms = serde_json::from_str(
+            r#"{ "refine_intrinsics": true, "refine_sensor": true, "refine_rig": true,
+                 "refine_robot_poses": true, "robot_rot_sigma_rad": 0.01, "robot_trans_sigma_m": 0.001,
+                 "min_motion_angle_deg": 5.0, "fix_handeye": true, "fix_target": true,
+                 "fix_plane": true, "fix_poses": [0] }"#,
+        )
+        .unwrap();
+        assert_eq!(all.set(), FREEDOM_KEYS);
+        // The keys are the document's field names, every one of them.
+        let doc = serde_json::to_value(&all).unwrap();
+        let fields: Vec<&str> = doc
+            .as_object()
+            .unwrap()
+            .keys()
+            .map(String::as_str)
+            .collect();
+        let mut keys = FREEDOM_KEYS.to_vec();
+        keys.sort_unstable();
+        assert_eq!(fields, keys);
+        let r = rules();
+        assert_eq!(r.problems.len(), Problem::ALL.len());
+        assert_eq!(r.seed_kinds.len(), SEED_SLOTS.len());
+        // Every option applies to some workflow.
+        for k in FREEDOM_KEYS {
+            assert!(Problem::ALL.iter().any(|p| p.takes(k)), "{k}");
+        }
     }
 
     #[test]

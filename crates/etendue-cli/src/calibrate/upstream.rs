@@ -32,6 +32,28 @@ pub(super) fn config<T: Serialize + DeserializeOwned + Default>(patch: &Value) -
     strict(v, "calibration config")
 }
 
+/// Whether calibration-rs reads all of `patch` as `problem`'s config: what a stage's options
+/// become ([`config`] with the workflow's type).
+///
+/// # Errors
+///
+/// A key the workflow's config does not read, or a value of the wrong type.
+pub(crate) fn check_config(problem: etendue_scene::Problem, patch: &Value) -> Result<()> {
+    use etendue_scene::Problem as P;
+    use vision_calibration_pipeline::{
+        laserline_device as ld, planar_intrinsics as pi, rig_extrinsics as re, rig_handeye as rh,
+        rig_handeye_laserline as rl, single_cam_handeye as sh,
+    };
+    match problem {
+        P::PlanarIntrinsics => config::<pi::PlanarIntrinsicsConfig>(patch).map(drop),
+        P::RigExtrinsics => config::<re::RigExtrinsicsConfig>(patch).map(drop),
+        P::SingleCamHandeye => config::<sh::SingleCamHandeyeConfig>(patch).map(drop),
+        P::RigHandeye => config::<rh::RigHandeyeConfig>(patch).map(drop),
+        P::LaserlineDevice => config::<ld::LaserlineDeviceConfig>(patch).map(drop),
+        P::RigHandeyeLaserline => config::<rl::RigHandeyeLaserlineConfig>(patch).map(drop),
+    }
+}
+
 /// `v` as calibration-rs's `T`, refusing any key `T` does not read. calibration-rs's types
 /// ignore unknown fields, so a key renamed upstream (or misspelt here) would otherwise be dropped
 /// silently and the workflow would run on its default. The check: every key of `v` with a
