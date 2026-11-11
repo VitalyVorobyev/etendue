@@ -16,15 +16,21 @@ export function useUnsavedGuard(studio: Studio): void {
     if (isTauri()) {
       let unlisten: (() => void) | null = null;
       let gone = false;
-      getCurrentWindow()
-        .onCloseRequested(async (event) => {
-          if (!(await studio.mayDiscard("Closing the window"))) event.preventDefault();
-        })
-        .then((stop) => {
-          if (gone) stop();
-          else unlisten = stop;
-        })
-        .catch((e: unknown) => console.warn(`close guard: ${e instanceof Error ? e.message : String(e)}`));
+      const warn = (e: unknown) => console.warn(`close guard: ${e instanceof Error ? e.message : String(e)}`);
+      try {
+        getCurrentWindow()
+          .onCloseRequested(async (event) => {
+            if (!(await studio.mayDiscard("Closing the window"))) event.preventDefault();
+          })
+          .then((stop) => {
+            if (gone) stop();
+            else unlisten = stop;
+          })
+          .catch(warn);
+      } catch (e) {
+        // Without the shell's window (a test's stand-in), there is nothing to guard.
+        warn(e);
+      }
       return () => {
         gone = true;
         unlisten?.();
