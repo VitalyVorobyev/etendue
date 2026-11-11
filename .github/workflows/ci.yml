@@ -72,6 +72,9 @@ jobs:
       - name: Layering (ADR 0001) and single nalgebra
         run: cargo xtask check-layering
 
+      - name: Source files within the line limit
+        run: cargo xtask check-file-size
+
       - name: JSON Schemas up to date
         run: cargo xtask emit-schemas --check
 

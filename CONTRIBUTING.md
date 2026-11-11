@@ -15,7 +15,7 @@ https://vitalyvorobyev.github.io/etendue.
 | `crates/etendue-cli` | The `etendue` binary and the `etendue_cli` pipeline library (load, gt, render, detect, poses). Embeds the Blender script (`blender/etendue_blender/`). |
 | `crates/etendue-wasm` | wasm-bindgen facade, published to npm as `@etendue/wasm`, with a typed TS layer in `js/`. |
 | `web/apps/studio` | The studio (React, three.js). `src-tauri/` is its Tauri desktop shell, its own cargo workspace. |
-| `xtask` | `cargo xtask check-layering`, `cargo xtask emit-schemas`. |
+| `xtask` | `cargo xtask check-layering`, `cargo xtask emit-schemas`, `cargo xtask check-file-size` (no source file over 800 lines; the allowances in `xtask/file-size-allowances.txt` only shrink). |
 | `schemas/` | JSON Schemas emitted from `etendue-scene` (CI checks them for drift). |
 | `assets/robots/` | Robot descriptions (`robot.urdf`, `robot.json`); meshes are rebuilt by `tools/robot-assets`. |
 | `examples/` | Example scenes and scenarios. |
@@ -57,7 +57,7 @@ cargo fmt --all --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace --locked
 cargo clippy -p etendue-wasm --target wasm32-unknown-unknown -- -D warnings
-cargo xtask check-layering && cargo xtask emit-schemas --check
+cargo xtask check-layering && cargo xtask emit-schemas --check && cargo xtask check-file-size
 cargo test -p <crate> --all-features          # per crate (core, scene, kinematics, synth), never workspace-wide
 cargo clippy --manifest-path web/apps/studio/src-tauri/Cargo.toml --all-targets -- -D warnings
 cargo test --manifest-path web/apps/studio/src-tauri/Cargo.toml

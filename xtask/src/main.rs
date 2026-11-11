@@ -6,10 +6,13 @@
 //!   dependency rules of ADR 0001 §2 and the nalgebra hard pin: one solvers'
 //!   nalgebra, a second only in calibration-rs's detector stack (with a
 //!   manifest: the pin alone, for a crate outside the workspace).
+//! - `check-file-size [--update]`: no source file over the line limit, except the shrinking
+//!   allowances in `xtask/file-size-allowances.txt`.
 //! - `app [--release] [tauri args…]`: run the studio desktop app (debug) or
 //!   build its release bundles (aliases `cargo app`, `cargo app-release`).
 
 mod app;
+mod check_file_size;
 mod check_layering;
 mod emit_schemas;
 
@@ -36,9 +39,14 @@ fn main() -> Result<()> {
             }
             _ => bail!("usage: cargo xtask check-layering [--manifest-path <Cargo.toml>]"),
         },
+        Some("check-file-size") => match args.get(1).map(String::as_str) {
+            None => check_file_size::run(&root, false),
+            Some("--update") => check_file_size::run(&root, true),
+            Some(other) => bail!("unknown check-file-size flag `{other}`"),
+        },
         Some("app") => app::run(&root, &args[1..]),
         _ => bail!(
-            "usage: cargo xtask <emit-schemas [--check] | check-layering [--manifest-path <Cargo.toml>] | app [--release] [tauri args…]>"
+            "usage: cargo xtask <emit-schemas [--check] | check-layering [--manifest-path <Cargo.toml>] | check-file-size [--update] | app [--release] [tauri args…]>"
         ),
     }
 }
