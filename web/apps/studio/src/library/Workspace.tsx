@@ -108,6 +108,19 @@ export function useLibraryWorkspace(
   const [importInto, setImportInto] = useState<Store>("bank");
   const input = useRef<HTMLInputElement>(null);
   const selected = reselect(all, selectedKey);
+  // The open item's draft lives here, so it outlives its view (while another workspace shows).
+  const [held, setHeld] = useState<{ key: string; draft: Draft } | null>(null);
+  const draft = selected && held?.key === selected.key && held.draft.base === selected.item ? held.draft : null;
+  // An item asked for while the open one has unsaved changes: the user is asked first.
+  const [leaving, setLeaving] = useState<string | null>(null);
+  const select = (key: string) => {
+    if (selected && key !== selected.key && draft && evaluate(selected, draft).dirty) {
+      setLeaving(key);
+      return;
+    }
+    setHeld(null);
+    setSelectedKey(key);
+  };
   const writable = writability(state);
   const shown = filterEntries(all, filter);
 
@@ -201,7 +214,7 @@ export function useLibraryWorkspace(
                 {KIND_LABEL[kind][1]} <span className="font-mono">{items.length}</span>
               </h3>
               {items.map((e) => (
-                <Row key={e.key} entry={e} selected={e.key === selected?.key} onSelect={() => setSelectedKey(e.key)} />
+                <Row key={e.key} entry={e} selected={e.key === selected?.key} onSelect={() => select(e.key)} />
               ))}
             </section>
           ))
@@ -218,7 +231,9 @@ export function useLibraryWorkspace(
       state={state}
       studio={studio}
       writable={writable}
-      onSelect={setSelectedKey}
+      draft={draft}
+      onDraft={(d) => setHeld({ key: selected.key, draft: d })}
+      onSelect={select}
       onDialog={setDialog}
     />
   ) : (
@@ -241,11 +256,27 @@ export function useLibraryWorkspace(
           onClose={() => setDialog(null)}
           onDone={(key) => {
             setDialog(null);
-            setSelectedKey(key);
+            select(key);
           }}
           studio={studio}
         />
       )}
+      <ConfirmDialog
+        open={leaving !== null}
+        onOpenChange={(open) => !open && setLeaving(null)}
+        title="Discard unsaved changes?"
+        description={
+          selected ? `${selected.item.name} has changes that are not saved. Opening another item discards them.` : ""
+        }
+        confirmLabel="Discard"
+        destructive
+        onConfirm={() => {
+          const key = leaving;
+          setLeaving(null);
+          setHeld(null);
+          if (key !== null) setSelectedKey(key);
+        }}
+      />
       <ConfirmDialog
         open={dialog?.mode === "delete"}
         onOpenChange={(open) => !open && setDialog(null)}
@@ -336,12 +367,34 @@ interface Draft {
 
 const partText = (item: LibraryItem, kind: LibraryKind) => jsonText(item[kind]);
 
+/** A draft that starts from `item`, unchanged. */
+const fresh = (item: LibraryItem, kind: LibraryKind): Draft => ({ base: item, item, text: partText(item, kind) });
+
+/** What `draft` of `entry` would save, why it cannot (JSON that does not parse), and whether it differs. */
+function evaluate(entry: Entry, draft: Draft): { toSave: LibraryItem; parseError: string | null; dirty: boolean } {
+  let parseError: string | null = null;
+  let edited = draft.item;
+  if (JSON_KINDS.includes(entry.kind)) {
+    try {
+      edited = { ...draft.item, [entry.kind]: JSON.parse(draft.text) as unknown };
+    } catch (e) {
+      parseError = e instanceof Error ? e.message : String(e);
+    }
+  }
+  // Saved as version 2 (`source` and `mount` need it).
+  const toSave: LibraryItem = { ...edited, version: 2 };
+  const dirty = parseError !== null || jsonText(toSave) !== jsonText({ ...entry.item, version: 2 });
+  return { toSave, parseError, dirty };
+}
+
 function Detail({
   entry,
   all,
   state,
   studio,
   writable,
+  draft: held,
+  onDraft: setDraft,
   onSelect,
   onDialog,
 }: {
@@ -350,30 +403,19 @@ function Detail({
   state: StudioState;
   studio: Studio;
   writable: Writable;
+  /** The draft kept for this item, if any; `null` when it is as saved. */
+  draft: Draft | null;
+  onDraft: (draft: Draft) => void;
   onSelect: (key: string) => void;
   onDialog: (d: DialogState) => void;
 }) {
   const { kind, layer, ref } = entry;
-  const fresh = (item: LibraryItem): Draft => ({ base: item, item, text: partText(item, kind) });
-  const [stored, setDraft] = useState<Draft>(() => fresh(entry.item));
   // A save (here or elsewhere) changes the item: the draft starts again from it.
-  const draft = stored.base === entry.item ? stored : fresh(entry.item);
+  const draft = held ?? fresh(entry.item, kind);
   const [busy, setBusy] = useState(false);
   const readOnly = layer === "builtin" || (layer === "bank" ? writable.bank : writable.project) !== null;
   const asJson = JSON_KINDS.includes(kind);
-
-  let parseError: string | null = null;
-  let edited = draft.item;
-  if (asJson) {
-    try {
-      edited = { ...draft.item, [kind]: JSON.parse(draft.text) as unknown };
-    } catch (e) {
-      parseError = e instanceof Error ? e.message : String(e);
-    }
-  }
-  // Saved as version 2 (`source` and `mount` need it).
-  const toSave: LibraryItem = { ...edited, version: 2 };
-  const dirty = parseError !== null || jsonText(toSave) !== jsonText({ ...entry.item, version: 2 });
+  const { toSave, parseError, dirty } = evaluate(entry, draft);
   const problems = parseError ? [`Not JSON: ${parseError}`] : dirty ? problemsOf(toSave) : [];
   const setItem = (item: LibraryItem) => setDraft({ ...draft, item });
 
@@ -585,7 +627,12 @@ function Detail({
             >
               Save
             </Button>
-            <Button size="sm" variant="ghost" disabled={!dirty || busy} onClick={() => setDraft(fresh(entry.item))}>
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={!dirty || busy}
+              onClick={() => setDraft(fresh(entry.item, kind))}
+            >
               Revert
             </Button>
             <span className="text-xs text-fg-muted">Saves to the {LAYER_LABEL[layer]}.</span>

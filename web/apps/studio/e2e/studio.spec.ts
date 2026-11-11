@@ -173,6 +173,57 @@ test("an edit rebakes in place and undoes", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Redo edit cam_left" })).toBeEnabled();
 });
 
+async function editWidth(page: Page) {
+  await page.getByRole("treeitem", { name: /cam_left/ }).click();
+  const width = page.getByRole("spinbutton", { name: "width" });
+  await width.fill("640");
+  await width.press("Enter");
+  await expect(page.getByTestId("dirty")).toBeVisible();
+}
+
+test("unsaved changes stay until discarded, and undo acts only where the cell shows", async ({ page }) => {
+  await loaded(page);
+  await editWidth(page);
+
+  // Out of the cell's sight, Undo is absent and its shortcut does nothing.
+  await page.getByRole("radio", { name: "Optics" }).click();
+  await expect(page.getByRole("button", { name: /^Undo/ })).toHaveCount(0);
+  await page.keyboard.press("ControlOrMeta+z");
+  await page.getByRole("radio", { name: "Setup" }).click();
+  await expect(page.getByTestId("dirty")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Undo edit cam_left" })).toBeEnabled();
+
+  // Opening another cell asks first; Cancel keeps the edited one.
+  const open = async () => {
+    await page.getByRole("button", { name: "File" }).click();
+    await page.getByRole("menuitem", { name: "eye_to_hand_ur5e" }).click();
+    const ask = page.getByRole("dialog", { name: "Discard unsaved changes?" });
+    await expect(ask).toContainText("eye_in_hand_ur5e");
+    return ask;
+  };
+  await (await open()).getByRole("button", { name: "Cancel" }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.getByTestId("document-label")).toContainText("eye_in_hand_ur5e");
+  await expect(page.getByTestId("dirty")).toBeVisible();
+
+  await (await open()).getByRole("button", { name: "Discard" }).click();
+  await expect(page.getByText("examples/eye_to_hand_ur5e")).toBeVisible();
+  await expect(page.getByTestId("dirty")).toHaveCount(0);
+});
+
+test("closing the tab with unsaved changes gets the browser's leave-page prompt", async ({ page }) => {
+  await loaded(page);
+  await editWidth(page);
+  const asked = new Promise<string>((resolve) =>
+    page.once("dialog", (d) => {
+      resolve(d.type());
+      void d.dismiss();
+    }),
+  );
+  await page.close({ runBeforeUnload: true });
+  expect(await asked).toBe("beforeunload");
+});
+
 test("entities are added, refused when invalid, and removed", async ({ page }) => {
   await loaded(page);
   await page.getByRole("treeitem", { name: /^rig/ }).click();

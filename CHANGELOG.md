@@ -114,6 +114,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **The studio no longer loses unsaved work** (P19b). Opening another cell, scene or project,
+  closing the desktop app's window, or closing the browser tab asks first when the cell has unsaved
+  changes. A Library item's draft survives a trip to another workspace, and choosing another item
+  asks before discarding it.
+- **Undo, Redo and Save act on the cell only where it is shown** (Setup, Motion, Images,
+  Calibrate). In Library, Optics and Rigs the buttons are absent and the shortcuts do nothing,
+  instead of changing or saving the cell out of sight.
+- **An error while drawing a pane stays in that pane**: it says what went wrong and offers to try
+  again, and the rest of the studio keeps working, instead of the whole window going blank.
 - **A triangulation head's result now holds together.** `auto` on a head and the `laser_head`
   procedure estimated the laser plane with one camera solution and the hand-eye with another
   (`auto` with an untilted model), so a stripe point triangulated in the robot's frame landed

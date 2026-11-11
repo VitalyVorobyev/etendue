@@ -638,6 +638,41 @@ test("the Library workspace: a bank lens used in a project, edited, its copy upd
   expect(await file("/bank/library/lenses/bench_lens.json")).toBeDefined();
 });
 
+test("a Library draft survives another workspace, and another item asks before discarding it", async ({ page }) => {
+  await installShell(page);
+  await page.goto("/?example=eye_in_hand_ur5e");
+  await expect(page.getByRole("treeitem", { name: /cam_left/ })).toBeVisible({ timeout: 30_000 });
+  await page.getByRole("radio", { name: "Library" }).click();
+  const list = page.getByTestId("library-list");
+  const detail = page.getByTestId("library-detail");
+  await page.getByRole("button", { name: "New…" }).click();
+  await page.getByRole("dialog").getByRole("textbox", { name: "Name" }).fill("Bench lens");
+  await page.getByRole("dialog").getByRole("button", { name: "Create" }).click();
+  await expect(page.getByText("Saved Bench lens")).toBeVisible();
+  const focal = detail.getByRole("spinbutton", { name: "Focal length" });
+  await focal.fill("35");
+
+  // Another workspace and back: the draft is still there.
+  await page.getByRole("radio", { name: "Setup" }).click();
+  await page.getByRole("radio", { name: "Library" }).click();
+  await expect(focal).toHaveValue("35");
+
+  // Another item asks first; Cancel keeps the draft, Discard opens the other item.
+  const other = list.locator('[data-layer="builtin"][data-ref="lenses/lm25hc"]');
+  await other.click();
+  const ask = page.getByRole("dialog", { name: "Discard unsaved changes?" });
+  await expect(ask).toContainText("Bench lens");
+  await ask.getByRole("button", { name: "Cancel" }).click();
+  await expect(focal).toHaveValue("35");
+  await other.click();
+  await ask.getByRole("button", { name: "Discard" }).click();
+  await expect(detail.getByText("Built-in items are read-only")).toBeVisible();
+
+  // The bank's lens is as it was saved.
+  await list.locator('[data-layer="bank"][data-ref="lenses/bench_lens"]').click();
+  await expect(focal).toHaveValue("25");
+});
+
 test("a cell built from built-in items copies them into the project, and saves as a cell", async ({ page }) => {
   await installShell(page);
   await page.goto("/?example=eye_in_hand_ur5e");

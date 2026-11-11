@@ -1,5 +1,5 @@
 import { type FrameTreeRuntime, type Iso3, invertIso3 } from "@vitavision/three";
-import { Button, Callout, Empty, Panel, SegmentedControl, Select } from "@vitavision/ui";
+import { Button, Callout, ConfirmDialog, Empty, Panel, SegmentedControl, Select } from "@vitavision/ui";
 import {
   AppShell,
   PlaybackBar,
@@ -10,7 +10,7 @@ import {
   usePlaybackClock,
 } from "@vitavision/workbench";
 import { Box, ChevronDown, ChevronUp, Minimize2, Pin } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import library, { type LibraryRobot } from "virtual:etendue-robots";
 
 import { exportFile, jsonText } from "./io/export";
@@ -39,6 +39,7 @@ import { useLibraryWorkspace } from "./library/Workspace";
 import { useCellBuilder } from "./cell/CellBuilder";
 import { CameraGrid } from "./panels/CameraGrid";
 import { CellDialog } from "./panels/CellDialog";
+import { ErrorBoundary } from "./panels/ErrorBoundary";
 import { RobotLibrary } from "./robots/RobotLibrary";
 import { CALIBRATE_FORM, type CalibrateForm, CalibratePanel, noiseOf } from "./panels/CalibratePanel";
 import { CameraView } from "./panels/CameraView";
@@ -70,6 +71,7 @@ import { useObservations } from "./calibrate/observations";
 import type { ViewChoice } from "./calibrate/ResidualViews";
 import { useResiduals } from "./calibrate/useResiduals";
 import { DatasetRunner } from "./state/datasetRun";
+import { useUnsavedGuard } from "./state/guard";
 import { Studio, initialExample, useStudio } from "./state/studio";
 
 /** A value that belongs to one opened document: it resets when another one opens. */
@@ -94,6 +96,9 @@ function storedMode(modes: Mode[]): Mode {
   }
   return "setup";
 }
+
+/** The workspaces that show the open cell, where Undo, Redo and Save act on it. */
+const SCENE_MODES: readonly Mode[] = ["setup", "motion", "images", "dataset"];
 
 /** Whether a key event belongs to a text field (which has its own undo). */
 function inField(e: KeyboardEvent): boolean {
@@ -121,6 +126,7 @@ export function App() {
     project,
     reopenable,
     bank,
+    question,
   } = studioState;
   const bankName = bank?.manifest.name ?? null;
   // The Library workspace: every item the project sees, to browse and edit.
@@ -245,15 +251,19 @@ export function App() {
   }, [studio]);
   useEffect(() => () => studio.dispose(), [studio]);
 
-  // Undo, redo and save from the keyboard, except inside a text field.
+  useUnsavedGuard(studio);
+
+  // Undo, redo and save from the keyboard, except inside a text field, and only where the cell
+  // is shown: elsewhere they would change or save something out of sight.
+  const sceneShown = SCENE_MODES.includes(mode);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.metaKey || e.ctrlKey) || e.altKey) return;
       const key = e.key.toLowerCase();
       if (key === "s") {
         e.preventDefault();
-        void studio.save(e.shiftKey);
-      } else if ((key === "z" || key === "y") && !inField(e)) {
+        if (sceneShown) void studio.save(e.shiftKey);
+      } else if ((key === "z" || key === "y") && !inField(e) && sceneShown) {
         e.preventDefault();
         if (key === "y" || e.shiftKey) studio.redo();
         else studio.undo();
@@ -261,7 +271,7 @@ export function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [studio]);
+  }, [studio, sceneShown]);
 
   const tree = useMemo(() => (current ? sceneTree(current.loaded.scene, current.baked) : null), [current]);
   const markers = useMemo<PlaybackMarker[]>(
@@ -1116,6 +1126,13 @@ export function App() {
       </div>
     ) : null;
 
+  // A pane that fails to render shows why, and starts again in another workspace or document.
+  const guarded = (pane: ReactNode) => (
+    <ErrorBoundary area="This pane" resetKey={`${mode}/${opened}`}>
+      {pane}
+    </ErrorBoundary>
+  );
+
   return (
     <>
       <AppShell
@@ -1128,8 +1145,8 @@ export function App() {
             mode={mode}
             modes={MODES}
             onMode={setMode}
-            undo={undo}
-            redo={redo}
+            undo={sceneShown ? undo : null}
+            redo={sceneShown ? redo : null}
             onUndo={studio.undo}
             onRedo={studio.redo}
             example={example}
@@ -1149,24 +1166,24 @@ export function App() {
             exports={exports}
           />
         }
-        left={
-          mode === "library" ? libraryPanels.left : mode === "optics" ? opticsLeft : mode === "rigs" ? rigsLeft : left
-        }
+        left={guarded(
+          mode === "library" ? libraryPanels.left : mode === "optics" ? opticsLeft : mode === "rigs" ? rigsLeft : left,
+        )}
         leftLabel={
           mode === "library" ? "Library items" : mode === "optics" || mode === "rigs" ? "Design" : "Scene frames"
         }
-        main={
-          mode === "library" ? libraryPanels.main : mode === "optics" ? opticsMain : mode === "rigs" ? rigsMain : main
-        }
-        right={
+        main={guarded(
+          mode === "library" ? libraryPanels.main : mode === "optics" ? opticsMain : mode === "rigs" ? rigsMain : main,
+        )}
+        right={guarded(
           mode === "library"
             ? libraryPanels.right
             : mode === "optics"
               ? opticsRight
               : mode === "rigs"
                 ? rigsRight
-                : right
-        }
+                : right,
+        )}
         rightLabel={
           mode === "library"
             ? "Layers"
@@ -1213,6 +1230,15 @@ export function App() {
         replace={isRobot(selected) ? selected : null}
         onAdd={addRobot}
         onReplace={replaceRobot}
+      />
+      <ConfirmDialog
+        open={question !== null}
+        onOpenChange={(open) => !open && studio.answer(false)}
+        title={question?.title ?? ""}
+        description={question?.description ?? ""}
+        confirmLabel={question?.confirmLabel ?? "OK"}
+        destructive
+        onConfirm={() => studio.answer(true)}
       />
       <Toaster />
     </>

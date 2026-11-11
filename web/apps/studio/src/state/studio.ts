@@ -103,6 +103,15 @@ export interface StudioState {
   bank: Bank | null;
   /** The built-in library (the reference project's), once it has loaded. */
   builtin: Map<string, LibraryItem> | null;
+  /** A question waiting for the user's answer (`Studio.answer`), e.g. before unsaved work is dropped. */
+  question: Question | null;
+}
+
+/** A yes-or-no question the studio asks: the dialog's title, what happens on yes, and its verb. */
+export interface Question {
+  title: string;
+  description: string;
+  confirmLabel: string;
 }
 
 /** Where the Library workspace writes: the user's bank or the open project. */
@@ -219,6 +228,7 @@ export class Studio {
     reopenable: null,
     bank: null,
     builtin: null,
+    question: null,
   };
   readonly #listeners = new Set<() => void>();
   #generation = 0;
@@ -235,6 +245,8 @@ export class Studio {
   #tx: { label: string; before: Doc } | null = null;
   /** A previewed document waiting for its bake (at most one bake per animation frame). */
   #pending: { doc: Doc; frame: number } | null = null;
+  /** Resolves the open `question`. */
+  #answer: ((yes: boolean) => void) | null = null;
 
   constructor(playhead: Playhead) {
     this.playhead = playhead;
@@ -279,7 +291,43 @@ export class Studio {
   /** Open cell `id` of the open project (one of `project.cells`). */
   readonly openExample = (id: string): void => {
     const project = this.#state.project;
-    if (project) this.#openCell(project, id);
+    if (!project) return;
+    void this.mayDiscard("Opening another cell").then((yes) => yes && this.#openCell(project, id));
+  };
+
+  /**
+   * Ask `question`; resolves with the answer. A question asked while another is open answers
+   * the earlier one with no.
+   */
+  #ask(question: Question): Promise<boolean> {
+    this.#answer?.(false);
+    return new Promise((resolve) => {
+      this.#answer = resolve;
+      this.#set({ question });
+    });
+  }
+
+  /** Answer the open `question`. */
+  readonly answer = (yes: boolean): void => {
+    const resolve = this.#answer;
+    this.#answer = null;
+    this.#set({ question: null });
+    resolve?.(yes);
+  };
+
+  /**
+   * Whether the open document may be dropped: it has no unsaved changes, or the user agrees to
+   * lose them. `doing` names what would drop them ("Opening another cell").
+   */
+  readonly mayDiscard = async (doing: string): Promise<boolean> => {
+    this.commit();
+    if (!this.#state.dirty) return true;
+    const label = this.#state.current?.loaded.label ?? "The cell";
+    return this.#ask({
+      title: "Discard unsaved changes?",
+      description: `${label} has changes that are not saved. ${doing} discards them.`,
+      confirmLabel: "Discard",
+    });
   };
 
   /** Open cell `id` of `project`; it is the open project's cell only if `project` is open. */
@@ -298,6 +346,10 @@ export class Studio {
   /** Open files picked by absolute path (the Tauri shell's file dialog). */
   readonly openPaths = (paths: string[]): void => {
     if (paths.length === 0) return;
+    void this.mayDiscard("Opening a scene").then((yes) => yes && this.#openPaths(paths));
+  };
+
+  #openPaths(paths: string[]): void {
     this.#set({ example: "" });
     void this.#open(`${paths.length} file(s)`, () => loadPaths(paths)).then(() => {
       // Save writes back to the files that were picked.
@@ -306,7 +358,7 @@ export class Studio {
         this.#set({ saveTo: { scene: loaded.origin, scenario: loaded.scenarioOrigin } });
       }
     });
-  };
+  }
 
   /** Replace the current scene's scenario (imported or generated) as one undoable edit. */
   readonly setScenario = (scenario: ScenarioSpec, what: string): boolean =>
@@ -669,8 +721,11 @@ export class Studio {
 
   /** Open dropped or picked files. */
   readonly openFiles = (files: File[]): void => {
-    this.#set({ example: "" });
-    void this.#open(`${files.length} file(s)`, () => loadDropped(files));
+    void this.mayDiscard("Opening a scene").then((yes) => {
+      if (!yes) return;
+      this.#set({ example: "" });
+      void this.#open(`${files.length} file(s)`, () => loadDropped(files));
+    });
   };
 
   /**
@@ -726,6 +781,7 @@ export class Studio {
 
   /** Ask for a project folder and open it, or (`create`) make a new project there first. */
   readonly openProject = async (create = false): Promise<void> => {
+    if (!(await this.mayDiscard(create ? "Creating a project" : "Opening a project"))) return;
     try {
       let project: Project | null;
       if (isTauri()) {
@@ -753,7 +809,7 @@ export class Studio {
   /** Allow the remembered browser folder again (a click) and open it. */
   readonly reopenProject = async (): Promise<void> => {
     const handle = this.#remembered;
-    if (!handle || !(await regrant(handle))) return;
+    if (!handle || !(await this.mayDiscard("Opening the project")) || !(await regrant(handle))) return;
     this.#remembered = null;
     this.#set({ reopenable: null });
     this.#use(await browserProject(handle));
@@ -771,7 +827,7 @@ export class Studio {
     this.commit();
     for (const p of project.problems) console.warn(`project: ${p.path}: ${p.message}`);
     this.#set({ project });
-    if (project.cells[0]) this.openExample(project.cells[0].id);
+    if (project.cells[0]) this.#openCell(project, project.cells[0].id);
     else this.#set({ example: "" });
     toast({ title: `Opened ${project.manifest.name}`, description: project.location, tone: "success", duration: 2500 });
   }
