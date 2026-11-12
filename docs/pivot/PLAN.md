@@ -1012,6 +1012,13 @@ PR, merged when green.
     plane-of-best-focus closed form is kept as an independent check in `tests/head.rs`. The kept
     `geom`, `scene::{LaserEntity, TargetEntity}` and `laser::{plane, width, intersect}` serve
     `etendue-synth`'s stripes.
+  - **Not done, by decision:**
+    - **`LibraryItem` stays a struct.** The same JSON as an enum needs `#[serde(flatten)]`, which
+      serde cannot combine with `deny_unknown_fields`, so misspelt library keys would be accepted
+      silently. The "exactly one part" check is in one place.
+    - **The gate tooling stays.** `measure` and `corners` are private to the binary, not part of
+      the library's API, and `measure` is already hidden from `--help`.
+    - **The CLI library's published API** is part of the 0.3.0 publishing decision.
 - **P19g — Studio structure.** `App.tsx` split by workspace and `state/studio.ts` by concern
   (history, I/O, bank, notifications); subscriptions narrow enough that playback re-renders only
   what moves; Optics and Rigs designs kept across reloads; one way to show a kernel error; a units
