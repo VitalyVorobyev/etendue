@@ -7,13 +7,13 @@ also need [Blender 5.2](#blender).
 
 ## Downloads
 
-The files of version 0.2.0:
+The files of version 0.3.0:
 
 | Platform | Desktop app | Command line |
 |---|---|---|
-| macOS (Apple silicon) | `etendue-studio-0.2.0-aarch64-apple-darwin.dmg` | `etendue-cli-0.2.0-aarch64-apple-darwin.tar.gz` |
-| Windows (x64) | `etendue-studio-0.2.0-x86_64-pc-windows-msvc.msi`, or the installer `etendue-studio-0.2.0-x86_64-pc-windows-msvc-setup.exe` | `etendue-cli-0.2.0-x86_64-pc-windows-msvc.zip` |
-| Linux (x64) | `etendue-studio-0.2.0-x86_64-unknown-linux-gnu.AppImage`, or the Debian package `etendue-studio-0.2.0-x86_64-unknown-linux-gnu.deb` | `etendue-cli-0.2.0-x86_64-unknown-linux-gnu.tar.gz` |
+| macOS (Apple silicon) | `etendue-studio-0.3.0-aarch64-apple-darwin.dmg` | `etendue-cli-0.3.0-aarch64-apple-darwin.tar.gz` |
+| Windows (x64) | `etendue-studio-0.3.0-x86_64-pc-windows-msvc.msi`, or the installer `etendue-studio-0.3.0-x86_64-pc-windows-msvc-setup.exe` | `etendue-cli-0.3.0-x86_64-pc-windows-msvc.zip` |
+| Linux (x64) | `etendue-studio-0.3.0-x86_64-unknown-linux-gnu.AppImage`, or the Debian package `etendue-studio-0.3.0-x86_64-unknown-linux-gnu.deb` | `etendue-cli-0.3.0-x86_64-unknown-linux-gnu.tar.gz` |
 
 Intel Macs and Linux on ARM have no prebuilt files: [build from source](#from-source).
 
@@ -30,7 +30,7 @@ sha256sum -c --ignore-missing SHA256SUMS.txt         # Linux
 Each file you downloaded should print `OK`. On Windows, in PowerShell, compare the output of
 
 ```powershell
-Get-FileHash .\etendue-studio-0.2.0-x86_64-pc-windows-msvc.msi -Algorithm SHA256
+Get-FileHash .\etendue-studio-0.3.0-x86_64-pc-windows-msvc.msi -Algorithm SHA256
 ```
 
 with the file's line in `SHA256SUMS.txt`.
@@ -40,8 +40,8 @@ with the file's line in `SHA256SUMS.txt`.
 - **macOS**: open the `.dmg` and drag **etendue studio** to Applications.
 - **Windows**: run the `.msi` or the `-setup.exe`.
 - **Linux**: make the AppImage executable and run it
-  (`chmod +x etendue-studio-0.2.0-x86_64-unknown-linux-gnu.AppImage`), or install the package
-  (`sudo apt install ./etendue-studio-0.2.0-x86_64-unknown-linux-gnu.deb`).
+  (`chmod +x etendue-studio-0.3.0-x86_64-unknown-linux-gnu.AppImage`), or install the package
+  (`sudo apt install ./etendue-studio-0.3.0-x86_64-unknown-linux-gnu.deb`).
 
 The app carries the examples, the robot library and the Blender version pin. It writes datasets
 under `Documents/etendue` unless you open a project, whose datasets go in its own `datasets/`
@@ -61,8 +61,8 @@ Unpack the archive. It holds the `etendue` binary (`etendue.exe` on Windows), th
 above the folders you render from (see [Blender](#blender)).
 
 ```bash
-tar -xzf etendue-cli-0.2.0-aarch64-apple-darwin.tar.gz
-cd etendue-cli-0.2.0-aarch64-apple-darwin
+tar -xzf etendue-cli-0.3.0-aarch64-apple-darwin.tar.gz
+cd etendue-cli-0.3.0-aarch64-apple-darwin
 ./etendue validate examples/eye_in_hand_ur5e/scene.json examples/eye_in_hand_ur5e/scenario.json
 ```
 

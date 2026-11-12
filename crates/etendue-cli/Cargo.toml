@@ -2,6 +2,9 @@
 name = "etendue-cli"
 description = "The etendue command line: validate scenes and scenarios, bake robot motion, write calibration ground truth, render with Blender, detect the board"
 version.workspace = true
+# The CLI and its pipeline library are not published (0.3.0 decision): the library crates are
+# the packages, once their APIs settle (real data, P20).
+publish = false
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
