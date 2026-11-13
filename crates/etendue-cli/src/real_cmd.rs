@@ -129,6 +129,12 @@ fn twin(run: &Path, trials: u32, seed: u64, exact: bool, output: &Path) -> Resul
             c.twin.view
         );
     }
+    if let Some(scatter) = twin.view_scatter {
+        println!(
+            "the real σ is scaled by its view scatter, {scatter:.2} (its views vary more than its \
+             residual noise predicts)"
+        );
+    }
     if doc.reports.len() > 1 {
         println!(
             "parameters: real σ, twin σ and std over {} trials, real − twin mean:",

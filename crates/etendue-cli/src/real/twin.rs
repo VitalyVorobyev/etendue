@@ -46,6 +46,10 @@ pub struct Twin {
     pub gt: GroundTruth,
     /// The real run's noise: calibration-rs's reprojection σ and its robot pose error (`seed` 0).
     pub noise: ObservationNoise,
+    /// calibration-rs's view scatter of the real run: how many times the variance of its
+    /// parameters across views exceeds what its residual noise predicts (its σ is scaled by it);
+    /// `None` when they agree.
+    pub view_scatter: Option<f64>,
 }
 
 /// The twin of the real run kept in `run` (`etendue real calibrate`'s output folder). The
@@ -179,6 +183,7 @@ pub fn twin(run: &Path) -> Result<Twin> {
         real,
         gt,
         noise,
+        view_scatter: uncertainty.covariance().and_then(|c| c.view_scatter),
     })
 }
 

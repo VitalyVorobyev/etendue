@@ -10,6 +10,10 @@
 //! - **T2:** prints the real run against its twin ([`etendue_cli::real::versus`]) as the tables of
 //!   `docs/measurements/p20_twin.md`.
 //!
+//! `ETENDUE_T1_PROCEDURE` (a procedure id or file, as `etendue calibrate --procedure` takes it)
+//! calibrates the twin's noisy trials with another procedure than the real run's: a diagnostic of
+//! the scatter check, not T1.
+//!
 //! The data is local (DS8's images are not in git), so this is ignored:
 //! `cargo test --release -p etendue-cli --test t1 -- --ignored --nocapture`.
 
@@ -64,6 +68,11 @@ fn dataset(id: &str, trials: u32) -> Vec<String> {
             ..twin.noise
         },
         trials,
+        procedure: std::env::var("ETENDUE_T1_PROCEDURE").ok().map(|name| {
+            let (id, procedure) = etendue_cli::procedure::named(&name).unwrap();
+            println!("Procedure of the noisy trials: {id} (a diagnostic, not T1).\n");
+            calibrate::RunProcedure { id, procedure }
+        }),
         ..RunOptions::default()
     };
     let noisy = run_trials(&twin.gt, None, &options, &ctl).unwrap();
@@ -147,12 +156,7 @@ fn dataset(id: &str, trials: u32) -> Vec<String> {
             p.distance_sigma
         );
     }
-    if let Some(scatter) = twin
-        .real
-        .export
-        .pointer("/uncertainty/view_scatter")
-        .and_then(serde_json::Value::as_f64)
-    {
+    if let Some(scatter) = twin.view_scatter {
         println!(
             "\nThe real covariance's view scatter (calibration-rs's variance factor): {scatter:.2}."
         );

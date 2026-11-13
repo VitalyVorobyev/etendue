@@ -177,6 +177,7 @@ fn the_twin_of_a_calibration_recovers_its_truth_and_matches_white_noise() {
         real: stand_in.reports[0].clone(),
         gt: twin_gt.clone(),
         noise,
+        view_scatter: None,
     };
     let opts = options(100);
     write_twin_run(
