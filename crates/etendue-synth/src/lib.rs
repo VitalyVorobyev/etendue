@@ -33,6 +33,9 @@
 //!   seeded noise: pixel noise, outliers, dropouts, laser and robot-pose noise
 //!   (P13).
 //!
+//! - [`twin`] — the ground truth of a real calibration's twin: its result as
+//!   the truth, its robot poses, and the points its detector found (P20b).
+//!
 //! No camera-model math lives here. Every projection and back-projection is
 //! `vision-calibration-core`'s (`CameraModel::project_point_c`,
 //! `CameraModel::backproject_pixel`); this crate only chooses the canonical
@@ -55,6 +58,7 @@ pub mod poses;
 pub mod remap;
 pub mod sensor;
 pub mod target_mesh;
+pub mod twin;
 
 pub use remap::{CanonicalCamera, CanonicalSpec, PixelCentre, RemapLut, remap_lut};
 
