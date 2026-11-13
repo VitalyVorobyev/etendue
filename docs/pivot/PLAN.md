@@ -1037,6 +1037,11 @@ PR, merged when green.
     The store keeps the document, its edit history and opening and saving. Its public API is
     unchanged.
 - **Release 0.3.0**, and a decision on publishing to crates.io and npm (§7).
+  - **Decided (user, 2026-11-12):** 0.3.0 is a GitHub release only (CLI archives and app bundles,
+    as for 0.2.0). etendue-cli is `publish = false`. Registry publishing waits until the
+    real-data work (P20) settles the library crates' APIs. The P19g UX items left (narrower
+    re-renders, Optics/Rigs drafts kept across reloads, one way to show a kernel error, a units
+    pass) go to 0.3.x or 0.4.
 
 After P19: **a real-data track**, P20 (user decision, 2026-11-11).
 
