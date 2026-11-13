@@ -23,16 +23,22 @@
 //! The planner adds, one at a time, the candidate that lowers the system σ most (greedy), up to
 //! the budget, and keeps the generator's tour order for the motion. Deterministic.
 
+mod information;
+mod system_error;
+
 use etendue_kinematics::RobotModel;
 use etendue_scene::{ScenarioSpec, SceneSpec, SphereGenerator, Step};
-use nalgebra::{DMatrix, Isometry3, Point3, Quaternion, Translation3, UnitQuaternion, Vector3};
+use nalgebra::{DMatrix, Isometry3, Point3};
 use serde::{Deserialize, Serialize};
-use vision_calibration_core::{CameraModel, CameraParams, DistortionParams, SensorParams};
 
 use crate::board::layout;
 use crate::gt::{VisibilitySpec, project_points};
 use crate::poses::{CandidateStatus, Generated, Mounting, Posed, mounting};
 use crate::{Error, PixelCentre, Result};
+use information::{
+    Cam, H_POSE, POSE, camera_params, perturbed, pixel, ref_se3_base, target_in_base,
+};
+pub use system_error::{EstimatedCell, system_error};
 
 fn bad(message: impl Into<String>) -> Error {
     Error::InvalidInput(message.into())
@@ -86,102 +92,6 @@ pub struct Planned {
     /// The chosen poses as a stop-and-shoot scenario, in the generator's tour order.
     pub scenario: ScenarioSpec,
 }
-
-/// A rotation by `phi` (its axis times its angle), from `libm` sines.
-fn exp_so3(phi: Vector3<f64>) -> UnitQuaternion<f64> {
-    let angle = phi.norm();
-    if angle < 1e-300 {
-        return UnitQuaternion::identity();
-    }
-    let s = libm::sin(angle / 2.0) / angle;
-    UnitQuaternion::new_unchecked(Quaternion::new(
-        libm::cos(angle / 2.0),
-        phi.x * s,
-        phi.y * s,
-        phi.z * s,
-    ))
-}
-
-/// `t · Exp(δ)`, `δ = [rx, ry, rz, tx, ty, tz]`: the rotation `R Exp(φ)`, the translation
-/// `t + R ρ`.
-fn perturbed(t: &Isometry3<f64>, k: usize, h: f64) -> Isometry3<f64> {
-    let mut d = [0.0; 6];
-    d[k] = h;
-    let delta = Isometry3::from_parts(
-        Translation3::new(d[3], d[4], d[5]),
-        exp_so3(Vector3::new(d[0], d[1], d[2])),
-    );
-    t * delta
-}
-
-/// One camera's parameters, with each perturbed model.
-struct Cam {
-    frame: usize,
-    resolution: [u32; 2],
-    model: CameraModel,
-    fx: f64,
-    /// Per parameter: its label suffix and the models at `±h`.
-    params: Vec<(&'static str, f64, CameraModel, CameraModel)>,
-}
-
-fn camera_params(
-    params: &CameraParams,
-) -> Result<Vec<(&'static str, f64, CameraModel, CameraModel)>> {
-    let mut out = Vec::new();
-    let mut push =
-        |name: &'static str, h: f64, set: &dyn Fn(&mut CameraParams, f64)| -> Result<()> {
-            let (mut plus, mut minus) = (params.clone(), params.clone());
-            set(&mut plus, h);
-            set(&mut minus, -h);
-            out.push((name, h, plus.build()?, minus.build()?));
-            Ok(())
-        };
-    push("fx", 1e-2, &|p, h| p.intrinsics.fx += h)?;
-    push("fy", 1e-2, &|p, h| p.intrinsics.fy += h)?;
-    push("cx", 1e-2, &|p, h| p.intrinsics.cx += h)?;
-    push("cy", 1e-2, &|p, h| p.intrinsics.cy += h)?;
-    if matches!(params.distortion, DistortionParams::BrownConrady5 { .. }) {
-        for (name, h) in [("k1", 1e-6), ("k2", 1e-6), ("p1", 1e-7), ("p2", 1e-7)] {
-            push(name, h, &move |p, h| {
-                if let DistortionParams::BrownConrady5 { params: d } = &mut p.distortion {
-                    match name {
-                        "k1" => d.k1 += h,
-                        "k2" => d.k2 += h,
-                        "p1" => d.p1 += h,
-                        _ => d.p2 += h,
-                    }
-                }
-            })?;
-        }
-    }
-    if matches!(params.sensor, SensorParams::Scheimpflug { .. }) {
-        for name in ["tilt_x", "tilt_y"] {
-            push(name, 1e-7, &move |p, h| {
-                if let SensorParams::Scheimpflug { params: t } = &mut p.sensor {
-                    if name == "tilt_x" {
-                        t.tilt_x += h;
-                    } else {
-                        t.tilt_y += h;
-                    }
-                }
-            })?;
-        }
-    }
-    Ok(out)
-}
-
-/// The pixel of `p` (target frame) in camera `c` given the chain, or `None` behind it.
-fn pixel(
-    model: &CameraModel,
-    cam_se3_target: &Isometry3<f64>,
-    p: &Point3<f64>,
-) -> Option<[f64; 2]> {
-    let q = cam_se3_target * p;
-    model.project_point_c(&q.coords).map(|u| [u.x, u.y])
-}
-
-const POSE: [&str; 6] = ["rx", "ry", "rz", "tx", "ty", "tz"];
-const H_POSE: f64 = 1e-7;
 
 /// Plan `spec.budget` poses from `generated` (made by [`crate::poses::generate`] with `sphere`
 /// for `scene`).
@@ -528,160 +438,4 @@ pub fn subset(generated: &Generated, keep: &[String], description: String) -> Sc
         description: Some(description),
         ..generated.scenario.clone()
     }
-}
-
-/// The reference camera's pose relative to the robot's base at a view: eye-in-hand through the
-/// hand-eye `gripper_se3_ref` and the tool's pose, eye-to-hand the hand-eye `ref_se3_base` itself.
-fn ref_se3_base(
-    mounting: Mounting,
-    handeye: &Isometry3<f64>,
-    base_se3_tcp: &Isometry3<f64>,
-) -> Isometry3<f64> {
-    match mounting {
-        Mounting::EyeInHand => handeye.inverse() * base_se3_tcp.inverse(),
-        Mounting::EyeToHand => *handeye,
-    }
-}
-
-/// The target's pose in the robot's base at a view, from its estimated pose: `base_se3_target`
-/// eye-in-hand, `gripper_se3_target` (carried by the tool) eye-to-hand.
-fn target_in_base(
-    mounting: Mounting,
-    target: &Isometry3<f64>,
-    base_se3_tcp: &Isometry3<f64>,
-) -> Isometry3<f64> {
-    match mounting {
-        Mounting::EyeInHand => *target,
-        Mounting::EyeToHand => base_se3_tcp * target,
-    }
-}
-
-/// An estimated cell, as a calibration reports it: each camera's parameters and pose in the rig
-/// (`cam_se3_ref`, the first camera's frame), and the hand-eye (`gripper_se3_ref` eye-in-hand,
-/// `ref_se3_base` eye-to-hand).
-#[derive(Clone, Debug)]
-pub struct EstimatedCell {
-    /// Per camera (in `sphere.require.cameras` order, or the scene's): its parameters and
-    /// `cam_se3_ref`.
-    pub cameras: Vec<(CameraParams, Isometry3<f64>)>,
-    /// `gripper_se3_ref` eye-in-hand, `ref_se3_base` eye-to-hand.
-    pub handeye: Isometry3<f64>,
-}
-
-/// The system error of `estimate`: the RMS, over every sighting of the target's points by every
-/// feasible candidate, of how far (mm, across the line of sight) the estimated cell places a
-/// point known in the base frame — the quantity [`plan`] predicts the σ of.
-///
-/// # Errors
-///
-/// As [`plan`], and for an estimate with another number of cameras.
-pub fn system_error(
-    scene: &SceneSpec,
-    robots: &[RobotModel],
-    generated: &Generated,
-    sphere: &SphereGenerator,
-    estimate: &EstimatedCell,
-) -> Result<f64> {
-    let posed = Posed::new(scene, robots)?;
-    let r = scene
-        .robots
-        .iter()
-        .position(|x| x.id == sphere.robot)
-        .ok_or_else(|| bad(format!("no robot `{}`", sphere.robot)))?;
-    let model = robots
-        .get(r)
-        .ok_or_else(|| bad("a robot model per scene robot"))?;
-    let names = model.links();
-    let base_frame = posed.index(&format!("{}/{}", sphere.robot, names[model.base_link()]))?;
-    let tcp_frame = posed.index(&format!("{}/{}", sphere.robot, names[model.tcp_link()]))?;
-    let target = scene
-        .targets
-        .iter()
-        .find(|t| t.id == sphere.target)
-        .ok_or_else(|| bad(format!("no target `{}`", sphere.target)))?;
-    let target_frame = posed.index(&target.id)?;
-    let mounting = mounting(&posed, r, model, &sphere.look, &target.id)?;
-    let board = layout(&target.geometry)?
-        .ok_or_else(|| bad(format!("target `{}` has no printed layout", target.id)))?;
-    let ids: Vec<String> = match &sphere.require.cameras {
-        Some(c) => c.clone(),
-        None => scene.cameras.iter().map(|c| c.id.clone()).collect(),
-    };
-    if ids.len() != estimate.cameras.len() {
-        return Err(bad("the estimate has another number of cameras"));
-    }
-    let truth = ids
-        .iter()
-        .map(|id| {
-            let c = scene
-                .cameras
-                .iter()
-                .find(|c| &c.id == id)
-                .ok_or_else(|| bad(format!("no camera `{id}`")))?;
-            Ok((
-                posed.index(id)?,
-                c.params.build()?,
-                c.params.intrinsics.fx,
-                c.resolution,
-            ))
-        })
-        .collect::<Result<Vec<_>>>()?;
-    let estimated = estimate
-        .cameras
-        .iter()
-        .map(|(p, pose)| Ok((p.build()?, *pose)))
-        .collect::<Result<Vec<_>>>()?;
-    let visibility = VisibilitySpec {
-        margin_px: sphere.require.margin_px,
-    };
-    let edge = PixelCentre::Integer.edge();
-    let (mut sum, mut count) = (0.0, 0usize);
-    for c in generated
-        .candidates
-        .iter()
-        .filter(|c| c.status == CandidateStatus::Ok && c.capture.is_some())
-    {
-        let f = posed.at(
-            r,
-            c.q.as_deref()
-                .ok_or_else(|| bad("a feasible candidate has no joints"))?,
-        );
-        let base_se3_tcp = f[base_frame].inverse() * f[tcp_frame];
-        let base_se3_target = f[base_frame].inverse() * f[target_frame];
-        for ((frame, true_model, fx, resolution), (model, cam_se3_ref)) in
-            truth.iter().zip(&estimated)
-        {
-            let seen = project_points(
-                true_model,
-                *resolution,
-                &f[*frame],
-                &f[target_frame],
-                &board.points,
-                &visibility,
-                edge,
-            );
-            let true_chain = f[*frame].inverse() * f[target_frame];
-            let est_chain = cam_se3_ref
-                * ref_se3_base(mounting, &estimate.handeye, &base_se3_tcp)
-                * base_se3_target;
-            for (gt, b) in seen.iter().zip(&board.points) {
-                let (true_px, Some(est_px)) = (gt.pixel, pixel(model, &est_chain, &b.xyz())) else {
-                    continue;
-                };
-                let Some(true_px) = true_px.filter(|_| gt.visible()) else {
-                    continue;
-                };
-                let depth = (true_chain * b.xyz()).z;
-                let du = (est_px[0] - true_px[0], est_px[1] - true_px[1]);
-                let mm = depth / fx * 1e3;
-                // Per image axis, as the predicted σ² is a mean over pixel rows.
-                sum += (du.0 * mm).powi(2) + (du.1 * mm).powi(2);
-                count += 2;
-            }
-        }
-    }
-    if count == 0 {
-        return Err(bad("no candidate sees the target"));
-    }
-    Ok((sum / count as f64).sqrt())
 }
