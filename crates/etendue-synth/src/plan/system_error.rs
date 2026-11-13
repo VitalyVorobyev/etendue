@@ -6,8 +6,10 @@ use nalgebra::Isometry3;
 use vision_calibration_core::CameraParams;
 
 use super::bad;
-use super::information::{pixel, ref_se3_base};
+use super::information::{pixel, ref_se3_base, target_in_base};
+use super::predict::frames;
 use crate::board::layout;
+use crate::dataset::GroundTruth;
 use crate::gt::{VisibilitySpec, project_points};
 use crate::poses::{CandidateStatus, Generated, Posed, mounting};
 use crate::{PixelCentre, Result};
@@ -26,11 +28,11 @@ pub struct EstimatedCell {
 
 /// The system error of `estimate`: the RMS, over every sighting of the target's points by every
 /// feasible candidate, of how far (mm, across the line of sight) the estimated cell places a
-/// point known in the base frame — the quantity [`plan`] predicts the σ of.
+/// point known in the base frame — the quantity [`super::plan`] predicts the σ of.
 ///
 /// # Errors
 ///
-/// As [`plan`], and for an estimate with another number of cameras.
+/// As [`super::plan`], and for an estimate with another number of cameras.
 pub fn system_error(
     scene: &SceneSpec,
     robots: &[RobotModel],
@@ -138,6 +140,64 @@ pub fn system_error(
     }
     if count == 0 {
         return Err(bad("no candidate sees the target"));
+    }
+    Ok((sum / count as f64).sqrt())
+}
+
+/// How far apart two estimated cells place the points `gt` knows: the RMS, over every sighting of
+/// every capture of `gt`, of the distance (mm, across the line of sight, per image axis) between
+/// where `a` and `b` project a point the truth places in the base frame. The system σ of
+/// [`super::Prediction`] predicts it: for independent estimates, its expected square is the sum of
+/// theirs. Against the truth's own cell it is an estimate's system error.
+///
+/// # Errors
+///
+/// A ground truth without a hand-eye, a capture without its robot pose, estimates with another
+/// number of cameras, a camera model that does not build, or no sighting.
+pub fn system_difference(gt: &GroundTruth, a: &EstimatedCell, b: &EstimatedCell) -> Result<f64> {
+    let (_, _, target, mounting) = frames(gt)?;
+    if a.cameras.len() != gt.cameras.len() || b.cameras.len() != gt.cameras.len() {
+        return Err(bad("an estimate has another number of cameras"));
+    }
+    let models = |e: &EstimatedCell| {
+        e.cameras
+            .iter()
+            .map(|(p, pose)| Ok((p.build()?, *pose)))
+            .collect::<Result<Vec<_>>>()
+    };
+    let (ma, mb) = (models(a)?, models(b)?);
+    let (mut sum, mut count) = (0.0, 0usize);
+    for capture in &gt.captures {
+        let tcp = capture
+            .base_se3_tcp
+            .ok_or_else(|| bad(format!("capture {} has no robot pose", capture.id)))?;
+        let target_in = target_in_base(mounting, &target, &tcp);
+        for v in &capture.views {
+            let c = gt
+                .cameras
+                .iter()
+                .position(|c| c.id == v.camera)
+                .ok_or_else(|| bad(format!("no camera `{}`", v.camera)))?;
+            let true_chain = v.world_se3_camera.inverse() * capture.world_se3_target;
+            let chain = |e: &EstimatedCell, cam_se3_ref: &Isometry3<f64>| {
+                cam_se3_ref * ref_se3_base(mounting, &e.handeye, &tcp) * target_in
+            };
+            let (ca, cb) = (chain(a, &ma[c].1), chain(b, &mb[c].1));
+            let fx = gt.cameras[c].params.intrinsics.fx;
+            for p in v.points.iter().filter(|p| p.visible()) {
+                let xyz = gt.target.points[p.point].xyz();
+                let (Some(pa), Some(pb)) = (pixel(&ma[c].0, &ca, &xyz), pixel(&mb[c].0, &cb, &xyz))
+                else {
+                    continue;
+                };
+                let mm = (true_chain * xyz).z / fx * 1e3;
+                sum += ((pa[0] - pb[0]) * mm).powi(2) + ((pa[1] - pb[1]) * mm).powi(2);
+                count += 2;
+            }
+        }
+    }
+    if count == 0 {
+        return Err(bad("no capture sees the target"));
     }
     Ok((sum / count as f64).sqrt())
 }

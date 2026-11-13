@@ -22,23 +22,29 @@
 //!
 //! The planner adds, one at a time, the candidate that lowers the system σ most (greedy), up to
 //! the budget, and keeps the generator's tour order for the motion. Deterministic.
+//!
+//! [`predict`] applies the same model to a ground truth's own captures (P20c: the twin of a real
+//! calibration, its real poses), with each view's robot pose refined under a prior
+//! ([`RobotPrior`]) if the calibration refines them; [`system_difference`] measures what it
+//! predicts, between two estimates.
 
 mod information;
+mod predict;
 mod system_error;
 
 use etendue_kinematics::RobotModel;
 use etendue_scene::{ScenarioSpec, SceneSpec, SphereGenerator, Step};
-use nalgebra::{DMatrix, Isometry3, Point3};
+use nalgebra::{DMatrix, Point3};
 use serde::{Deserialize, Serialize};
 
 use crate::board::layout;
 use crate::gt::{VisibilitySpec, project_points};
 use crate::poses::{CandidateStatus, Generated, Mounting, Posed, mounting};
 use crate::{Error, PixelCentre, Result};
-use information::{
-    Cam, H_POSE, POSE, camera_params, perturbed, pixel, ref_se3_base, target_in_base,
-};
-pub use system_error::{EstimatedCell, system_error};
+pub use information::RobotPrior;
+use information::{Cam, Information, Layout, View, view_information};
+pub use predict::{Prediction, predict};
+pub use system_error::{EstimatedCell, system_difference, system_error};
 
 fn bad(message: impl Into<String>) -> Error {
     Error::InvalidInput(message.into())
@@ -137,6 +143,8 @@ pub fn plan(
         Some(c) => c.clone(),
         None => scene.cameras.iter().map(|c| c.id.clone()).collect(),
     };
+    let mut frames = Vec::with_capacity(ids.len());
+    let mut resolutions = Vec::with_capacity(ids.len());
     let cams = ids
         .iter()
         .map(|id| {
@@ -145,37 +153,13 @@ pub fn plan(
                 .iter()
                 .find(|c| &c.id == id)
                 .ok_or_else(|| bad(format!("no camera `{id}`")))?;
-            Ok(Cam {
-                frame: posed.index(id)?,
-                resolution: c.resolution,
-                model: c.params.build()?,
-                fx: c.params.intrinsics.fx,
-                params: camera_params(&c.params)?,
-            })
+            frames.push(posed.index(id)?);
+            resolutions.push(c.resolution);
+            Cam::new(&c.params)
         })
         .collect::<Result<Vec<_>>>()?;
-
-    // The parameter vector: cameras, then the rig (every camera but the first), the hand-eye
-    // (its frame: the first camera's), the target.
-    let mut labels = Vec::new();
-    let mut cam_offset = Vec::new();
-    for (c, cam) in cams.iter().enumerate() {
-        cam_offset.push(labels.len());
-        labels.extend(cam.params.iter().map(|(n, ..)| format!("cam{c}.{n}")));
-    }
-    let rig_offset = labels.len();
-    for c in 1..cams.len() {
-        labels.extend(POSE.iter().map(|k| format!("cam{c}.cam_se3_rig.{k}")));
-    }
-    let (handeye_label, target_label) = match mounting {
-        Mounting::EyeInHand => ("gripper_se3_rig", "base_se3_target"),
-        Mounting::EyeToHand => ("rig_se3_base", "gripper_se3_target"),
-    };
-    let handeye_offset = labels.len();
-    labels.extend(POSE.iter().map(|k| format!("{handeye_label}.{k}")));
-    let target_offset = labels.len();
-    labels.extend(POSE.iter().map(|k| format!("{target_label}.{k}")));
-    let n = labels.len();
+    let params = Layout::new(&cams, mounting);
+    let (labels, target_offset, n) = (&params.labels, params.target_offset, params.len());
 
     // Each feasible candidate's information, and the system σ's weights.
     let feasible: Vec<usize> = (0..generated.candidates.len())
@@ -202,10 +186,10 @@ pub fn plan(
     for &i in &feasible {
         let candidate = &generated.candidates[i];
         let f = posed.at(r, candidate.q.as_deref().expect("feasible"));
-        let world_se3_ref = f[cams[0].frame];
+        let world_se3_ref = f[frames[0]];
         let base_se3_tcp = f[base_frame].inverse() * f[tcp_frame];
         // The hand-eye and the target's pose, as the calibration estimates them.
-        let (handeye, base_se3_target) = match mounting {
+        let (handeye, target) = match mounting {
             Mounting::EyeInHand => (
                 f[tcp_frame].inverse() * world_se3_ref,
                 f[base_frame].inverse() * f[target_frame],
@@ -215,118 +199,46 @@ pub fn plan(
                 f[tcp_frame].inverse() * f[target_frame],
             ),
         };
-        let mut info = DMatrix::<f64>::zeros(n, n);
-        for (c, cam) in cams.iter().enumerate() {
-            let cam_se3_ref = f[cam.frame].inverse() * world_se3_ref;
-            let chain = |cam_se3_ref: &Isometry3<f64>, he: &Isometry3<f64>, t: &Isometry3<f64>| {
-                cam_se3_ref
-                    * ref_se3_base(mounting, he, &base_se3_tcp)
-                    * target_in_base(mounting, t, &base_se3_tcp)
-            };
-            let nominal = chain(&cam_se3_ref, &handeye, &base_se3_target);
-            let seen = project_points(
-                &cam.model,
-                cam.resolution,
-                &f[cam.frame],
-                &f[target_frame],
-                &board.points,
-                &visibility,
-                edge,
-            );
-            for (gt, p) in seen.iter().zip(&points) {
-                if !gt.visible() {
-                    continue;
-                }
-                let mut j = vec![[0.0f64; 2]; n];
-                let diff =
-                    |plus: Option<[f64; 2]>, minus: Option<[f64; 2]>, h: f64| match (plus, minus) {
-                        (Some(a), Some(b)) => {
-                            [(a[0] - b[0]) / (2.0 * h), (a[1] - b[1]) / (2.0 * h)]
-                        }
-                        _ => [0.0, 0.0],
-                    };
-                for (k, (_, h, plus, minus)) in cam.params.iter().enumerate() {
-                    j[cam_offset[c] + k] =
-                        diff(pixel(plus, &nominal, p), pixel(minus, &nominal, p), *h);
-                }
-                for k in 0..6 {
-                    if c > 0 {
-                        let at = |s: f64| {
-                            pixel(
-                                &cam.model,
-                                &chain(&perturbed(&cam_se3_ref, k, s), &handeye, &base_se3_target),
-                                p,
-                            )
-                        };
-                        j[rig_offset + 6 * (c - 1) + k] = diff(at(H_POSE), at(-H_POSE), H_POSE);
-                    }
-                    let at = |s: f64| {
-                        pixel(
-                            &cam.model,
-                            &chain(&cam_se3_ref, &perturbed(&handeye, k, s), &base_se3_target),
-                            p,
-                        )
-                    };
-                    j[handeye_offset + k] = diff(at(H_POSE), at(-H_POSE), H_POSE);
-                    let at = |s: f64| {
-                        pixel(
-                            &cam.model,
-                            &chain(&cam_se3_ref, &handeye, &perturbed(&base_se3_target, k, s)),
-                            p,
-                        )
-                    };
-                    j[target_offset + k] = diff(at(H_POSE), at(-H_POSE), H_POSE);
-                }
-                let depth = (nominal * p).z;
-                let w = (depth / cam.fx) * (depth / cam.fx) * 1e6;
-                for axis in 0..2 {
-                    let row: Vec<f64> = j.iter().map(|d| d[axis]).collect();
-                    for (x, &jx) in row.iter().enumerate() {
-                        if jx == 0.0 {
-                            continue;
-                        }
-                        for (y, &jy) in row.iter().enumerate() {
-                            info[(x, y)] += jx * jy / var;
-                            if x < target_offset && y < target_offset {
-                                a[(x, y)] += w * jx * jy;
-                            }
-                        }
-                    }
-                }
-                sightings += 2;
-            }
-        }
+        let cameras = cams
+            .iter()
+            .zip(frames.iter().zip(&resolutions))
+            .map(|(cam, (&frame, &resolution))| {
+                let seen = project_points(
+                    &cam.model,
+                    resolution,
+                    &f[frame],
+                    &f[target_frame],
+                    &board.points,
+                    &visibility,
+                    edge,
+                );
+                let visible = seen
+                    .iter()
+                    .zip(&points)
+                    .filter(|(gt, _)| gt.visible())
+                    .map(|(_, p)| *p)
+                    .collect();
+                (f[frame].inverse() * world_se3_ref, visible)
+            })
+            .collect();
+        let view = View {
+            cameras,
+            handeye,
+            target,
+            base_se3_tcp,
+        };
+        let (info, rows) = view_information(&cams, &params, mounting, &view, var, None, &mut a);
         infos.push(info);
+        sightings += rows;
     }
     if sightings == 0 {
         return Err(bad("no candidate sees the target"));
     }
-
-    // A negligible prior (a millionth of an average view), so any set of views inverts.
-    let mut prior = DMatrix::<f64>::zeros(n, n);
-    for x in 0..n {
-        let mean: f64 = infos.iter().map(|m| m[(x, x)]).sum::<f64>() / infos.len() as f64;
-        prior[(x, x)] = 1e-6 * mean.max(f64::MIN_POSITIVE);
-    }
-    // Per image axis: `a` sums both axes of every sighting.
-    let rows = sightings as f64;
-    let sigma_of = |info: &DMatrix<f64>| -> Option<(f64, DMatrix<f64>)> {
-        let cov = info.clone().cholesky()?.inverse();
-        let mut t = 0.0;
-        for x in 0..target_offset {
-            for y in 0..target_offset {
-                t += cov[(x, y)] * a[(x, y)];
-            }
-        }
-        Some(((t / rows).max(0.0).sqrt(), cov))
-    };
-    let total = |set: &[usize]| -> DMatrix<f64> {
-        let mut m = prior.clone();
-        for &k in set {
-            m += &infos[k];
-        }
-        m
-    };
+    let information = Information::new(infos, a, sightings, target_offset);
+    let infos = &information.infos;
+    let prior = &information.prior;
+    let sigma_of = |info: &DMatrix<f64>| information.sigma_of(info);
+    let total = |set: &[usize]| information.total(set);
 
     // Greedy: the candidate that lowers the system σ most, one at a time.
     let mut chosen: Vec<usize> = Vec::new();
@@ -405,7 +317,7 @@ pub fn plan(
         grid: grid.iter().map(|&k| capture(k)).collect(),
         all_sigma_mm: all_sigma,
         feasible: feasible.len(),
-        labels,
+        labels: labels.clone(),
         sigma,
         scenario,
     })
