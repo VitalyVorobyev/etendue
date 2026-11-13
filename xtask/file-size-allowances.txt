@@ -1,7 +1,7 @@
 # Source files over the line limit when the rule came in (`cargo xtask check-file-size`).
 # Each number only goes down: split the file, then lower it (`--update`). Do not add lines.
 871 crates/etendue-cli/src/detect/mod.rs
-971 crates/etendue-cli/src/main.rs
+856 crates/etendue-cli/src/main.rs
 824 crates/etendue-core/src/head.rs
 1148 crates/etendue-core/src/laser/intersect.rs
 2109 crates/etendue-wasm/src/lib.rs
