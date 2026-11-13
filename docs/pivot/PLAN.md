@@ -1120,6 +1120,19 @@ manifests:
   of the views, and the difference of their estimates against √2·σ.
   - **Gate P1:** the planner's system σ is within 25 % of the split-half estimate on `kuka_1` and
     `DS8`. The bar is set after T2, and recorded as measured if it is mis-set.
+  - *Status (2026-11-13):* measured (`p20c/planner-real`); **P1 fails on both, in opposite
+    directions** (`docs/measurements/p20c_planner.md`). `etendue real split-half <run> -o <file>`
+    predicts the planner's σ on the twin (`etendue-synth::plan::predict`, the real run's pixel σ
+    and its robot pose error as a prior the planner marginalises), and pools the halves'
+    differences over 10 splits. On the twins' own white observations the split-half σ reads 1.00
+    (`kuka_1`) and 1.18 (`DS8`) times the planner's (±20–40 % per draw), and calibration-rs's σ is
+    the planner's within 4 %. `kuka_1`: planner 0.46 mm, split-half 0.89 mm (0.52): the planner is a
+    lower bound under view-correlated error, by about √(view scatter) = 1.67 (0.77 mm, within
+    15 %). `DS8` (rig refined): planner 4.24 mm, split-half 2.02 mm (2.10): its system σ is the
+    robot pose prior's (0.17 mm with exact poses), and the halves agree better than random robot
+    errors of the size calibration-rs estimates would allow, while its intrinsics scatter 5× their
+    planner σ. The bar is not re-set; CI checks the machinery on the `closed_loop_ur5e` twin
+    (`tests/twin.rs`), P1 is `tests/p1.rs` (local).
 - **P20d — Laser rigs.**
   - etendue's stripe detector (`detect/laser.rs`) becomes a `LaserPixelExtractor` for the dataset
     runner, so the private rigs' laser images calibrate their planes.
