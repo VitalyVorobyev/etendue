@@ -1106,10 +1106,11 @@ manifests:
   - *Status (2026-11-13):* done (`p20b/twin`). `etendue real twin <run> --trials N -o <folder>`
     builds the twin (`etendue-synth::twin`; the views are the runner's input rebuilt from the run's
     detection cache), calibrates it with `auto` (the runner's workflow at its defaults) and keeps it
-    as a run (config version 3, `twin` naming the real run, `gt.json` beside it). T1 exact passes
-    on both; T1 scatter passes on `kuka_1` and **fails on `DS8`'s cx** (std/σ 1.21, 1.18, 1.92):
-    the default rig hand-eye holds `cam_se3_rig`, G17.1's finding; with the rig refined it passes
-    (0.89–1.14). T2 (`docs/measurements/p20_twin.md`): `kuka_1` RMS ratio 1.01 but mild spatial
+    as a run (config version 3, `twin` naming the real run, `gt.json` beside it). T1 passes on
+    both: exact, and scatter judged as G17.1 (a rig's trials refine `cam_se3_rig`): `kuka_1`
+    0.94–1.11, `DS8` 0.93–1.14. **Finding:** with the default rig hand-eye, which holds
+    `cam_se3_rig`, `DS8`'s cx σ is understated (std/σ 1.21, 1.18, 1.92), G17.1's finding on a real
+    pose set. T2 (`docs/measurements/p20_twin.md`): `kuka_1` RMS ratio 1.01 but mild spatial
     structure (2.3 against the twin's 0.7); `DS8` ratio 1.14–1.27, strong within-view structure
     (13–21 against 0.8–0.9), an outward radial residual at the JAI cameras' edges (k3 held), and
     view scatter 25 (real σ 5× the twin's). CI runs a twin of `closed_loop_ur5e` (`tests/twin.rs`);

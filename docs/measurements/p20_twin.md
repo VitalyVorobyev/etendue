@@ -8,20 +8,23 @@ models calibration-rs fits) is wrong.
 
 - **Gate T1:** the twin recovers its truth on exact data (G5.1's limits), and its scatter over
   trials matches its predicted σ (std/σ within 15 %, G17.1's parameters: each camera's fx and cx,
-  and the hand-eye).
+  and the hand-eye). The scatter is judged as G17.1 is: a rig's trials refine the cameras' rig
+  poses (one `rig_handeye` stage with `"free": {"refine_rig": true}`), since the default holds them
+  and its covariance is conditional on them; a single camera's run its own workflow, which holds
+  nothing.
 - **Characterisation T2:** the real run against its twin, per camera.
 
-**Verdict.** T1 exact: **PASS** on both. T1 scatter: **PASS** on `kuka_1`; **FAIL** on `DS8`, on
-the three cameras' cx (std/σ 1.21, 1.18, 1.92; the hand-eye and fx pass). The gate is not relaxed;
-the cause is below. T2: the twin reproduces `kuka_1`'s residual level; both real datasets have
+**Verdict.** T1 exact: **PASS** on both. T1 scatter: **PASS** on both (`kuka_1` 0.94–1.11, `DS8`
+with the rig refined 0.93–1.14). **Finding:** with calibration-rs's default rig hand-eye,
+`DS8`'s predicted σ of cx is too small (std/σ 1.21, 1.18, 1.92). T2: the twin reproduces `kuka_1`'s residual level; both real datasets have
 spatial structure the twin does not, `DS8` much more, and their σ is inflated by calibration-rs's
 view scatter accordingly.
 
 ## When and where
 
 - Measured 2026-11-13, Apple M4 Pro, rustc 1.95.0, release builds.
-- etendue commit `06c66a2`, branch `p20b/twin` (the numbers); the diagnostic run below on
-  `86e3a64`, which adds only the procedure override and the view scatter line.
+- etendue commit `6d5a9d0`, branch `p20b/twin` (T1 and T2); the default workflow's scatter (the
+  finding) on `06c66a2`, whose trials differ only in the procedure.
 - calibration-rs `v0.18.0`, a clean clone of the tag.
 
 ## Method
@@ -37,9 +40,10 @@ view scatter accordingly.
    - noise: calibration-rs's reprojection σ (its `noise`, from the median absolute residual), and
      on the robot poses the pose error the real run weighed its pose corrections with (estimated
      by calibration-rs, `robot_pose_sigma`);
-3. calibrates the twin's exact observations once (T1, exact), then 200 noisy trials, seeds
-   100–299, with `auto`'s procedure: the workflow the manifest's topology picks, at calibration-rs's
-   defaults, which is the real run's (`calibrate_dataset` with no config);
+3. calibrates the twin's exact observations once (T1, exact) with `auto`'s procedure: the
+   workflow the manifest's topology picks, at calibration-rs's defaults, which is the real run's
+   (`calibrate_dataset` with no config); then 200 noisy trials, seeds 100–299, with the same
+   workflow, the rig's poses refined for a rig (`DS8`);
 4. compares the trials' std with the mean predicted σ (`param_stats`, G17.1's convention: the
    hand-eye error in calibration-rs's tangent), and the real run with its twin
    (`etendue_cli::real::versus`).
@@ -84,41 +88,55 @@ within 7e-5 px; hand-eye within 1.5e-6° and 7.3e-5 mm.
 | hand-eye ty | mm | 3.404e-1 | 3.446e-1 | 0.99 | yes |
 | hand-eye tz | mm | 3.585e-1 | 3.532e-1 | 1.01 | yes |
 
-**Scatter, `DS8`** (0.185 px; robot 1.65e-3 rad, 2.05 mm): **FAIL** on cx.
+**Scatter, `DS8`** (0.185 px; robot 1.65e-3 rad, 2.05 mm), the rig refined: **PASS** (gated
+0.93–1.14, every parameter 0.89–1.14).
 
 | Parameter | Unit | std | predicted σ | std / σ | gated |
 |---|---|---|---|---|---|
-| camera0 fx | px | 1.191e0 | 1.240e0 | 0.96 | yes |
-| camera0 cx | px | 4.442e-1 | 3.679e-1 | **1.21** | yes |
-| camera0 cy | px | 4.367e-1 | 3.706e-1 | 1.18 |  |
-| camera1 fx | px | 1.192e0 | 1.234e0 | 0.97 | yes |
-| camera1 cx | px | 4.319e-1 | 3.654e-1 | **1.18** | yes |
-| camera1 cy | px | 4.414e-1 | 3.677e-1 | 1.20 |  |
-| camera2 fx | px | 6.964e-1 | 6.166e-1 | 1.13 | yes |
-| camera2 cx | px | 3.516e-1 | 1.830e-1 | **1.92** | yes |
-| camera2 cy | px | 2.569e-1 | 1.847e-1 | 1.39 |  |
-| camera2 p1 |  | 1.113e-4 | 8.633e-5 | 1.29 |  |
-| camera2 p2 |  | 1.750e-4 | 9.226e-5 | 1.90 |  |
-| hand-eye rx | deg | 1.185e-1 | 1.040e-1 | 1.14 | yes |
-| hand-eye ry | deg | 8.442e-2 | 8.110e-2 | 1.04 | yes |
-| hand-eye rz | deg | 5.227e-2 | 5.551e-2 | 0.94 | yes |
-| hand-eye tx | mm | 4.070e0 | 3.944e0 | 1.03 | yes |
-| hand-eye ty | mm | 5.187e0 | 5.146e0 | 1.01 | yes |
-| hand-eye tz | mm | 3.997e0 | 3.786e0 | 1.06 | yes |
+| camera0 fx | px | 1.190e0 | 1.273e0 | 0.93 | yes |
+| camera0 fy | px | 1.188e0 | 1.269e0 | 0.94 |  |
+| camera0 cx | px | 4.431e-1 | 4.394e-1 | 1.01 | yes |
+| camera0 cy | px | 4.364e-1 | 4.186e-1 | 1.04 |  |
+| camera0 k1 |  | 7.357e-4 | 7.784e-4 | 0.95 |  |
+| camera0 k2 |  | 2.159e-3 | 2.263e-3 | 0.95 |  |
+| camera0 p1 |  | 6.526e-5 | 6.240e-5 | 1.05 |  |
+| camera0 p2 |  | 5.531e-5 | 6.182e-5 | 0.89 |  |
+| camera1 fx | px | 1.196e0 | 1.279e0 | 0.93 | yes |
+| camera1 fy | px | 1.189e0 | 1.274e0 | 0.93 |  |
+| camera1 cx | px | 4.328e-1 | 4.327e-1 | 1.00 | yes |
+| camera1 cy | px | 4.421e-1 | 4.172e-1 | 1.06 |  |
+| camera1 k1 |  | 8.086e-4 | 8.193e-4 | 0.99 |  |
+| camera1 k2 |  | 2.412e-3 | 2.418e-3 | 1.00 |  |
+| camera1 p1 |  | 5.971e-5 | 6.202e-5 | 0.96 |  |
+| camera1 p2 |  | 5.609e-5 | 6.045e-5 | 0.93 |  |
+| camera2 fx | px | 6.964e-1 | 7.276e-1 | 0.96 | yes |
+| camera2 fy | px | 6.987e-1 | 7.256e-1 | 0.96 |  |
+| camera2 cx | px | 3.498e-1 | 3.386e-1 | 1.03 | yes |
+| camera2 cy | px | 2.568e-1 | 2.621e-1 | 0.98 |  |
+| camera2 k1 |  | 1.170e-3 | 1.071e-3 | 1.09 |  |
+| camera2 k2 |  | 4.229e-3 | 3.722e-3 | 1.14 |  |
+| camera2 p1 |  | 1.112e-4 | 1.168e-4 | 0.95 |  |
+| camera2 p2 |  | 1.739e-4 | 1.727e-4 | 1.01 |  |
+| hand-eye rx | deg | 1.187e-1 | 1.043e-1 | 1.14 | yes |
+| hand-eye ry | deg | 8.446e-2 | 8.179e-2 | 1.03 | yes |
+| hand-eye rz | deg | 5.226e-2 | 5.551e-2 | 0.94 | yes |
+| hand-eye tx | mm | 4.070e0 | 3.945e0 | 1.03 | yes |
+| hand-eye ty | mm | 5.186e0 | 5.147e0 | 1.01 | yes |
+| hand-eye tz | mm | 4.000e0 | 3.807e0 | 1.05 | yes |
 
-(The other parameters, fy and the distortion of cameras 0 and 1, and camera 2's k1 and k2, are within
-0.96–1.15.)
-
-**Why `DS8` fails: the covariance holds the rig.** calibration-rs's rig hand-eye solve holds each
-camera's `cam_se3_rig` at its default (`refine_cam_se3_rig: false`; its `fixed` list names them), so
-its covariance is conditional on the rig, and the principal point, which trades off against a
-camera's pose on the rig, is understated most. This is G17.1's finding on `closed_loop_ur5e`
-(`g17_sim_lab.md`: up to 2.4× there), now on a real cell's pose set. A diagnostic run (the same 200
-trials, seeds and noise, `ETENDUE_T1_PROCEDURE` with one `rig_handeye` stage and
-`"free": {"refine_rig": true}`) passes: every gated ratio is within 0.93–1.14 (camera0, 1, 2 cx:
-1.01, 1.00, 1.03; hand-eye 0.94–1.14), and every parameter within 0.89–1.14. T1 is the real run's
-configuration, so it stays **FAIL** on `DS8` as measured; it would pass with the rig refined, which
-is not what calibration-rs's runner does. The real run's σ (below) has the same conditioning.
+**Finding: the default rig hand-eye understates the σ of the principal point.**
+- **With the rig refined, every ratio is within 0.89–1.14 (limit: within 15 %).** The procedure is
+  one `rig_handeye` stage with `"free": {"refine_rig": true}`, as in `g17_sim_lab.md`.
+- **With calibration-rs's defaults (the real run's workflow), cx's predicted σ is too small:**
+  std/σ 1.21, 1.18 and 1.92 for cameras 0, 1 and 2 (cy 1.18, 1.20, 1.39; camera 2's p2 1.90; fx and
+  the hand-eye within 0.94–1.14). The rig hand-eye solve holds each camera's `cam_se3_rig`
+  (`refine_cam_se3_rig: false`, named in its `fixed` list), so its covariance is conditional on the
+  rig, and the principal point, which trades off against a camera's pose on the rig, is understated
+  most. Measured on `06c66a2` with the same 200 trials, seeds and noise.
+- **This is a finding, not a gate change.** It is G17.1's (`g17_sim_lab.md`: up to 2.4× on
+  `closed_loop_ur5e`), now on a real cell's pose set. The book's Calibration page (Reading the
+  report) says the default σ is conditional on the rig, and how to get a complete covariance. The
+  real run's σ in T2 below has the same conditioning.
 
 ## T2: the real run against its twin
 
@@ -128,12 +146,14 @@ is not what calibration-rs's runner does. The real run's σ (below) has the same
 |---|---|---|---|---|---|---|---|---|---|
 | `kuka_1` | cam0 | 14280 | 0.1077 | 0.1070 | **1.01** | 2.33 / 0.67 | 1.28 / 0.60 | 0.115 / 0.056 | −0.006 +0.003 −0.003 +0.005 / +0.001 −0.001 −0.001 +0.004 |
 | `DS8` | camera0 | 4480 | 0.2109 | 0.1843 | **1.14** | 2.97 / 1.03 | 21.0 / 0.78 | 0.161 / 0.122 | −0.005 +0.004 −0.006 +0.105 / −0.003 +0.001 −0.002 −0.038 |
-| `DS8` | camera1 | 4480 | 0.2204 | 0.1835 | **1.20** | 8.78 / 0.99 | 21.0 / 0.80 | 0.262 / 0.123 | −0.011 +0.007 −0.013 +0.109 / +0.002 −0.001 −0.008 −0.012 |
+| `DS8` | camera1 | 4480 | 0.2204 | 0.1835 | **1.20** | 8.78 / 0.98 | 21.0 / 0.80 | 0.262 / 0.123 | −0.011 +0.007 −0.013 +0.109 / +0.002 −0.001 −0.008 −0.012 |
 | `DS8` | camera2 | 4480 | 0.2329 | 0.1829 | **1.27** | 3.17 / 0.93 | 12.7 / 0.90 | 0.215 / 0.121 | +0.002 −0.004 +0.006 −0.018 / +0.003 −0.001 −0.008 −0.023 |
 
 ### σ and distance, per parameter
 
-Real σ is calibration-rs's on the real data. calibration-rs scales it by its **view scatter**: how
+The twin's columns are T1's trials (for `DS8`, the rig refined; its std is within 1 % of the
+default workflow's, which moves the predicted σ, not the scatter). Real σ is calibration-rs's on
+the real data. calibration-rs scales it by its **view scatter**: how
 many times the variance of the parameters across views exceeds what the residual noise predicts
 (leave one view out). `kuka_1`'s is 2.79 (√ = 1.67), `DS8`'s 25.2 (√ = 5.02). The twin's views
 scatter no more than its noise predicts, so its σ is not scaled. Distance is
@@ -146,11 +166,11 @@ scatter no more than its noise predicts, so its σ is not scaled. Distance is
 | `kuka_1` | cam0 k1, k2, p1, p2 | 1.69–1.74 | −0.06 to +0.01 |
 | `kuka_1` | hand-eye rx, ry, rz | 1.54, 1.64, 1.65 | −0.13, −0.08, −0.07 |
 | `kuka_1` | hand-eye tx, ty, tz | 1.52, 1.70, 1.65 | +0.02, +0.08, +0.06 |
-| `DS8` | camera0 fx, cx | 6.09, 4.99 | −0.01, +0.00 |
-| `DS8` | camera1 fx, cx | 6.05, 5.10 | +0.06, −0.09 |
-| `DS8` | camera2 fx, cx | 5.18, 3.14 | +0.04, −0.03 |
-| `DS8` | distortion, every camera | 3.18–6.29 | −0.18 to +0.08 |
-| `DS8` | hand-eye rx, ry, rz | 4.46, 4.91, 5.48 | +0.01, −0.03, +0.06 |
+| `DS8` | camera0 fx, cx | 6.09, 5.01 | −0.01, +0.00 |
+| `DS8` | camera1 fx, cx | 6.03, 5.09 | +0.05, −0.09 |
+| `DS8` | camera2 fx, cx | 5.18, 3.15 | +0.04, −0.03 |
+| `DS8` | distortion, every camera | 3.20–6.29 | −0.17 to +0.09 |
+| `DS8` | hand-eye rx, ry, rz | 4.45, 4.91, 5.48 | +0.01, −0.03, +0.06 |
 | `DS8` | hand-eye tx, ty, tz | 4.92, 5.05, 5.18 | −0.08, −0.02, +0.03 |
 
 ### Reading it
@@ -174,7 +194,7 @@ scatter no more than its noise predicts, so its σ is not scaled. Distance is
   lenses. The rest of the structure is not radial (camera 2 has none, and the within-view score
   dwarfs the across-image one): view-dependent, as a target that is not flat or not rigid on the
   board, or a detector whose bias depends on the board's pose, would make it.
-- **The real estimates are where their twins land** (every distance within 0.18 σ). The twin's
+- **The real estimates are where their twins land** (every distance within 0.17 σ). The twin's
   truth is the real estimate, so this distance is the twin's bias: the estimator has none worth
   naming at these noise levels and pose sets, and the real-versus-twin differences above are in the
   residuals and the σ, not in where the estimates fall.
