@@ -6,13 +6,17 @@
 //! - **T1, exact:** the twin's exact observations recover its truth within G5.1's limits;
 //! - **T1, scatter:** over `ETENDUE_T1_TRIALS` trials (default 200, seeds 100, 101, …) at the
 //!   noise the real run implies, the std of each camera's fx and cx and of the hand-eye's six
-//!   components is within 15 % of calibration-rs's predicted σ (G17.1's parameters and bar);
+//!   components is within 15 % of calibration-rs's predicted σ (G17.1's parameters and bar), as
+//!   G17.1 is judged: a rig's trials are one `rig_handeye` stage with the cameras' rig poses
+//!   refined ([`scatter_procedure`]), since the default holds them and its covariance is
+//!   conditional on them; a single camera's are its own workflow, which holds nothing;
 //! - **T2:** prints the real run against its twin ([`etendue_cli::real::versus`]) as the tables of
 //!   `docs/measurements/p20_twin.md`.
 //!
 //! `ETENDUE_T1_PROCEDURE` (a procedure id or file, as `etendue calibrate --procedure` takes it)
-//! calibrates the twin's noisy trials with another procedure than the real run's: a diagnostic of
-//! the scatter check, not T1.
+//! calibrates the twin's noisy trials with another procedure: a diagnostic, not T1 (a plain
+//! `rig_handeye` stage gives the default workflow's understated σ, the finding of
+//! `docs/measurements/p20_twin.md`).
 //!
 //! The data is local (DS8's images are not in git), so this is ignored:
 //! `cargo test --release -p etendue-cli --test t1 -- --ignored --nocapture`.
@@ -38,6 +42,19 @@ fn gated(p: &ParamStats) -> bool {
 
 fn opt(x: Option<f64>) -> String {
     x.map_or("—".into(), |x| format!("{x:.3e}"))
+}
+
+/// The procedure of T1's noisy trials, as G17.1 judges the scatter: for a rig, one `rig_handeye`
+/// stage with `"free": {"refine_rig": true}` (`docs/measurements/g17_sim_lab.md`); for a single
+/// camera, `auto`'s (`None`), which has no rig to hold.
+fn scatter_procedure(cameras: usize) -> Option<calibrate::RunProcedure> {
+    (cameras > 1).then(|| calibrate::RunProcedure {
+        id: "rig_handeye_refine_rig".into(),
+        procedure: serde_json::from_value(serde_json::json!({
+            "stages": [{"id": "rig_handeye", "problem": "rig_handeye", "free": {"refine_rig": true}}]
+        }))
+        .unwrap(),
+    })
 }
 
 /// T1 and T2 on `id`; the T1 failures, as messages.
@@ -68,11 +85,14 @@ fn dataset(id: &str, trials: u32) -> Vec<String> {
             ..twin.noise
         },
         trials,
-        procedure: std::env::var("ETENDUE_T1_PROCEDURE").ok().map(|name| {
-            let (id, procedure) = etendue_cli::procedure::named(&name).unwrap();
-            println!("Procedure of the noisy trials: {id} (a diagnostic, not T1).\n");
-            calibrate::RunProcedure { id, procedure }
-        }),
+        procedure: match std::env::var("ETENDUE_T1_PROCEDURE") {
+            Ok(name) => {
+                let (id, procedure) = etendue_cli::procedure::named(&name).unwrap();
+                println!("Procedure of the noisy trials: {id} (a diagnostic, not T1).\n");
+                Some(calibrate::RunProcedure { id, procedure })
+            }
+            Err(_) => scatter_procedure(twin.gt.cameras.len()),
+        },
         ..RunOptions::default()
     };
     let noisy = run_trials(&twin.gt, None, &options, &ctl).unwrap();
