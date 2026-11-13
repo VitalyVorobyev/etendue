@@ -59,19 +59,20 @@ impl std::fmt::Display for Workflow {
 /// One target point's reprojection residual.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct FeatureResidual {
-    /// The capture, by id.
+    /// The capture, by id (a real dataset's: calibration-rs's view index).
     pub capture: String,
     /// The camera, by id.
     pub camera: String,
-    /// The target point, by its index in the ground truth's target.
+    /// The target point, by its index in the ground truth's target (a real dataset's: the
+    /// feature's index in its view).
     pub point: usize,
     /// The observed pixel.
     pub observed_px: [f64; 2],
     /// The pixel the estimate projects it to.
     pub projected_px: [f64; 2],
-    /// calibration-rs's view, camera and feature indices, until [`finish`] names them.
+    /// calibration-rs's view, camera and feature indices, until the report names them.
     #[serde(skip)]
-    pub(super) raw: [usize; 3],
+    pub(crate) raw: [usize; 3],
 }
 
 /// calibration-rs's predicted uncertainty of the estimate (its covariance's diagonal).
@@ -162,7 +163,7 @@ pub struct Plane {
 pub struct Report {
     pub version: u32,
     pub workflow: Workflow,
-    /// `"G5.1"`, or `"G5.3"` with lasers.
+    /// `"G5.1"`, or `"G5.3"` with lasers; empty without a truth (a real dataset).
     pub gate: String,
     /// Whether the gate applies (exact analytic observations).
     pub gated: bool,
@@ -198,6 +199,10 @@ pub struct Report {
     /// not part of the report.
     #[serde(skip)]
     pub rig_se3_target: Vec<Isometry3<f64>>,
+    /// A real dataset's calibration (P20a), which has no truth: then there are no rows and no
+    /// offsets, `gate` is empty and nothing is gated.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub real: Option<crate::real::RealSummary>,
 }
 
 /// One stage of a procedure's run.

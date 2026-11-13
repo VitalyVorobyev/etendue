@@ -14,6 +14,7 @@ etendue render    <scene> <scenario> -o <dir> [options]
 etendue detect    <dir>
 etendue calibrate <dir> [--noise <noise.json>] [--trials N] [--camera <id>] [--procedure <id | file>]
                   [--features <features.json>] [--laser-features <file>] [-o <report.json>] [--run <dir>]
+etendue real calibrate <id | dataset.toml> -o <dir>
 etendue scenario from-poses <poses> --robot <id> -o <scenario.json> [--speed-scale S] [--dt T] [--scene <scene>]
 etendue scenario sphere <scene> --spec <spec.json> -o <scenario.json> [--candidates <file>] [--dt T]
 etendue scenario plan <scene> --spec <spec.json> --budget N -o <scenario.json> [--report plan.json] [--noise-px 0.5]
@@ -222,6 +223,38 @@ On exact observations the command fails (exit status 1) when any checked quantit
 tolerance. With noise or detections the tolerances are printed for reference only.
 [Calibration](calibration.md) explains the problems, the noise, the rows and the tolerances, with
 a full example.
+
+## `real calibrate`
+
+```text
+etendue real calibrate <id | dataset.toml | folder> -o <folder>
+```
+
+Calibrates a **real** dataset: images and robot poses described by a calibration-rs
+`dataset.toml` manifest (its topology, cameras, image globs, target, robot poses and how they
+pair). It runs calibration-rs's dataset runner, the same code as calibration-rs's own `vcal run`:
+the target is detected in every image, the views are screened and paired with the robot poses, and
+the manifest's workflow (`single_cam_handeye`, `rig_handeye`, `planar_intrinsics`,
+`rig_extrinsics`) runs with its default configuration. Laser topologies are not calibrated yet.
+
+The dataset is named by:
+- a manifest path, or a folder holding `dataset.toml`;
+- an id listed in `local/datasets.toml` (in the folder `etendue` runs from; one line per dataset,
+  `my_cell = "/path/to/dataset.toml"`, a relative path read from `local/`). Keep this file out of
+  version control: it is how a private dataset is named without its path;
+- the public ids `kuka_1` and `DS8`, found in a calibration-rs checkout beside etendue
+  (`../calibration-rs/data/<id>/dataset.toml`) when `local/datasets.toml` does not name them.
+
+The output folder is kept as a run, like `calibrate --run`: `config.json` (the manifest and id),
+`report.json` and `result.json` (calibration-rs's export, identical to `vcal run`'s
+`calibration.json`), with the detection cache in `.detections/`, so a second run into the same
+folder detects nothing again. Nothing is written to the dataset's folder.
+
+There is no truth, so there are no compared rows and no closed-loop check. The report has the
+residuals of every feature and every view, calibration-rs's σ of each parameter and the noise the
+residuals imply, the quality verdict with its checks, and the views the runner left out with the
+reason. The command prints the views used, each camera's intrinsics with σ, the reprojection
+error, the worst views and the verdict.
 
 ## `scenario from-poses`
 

@@ -40,6 +40,8 @@ vision-calibration-dataset = "0.18.0"
 # The calibration workflows (P13, `etendue calibrate`): native only. It pulls the
 # solvers (faer, rayon) and calibration-rs's detectors; none of it reaches wasm.
 vision-calibration-pipeline = "0.18.0"
+# The dataset runner's detection cache (etendue-cli, P20a).
+vision-calibration-detect = "0.18.0"
 serde = { version = "1", features = ["derive"] }
 thiserror = "2"
 # Float-comparison assertions for kernel unit tests. 0.5 matches the version

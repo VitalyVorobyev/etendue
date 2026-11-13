@@ -7,6 +7,7 @@
 //! etendue gt <scene.json> <scenario.json> -o <out_dir>
 //! etendue detect <dataset_dir>
 //! etendue calibrate <dataset_dir> [--noise <noise.json>] [--trials N] [--camera ID] [--features <features.json>] [-o <report.json>]
+//! etendue real calibrate <id | dataset.toml> -o <run_dir>
 //! etendue scenario from-poses <poses.json> --robot <id> -o <scenario.json> [--scene <scene.json>]
 //! ```
 //!
@@ -20,13 +21,16 @@ use anyhow::{Context, Result, anyhow};
 use clap::{Parser, Subcommand};
 use etendue_cli::progress::{self, Control};
 use etendue_cli::render::{Blender, RenderOptions};
-use etendue_cli::{bake_file, calibrate, detect, export, gt, load, poses, read_json, render};
+use etendue_cli::{bake_file, detect, export, gt, load, poses, read_json, render};
 use etendue_kinematics::{BakeOptions, RobotModel, compile};
 use etendue_scene::{GeneratorSpec, ScenarioSpec, SceneSpec};
 use etendue_synth::sensor::SensorModel;
 
+mod calibrate_cmd;
 mod corners;
+mod library_cmd;
 mod measure;
+mod real_cmd;
 
 #[derive(Parser)]
 #[command(
@@ -57,7 +61,7 @@ enum Command {
     /// Work with component libraries: a user bank, a project's library, the built-ins.
     Library {
         #[command(subcommand)]
-        command: LibraryCommand,
+        command: library_cmd::LibraryCommand,
     },
     /// Compile a scenario and write the baked scenario (the world pose of
     /// every frame at every sample).
@@ -163,6 +167,11 @@ enum Command {
         /// export as result.json (a project's `runs/<name>`).
         #[arg(long)]
         run: Option<PathBuf>,
+    },
+    /// Real datasets: calibration-rs's dataset.toml manifests of real images and robot poses.
+    Real {
+        #[command(subcommand)]
+        command: real_cmd::RealCommand,
     },
     /// Build scenarios.
     Scenario {
@@ -351,121 +360,11 @@ enum ProjectCommand {
     },
 }
 
-/// `etendue library …`.
-#[derive(Subcommand)]
-enum LibraryCommand {
-    /// List the items and robots of up to three layers, each once, from the highest layer that
-    /// has it: project, then bank, then built-in.
-    List {
-        /// A project folder.
-        #[arg(long)]
-        project: Option<PathBuf>,
-        /// A user bank.
-        #[arg(long)]
-        bank: Option<PathBuf>,
-        /// The built-in library (a folder with `library/` and `robots/`, such as `examples`).
-        #[arg(long)]
-        builtin: Option<PathBuf>,
-    },
-    /// Check a bank (or any folder with `library/` and `robots/`): every item and robot.
-    Check {
-        /// The folder.
-        dir: PathBuf,
-    },
-    /// Import a library item file, or a robot folder (`robot.json`, its URDF and meshes).
-    Import {
-        /// The item file or robot folder.
-        source: PathBuf,
-        /// The bank or project to import into.
-        #[arg(long)]
-        into: PathBuf,
-        /// Replace an item or robot with the same id.
-        #[arg(long)]
-        force: bool,
-    },
-    /// Make a folder a user bank (write its `etendue-bank.json`).
-    Init {
-        /// The folder.
-        dir: PathBuf,
-        /// Its name.
-        #[arg(long, default_value = "My bank")]
-        name: String,
-    },
-}
-
 /// Render backends (Blender is the only one).
 #[derive(Clone, Copy, Debug, clap::ValueEnum)]
 enum Backend {
     /// Blender / Cycles.
     Blender,
-}
-
-fn library_command(command: LibraryCommand) -> Result<()> {
-    use etendue_cli::library;
-    match command {
-        LibraryCommand::List {
-            project,
-            bank,
-            builtin,
-        } => {
-            let layers: Vec<library::LayerDir> =
-                [("project", project), ("bank", bank), ("builtin", builtin)]
-                    .into_iter()
-                    .filter_map(|(name, dir)| dir.map(|dir| library::LayerDir { name, dir }))
-                    .collect();
-            anyhow::ensure!(
-                !layers.is_empty(),
-                "name at least one of --project, --bank, --builtin"
-            );
-            let (listed, problems) = library::list(&layers);
-            for l in &listed {
-                let hides = if l.shadows.is_empty() {
-                    String::new()
-                } else {
-                    format!("  (hides {})", l.shadows.join(", "))
-                };
-                println!("{:<8} {:<40} {}{hides}", l.layer, l.reference, l.name);
-            }
-            for p in &problems {
-                eprintln!("problem: {p}");
-            }
-            println!(
-                "{} item(s) and robot(s), {} problem(s)",
-                listed.len(),
-                problems.len()
-            );
-            Ok(())
-        }
-        LibraryCommand::Check { dir } => {
-            let c = library::check(&dir)?;
-            let counts: Vec<String> = c.counts().iter().map(|(f, n)| format!("{n} {f}")).collect();
-            println!(
-                "library ok: {}: {}, {} robot(s)",
-                dir.display(),
-                if counts.is_empty() {
-                    "no items".to_owned()
-                } else {
-                    counts.join(", ")
-                },
-                c.robots.len()
-            );
-            Ok(())
-        }
-        LibraryCommand::Import {
-            source,
-            into,
-            force,
-        } => {
-            let done = library::import(&source, &into, force)?;
-            println!("imported → {}", into.join(done.path).display());
-            Ok(())
-        }
-        LibraryCommand::Init { dir, name } => {
-            library::init_bank(&dir, &name)?;
-            println!("bank `{name}` → {}", dir.display());
-            Ok(())
-        }
-    }
 }
 
 /// Load and validate the scene and every robot model it references.
@@ -548,7 +447,7 @@ fn run(cli: Cli) -> Result<()> {
             );
             Ok(())
         }
-        Command::Library { command } => library_command(command),
+        Command::Library { command } => library_cmd::run(command),
         Command::Bake {
             scene,
             scenario,
@@ -633,7 +532,7 @@ fn run(cli: Cli) -> Result<()> {
             laser_features,
             output,
             run,
-        } => run_calibrate(
+        } => calibrate_cmd::run_calibrate(
             &dir,
             noise.as_deref(),
             trials,
@@ -641,6 +540,7 @@ fn run(cli: Cli) -> Result<()> {
             (features.as_deref(), laser_features.as_deref()),
             (output.as_deref(), run.as_deref()),
         ),
+        Command::Real { command } => real_cmd::run(command),
         Command::Scenario {
             command:
                 ScenarioCommand::FromPoses {
@@ -842,122 +742,6 @@ fn run(cli: Cli) -> Result<()> {
             }
         }
     }
-}
-
-/// `etendue calibrate`: one run (or `trials`), printed as `closed_loop.py` prints it; fails when
-/// a gated run fails.
-fn run_calibrate(
-    dir: &Path,
-    noise: Option<&Path>,
-    trials: u32,
-    (camera, procedure): (Option<String>, Option<String>),
-    (features, laser_features): (Option<&Path>, Option<&Path>),
-    (output, run): (Option<&Path>, Option<&Path>),
-) -> Result<()> {
-    use etendue_synth::dataset::GroundTruth;
-    use etendue_synth::observe::ObservationNoise;
-    let gt: GroundTruth = read_json(&dir.join("gt.json"), "ground truth")?;
-    let noise: ObservationNoise = match noise {
-        Some(p) => read_json(p, "observation noise")?,
-        None => ObservationNoise::default(),
-    };
-    if features.is_some() && (noise != ObservationNoise::default() || trials > 1) {
-        return Err(anyhow!(
-            "--noise and --trials apply to the analytic observations, not to --features"
-        ));
-    }
-    let procedure = procedure
-        .map(|name| etendue_cli::procedure::named(&name))
-        .transpose()?;
-    if let Some((id, p)) = &procedure {
-        println!("procedure: {id} ({} stage(s))", p.stages.len());
-    }
-    let detected = features
-        .map(|f| {
-            let laser = laser_features
-                .map(Path::to_path_buf)
-                .unwrap_or_else(|| f.with_file_name(detect::LASER_FEATURES));
-            calibrate::read_detected(&gt, f, &laser)
-        })
-        .transpose()?;
-    let options = calibrate::RunOptions {
-        noise,
-        trials: trials.max(1),
-        camera,
-        detected: features.is_some(),
-        procedure: procedure.map(|(id, procedure)| calibrate::RunProcedure { id, procedure }),
-    };
-    let doc = calibrate::run_trials(
-        &gt,
-        detected,
-        &options,
-        &etendue_cli::progress::Control::new(&|_| {}, None),
-    )?;
-    let reports = &doc.reports;
-    let report = &reports[0];
-    println!(
-        "{}: {} ({} camera(s): {}; {} views, {} points, {} laser pixels){}",
-        dir.display(),
-        report.workflow,
-        report.cameras.len(),
-        report.cameras.join(", "),
-        report.views,
-        report.points,
-        report.laser_pixels,
-        if report.noise.is_some() {
-            format!(", noise seed {}", noise.seed)
-        } else {
-            String::new()
-        },
-    );
-    print!("{}", report.table());
-    println!(
-        "  reprojection: mean {:.4} px, rms per axis {:.4} px over {} points",
-        report.residuals.mean_px, report.residuals.rms_axis_px, report.residuals.count
-    );
-    if let Some(stats) = &doc.row_stats {
-        println!("{} trials:", reports.len());
-        for s in stats {
-            println!(
-                "  {:<28} mean {:10.3e}  std {:10.3e}  max {:10.3e}",
-                s.label, s.mean, s.std, s.max
-            );
-        }
-    }
-    let failed = reports
-        .iter()
-        .any(|r| r.gated && !r.pass)
-        .then(|| reports[0].check_name());
-    if let Some(params) = &doc.param_stats {
-        println!(
-            "parameters over {} trials (predicted σ: calibration-rs's covariance):",
-            reports.len()
-        );
-        for p in params {
-            let predicted = p.predicted_sigma.map_or(String::new(), |s| {
-                format!("  predicted σ {s:10.3e}  std/σ {:5.2}", p.std / s)
-            });
-            println!(
-                "  {:<22} {:>3}  truth {:11.4e}  bias {:10.3e}  std {:10.3e}{predicted}",
-                p.label, p.unit, p.truth, p.bias, p.std
-            );
-        }
-    }
-    if let Some(out) = output {
-        std::fs::write(out, serde_json::to_string_pretty(&doc)? + "\n")
-            .with_context(|| format!("writing {}", out.display()))?;
-        println!("report → {}", out.display());
-    }
-    if let Some(folder) = run {
-        calibrate::write_run(folder, dir, &options, &doc)?;
-        println!("run → {}", folder.display());
-    }
-    if let Some(check) = failed {
-        return Err(anyhow!(
-            "{check} failed: the calibration did not recover the ground truth within tolerance"
-        ));
-    }
-    Ok(())
 }
 
 fn main() -> ExitCode {

@@ -171,8 +171,10 @@ pub fn run_trials(
     })
 }
 
-/// A kept run's version.
-pub const RUN_VERSION: u32 = 1;
+/// A kept run's version: the newest this etendue reads. A run is written with the oldest version
+/// that reads it: 1 for a synthetic dataset's, 2 for a real one's ([`RunConfig::real`], P20a), so
+/// an etendue before P20a lists a real run as unreadable and still reads the others.
+pub const RUN_VERSION: u32 = 2;
 
 /// A kept run's files ([ADR 0009](https://github.com/VitalyVorobyev/etendue/blob/main/docs/adrs/0009-project-folder.md),
 /// `runs/<name>/`): what was calibrated and how; the report ([`Run`]); calibration-rs's own
@@ -188,9 +190,13 @@ pub const RUN_RESULT: &str = "result.json";
 #[serde(deny_unknown_fields)]
 pub struct RunConfig {
     pub version: u32,
-    /// The dataset directory, as given.
+    /// The dataset directory, as given (a real dataset's: its manifest's folder).
     pub dataset: String,
+    /// How a synthetic dataset was calibrated (the defaults for a real one).
     pub options: RunOptions,
+    /// The real dataset calibrated (P20a): its manifest, and the id that named it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub real: Option<crate::real::DatasetSource>,
 }
 
 /// Keep `run` of `dataset` in `folder` (created): [`RUN_CONFIG`], [`RUN_REPORT`] and
@@ -205,18 +211,43 @@ pub fn write_run(
     options: &RunOptions,
     run: &Run,
 ) -> Result<()> {
-    std::fs::create_dir_all(folder).with_context(|| format!("creating {}", folder.display()))?;
     let config = RunConfig {
-        version: RUN_VERSION,
+        version: 1,
         dataset: dataset.to_string_lossy().into_owned(),
         options: options.clone(),
+        real: None,
     };
+    keep(folder, &config, run)
+}
+
+/// Keep `run`, a calibration of the real dataset `source` ([`crate::real`]), in `folder`
+/// (created): the files of [`write_run`].
+///
+/// # Errors
+///
+/// When a file cannot be written.
+pub fn write_real_run(
+    folder: &std::path::Path,
+    source: &crate::real::DatasetSource,
+    run: &Run,
+) -> Result<()> {
+    let config = RunConfig {
+        version: 2,
+        dataset: source.base_dir().to_string_lossy().into_owned(),
+        options: RunOptions::default(),
+        real: Some(source.clone()),
+    };
+    keep(folder, &config, run)
+}
+
+fn keep(folder: &std::path::Path, config: &RunConfig, run: &Run) -> Result<()> {
+    std::fs::create_dir_all(folder).with_context(|| format!("creating {}", folder.display()))?;
     let result = run
         .reports
         .first()
         .map_or(Value::Null, |r| r.export.clone());
     for (name, text) in [
-        (RUN_CONFIG, serde_json::to_string_pretty(&config)?),
+        (RUN_CONFIG, serde_json::to_string_pretty(config)?),
         (RUN_REPORT, serde_json::to_string_pretty(run)?),
         (RUN_RESULT, serde_json::to_string_pretty(&result)?),
     ] {

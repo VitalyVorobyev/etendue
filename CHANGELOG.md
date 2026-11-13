@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`etendue real calibrate <id | dataset.toml> -o <folder>`** (P20a): calibrates a real dataset
+  (a calibration-rs `dataset.toml` of images and robot poses) with calibration-rs's dataset runner
+  and keeps the run: residuals per feature and per view, σ, the quality verdict and the views left
+  out, with no truth to compare against. A dataset is named by its manifest, by an id in the
+  git-ignored `local/datasets.toml`, or as `kuka_1`/`DS8` from a calibration-rs checkout beside
+  etendue. Its estimates and residuals equal calibration-rs's own run of the manifest bit for bit
+  (gate R1).
+
+### Changed
+
+- A calibration report's per-feature errors are calibration-rs's own (`error_px`) rather than
+  recomputed, which differed in the last bit for about one residual in six.
+- A kept run's `config.json` is version 2 when the run is of a real dataset (it names the
+  manifest under `real`); synthetic runs stay version 1, so an older etendue still reads them and
+  lists a real run as unreadable, with the reason.
+
 ## [0.3.0] - 2026-11-12
 
 ### Added
