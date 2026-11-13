@@ -7,6 +7,7 @@
 //! etendue gt <scene.json> <scenario.json> -o <out_dir>
 //! etendue detect <dataset_dir>
 //! etendue calibrate <dataset_dir> [--noise <noise.json>] [--trials N] [--camera ID] [--features <features.json>] [-o <report.json>]
+//! etendue real calibrate <id | dataset.toml> -o <run_dir>
 //! etendue scenario from-poses <poses.json> --robot <id> -o <scenario.json> [--scene <scene.json>]
 //! ```
 //!
@@ -29,6 +30,7 @@ mod calibrate_cmd;
 mod corners;
 mod library_cmd;
 mod measure;
+mod real_cmd;
 
 #[derive(Parser)]
 #[command(
@@ -165,6 +167,11 @@ enum Command {
         /// export as result.json (a project's `runs/<name>`).
         #[arg(long)]
         run: Option<PathBuf>,
+    },
+    /// Real datasets: calibration-rs's dataset.toml manifests of real images and robot poses.
+    Real {
+        #[command(subcommand)]
+        command: real_cmd::RealCommand,
     },
     /// Build scenarios.
     Scenario {
@@ -533,6 +540,7 @@ fn run(cli: Cli) -> Result<()> {
             (features.as_deref(), laser_features.as_deref()),
             (output.as_deref(), run.as_deref()),
         ),
+        Command::Real { command } => real_cmd::run(command),
         Command::Scenario {
             command:
                 ScenarioCommand::FromPoses {

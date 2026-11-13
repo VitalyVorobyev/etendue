@@ -115,7 +115,7 @@ pub(crate) fn merge(into: &mut Value, patch: &Value) {
 }
 
 /// An estimated camera from an export's camera.
-pub(super) fn camera_of(
+pub(crate) fn camera_of(
     p: &CameraParams,
     id: &str,
     cam_se3_ref: Isometry3<f64>,
@@ -175,7 +175,7 @@ pub(super) fn plane_of(p: &LaserPlane) -> Plane {
 
 /// The residual figures of an export's diagnostics, for `cameras` cameras; `mean_px` is the
 /// export's own mean reprojection error.
-pub(super) fn residuals(
+pub(crate) fn residuals(
     diagnostics: &ExportDiagnostics,
     mean_px: f64,
     cameras: usize,
@@ -185,12 +185,11 @@ pub(super) fn residuals(
     let mut per_camera = vec![(0.0, 0usize); cameras];
     let mut features = Vec::new();
     for r in &diagnostics.per_feature_residuals.target {
-        // A point whose projection failed has no residual.
-        let (o, Some(p)) = (r.observed_px, r.projected_px) else {
+        // A point whose projection failed has no residual. The error is calibration-rs's own.
+        let (o, Some(p), Some(e)) = (r.observed_px, r.projected_px, r.error_px) else {
             continue;
         };
         let (du, dv) = (p[0] - o[0], p[1] - o[1]);
-        let e = du.hypot(dv);
         sq += du * du + dv * dv;
         errors.push(e);
         if let Some(slot) = per_camera.get_mut(r.camera) {
@@ -227,7 +226,7 @@ pub(super) fn residuals(
 
 /// An export as JSON (what a run keeps), with calibration-rs's quality verdict for cameras of
 /// `sizes`.
-pub(super) fn exported<E>(
+pub(crate) fn exported<E>(
     export: &E,
     sizes: &[[u32; 2]],
 ) -> Result<(
@@ -254,7 +253,7 @@ pub(super) fn sizes(truth: &Truth, cams: &[usize]) -> Vec<[u32; 2]> {
 }
 
 /// calibration-rs's covariance, as σ; `None` when it has none.
-pub(super) fn predicted(uncertainty: &Uncertainty) -> Option<Predicted> {
+pub(crate) fn predicted(uncertainty: &Uncertainty) -> Option<Predicted> {
     let u = uncertainty.covariance()?;
     let sigma = (0..u.labels.len())
         .map(|i| {

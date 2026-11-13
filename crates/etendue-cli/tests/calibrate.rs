@@ -133,7 +133,9 @@ fn g13_2_the_same_seed_gives_the_same_report() {
 
 #[test]
 fn a_dataset_directory_runs_trials_and_keeps_the_run() {
-    use etendue_cli::calibrate::{RUN_RESULT, RunOptions, read_runs, run_dir, write_run};
+    use etendue_cli::calibrate::{
+        RUN_RESULT, RunOptions, read_runs, run_dir, write_real_run, write_run,
+    };
     use etendue_cli::progress::Control;
     use std::sync::atomic::AtomicBool;
 
@@ -158,6 +160,12 @@ fn a_dataset_directory_runs_trials_and_keeps_the_run() {
     let runs = root().join("target/calibrate_test/trials/runs");
     let _ = std::fs::remove_dir_all(&runs);
     write_run(&runs.join("noisy"), &dir, &options, &run).unwrap();
+    // A real dataset's run (P20a) is kept the same way, at version 2 with its source.
+    let source = etendue_cli::real::DatasetSource {
+        id: Some("kuka_1".into()),
+        manifest: "data/kuka_1/dataset.toml".into(),
+    };
+    write_real_run(&runs.join("real"), &source, &run).unwrap();
     std::fs::create_dir_all(runs.join("not-a-run")).unwrap();
     // A newer etendue's run, and a damaged one: listed with the reason, not dropped.
     std::fs::create_dir_all(runs.join("future")).unwrap();
@@ -175,9 +183,14 @@ fn a_dataset_directory_runs_trials_and_keeps_the_run() {
     assert_eq!(why[1].0, "future");
     assert!(why[1].1.contains("newer etendue"), "{why:?}");
     let kept = listing.runs;
-    assert_eq!(kept.len(), 1);
+    assert_eq!(kept.len(), 2);
     assert_eq!(kept[0].name, "noisy");
     assert_eq!(kept[0].config.options, options);
+    assert_eq!((kept[0].config.version, &kept[0].config.real), (1, &None));
+    assert_eq!(kept[1].name, "real");
+    assert_eq!(kept[1].config.version, 2);
+    assert_eq!(kept[1].config.real.as_ref(), Some(&source));
+    assert_eq!(kept[1].config.dataset, "data/kuka_1");
     assert_eq!(
         kept[0].run.reports,
         run.reports

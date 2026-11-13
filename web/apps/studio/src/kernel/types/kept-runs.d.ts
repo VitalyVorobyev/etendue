@@ -80,14 +80,18 @@ export interface StoredRun {
  */
 export interface RunConfig {
   /**
-   * The dataset directory, as given.
+   * The dataset directory, as given (a real dataset's: its manifest's folder).
    */
   dataset: string;
   options: RunOptions;
+  /**
+   * The real dataset calibrated (P20a): its manifest, and the id that named it.
+   */
+  real?: DatasetSource | null;
   version: number;
 }
 /**
- * How [`run_dir`] calibrates a dataset directory.
+ * How a synthetic dataset was calibrated (the defaults for a real one).
  */
 export interface RunOptions {
   /**
@@ -315,6 +319,20 @@ export interface SolverChoice {
   robust_loss?: Loss | null;
 }
 /**
+ * A real dataset: its manifest (calibration-rs's `dataset.toml`), and the id that named it.
+ */
+export interface DatasetSource {
+  /**
+   * The id it was named by, if any (a private dataset is known by it alone in anything
+   * committed).
+   */
+  id?: string | null;
+  /**
+   * The manifest's path.
+   */
+  manifest: string;
+}
+/**
  * What [`run_dir`] found: every trial's report and, with several, each row's spread.
  */
 export interface Run {
@@ -370,7 +388,7 @@ export interface Report {
   cameras: string[];
   estimate: Estimate;
   /**
-   * `"G5.1"`, or `"G5.3"` with lasers.
+   * `"G5.1"`, or `"G5.3"` with lasers; empty without a truth (a real dataset).
    */
   gate: string;
   /**
@@ -392,6 +410,11 @@ export interface Report {
    * calibration-rs's quality verdict on the estimate (`analysis::quality`).
    */
   quality?: QualityReport | null;
+  /**
+   * A real dataset's calibration (P20a), which has no truth: then there are no rows and no
+   * offsets, `gate` is empty and nothing is gated.
+   */
+  real?: RealSummary | null;
   residuals: Residuals;
   rows: Row[];
   /**
@@ -569,6 +592,78 @@ export interface Measurement {
   value: number;
 }
 /**
+ * What a real dataset's calibration has that a synthetic one's does not: the manifest's view
+ * counts, the views left out, and residuals per view.
+ */
+export interface RealSummary {
+  /**
+   * Each detection the runner left out, with its reason.
+   */
+  rejected: RejectedView[];
+  /**
+   * The manifest's topology (calibration-rs's `snake_case` name).
+   */
+  topology: string;
+  /**
+   * Views the manifest's images formed before screening.
+   */
+  total_views: number;
+  /**
+   * Views that entered the calibration.
+   */
+  usable_views: number;
+  /**
+   * Residuals of each calibrated view and camera, by view then camera.
+   */
+  views: ViewResiduals[];
+}
+/**
+ * A detection the dataset runner left out of the calibration.
+ */
+export interface RejectedView {
+  /**
+   * The camera, by id.
+   */
+  camera: string;
+  /**
+   * The image, relative to the manifest's folder when it is under it.
+   */
+  image: string;
+  /**
+   * calibration-rs's reason.
+   */
+  reason: string;
+}
+/**
+ * The reprojection residuals of one camera in one calibrated view.
+ */
+export interface ViewResiduals {
+  /**
+   * The camera, by id.
+   */
+  camera: string;
+  /**
+   * Points with a residual.
+   */
+  count: number;
+  /**
+   * Largest Euclidean error (px).
+   */
+  max_px: number;
+  /**
+   * Mean Euclidean error (px).
+   */
+  mean_px: number;
+  /**
+   * Root mean square per image axis (px).
+   */
+  rms_axis_px: number;
+  /**
+   * calibration-rs's view index (the usable views, in pairing order).
+   */
+  view: number;
+}
+/**
  * Reprojection residuals of the target points.
  */
 export interface Residuals {
@@ -610,7 +705,7 @@ export interface FeatureResidual {
    */
   camera: string;
   /**
-   * The capture, by id.
+   * The capture, by id (a real dataset's: calibration-rs's view index).
    */
   capture: string;
   /**
@@ -621,7 +716,8 @@ export interface FeatureResidual {
    */
   observed_px: [number, number];
   /**
-   * The target point, by its index in the ground truth's target.
+   * The target point, by its index in the ground truth's target (a real dataset's: the
+   * feature's index in its view).
    */
   point: number;
   /**

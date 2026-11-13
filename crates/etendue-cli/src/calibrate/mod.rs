@@ -36,11 +36,13 @@ pub(crate) use rig::{rig, rig_extrinsics, rig_laser};
 pub use runs::{
     KeptRuns, RUN_CONFIG, RUN_REPORT, RUN_RESULT, RUN_VERSION, Run, RunConfig, RunOptions,
     RunProcedure, StoredRun, UnreadableRun, read_detected, read_runs, run_dir, run_trials,
-    write_run,
+    write_real_run, write_run,
 };
 pub use stats::{ParamStats, RowStats, param_stats, row_stats};
 pub(crate) use truth::{Truth, distortion_of, nominal_values, tilt_of};
-pub(crate) use upstream::{SeedValues, StageRun, check_config, handeye_mode};
+pub(crate) use upstream::{
+    SeedValues, StageRun, camera_of, check_config, exported, handeye_mode, predicted, residuals,
+};
 pub(crate) use workflows::{head, intrinsics, single};
 
 use anyhow::Result;

@@ -804,6 +804,7 @@ dependencies = [
  "toml",
  "vision-calibration-core",
  "vision-calibration-dataset",
+ "vision-calibration-detect",
  "vision-calibration-pipeline",
 ]
 

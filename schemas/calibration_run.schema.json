@@ -212,7 +212,7 @@
           "type": "string"
         },
         "capture": {
-          "description": "The capture, by id.",
+          "description": "The capture, by id (a real dataset's: calibration-rs's view index).",
           "type": "string"
         },
         "observed_px": {
@@ -226,7 +226,7 @@
           "minItems": 2
         },
         "point": {
-          "description": "The target point, by its index in the ground truth's target.",
+          "description": "The target point, by its index in the ground truth's target (a real dataset's: the\nfeature's index in its view).",
           "type": "integer",
           "format": "uint",
           "minimum": 0
@@ -593,6 +593,72 @@
         "checks"
       ]
     },
+    "RealSummary": {
+      "description": "What a real dataset's calibration has that a synthetic one's does not: the manifest's view\ncounts, the views left out, and residuals per view.",
+      "type": "object",
+      "properties": {
+        "rejected": {
+          "description": "Each detection the runner left out, with its reason.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RejectedView"
+          }
+        },
+        "topology": {
+          "description": "The manifest's topology (calibration-rs's `snake_case` name).",
+          "type": "string"
+        },
+        "total_views": {
+          "description": "Views the manifest's images formed before screening.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "usable_views": {
+          "description": "Views that entered the calibration.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "views": {
+          "description": "Residuals of each calibrated view and camera, by view then camera.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ViewResiduals"
+          }
+        }
+      },
+      "required": [
+        "topology",
+        "usable_views",
+        "total_views",
+        "rejected",
+        "views"
+      ]
+    },
+    "RejectedView": {
+      "description": "A detection the dataset runner left out of the calibration.",
+      "type": "object",
+      "properties": {
+        "camera": {
+          "description": "The camera, by id.",
+          "type": "string"
+        },
+        "image": {
+          "description": "The image, relative to the manifest's folder when it is under it.",
+          "type": "string"
+        },
+        "reason": {
+          "description": "calibration-rs's reason.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "camera",
+        "image",
+        "reason"
+      ]
+    },
     "Report": {
       "description": "A calibration and its comparison with the truth.",
       "type": "object",
@@ -608,7 +674,7 @@
           "$ref": "#/$defs/Estimate"
         },
         "gate": {
-          "description": "`\"G5.1\"`, or `\"G5.3\"` with lasers.",
+          "description": "`\"G5.1\"`, or `\"G5.3\"` with lasers; empty without a truth (a real dataset).",
           "type": "string"
         },
         "gated": {
@@ -648,6 +714,17 @@
           "anyOf": [
             {
               "$ref": "#/$defs/QualityReport"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "real": {
+          "description": "A real dataset's calibration (P20a), which has no truth: then there are no rows and no\noffsets, `gate` is empty and nothing is gated.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RealSummary"
             },
             {
               "type": "null"
@@ -915,6 +992,51 @@
           "type": "string",
           "const": "fail"
         }
+      ]
+    },
+    "ViewResiduals": {
+      "description": "The reprojection residuals of one camera in one calibrated view.",
+      "type": "object",
+      "properties": {
+        "camera": {
+          "description": "The camera, by id.",
+          "type": "string"
+        },
+        "count": {
+          "description": "Points with a residual.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "max_px": {
+          "description": "Largest Euclidean error (px).",
+          "type": "number",
+          "format": "double"
+        },
+        "mean_px": {
+          "description": "Mean Euclidean error (px).",
+          "type": "number",
+          "format": "double"
+        },
+        "rms_axis_px": {
+          "description": "Root mean square per image axis (px).",
+          "type": "number",
+          "format": "double"
+        },
+        "view": {
+          "description": "calibration-rs's view index (the usable views, in pairing order).",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "view",
+        "camera",
+        "count",
+        "mean_px",
+        "rms_axis_px",
+        "max_px"
       ]
     },
     "Workflow": {

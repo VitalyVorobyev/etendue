@@ -168,6 +168,7 @@ pub(super) fn finish(truth: &Truth, obs: &Observations, gated: bool, solved: Sol
         stages: Vec::new(),
         export,
         rig_se3_target,
+        real: None,
     }
 }
 

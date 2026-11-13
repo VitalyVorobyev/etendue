@@ -42,4 +42,6 @@ nalgebra = { workspace = true }
 vision-calibration-core = { workspace = true, features = ["schemars"] }
 vision-calibration-dataset = { workspace = true }
 vision-calibration-pipeline = { workspace = true, features = ["schemars"] }
+# The dataset runner's detection cache (`etendue real calibrate`, P20a).
+vision-calibration-detect = { workspace = true }
 toml = { workspace = true }

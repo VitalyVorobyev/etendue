@@ -17,6 +17,7 @@ pub mod poses;
 pub mod procedure;
 pub mod progress;
 pub mod project;
+pub mod real;
 pub mod render;
 
 pub use load::{Loaded, bake_file, load, read_json};
