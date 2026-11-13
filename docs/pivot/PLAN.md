@@ -1079,6 +1079,11 @@ manifests:
   - It is kept as a run, like a synthetic one, and `Report` gains a "no truth" form.
   - **Gate R1:** on `kuka_1` and `DS8`, the report's estimates and residuals equal calibration-rs's
     own run of the same manifest (the same code: any difference is etendue's).
+  - *Status (2026-11-13):* done (`p20a/real-calibrate`). `etendue real calibrate <id |
+    dataset.toml> -o <folder>` keeps a run (config version 2, `real` naming the manifest) with the
+    detection cache in `<folder>/.detections`. R1 passes bit for bit on both datasets
+    (`docs/measurements/p20a_r1.md`); it runs locally (`tests/r1.rs`, ignored), not in CI. R1
+    found one difference, fixed: the per-feature errors are now calibration-rs's own.
 - **P20b — The twin.** From a real calibration, `etendue-synth` builds a `GroundTruth` directly:
   - the calibrated cameras, rig and hand-eye as the truth;
   - the manifest's target as calibration-rs lays it out;
