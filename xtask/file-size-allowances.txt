@@ -7,4 +7,3 @@
 2109 crates/etendue-wasm/src/lib.rs
 955 tools/robot-assets/build.py
 905 web/apps/studio/src/library/Workspace.tsx
-1187 web/apps/studio/src/state/studio.ts
