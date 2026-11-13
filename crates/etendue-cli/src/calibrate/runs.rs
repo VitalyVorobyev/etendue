@@ -172,9 +172,10 @@ pub fn run_trials(
 }
 
 /// A kept run's version: the newest this etendue reads. A run is written with the oldest version
-/// that reads it: 1 for a synthetic dataset's, 2 for a real one's ([`RunConfig::real`], P20a), so
-/// an etendue before P20a lists a real run as unreadable and still reads the others.
-pub const RUN_VERSION: u32 = 2;
+/// that reads it: 1 for a synthetic dataset's, 2 for a real one's ([`RunConfig::real`], P20a), 3
+/// for a real run's twin ([`RunConfig::twin`], P20b), so an older etendue lists a run it cannot
+/// read as unreadable and still reads the others.
+pub const RUN_VERSION: u32 = 3;
 
 /// A kept run's files ([ADR 0009](https://github.com/VitalyVorobyev/etendue/blob/main/docs/adrs/0009-project-folder.md),
 /// `runs/<name>/`): what was calibrated and how; the report ([`Run`]); calibration-rs's own
@@ -190,13 +191,17 @@ pub const RUN_RESULT: &str = "result.json";
 #[serde(deny_unknown_fields)]
 pub struct RunConfig {
     pub version: u32,
-    /// The dataset directory, as given (a real dataset's: its manifest's folder).
+    /// The dataset directory, as given (a real dataset's, or its twin's: the manifest's folder).
     pub dataset: String,
     /// How a synthetic dataset was calibrated (the defaults for a real one).
     pub options: RunOptions,
-    /// The real dataset calibrated (P20a): its manifest, and the id that named it.
+    /// The real dataset calibrated (P20a), or twinned: its manifest, and the id that named it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub real: Option<crate::real::DatasetSource>,
+    /// For a real run's twin (P20b): the real run's folder, as given. The twin's ground truth is
+    /// `gt.json` in its own run folder.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub twin: Option<String>,
 }
 
 /// Keep `run` of `dataset` in `folder` (created): [`RUN_CONFIG`], [`RUN_REPORT`] and
@@ -216,6 +221,7 @@ pub fn write_run(
         dataset: dataset.to_string_lossy().into_owned(),
         options: options.clone(),
         real: None,
+        twin: None,
     };
     keep(folder, &config, run)
 }
@@ -236,9 +242,39 @@ pub fn write_real_run(
         dataset: source.base_dir().to_string_lossy().into_owned(),
         options: RunOptions::default(),
         real: Some(source.clone()),
+        twin: None,
     };
     keep(folder, &config, run)
 }
+
+/// Keep `run`, the trials of the twin of the real run in `real_run` ([`crate::real::twin`]), in
+/// `folder` (created): the files of [`write_run`], with the twin's ground truth as `gt.json`.
+///
+/// # Errors
+///
+/// When a file cannot be written.
+pub fn write_twin_run(
+    folder: &std::path::Path,
+    real_run: &std::path::Path,
+    twin: &crate::real::Twin,
+    options: &RunOptions,
+    run: &Run,
+) -> Result<()> {
+    let config = RunConfig {
+        version: 3,
+        dataset: twin.source.base_dir().to_string_lossy().into_owned(),
+        options: options.clone(),
+        real: Some(twin.source.clone()),
+        twin: Some(real_run.to_string_lossy().into_owned()),
+    };
+    keep(folder, &config, run)?;
+    let path = folder.join(TWIN_GT);
+    std::fs::write(&path, serde_json::to_string_pretty(&twin.gt)? + "\n")
+        .with_context(|| format!("writing {}", path.display()))
+}
+
+/// A twin's ground truth, in its run's folder ([`write_twin_run`]).
+pub const TWIN_GT: &str = "gt.json";
 
 fn keep(folder: &std::path::Path, config: &RunConfig, run: &Run) -> Result<()> {
     std::fs::create_dir_all(folder).with_context(|| format!("creating {}", folder.display()))?;

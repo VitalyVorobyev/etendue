@@ -80,14 +80,19 @@ export interface StoredRun {
  */
 export interface RunConfig {
   /**
-   * The dataset directory, as given (a real dataset's: its manifest's folder).
+   * The dataset directory, as given (a real dataset's, or its twin's: the manifest's folder).
    */
   dataset: string;
   options: RunOptions;
   /**
-   * The real dataset calibrated (P20a): its manifest, and the id that named it.
+   * The real dataset calibrated (P20a), or twinned: its manifest, and the id that named it.
    */
   real?: DatasetSource | null;
+  /**
+   * For a real run's twin (P20b): the real run's folder, as given. The twin's ground truth is
+   * `gt.json` in its own run folder.
+   */
+  twin?: string | null;
   version: number;
 }
 /**
