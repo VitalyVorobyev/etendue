@@ -16,6 +16,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   git-ignored `local/datasets.toml`, or as `kuka_1`/`DS8` from a calibration-rs checkout beside
   etendue. Its estimates and residuals equal calibration-rs's own run of the manifest bit for bit
   (gate R1).
+- **`etendue real twin <run> [--trials N] [--seed S] [--exact] -o <folder>`** (P20b): builds the
+  twin of a real calibration (`etendue-synth::twin`): its result as the truth, its robot poses, and
+  in each view the points its detector found, observed with the noise the real residuals imply
+  (calibration-rs's reprojection σ and its robot pose error). The twin is calibrated with the real
+  run's workflow and configuration over seeded trials and kept as a run, and the real run is set
+  against it (`etendue_cli::real::versus`): residual RMS, whiteness across the image and within
+  views, σ against the twin's scatter. Gate T1 and characterisation T2 on `kuka_1` and `DS8`:
+  `docs/measurements/p20_twin.md`.
 
 ### Changed
 
@@ -23,7 +31,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   recomputed, which differed in the last bit for about one residual in six.
 - A kept run's `config.json` is version 2 when the run is of a real dataset (it names the
   manifest under `real`); synthetic runs stay version 1, so an older etendue still reads them and
-  lists a real run as unreadable, with the reason.
+  lists a real run as unreadable, with the reason. A real run's twin is version 3 (it names the
+  real run under `twin`).
 
 ## [0.3.0] - 2026-11-12
 
