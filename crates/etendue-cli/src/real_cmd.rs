@@ -45,6 +45,27 @@ pub enum RealCommand {
         #[arg(short, long)]
         output: PathBuf,
     },
+    /// Check the pose planner's σ on a real run's own poses (P20c): its system σ, predicted on
+    /// the twin, against the real calibration's σ and a split-half estimate (each half of the
+    /// views calibrated on its own, several splits pooled). Gate P1: within 25 %.
+    SplitHalf {
+        /// The real run's folder (`real calibrate`'s, with its `.detections`).
+        run: PathBuf,
+        /// Random splits, beside the interleaved one and the halves in capture order.
+        #[arg(long, default_value_t = 8)]
+        random: usize,
+        /// The first random split's seed.
+        #[arg(long, default_value_t = 0)]
+        seed: u64,
+        /// The procedure of every calibration (a built-in id or a procedure file, as
+        /// `calibrate --procedure`); by default the planner's model: a rig's hand-eye with the
+        /// rig refined, a single camera's own workflow.
+        #[arg(long)]
+        procedure: Option<String>,
+        /// The report (JSON): planner, real and split-half σ, per split and per parameter.
+        #[arg(short, long)]
+        output: PathBuf,
+    },
 }
 
 pub fn run(command: RealCommand) -> Result<()> {
@@ -68,6 +89,92 @@ pub fn run(command: RealCommand) -> Result<()> {
             exact,
             output,
         } => twin(&run, trials, seed, exact, &output),
+        RealCommand::SplitHalf {
+            run,
+            random,
+            seed,
+            procedure,
+            output,
+        } => {
+            let procedure = procedure
+                .map(|name| {
+                    let (id, procedure) = etendue_cli::procedure::named(&name)?;
+                    anyhow::Ok(calibrate::RunProcedure { id, procedure })
+                })
+                .transpose()?;
+            let options = real::SplitHalfOptions {
+                random,
+                seed,
+                procedure,
+            };
+            let (twin, s) = real::split_half_run(&run, &options, &Control::new(&|_| {}, None))?;
+            print_split_half(&twin.source.name(), &s);
+            std::fs::write(&output, serde_json::to_string_pretty(&s)? + "\n")?;
+            println!("report → {}", output.display());
+            Ok(())
+        }
+    }
+}
+
+fn print_split_half(dataset: &str, s: &real::SplitHalf) {
+    println!(
+        "{dataset}: {} views, {}; planner noise {:.4} px{}",
+        s.views,
+        s.procedure,
+        s.noise_px,
+        s.robot.map_or(String::new(), |r| format!(
+            ", robot {:.3e} rad, {:.3e} m",
+            r.rot_sigma_rad, r.trans_sigma_m
+        ))
+    );
+    for r in &s.splits {
+        println!(
+            "  split {:<12} {:>3} + {:<3} views: halves differ by {:.4} mm, predicted {:.4} mm ({:.2})",
+            r.split,
+            r.views[0],
+            r.views[1],
+            r.measured_mm,
+            r.predicted_mm,
+            r.measured_mm / r.predicted_mm
+        );
+    }
+    for f in &s.failed {
+        println!("  split left out: {f}");
+    }
+    let opt = |x: Option<f64>| x.map_or("—".to_owned(), |x| format!("{x:.4}"));
+    println!(
+        "system σ: planner {:.4} mm (exact robot poses {:.4}), real {} mm, split-half {:.4} mm",
+        s.planner_mm,
+        s.planner_exact_robot_mm,
+        opt(s.real_mm),
+        s.split_half_mm
+    );
+    if let Some(v) = s.view_scatter {
+        println!(
+            "  planner × √(view scatter {v:.2}) = {:.4} mm (a diagnostic)",
+            s.planner_mm * v.sqrt()
+        );
+    }
+    println!(
+        "P1: planner / split-half = {:.3} (within {:.0} %): {}",
+        s.ratio(),
+        real::P1 * 100.0,
+        if s.pass() { "PASS" } else { "FAIL" }
+    );
+    println!(
+        "parameters (RMS over each group): σ planner, real, split-half; real / planner, split-half / planner"
+    );
+    for g in s.groups() {
+        println!(
+            "  {:<28} {:>3} {:>10} {:>10} {:>10}   {:>5}  {:.2}",
+            g.group,
+            g.unit,
+            opt(g.planner),
+            opt(g.real),
+            opt(g.split_half),
+            g.real_ratio.map_or("—".to_owned(), |x| format!("{x:.2}")),
+            g.split_ratio
+        );
     }
 }
 

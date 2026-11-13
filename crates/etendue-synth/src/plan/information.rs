@@ -376,13 +376,18 @@ impl Information {
     /// `None` when they cannot determine the calibration.
     pub(super) fn sigma_of(&self, info: &DMatrix<f64>) -> Option<(f64, DMatrix<f64>)> {
         let cov = info.clone().cholesky()?.inverse();
+        Some((self.system_sigma(&cov), cov))
+    }
+
+    /// The system σ (mm) of a covariance of the parameters: `√(tr(Σ A) / rows)`.
+    pub(super) fn system_sigma(&self, cov: &DMatrix<f64>) -> f64 {
         let mut t = 0.0;
         for x in 0..self.target_offset {
             for y in 0..self.target_offset {
                 t += cov[(x, y)] * self.a[(x, y)];
             }
         }
-        Some(((t / self.rows).max(0.0).sqrt(), cov))
+        (t / self.rows).max(0.0).sqrt()
     }
 
     /// The information of the views `set` (indices into `infos`), with the prior.

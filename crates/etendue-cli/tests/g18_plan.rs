@@ -14,15 +14,14 @@
 
 use std::path::{Path, PathBuf};
 
-use etendue_cli::calibrate::{Options, Report, calibrate};
+use etendue_cli::calibrate::{Options, Report, calibrate, cell};
 use etendue_cli::{Loaded, bake_file, gt, load};
 use etendue_kinematics::BakeOptions;
 use etendue_scene::{GeneratorSpec, ProcedurePart, ScenarioSpec, SphereGenerator, Step};
 use etendue_synth::dataset::GroundTruth;
 use etendue_synth::observe::{ObservationNoise, observe};
-use etendue_synth::plan::{EstimatedCell, PlanSpec, plan, subset, system_error};
+use etendue_synth::plan::{PlanSpec, plan, subset, system_error};
 use etendue_synth::poses::{CandidateStatus, Generated};
-use vision_calibration_core::{BrownConrady5, DistortionParams, FxFyCxCy, SensorParams};
 
 fn root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
@@ -70,41 +69,6 @@ fn truth(example: &str, scenario: &ScenarioSpec, name: &str) -> GroundTruth {
     let baked = bake_file(&loaded, &path, BakeOptions::default()).unwrap();
     gt::write(&loaded, &baked, &dir.join("gt")).unwrap();
     serde_json::from_str(&std::fs::read_to_string(dir.join("gt/gt.json")).unwrap()).unwrap()
-}
-
-/// The estimated cell a report gives, in the planner's terms.
-fn cell(gt: &GroundTruth, report: &Report) -> EstimatedCell {
-    let cameras = report
-        .estimate
-        .cameras
-        .iter()
-        .map(|e| {
-            let truth = gt.cameras.iter().find(|c| c.id == e.id).unwrap();
-            let mut p = truth.params.clone();
-            let [fx, fy, cx, cy] = e.intrinsics;
-            p.intrinsics = FxFyCxCy { fx, fy, cx, cy };
-            let [k1, k2, k3, p1, p2] = e.distortion;
-            p.distortion = DistortionParams::BrownConrady5 {
-                params: BrownConrady5 {
-                    k1,
-                    k2,
-                    k3,
-                    p1,
-                    p2,
-                    iters: 8,
-                },
-            };
-            if let SensorParams::Scheimpflug { params } = &mut p.sensor {
-                params.tilt_x = e.tilt[0];
-                params.tilt_y = e.tilt[1];
-            }
-            (p, e.cam_se3_ref)
-        })
-        .collect();
-    EstimatedCell {
-        cameras,
-        handeye: report.estimate.handeye.unwrap(),
-    }
 }
 
 fn trials() -> u64 {
@@ -162,7 +126,7 @@ fn planned_poses_beat_the_grid_and_the_prediction_holds(example: &str, spec: &st
                 &loaded.models,
                 &generated,
                 &sphere,
-                &cell(&gt, &report),
+                &cell(&gt, &report).unwrap(),
             )
             .unwrap();
             sq += e * e;

@@ -159,6 +159,29 @@ impl Prediction {
         self.information.sigma_of(&info).map(|(s, _)| s)
     }
 
+    /// The system σ (mm) another covariance of the cell implies, over the same sightings: `cov`
+    /// is over `labels` (in [`Self::labels`]' names); a parameter it lacks counts as exact, one
+    /// the planner lacks is left out.
+    #[must_use]
+    pub fn system_sigma_of(&self, labels: &[String], cov: &DMatrix<f64>) -> f64 {
+        let at: Vec<Option<usize>> = self
+            .layout
+            .labels
+            .iter()
+            .map(|l| labels.iter().position(|x| x == l))
+            .collect();
+        let n = at.len();
+        let mut mapped = DMatrix::<f64>::zeros(n, n);
+        for (x, i) in at.iter().enumerate() {
+            for (y, j) in at.iter().enumerate() {
+                if let (Some(i), Some(j)) = (i, j) {
+                    mapped[(x, y)] = cov[(*i, *j)];
+                }
+            }
+        }
+        self.information.system_sigma(&mapped)
+    }
+
     /// Each parameter's σ (in [`Self::labels`]' order) from `captures`; `None` when they cannot
     /// determine the calibration.
     #[must_use]
