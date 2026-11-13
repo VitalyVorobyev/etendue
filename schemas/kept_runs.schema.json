@@ -1226,7 +1226,7 @@
       "type": "object",
       "properties": {
         "dataset": {
-          "description": "The dataset directory, as given (a real dataset's: its manifest's folder).",
+          "description": "The dataset directory, as given (a real dataset's, or its twin's: the manifest's folder).",
           "type": "string"
         },
         "options": {
@@ -1234,7 +1234,7 @@
           "$ref": "#/$defs/RunOptions"
         },
         "real": {
-          "description": "The real dataset calibrated (P20a): its manifest, and the id that named it.",
+          "description": "The real dataset calibrated (P20a), or twinned: its manifest, and the id that named it.",
           "anyOf": [
             {
               "$ref": "#/$defs/DatasetSource"
@@ -1242,6 +1242,13 @@
             {
               "type": "null"
             }
+          ]
+        },
+        "twin": {
+          "description": "For a real run's twin (P20b): the real run's folder, as given. The twin's ground truth is\n`gt.json` in its own run folder.",
+          "type": [
+            "string",
+            "null"
           ]
         },
         "version": {

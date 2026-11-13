@@ -15,6 +15,7 @@ etendue detect    <dir>
 etendue calibrate <dir> [--noise <noise.json>] [--trials N] [--camera <id>] [--procedure <id | file>]
                   [--features <features.json>] [--laser-features <file>] [-o <report.json>] [--run <dir>]
 etendue real calibrate <id | dataset.toml> -o <dir>
+etendue real twin <run> [--trials N] [--seed S] [--exact] -o <dir>
 etendue scenario from-poses <poses> --robot <id> -o <scenario.json> [--speed-scale S] [--dt T] [--scene <scene>]
 etendue scenario sphere <scene> --spec <spec.json> -o <scenario.json> [--candidates <file>] [--dt T]
 etendue scenario plan <scene> --spec <spec.json> --budget N -o <scenario.json> [--report plan.json] [--noise-px 0.5]
@@ -255,6 +256,40 @@ residuals of every feature and every view, calibration-rs's σ of each parameter
 residuals imply, the quality verdict with its checks, and the views the runner left out with the
 reason. The command prints the views used, each camera's intrinsics with σ, the reprojection
 error, the worst views and the verdict.
+
+## `real twin`
+
+```text
+etendue real twin <run> [--trials N] [--seed S] [--exact] -o <folder>
+```
+
+Builds the **twin** of a real calibration and calibrates it: the same cell, the same robot poses
+and the same seen points, simulated. `<run>` is the folder `real calibrate` kept; the dataset's
+images must still be where it found them, since its detection cache is keyed by them.
+
+- **The truth** is the real calibration's result: the cameras, their poses on the rig and the
+  hand-eye. No scene and no robot model are needed.
+- **The views** are the real calibration's: each view's robot pose as the calibration took it, and
+  in each view exactly the points the detector found, in its order, projected through the truth.
+- **The noise** is what the real run implies: calibration-rs's reprojection noise σ on every point,
+  and on the robot poses the pose error the real calibration weighed its pose corrections with.
+- **The calibration** is the real run's: the workflow the manifest's topology picks, with its
+  default configuration. Only hand-eye datasets (`single_cam_handeye`, `rig_handeye`) have a twin.
+
+With `--trials N` the twin is observed and calibrated `N` times, with seeds `S, S + 1, …`; with
+`--exact` it is calibrated once on noise-free observations, and the closed-loop check (G5.1) says
+whether it recovers its truth. The output folder is kept as a run: `config.json` names the dataset
+and the real run (`twin`), `report.json` holds every trial, `result.json` the first trial's
+calibration-rs export, and `gt.json` the twin's ground truth.
+
+It then sets the real run against its twin, per camera:
+- the residuals' RMS, real over twin: about 1 when the noise model holds;
+- their whiteness across the image (binned on an 8 × 6 grid) and within each view (a 4 × 3 grid
+  per view): `Σ n |mean|² / σ²` per degree of freedom, about 1 for white residuals and several
+  times 1 where the residuals have a shape a model does not explain;
+
+and, with several trials, per parameter: the real σ, the twin's predicted σ and its scatter over
+the trials, and how far the real estimate is from the twin's mean, in the twin's σ.
 
 ## `scenario from-poses`
 

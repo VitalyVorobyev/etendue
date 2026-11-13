@@ -58,6 +58,8 @@ cd web/apps/studio && bun x vitest run --project browser src/probe/g4_3.browser.
 cargo test -p etendue-synth --release --test ptc -- --nocapture                                           # P4-6 photon transfer
 cargo run --release -p etendue-cli -- real calibrate <id | dataset.toml> -o runs/<name>               # P20a real dataset (calibration-rs's runner; ids in git-ignored local/datasets.toml, kuka_1/DS8 from ../calibration-rs/data)
 VCAL=<calibration-rs>/target/release/vcal cargo test --release -p etendue-cli --test r1 -- --ignored --nocapture   # gate R1 (local data): real calibrate = calibration-rs's vcal, bit for bit
+cargo run --release -p etendue-cli -- real twin runs/<name> --trials 200 -o runs/<name>_twin   # P20b the real run's twin (truth = its result, its poses and seen points); --exact: G5.1
+cargo test --release -p etendue-cli --test t1 -- --ignored --nocapture                                  # gate T1 + T2 tables (local data: kuka_1, DS8)
 cargo run -p etendue-cli -- calibrate target/gt [--camera ID] [--noise n.json --trials N] [--features f.json] -o report.json [--run runs/<name>]   # P13 native closed loop: G5.1 / G5.3 / G5.3b gated on exact input
 uv run --locked --project tools/closed-loop tools/closed-loop/parity.py report.json target/gt [--camera ID]   # G13.1: native rows = the wheel's
 uv run --locked --project tools/closed-loop tools/closed-loop/closed_loop.py target/gt [--camera ID]     # the wheel's closed loop (cross-check since P13)
@@ -100,7 +102,7 @@ across the whole workspace.
 | `etendue-core` | none | the head optimiser runs on an in-tree deterministic Nelder–Mead (`solver::nelder_mead`), no `getrandom` (G9.3) |
 | `etendue-scene` | `schemars` | JSON Schema derives (xtask enables it to emit `schemas/`) |
 | `etendue-kinematics` | `opw` | analytic OPW IK via `rs-opw-kinematics` (`default-features = false`) |
-| `etendue-synth` | `images`, `schemars` | canonical camera, remap LUT, GT, dataset, render jobs, pose generator; `images` = EXR ingest + PNG + the laser-image compositor (native render path, off in wasm); `schemars` = JSON Schema of the observation noise (for etendue-cli's report schemas) |
+| `etendue-synth` | `images`, `schemars` | canonical camera, remap LUT, GT, dataset, render jobs, pose generator, a real calibration's twin (P20b); `images` = EXR ingest + PNG + the laser-image compositor (native render path, off in wasm); `schemars` = JSON Schema of the observation noise (for etendue-cli's report schemas) |
 | `etendue-cli` | none | lib `etendue_cli` (the pipeline) + binary `etendue` |
 | `etendue-wasm` | none | wasm32 build + G0.1 parity in CI job `wasm` |
 | `xtask` | none | not published; `emit-schemas`, `check-layering`, `app` (aliases `cargo app`, `cargo app-release`) |
