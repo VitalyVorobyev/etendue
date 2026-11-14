@@ -24,8 +24,9 @@ fn root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
 }
 
-/// `closed_loop_ur5e`'s ground truth (its robot manifest read from the example's folder).
-fn truth() -> GroundTruth {
+/// `closed_loop_ur5e`'s ground truth (its robot manifest read from the example's folder), made
+/// in `target/<dir>`.
+fn truth(dir: &str) -> GroundTruth {
     let name = "closed_loop_ur5e";
     let text = std::fs::read_to_string(root().join(format!("examples/{name}/scene.json"))).unwrap();
     let mut scene: SceneSpec = serde_json::from_str(&text).unwrap();
@@ -36,7 +37,7 @@ fn truth() -> GroundTruth {
             .to_string_lossy()
             .into_owned();
     }
-    let dir = root().join("target/twin_test");
+    let dir = root().join("target").join(dir);
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join("scene.json");
     std::fs::write(&path, serde_json::to_string_pretty(&scene).unwrap()).unwrap();
@@ -102,7 +103,7 @@ fn as_calibrated(gt: &GroundTruth) -> (Vec<TwinCamera>, GtHandeye, Vec<TwinView>
 
 #[test]
 fn the_twin_of_a_calibration_recovers_its_truth_and_matches_white_noise() {
-    let gt = truth();
+    let gt = truth("twin_test");
     let (cameras, handeye, views) = as_calibrated(&gt);
     let twin_gt = twin(gt.topology, &cameras, handeye, &views).unwrap();
     assert_eq!(twin_gt.captures.len(), views.len());
@@ -178,6 +179,7 @@ fn the_twin_of_a_calibration_recovers_its_truth_and_matches_white_noise() {
         gt: twin_gt.clone(),
         noise,
         view_scatter: None,
+        observed: observe(&twin_gt, &noise),
     };
     let opts = options(100);
     write_twin_run(
@@ -204,4 +206,34 @@ fn the_twin_of_a_calibration_recovers_its_truth_and_matches_white_noise() {
         serde_json::from_str(&std::fs::read_to_string(runs.join("twin").join(TWIN_GT)).unwrap())
             .unwrap();
     assert_eq!(kept_gt.captures.len(), twin_gt.captures.len());
+}
+
+/// P20c in CI: on the twin's own white-noise observations, the split-half σ agrees with the
+/// planner's (gate P1's bar), and so does calibration-rs's covariance.
+#[test]
+fn on_white_noise_the_split_half_sigma_is_the_planners() {
+    let gt = truth("split_half_test");
+    let (cameras, handeye, views) = as_calibrated(&gt);
+    let twin_gt = twin(gt.topology, &cameras, handeye, &views).unwrap();
+    let noise = ObservationNoise {
+        pixel_sigma_px: 0.5,
+        seed: 11,
+        ..ObservationNoise::default()
+    };
+    let obs = observe(&twin_gt, &noise);
+    let ctl = Control::new(&|_| {}, None);
+    let options = real::SplitHalfOptions {
+        random: 4,
+        ..real::SplitHalfOptions::default()
+    };
+    let s = real::split_half(&twin_gt, &obs, 0.5, None, &options, &ctl).unwrap();
+    println!("{}", serde_json::to_string_pretty(&s).unwrap());
+    assert_eq!(s.procedure, "rig_handeye_refine_rig");
+    assert!(s.failed.is_empty(), "{:?}", s.failed);
+    assert_eq!(s.splits.len(), 6);
+    assert_eq!(s.planner_mm, s.planner_exact_robot_mm);
+    assert!(s.pass(), "planner / split-half = {:.3}", s.ratio());
+    let real = s.real_mm.unwrap() / s.planner_mm;
+    assert!((real - 1.0).abs() < 0.15, "real / planner = {real:.3}");
+    assert!(!s.params.is_empty());
 }

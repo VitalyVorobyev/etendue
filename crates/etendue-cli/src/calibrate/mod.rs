@@ -15,6 +15,7 @@
 //! (`etendue_synth::observe`), or a detector's ([`from_features`]). The rows are gated by G5.1
 //! (and G5.3 with lasers) only on exact analytic observations, as the script gates them.
 
+mod cell;
 mod compare;
 mod observations;
 mod report;
@@ -25,6 +26,7 @@ mod truth;
 mod upstream;
 mod workflows;
 
+pub use cell::{cell, covariance};
 pub(crate) use compare::{with_planes, with_triangulation};
 pub use observations::from_features;
 pub(crate) use observations::{check_observations, robot_poses};
@@ -38,6 +40,7 @@ pub use runs::{
     RunProcedure, StoredRun, TWIN_GT, UnreadableRun, read_detected, read_runs, run_dir, run_trials,
     write_real_run, write_run, write_twin_run,
 };
+pub(crate) use stats::values;
 pub use stats::{ParamStats, RowStats, param_stats, row_stats};
 pub(crate) use truth::{Truth, distortion_of, nominal_values, tilt_of};
 pub(crate) use upstream::{

@@ -16,6 +16,7 @@ etendue calibrate <dir> [--noise <noise.json>] [--trials N] [--camera <id>] [--p
                   [--features <features.json>] [--laser-features <file>] [-o <report.json>] [--run <dir>]
 etendue real calibrate <id | dataset.toml> -o <dir>
 etendue real twin <run> [--trials N] [--seed S] [--exact] -o <dir>
+etendue real split-half <run> [--random K] [--seed S] [--procedure <id | file>] -o <report.json>
 etendue scenario from-poses <poses> --robot <id> -o <scenario.json> [--speed-scale S] [--dt T] [--scene <scene>]
 etendue scenario sphere <scene> --spec <spec.json> -o <scenario.json> [--candidates <file>] [--dt T]
 etendue scenario plan <scene> --spec <spec.json> --budget N -o <scenario.json> [--report plan.json] [--noise-px 0.5]
@@ -290,6 +291,45 @@ It then sets the real run against its twin, per camera:
 
 and, with several trials, per parameter: the real σ, the twin's predicted σ and its scatter over
 the trials, and how far the real estimate is from the twin's mean, in the twin's σ.
+
+## `real split-half`
+
+```text
+etendue real split-half <run> [--random K] [--seed S] [--procedure <id | file>] -o <report.json>
+```
+
+Checks the pose planner's σ (`scenario plan`) on a real calibration's own poses. `<run>` is the
+folder `real calibrate` kept, as for `real twin`. Three σ are set side by side:
+
+- **The planner's**, predicted on the twin: the twin's views (the real robot poses and the points
+  the detector found), the real run's pixel noise σ, and its robot pose error as the prior the
+  calibration weighs its pose corrections with. The planner's model with exact robot poses is
+  given beside it.
+- **The real calibration's**: calibration-rs's covariance of a calibration of every real view,
+  which it scales by its view scatter (how much more the views disagree than the residual noise
+  predicts).
+- **The split-half σ**: the real views are split into two halves, and each half is calibrated on
+  its own. The difference of the two halves' estimates is compared with what the planner predicts
+  for it, `√(σ_A² + σ_B²)` (about `√2 σ_half`, or twice the whole set's σ). Several splits are
+  pooled: the even views against the odd, the first half against the second (in capture order),
+  and `K` random halves (seeds `S, S + 1, …`; 8 by default). The pooled ratio of the measured to
+  the predicted difference, times the planner's σ, is the split-half σ of the whole set.
+
+Each is given for the **system σ** (how far, in millimetres across the line of sight, the
+calibrated cell would place a point it knows in the robot's base frame, over every sighting of the
+real views) and for each parameter, grouped. Every calibration runs the planner's model by
+default: a rig's hand-eye with the rig refined (calibration-rs's default holds the rig, and its σ
+is then conditional on it); a single camera's own workflow. `--procedure` runs another, a built-in
+id or a procedure file, as `calibrate --procedure` takes it. The report (`-o`) holds every split,
+the three system σ and every parameter's.
+
+Gate P1 asks that the planner's system σ be within 25 % of the split-half σ. Where the residuals
+vary from view to view more than white noise would (a real board, a real detector), the halves
+disagree by more than the planner predicts, and the planner's σ is a lower bound; the command
+prints the planner's σ times the square root of the view scatter beside it, as a diagnostic.
+Where the robot pose error dominates the system σ, the planner is only as good as its prior: if
+the pose errors calibration-rs estimates are not independent from view to view, the halves agree
+better than the planner predicts.
 
 ## `scenario from-poses`
 

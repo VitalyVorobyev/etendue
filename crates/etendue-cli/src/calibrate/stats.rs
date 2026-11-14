@@ -151,6 +151,18 @@ fn samples(truth: &Truth, r: &Report) -> Vec<Sample> {
     out
 }
 
+/// The parameters of `report` in [`param_stats`]' labels and units: label, unit, value and
+/// calibration-rs's σ (a hand-eye's value is its offset from `gt`'s, in calibration-rs's tangent).
+pub(crate) fn values(
+    gt: &GroundTruth,
+    report: &Report,
+) -> Vec<(String, &'static str, f64, Option<f64>)> {
+    samples(&Truth::new(gt), report)
+        .into_iter()
+        .map(|(label, unit, _, value, sigma)| (label, unit, value, sigma))
+        .collect()
+}
+
 /// One parameter's samples over trials: unit, truth, values, predicted σ.
 type Gathered = (&'static str, f64, Vec<f64>, Vec<f64>);
 

@@ -60,6 +60,8 @@ cargo run --release -p etendue-cli -- real calibrate <id | dataset.toml> -o runs
 VCAL=<calibration-rs>/target/release/vcal cargo test --release -p etendue-cli --test r1 -- --ignored --nocapture   # gate R1 (local data): real calibrate = calibration-rs's vcal, bit for bit
 cargo run --release -p etendue-cli -- real twin runs/<name> --trials 200 -o runs/<name>_twin   # P20b the real run's twin (truth = its result, its poses and seen points); --exact: G5.1
 cargo test --release -p etendue-cli --test t1 -- --ignored --nocapture                                  # gate T1 + T2 tables (local data: kuka_1, DS8)
+cargo run --release -p etendue-cli -- real split-half runs/<name> -o split_half.json                    # P20c planner σ (on the twin) vs real σ vs split-half σ
+cargo test --release -p etendue-cli --test p1 -- --ignored --nocapture                                  # gate P1 tables (local data: kuka_1, DS8); ETENDUE_P1_SEEDS
 cargo run -p etendue-cli -- calibrate target/gt [--camera ID] [--noise n.json --trials N] [--features f.json] -o report.json [--run runs/<name>]   # P13 native closed loop: G5.1 / G5.3 / G5.3b gated on exact input
 uv run --locked --project tools/closed-loop tools/closed-loop/parity.py report.json target/gt [--camera ID]   # G13.1: native rows = the wheel's
 uv run --locked --project tools/closed-loop tools/closed-loop/closed_loop.py target/gt [--camera ID]     # the wheel's closed loop (cross-check since P13)

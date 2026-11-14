@@ -17,7 +17,9 @@ use std::path::Path;
 
 use anyhow::{Context, Result, bail, ensure};
 use etendue_synth::dataset::{GroundTruth, GtHandeye};
-use etendue_synth::observe::ObservationNoise;
+use etendue_synth::observe::{
+    ObservationNoise, Observations, ObservedCapture, ObservedPoint, ObservedView,
+};
 use etendue_synth::twin::{TwinCamera, TwinView};
 use nalgebra::Isometry3;
 use vision_calibration_core::{CorrespondenceView, RunControl};
@@ -50,6 +52,10 @@ pub struct Twin {
     /// parameters across views exceeds what its residual noise predicts (its σ is scaled by it);
     /// `None` when they agree.
     pub view_scatter: Option<f64>,
+    /// The real detections as observations of the twin's truth: the same captures and points,
+    /// the pixels the detector found, the robot poses as reported. Calibrating them is the real
+    /// calibration (P20c calibrates subsets of them).
+    pub observed: Observations,
 }
 
 /// The twin of the real run kept in `run` (`etendue real calibrate`'s output folder). The
@@ -96,10 +102,7 @@ pub fn twin(run: &Path) -> Result<Twin> {
             let views = input
                 .views
                 .iter()
-                .map(|v| TwinView {
-                    base_se3_tcp: v.meta.base_se3_gripper,
-                    points: vec![Some(points(&v.obs))],
-                })
+                .map(|v| view(v.meta.base_se3_gripper, [Some(&v.obs)]))
                 .collect::<Vec<_>>();
             let handeye = match e.handeye {
                 SingleCamHandeyeSolution::EyeInHand {
@@ -121,14 +124,11 @@ pub fn twin(run: &Path) -> Result<Twin> {
             let views = input
                 .views
                 .iter()
-                .map(|v| TwinView {
-                    base_se3_tcp: v.meta.base_se3_gripper,
-                    points: v
-                        .obs
-                        .cameras
-                        .iter()
-                        .map(|c| c.as_ref().map(points))
-                        .collect(),
+                .map(|v| {
+                    view(
+                        v.meta.base_se3_gripper,
+                        v.obs.cameras.iter().map(Option::as_ref),
+                    )
                 })
                 .collect::<Vec<_>>();
             let handeye = match e.handeye {
@@ -177,19 +177,86 @@ pub fn twin(run: &Path) -> Result<Twin> {
         robot_trans_sigma_m: robot.as_ref().map_or(0.0, |r| r.trans_sigma),
         ..ObservationNoise::default()
     };
+    let (views, pixels): (Vec<TwinView>, Vec<_>) = views.into_iter().unzip();
     let gt = etendue_synth::twin::twin(spec.topology, &cameras, handeye, &views)?;
+    let observed = observed(&gt, &pixels);
     Ok(Twin {
         source,
         real,
         gt,
         noise,
         view_scatter: uncertainty.covariance().and_then(|c| c.view_scatter),
+        observed,
     })
 }
 
-/// A view's target points, in the detector's order.
-fn points(obs: &CorrespondenceView) -> Vec<[f64; 3]> {
-    obs.points_3d.iter().map(|p| [p.x, p.y, p.z]).collect()
+/// Per camera, the pixels the detector found in a view, in its order (`None`: no detection).
+type Found = Vec<Option<Vec<[f64; 2]>>>;
+
+/// A view of the runner's input as the twin takes it (its robot pose and each camera's target
+/// points), and the pixels the detector found there.
+fn view<'a>(
+    base_se3_tcp: Isometry3<f64>,
+    cameras: impl IntoIterator<Item = Option<&'a CorrespondenceView>>,
+) -> (TwinView, Found) {
+    let (points, pixels) = cameras
+        .into_iter()
+        .map(|c| match c {
+            Some(obs) => (
+                Some(obs.points_3d.iter().map(|p| [p.x, p.y, p.z]).collect()),
+                Some(obs.points_2d.iter().map(|p| [p.x, p.y]).collect()),
+            ),
+            None => (None, None),
+        })
+        .unzip();
+    (
+        TwinView {
+            base_se3_tcp,
+            points,
+        },
+        pixels,
+    )
+}
+
+/// The real detections as observations of the twin's truth: its captures and points, the pixels
+/// the detector found, and the robot poses as reported.
+fn observed(gt: &GroundTruth, pixels: &[Found]) -> Observations {
+    let captures = gt
+        .captures
+        .iter()
+        .zip(pixels)
+        .map(|(capture, found)| ObservedCapture {
+            id: capture.id.clone(),
+            base_se3_tcp: capture.base_se3_tcp,
+            views: capture
+                .views
+                .iter()
+                .zip(found)
+                .map(|(v, px)| ObservedView {
+                    camera: v.camera.clone(),
+                    points: v
+                        .points
+                        .iter()
+                        .zip(px.iter().flatten())
+                        .map(|(p, px)| {
+                            let b = &gt.target.points[p.point];
+                            ObservedPoint {
+                                point: p.point,
+                                target_xyz: b.xyz().coords.into(),
+                                pixel: *px,
+                                outlier: false,
+                            }
+                        })
+                        .collect(),
+                    laser: Vec::new(),
+                })
+                .collect(),
+        })
+        .collect();
+    Observations {
+        noise: ObservationNoise::default(),
+        captures,
+    }
 }
 
 fn camera(

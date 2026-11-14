@@ -24,6 +24,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   against it (`etendue_cli::real::versus`): residual RMS, whiteness across the image and within
   views, σ against the twin's scatter. Gate T1 and characterisation T2 on `kuka_1` and `DS8`:
   `docs/measurements/p20_twin.md`.
+- **`etendue real split-half <run> [--random K] [--seed S] [--procedure <id | file>] -o <report.json>`**
+  (P20c): checks the pose planner's σ on a real calibration's own poses. The planner's system σ and
+  per-parameter σ, predicted on the twin (`etendue_synth::plan::predict`), are set against the real
+  calibration's covariance and a split-half estimate: halves of the real views calibrated
+  separately, the difference of their estimates against the planner's `√(σ_A² + σ_B²)`, pooled over
+  the interleaved split, the halves in capture order and `K` seeded random splits. Gate P1 on
+  `kuka_1` and `DS8`: `docs/measurements/p20c_planner.md`.
+- The planner can marginalise each view's robot pose correction under a prior
+  (`etendue_synth::plan::RobotPrior`), as calibration-rs refines robot poses by default;
+  `scenario plan` is unchanged (exact poses).
 
 ### Changed
 

@@ -46,15 +46,10 @@ fn opt(x: Option<f64>) -> String {
 
 /// The procedure of T1's noisy trials, as G17.1 judges the scatter: for a rig, one `rig_handeye`
 /// stage with `"free": {"refine_rig": true}` (`docs/measurements/g17_sim_lab.md`); for a single
-/// camera, `auto`'s (`None`), which has no rig to hold.
+/// camera, `auto`'s (`None`), which has no rig to hold. It is the planner's model
+/// ([`real::planner_procedure`]).
 fn scatter_procedure(cameras: usize) -> Option<calibrate::RunProcedure> {
-    (cameras > 1).then(|| calibrate::RunProcedure {
-        id: "rig_handeye_refine_rig".into(),
-        procedure: serde_json::from_value(serde_json::json!({
-            "stages": [{"id": "rig_handeye", "problem": "rig_handeye", "free": {"refine_rig": true}}]
-        }))
-        .unwrap(),
-    })
+    real::planner_procedure(cameras)
 }
 
 /// T1 and T2 on `id`; the T1 failures, as messages.
