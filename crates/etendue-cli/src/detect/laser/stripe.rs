@@ -93,6 +93,17 @@ fn gaussian_centre(samples: &[(f64, f64)]) -> Option<(f64, f64)> {
 /// If the two images differ in size.
 #[must_use]
 pub fn extract(laser: &Gray8, board: Option<&Gray8>) -> Vec<Centre> {
+    extract_along(laser, board, None)
+}
+
+/// [`extract`], the stripe's direction given: `Some(true)` scans columns (a stripe running along
+/// x, one centre per column), `Some(false)` rows; `None` takes it from the image.
+///
+/// # Panics
+///
+/// If the two images differ in size.
+#[must_use]
+pub fn extract_along(laser: &Gray8, board: Option<&Gray8>, along_x: Option<bool>) -> Vec<Centre> {
     let (w, h) = (laser.width as usize, laser.height as usize);
     // Per pixel: the stripe above the dimmed board (DN), and the same divided
     // by the board's brightness, or `None` where the pixel measures nothing.
@@ -142,7 +153,8 @@ pub fn extract(laser: &Gray8, board: Option<&Gray8>) -> Vec<Centre> {
     let (mx, my) = (mx / n, my / n);
     let (cxx, cyy, cxy) = (sxx / n - mx * mx, syy / n - my * my, sxy / n - mx * my);
     // Along x when the principal axis is within 45° of x.
-    let along_x = (2.0 * cxy).atan2(cxx - cyy).abs() / 2.0 <= std::f64::consts::FRAC_PI_4;
+    let along_x = along_x
+        .unwrap_or_else(|| (2.0 * cxy).atan2(cxx - cyy).abs() / 2.0 <= std::f64::consts::FRAC_PI_4);
     let (lines, span) = if along_x { (w, h) } else { (h, w) };
     let at = |line: usize, t: usize| {
         if along_x {

@@ -33,9 +33,13 @@ use nalgebra::{Point2, Vector3};
 use serde::{Deserialize, Serialize};
 use vision_calibration_core::CameraModel;
 
+mod chain;
+mod extractor;
 mod stripe;
 
-pub use stripe::{Centre, dimming, extract};
+pub use chain::chained;
+pub use extractor::{STRIPE_EXTRACTOR, StripeExtractor};
+pub use stripe::{Centre, dimming, extract, extract_along};
 use stripe::{FLOOR, MIN_BOARD_DN, MIN_PEAK_DN};
 
 /// The `laser_features.json` format version.
@@ -143,7 +147,7 @@ fn to_segment(p: [f64; 2], a: [f64; 2], b: [f64; 2]) -> (f64, f64) {
 
 /// The analytic stripe of `view` as polylines of its visible points (a
 /// break wherever a point is not seen).
-fn truth(view: &GtView) -> Vec<Vec<[f64; 2]>> {
+pub fn analytic_stripe(view: &GtView) -> Vec<Vec<[f64; 2]>> {
     let mut runs = Vec::new();
     for stripe in &view.laser_points {
         let mut run: Vec<[f64; 2]> = Vec::new();
@@ -336,7 +340,7 @@ pub fn extract_dataset(dir: &Path, gt: &GroundTruth) -> Result<Option<LaserFeatu
                 .map(|c| [c.pixel[0] + offset, c.pixel[1] + offset])
                 .collect();
             let sigma_px: Vec<f64> = centres.iter().map(|c| c.sigma_px).collect();
-            let check = check(&pixels, &truth(view));
+            let check = check(&pixels, &analytic_stripe(view));
             let width = models
                 .get(view.camera.as_str())
                 .and_then(|model| width_check(gt, capture, view, model, &pixels, &sigma_px));
