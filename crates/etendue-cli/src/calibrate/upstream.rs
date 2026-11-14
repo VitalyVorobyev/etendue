@@ -166,7 +166,7 @@ pub(super) fn params_of(cam: &EstimatedCamera, like: &CameraParams) -> CameraPar
     }
 }
 
-pub(super) fn plane_of(p: &LaserPlane) -> Plane {
+pub(crate) fn plane_of(p: &LaserPlane) -> Plane {
     Plane {
         normal: p.normal().into_inner().into(),
         distance: p.distance(),

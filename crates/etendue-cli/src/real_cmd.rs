@@ -14,7 +14,9 @@ use etendue_synth::observe::ObservationNoise;
 pub enum RealCommand {
     /// Calibrate a real dataset with calibration-rs's dataset runner (detection, then the
     /// manifest's workflow) and keep the run: residuals, σ, the quality verdict and the views
-    /// left out. There is no truth, so there is no closed-loop check.
+    /// left out. There is no truth, so there is no closed-loop check. A laser manifest's stripes
+    /// are found by etendue's stripe detector, and the run reports each camera's laser plane and
+    /// stripe residuals.
     Calibrate {
         /// The dataset: a manifest (`dataset.toml`) or its folder, an id of
         /// `local/datasets.toml`, or a public id (`kuka_1`, `DS8`: in `../calibration-rs/data`).
@@ -315,6 +317,18 @@ fn print(report: &Report) {
         println!(
             "  view {} {}: mean {:.4} px, max {:.4} px",
             v.view, v.camera, v.mean_px, v.max_px
+        );
+    }
+    for l in &summary.lasers {
+        println!(
+            "laser {}: {} views, {} stripe pixels, rms {:.3} px from the line ({:.1} µm from the \
+             plane), max {:.2} px",
+            l.camera,
+            l.views,
+            l.pixels,
+            l.rms_px,
+            l.rms_m * 1e6,
+            l.max_px
         );
     }
     if let Some(q) = &report.quality {

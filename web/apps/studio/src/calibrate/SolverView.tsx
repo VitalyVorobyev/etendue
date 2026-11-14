@@ -20,6 +20,7 @@ export const WORKFLOW: Record<CalibrationWorkflow, string> = {
   laserline_device: "laserline device + hand-eye",
   planar_intrinsics: "planar intrinsics",
   rig_extrinsics: "rig extrinsics",
+  rig_laserline_device: "rig laserline device",
 };
 
 const VERDICT: Record<QualityCheck["status"], { text: string; tone: "normal" | "warning" | "defect" | "neutral" }> = {
