@@ -18,6 +18,7 @@ use etendue_kinematics::BakeOptions;
 use etendue_scene::SceneSpec;
 use etendue_synth::dataset::{GroundTruth, GtHandeye};
 use etendue_synth::observe::{ObservationNoise, observe};
+use etendue_synth::plan::NoiseModel;
 use etendue_synth::twin::{TwinCamera, TwinView, twin};
 
 fn root() -> PathBuf {
@@ -226,7 +227,7 @@ fn on_white_noise_the_split_half_sigma_is_the_planners() {
         random: 4,
         ..real::SplitHalfOptions::default()
     };
-    let s = real::split_half(&twin_gt, &obs, 0.5, None, &options, &ctl).unwrap();
+    let s = real::split_half(&twin_gt, &obs, &NoiseModel::white(0.5), &options, &ctl).unwrap();
     println!("{}", serde_json::to_string_pretty(&s).unwrap());
     assert_eq!(s.procedure, "rig_handeye_refine_rig");
     assert!(s.failed.is_empty(), "{:?}", s.failed);

@@ -2,8 +2,10 @@
 //! set, against the σ the calibration reports and against a split-half estimate of its scatter.
 //!
 //! - **Planner σ:** `etendue_synth::plan::predict` on the twin (the planner's model of the cell):
-//!   the twin's views, the real run's pixel noise, and its robot pose error as the prior the robot
-//!   pose corrections are weighed with. The P18 model as it was (robot poses exact) is reported
+//!   the twin's views and the noise learnt from the real run ([`learnt_model`], P20c2): its pixel
+//!   noise, its view scatter as a per-view term, and its robot pose error (without the
+//!   view-correlated pixel error) as the prior the robot pose corrections are weighed with.
+//!   P20c's model (the run's robot error, white views) and P18's (robot poses exact) are reported
 //!   beside it.
 //! - **Real σ:** calibration-rs's covariance of the calibration of all the real views with the
 //!   same procedure (scaled by its view scatter), per parameter, and taken through the same
@@ -19,18 +21,22 @@
 //!
 //! **Gate P1:** the planner's system σ is within 25 % of the split-half σ ([`P1`]).
 
+mod calibrations;
+mod judge;
+
 use std::path::Path;
 
-use anyhow::{Context, Result, ensure};
+use anyhow::Result;
 use etendue_synth::dataset::GroundTruth;
 use etendue_synth::observe::Observations;
-use etendue_synth::plan::{Prediction, RobotPrior, predict, system_difference};
+use etendue_synth::plan::{NoiseModel, RobotPrior};
 use serde::{Deserialize, Serialize};
 
-use super::splits::{Split, splits};
 use super::{Twin, twin};
-use crate::calibrate::{Report, RunOptions, RunProcedure, cell, covariance, run_trials, values};
+use crate::calibrate::RunProcedure;
 use crate::progress::Control;
+pub use calibrations::{SplitCalibrations, calibrate_splits};
+pub use judge::judge;
 
 /// Gate P1's bar: the planner's system σ within this fraction of the split-half σ.
 pub const P1: f64 = 0.25;
@@ -106,12 +112,17 @@ pub struct SplitHalf {
     /// The procedure of every calibration.
     pub procedure: String,
     pub views: usize,
-    /// The pixel noise σ the planner assumes (px).
-    pub noise_px: f64,
-    /// The robot pose error the planner marginalises (`None`: exact poses).
-    pub robot: Option<RobotPrior>,
+    /// The noise the planner assumes.
+    pub model: NoiseModel,
+    /// The model the learnt one was learnt from (P20c's: the calibration's robot error, white
+    /// views), if given.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub white_model: Option<NoiseModel>,
     /// The planner's system σ of all the views (mm).
     pub planner_mm: f64,
+    /// The system σ under [`Self::white_model`] (mm).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub planner_white_mm: Option<f64>,
     /// The same with exact robot poses: P18's model as it was (mm).
     pub planner_exact_robot_mm: f64,
     /// The real calibration's covariance through the same sightings (mm).
@@ -215,7 +226,8 @@ pub struct GroupRow {
 }
 
 /// The split-half check of the real run kept in `run` (`etendue real calibrate`'s output), on its
-/// twin: the planner's noise is the real run's ([`Twin::noise`]).
+/// twin. The planner's noise is learnt from the real run ([`learnt_model`]); P20c's model (the
+/// run's own robot error, white views) is reported beside it.
 ///
 /// # Errors
 ///
@@ -226,25 +238,38 @@ pub fn split_half_run(
     ctl: &Control,
 ) -> Result<(Twin, SplitHalf)> {
     let twin = twin(run)?;
+    let (white, model) = learnt_model(&twin)?;
+    let cal = calibrate_splits(&twin.gt, &twin.observed, options, ctl)?;
+    let result = judge(&twin.gt, &cal, &model, Some(&white))?;
+    Ok((twin, result))
+}
+
+/// The real run's noise as the planner takes it: P20c's model (its pixel σ and its robot pose
+/// error, white views), and the model learnt from it (P20c2, `NoiseModel::learnt`): the run's
+/// view scatter as the per-view term, and its robot error without the view-correlated pixel
+/// error.
+///
+/// # Errors
+///
+/// A twin the planner cannot model.
+pub fn learnt_model(twin: &Twin) -> Result<(NoiseModel, NoiseModel)> {
     let n = &twin.noise;
     let robot =
         (n.robot_rot_sigma_rad > 0.0 && n.robot_trans_sigma_m > 0.0).then_some(RobotPrior {
             rot_sigma_rad: n.robot_rot_sigma_rad,
             trans_sigma_m: n.robot_trans_sigma_m,
         });
-    let result = split_half(
-        &twin.gt,
-        &twin.observed,
-        n.pixel_sigma_px,
+    let white = NoiseModel {
         robot,
-        options,
-        ctl,
-    )?;
-    Ok((twin, result))
+        ..NoiseModel::white(n.pixel_sigma_px)
+    };
+    let model = NoiseModel::learnt(&twin.gt, n.pixel_sigma_px, robot, twin.view_scatter)?;
+    Ok((white, model))
 }
 
 /// The split-half check of `obs`, observations of `gt`'s captures: every view calibrated, then each
-/// split's halves, against the planner's prediction at `noise_px` (and `robot`).
+/// split's halves ([`calibrate_splits`]), against the planner's prediction under `model`
+/// ([`judge`]).
 ///
 /// # Errors
 ///
@@ -253,163 +278,9 @@ pub fn split_half_run(
 pub fn split_half(
     gt: &GroundTruth,
     obs: &Observations,
-    noise_px: f64,
-    robot: Option<RobotPrior>,
+    model: &NoiseModel,
     options: &SplitHalfOptions,
     ctl: &Control,
 ) -> Result<SplitHalf> {
-    let procedure = options
-        .procedure
-        .clone()
-        .or_else(|| planner_procedure(gt.cameras.len()));
-    let run_options = RunOptions {
-        detected: true,
-        trials: 1,
-        procedure: procedure.clone(),
-        ..RunOptions::default()
-    };
-    let calibrate = |keep: &[usize]| -> Result<Report> {
-        let (g, o) = subset(gt, obs, keep);
-        let mut run = run_trials(&g, Some(o), &run_options, ctl)?;
-        Ok(run.reports.remove(0))
-    };
-    let views = gt.captures.len();
-    let all: Vec<usize> = (0..views).collect();
-    let full = calibrate(&all).context("calibrating every view")?;
-    let prediction = predict(gt, noise_px, robot)?;
-    let exact = predict(gt, noise_px, None)?;
-    let sigma = |p: &Prediction, set: &[usize]| {
-        p.system_sigma_mm(set)
-            .context("the views cannot determine the calibration")
-    };
-    let planner_mm = sigma(&prediction, &all)?;
-    let planner_exact_robot_mm = sigma(&exact, &all)?;
-    let real = covariance(&full);
-    let real_mm = real
-        .as_ref()
-        .map(|(labels, cov, _)| prediction.system_sigma_of(labels, cov));
-    let view_scatter = real.as_ref().and_then(|(.., s)| *s);
-
-    // The planner's σ per parameter, in the statistics' labels and units.
-    let labelled = |s: Vec<f64>| -> Vec<(String, f64)> {
-        prediction
-            .labels()
-            .iter()
-            .zip(s)
-            .filter_map(|(l, s)| stats_label(gt, l).map(|(label, k)| (label, s * k)))
-            .collect()
-    };
-    let planner_params = labelled(prediction.sigma(&all).context("no covariance")?);
-
-    let mut rows = Vec::new();
-    let mut failed = Vec::new();
-    // Per parameter label: Σ d², Σ p².
-    let mut sums: Vec<(f64, f64)> = vec![(0.0, 0.0); planner_params.len()];
-    for Split { name, a, b } in splits(views, options.random, options.seed) {
-        let halves = calibrate(&a).and_then(|ra| Ok((ra, calibrate(&b)?)));
-        let (ra, rb) = match halves {
-            Ok(r) => r,
-            Err(e) => {
-                failed.push(format!("{name}: {e:#}"));
-                continue;
-            }
-        };
-        let (pa, pb) = (sigma(&prediction, &a)?, sigma(&prediction, &b)?);
-        rows.push(SplitRow {
-            split: name,
-            views: [a.len(), b.len()],
-            measured_mm: system_difference(gt, &cell(gt, &ra)?, &cell(gt, &rb)?)?,
-            predicted_mm: pa.hypot(pb),
-        });
-        let (sa, sb) = (
-            labelled(prediction.sigma(&a).context("no covariance")?),
-            labelled(prediction.sigma(&b).context("no covariance")?),
-        );
-        let (va, vb) = (values(gt, &ra), values(gt, &rb));
-        let value = |v: &[(String, &'static str, f64, Option<f64>)], label: &str| {
-            v.iter().find(|x| x.0 == label).map(|x| x.2)
-        };
-        for (k, (label, _)) in planner_params.iter().enumerate() {
-            if let (Some(x), Some(y)) = (value(&va, label), value(&vb, label)) {
-                sums[k].0 += (x - y).powi(2);
-                sums[k].1 += sa[k].1.powi(2) + sb[k].1.powi(2);
-            }
-        }
-    }
-    ensure!(
-        !rows.is_empty(),
-        "no split's halves both calibrate: {}",
-        failed.join("; ")
-    );
-    let pooled = |d: f64, p: f64| (d / p).sqrt();
-    let rho = pooled(
-        rows.iter().map(|r| r.measured_mm.powi(2)).sum(),
-        rows.iter().map(|r| r.predicted_mm.powi(2)).sum(),
-    );
-    let real_values = values(gt, &full);
-    let params = planner_params
-        .into_iter()
-        .zip(sums)
-        .filter(|(_, (_, p))| *p > 0.0)
-        .map(|((label, planner), (d, p))| {
-            let found = real_values.iter().find(|x| x.0 == label);
-            ParamRow {
-                unit: found.map_or("", |x| x.1).to_owned(),
-                real: found.and_then(|x| x.3),
-                split_half: pooled(d, p) * planner,
-                planner,
-                label,
-            }
-        })
-        .collect();
-    Ok(SplitHalf {
-        procedure: full.procedure.clone(),
-        views,
-        noise_px,
-        robot,
-        planner_mm,
-        planner_exact_robot_mm,
-        real_mm,
-        view_scatter,
-        split_half_mm: rho * planner_mm,
-        splits: rows,
-        failed,
-        params,
-    })
-}
-
-/// `gt` and `obs` with the captures `keep` only.
-fn subset(gt: &GroundTruth, obs: &Observations, keep: &[usize]) -> (GroundTruth, Observations) {
-    let mut g = gt.clone();
-    g.captures = keep.iter().map(|&k| gt.captures[k].clone()).collect();
-    let mut o = obs.clone();
-    o.captures = keep.iter().map(|&k| obs.captures[k].clone()).collect();
-    (g, o)
-}
-
-/// A planner label as the parameter statistics name it, with the factor to their unit: a camera's
-/// `cam0.fx` is `<id> fx` (a tilt in degrees), the hand-eye's `gripper_se3_rig.rx` is
-/// `hand-eye rx` (degrees; millimetres for `tx`…). The rig and the target have none.
-fn stats_label(gt: &GroundTruth, label: &str) -> Option<(String, f64)> {
-    let (head, tail) = label.rsplit_once('.')?;
-    if let Some(j) = head
-        .strip_prefix("cam")
-        .and_then(|j| j.parse::<usize>().ok())
-    {
-        let k = if tail.starts_with("tilt") {
-            1f64.to_degrees()
-        } else {
-            1.0
-        };
-        return Some((format!("{} {tail}", gt.cameras.get(j)?.id), k));
-    }
-    if head == "gripper_se3_rig" || head == "rig_se3_base" {
-        let k = if tail.starts_with('r') {
-            1f64.to_degrees()
-        } else {
-            1e3
-        };
-        return Some((format!("hand-eye {tail}"), k));
-    }
-    None
+    judge(gt, &calibrate_splits(gt, obs, options, ctl)?, model, None)
 }

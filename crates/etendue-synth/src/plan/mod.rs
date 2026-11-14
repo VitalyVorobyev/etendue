@@ -29,7 +29,9 @@
 //! predicts, between two estimates.
 
 mod information;
+mod noise;
 mod predict;
+mod robot_sigma;
 mod system_error;
 
 use etendue_kinematics::RobotModel;
@@ -43,6 +45,7 @@ use crate::poses::{CandidateStatus, Generated, Mounting, Posed, mounting};
 use crate::{Error, PixelCentre, Result};
 pub use information::RobotPrior;
 use information::{Cam, Information, Layout, View, view_information};
+pub use noise::NoiseModel;
 pub use predict::{Prediction, predict};
 pub use system_error::{EstimatedCell, system_difference, system_error};
 
@@ -227,7 +230,7 @@ pub fn plan(
             target,
             base_se3_tcp,
         };
-        let (info, rows) = view_information(&cams, &params, mounting, &view, var, None, &mut a);
+        let (info, rows, _) = view_information(&cams, &params, mounting, &view, var, None, &mut a);
         infos.push(info);
         sightings += rows;
     }

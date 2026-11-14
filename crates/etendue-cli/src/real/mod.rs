@@ -29,8 +29,8 @@ pub use report::{RealSummary, RejectedView, ViewResiduals, report};
 pub use resolve::{DatasetSource, LOCAL_DATASETS, PUBLIC, resolve};
 pub use run::{DETECTIONS, calibrate};
 pub use split_half::{
-    GroupRow, P1, ParamRow, SplitHalf, SplitHalfOptions, SplitRow, planner_procedure, split_half,
-    split_half_run,
+    GroupRow, P1, ParamRow, SplitCalibrations, SplitHalf, SplitHalfOptions, SplitRow,
+    calibrate_splits, judge, learnt_model, planner_procedure, split_half, split_half_run,
 };
 pub use splits::{Split, splits};
 pub use twin::{Twin, twin};

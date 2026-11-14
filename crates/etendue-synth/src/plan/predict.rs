@@ -6,8 +6,9 @@
 //! seen points; the system σ averages over every sighting of every capture. With a
 //! [`RobotPrior`], each view's robot pose is refined under it, as calibration-rs does by default.
 
-use nalgebra::{DMatrix, Isometry3, Point3};
+use nalgebra::{DMatrix, Isometry3, Matrix6, Point3};
 
+use super::NoiseModel;
 use super::bad;
 use super::information::{Cam, Information, Layout, RobotPrior, View, view_information};
 use crate::Result;
@@ -18,6 +19,9 @@ use crate::poses::Mounting;
 pub struct Prediction {
     layout: Layout,
     information: Information,
+    /// The robot prior the views' pose corrections are weighed with, and each view's pixel
+    /// information on its correction (white, without the prior).
+    pub(super) robot: Option<(RobotPrior, Vec<Matrix6<f64>>)>,
 }
 
 /// The truth in the planner's frames (the rig is the first camera's): each camera's
@@ -69,17 +73,16 @@ pub(super) fn frames(gt: &GroundTruth) -> Result<Frames> {
     })
 }
 
-/// The planner's prediction for `gt`'s captures, observed with `noise_px` per image axis and, with
-/// `robot`, robot poses refined under its prior (exact without).
+/// The planner's prediction for `gt`'s captures under `model`: white pixel noise and, with a
+/// robot prior, robot poses refined under it (exact without).
 ///
 /// # Errors
 ///
 /// [`crate::Error::InvalidInput`] for a ground truth without a hand-eye or a camera, a capture
 /// without its robot pose, a view of an unknown camera, a non-positive noise, or no sighting.
-pub fn predict(gt: &GroundTruth, noise_px: f64, robot: Option<RobotPrior>) -> Result<Prediction> {
-    if !(noise_px.is_finite() && noise_px > 0.0) {
-        return Err(bad("noise_px must be positive"));
-    }
+pub fn predict(gt: &GroundTruth, model: &NoiseModel) -> Result<Prediction> {
+    model.validate()?;
+    let (noise_px, robot) = (model.pixel_sigma_px, model.robot);
     let (cam_se3_ref, handeye, target, mounting) = frames(gt)?;
     let cams = gt
         .cameras
@@ -90,6 +93,7 @@ pub fn predict(gt: &GroundTruth, noise_px: f64, robot: Option<RobotPrior>) -> Re
     let n = layout.len();
     let mut a = DMatrix::<f64>::zeros(n, n);
     let mut infos = Vec::with_capacity(gt.captures.len());
+    let mut poses = Vec::new();
     let mut rows = 0;
     for capture in &gt.captures {
         let base_se3_tcp = capture
@@ -115,7 +119,7 @@ pub fn predict(gt: &GroundTruth, noise_px: f64, robot: Option<RobotPrior>) -> Re
             target,
             base_se3_tcp,
         };
-        let (info, r) = view_information(
+        let (info, r, pose) = view_information(
             &cams,
             &layout,
             mounting,
@@ -124,7 +128,13 @@ pub fn predict(gt: &GroundTruth, noise_px: f64, robot: Option<RobotPrior>) -> Re
             robot,
             &mut a,
         );
-        infos.push(info);
+        // The view-correlated error: the view counts for `1 / k` of its white information.
+        poses.extend(pose);
+        infos.push(if model.view_scatter == 1.0 {
+            info
+        } else {
+            info / model.view_scatter
+        });
         rows += r;
     }
     if rows == 0 {
@@ -134,6 +144,7 @@ pub fn predict(gt: &GroundTruth, noise_px: f64, robot: Option<RobotPrior>) -> Re
     Ok(Prediction {
         layout,
         information,
+        robot: robot.map(|r| (r, poses)),
     })
 }
 
@@ -182,6 +193,14 @@ impl Prediction {
         self.information.system_sigma(&mapped)
     }
 
+    /// The covariance of the parameters (in [`Self::labels`]' order) of a calibration from
+    /// `captures`; `None` when they cannot determine it.
+    #[must_use]
+    pub fn covariance(&self, captures: &[usize]) -> Option<DMatrix<f64>> {
+        let info = self.information.total(captures);
+        self.information.sigma_of(&info).map(|(_, cov)| cov)
+    }
+
     /// Each parameter's σ (in [`Self::labels`]' order) from `captures`; `None` when they cannot
     /// determine the calibration.
     #[must_use]
@@ -197,7 +216,7 @@ impl Prediction {
 }
 
 #[cfg(test)]
-mod tests {
+pub(super) mod tests {
     use super::*;
     use crate::twin::{TwinCamera, TwinView, twin};
     use nalgebra::{Translation3, UnitQuaternion, Vector3};
@@ -207,7 +226,7 @@ mod tests {
     use vision_calibration_dataset::Topology;
 
     /// One camera 0.6 m above a 9 × 9 board, sixteen tilted views.
-    fn truth() -> GroundTruth {
+    pub(in crate::plan) fn truth() -> GroundTruth {
         let camera = TwinCamera {
             id: "a".into(),
             params: CameraParams {
@@ -265,11 +284,18 @@ mod tests {
         twin(Topology::SingleCamHandeye, &[camera], handeye, &views).unwrap()
     }
 
+    fn robot_at(robot: RobotPrior) -> NoiseModel {
+        NoiseModel {
+            robot: Some(robot),
+            ..NoiseModel::white(0.5)
+        }
+    }
+
     #[test]
     fn halves_and_robot_error_raise_the_system_sigma() {
         let gt = truth();
         let all: Vec<usize> = (0..16).collect();
-        let exact = predict(&gt, 0.5, None).unwrap();
+        let exact = predict(&gt, &NoiseModel::white(0.5)).unwrap();
         assert_eq!(exact.captures(), 16);
         assert_eq!(exact.labels().len(), 8 + 6 + 6);
         let full = exact.system_sigma_mm(&all).unwrap();
@@ -283,7 +309,7 @@ mod tests {
             rot_sigma_rad: 1e-12,
             trans_sigma_m: 1e-12,
         };
-        let s = predict(&gt, 0.5, Some(tiny))
+        let s = predict(&gt, &robot_at(tiny))
             .unwrap()
             .system_sigma_mm(&all)
             .unwrap();
@@ -292,13 +318,13 @@ mod tests {
             rot_sigma_rad: 1e-3,
             trans_sigma_m: 1e-3,
         };
-        let s = predict(&gt, 0.5, Some(robot))
+        let s = predict(&gt, &robot_at(robot))
             .unwrap()
             .system_sigma_mm(&all)
             .unwrap();
         assert!(s > 1.5 * full, "{} against {full}", s);
         // σ scales with the pixel noise.
-        let twice = predict(&gt, 1.0, None)
+        let twice = predict(&gt, &NoiseModel::white(1.0))
             .unwrap()
             .system_sigma_mm(&all)
             .unwrap();
