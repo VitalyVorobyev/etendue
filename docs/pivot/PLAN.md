@@ -1149,6 +1149,27 @@ manifests:
     Until then the planner takes the pose σ the data supports, documented.
   - **Gate P1** (unchanged): the planner's system σ is within 25 % of the split-half estimate on
     `kuka_1` and `DS8` (rig refined).
+  - *Status (2026-11-14):* measured (`p20c2/noise-model`); **P1 passes on both**: planner /
+    split-half `kuka_1` 0.52 → **0.81**, `DS8` 2.10 → **0.90**
+    (`docs/measurements/p20c2_noise_model.md`). `etendue_synth::plan::NoiseModel::learnt` takes a
+    real run's pixel σ, robot pose error and view scatter `k`:
+    - **Per-view term:** calibration-rs's view scatter (its delete-one-view jackknife on the run's
+      residuals), each view's information divided by `k`. On `kuka_1` it brings every parameter
+      group's split-half ratio to 1.0–1.3; a per-view pose jitter (equivalently a larger robot
+      σ, which the calibration absorbs the same way) matches the system σ at 2× the robot σ but
+      leaves the intrinsics 1.7–2× under. Off (`k = 1`) everything synthetic is bit for bit as
+      it was; `scenario plan` is unchanged.
+    - **Robot pose σ (`DS8`):** etendue reads calibration-rs's estimate correctly (rad, m, σ per
+      gripper axis, right-multiplied, as `apply_robot_delta`). calibration-rs's
+      variance-component estimate (`vision-calibration-optim` `problems/robot_poses.rs:209–265`
+      at v0.18.0, the redundancy at lines 219 and 251) takes each correction's pixel part at its
+      white size; with view-correlated residuals it is `k` times larger, and the excess is counted
+      as robot error. Taken out (`Prediction::robot_prior_under_view_scatter`), `DS8`'s 1.65e-3
+      rad / 2.05 mm becomes 7.7e-4 rad / the 1 µm floor; `kuka_1`'s barely moves. A draft
+      calibration-rs fix (the same correction inside the estimate) is a local branch, not opened.
+    - **Sensitivity:** the correction rests on calibration-rs's own assumption that `k` inflates
+      every direction alike. With the rig-refined calibration's `k` (37 against the run's 25) it
+      removes all of `DS8`'s robot error and P1 reads 0.63.
 - **P20d — Laser rigs.**
   - etendue's stripe detector (`detect/laser.rs`) becomes a `LaserPixelExtractor` for the dataset
     runner, so the private rigs' laser images calibrate their planes.

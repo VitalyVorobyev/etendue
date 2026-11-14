@@ -4,6 +4,9 @@
 25 % of a split-half estimate of the real calibration's scatter, on `kuka_1` and `DS8` (`DS8`
 judged with the rig refined, as T1 was; the default workflow recorded beside it).
 
+*Judged again in P20c2 with the noise model learnt from the real run: PASS on both (0.81, 0.90),
+`p20c2_noise_model.md`. This file is P20c's measurement, as it was.*
+
 **Verdict: FAIL on both, in opposite directions.** planner / split-half = **0.52** on `kuka_1`
 (the planner is too optimistic) and **2.10** on `DS8` (too pessimistic). The bar is not re-set.
 On the twins' own white observations the same estimator reads 1.00 (`kuka_1`) and 1.18 (`DS8`)
