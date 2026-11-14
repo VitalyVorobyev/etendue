@@ -158,8 +158,8 @@ pub fn twin(run: &Path) -> Result<Twin> {
             (cameras, handeye, views, e.uncertainty, robot)
         }
         other => bail!(
-            "a {other:?} dataset has no robot: the twin is of a hand-eye calibration \
-             (single_cam_handeye, rig_handeye)"
+            "a {other:?} dataset has no twin: the twin is of a hand-eye calibration \
+             (single_cam_handeye, rig_handeye); a laser stage's is not built yet"
         ),
     };
     ensure!(

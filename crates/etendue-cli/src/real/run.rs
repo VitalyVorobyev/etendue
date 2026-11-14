@@ -11,18 +11,21 @@ use vision_calibration_pipeline::dataset_runner::{Detection, calibrate_dataset};
 
 use super::{DatasetSource, report};
 use crate::calibrate::Run;
+use crate::detect::laser::StripeExtractor;
 
 /// The detection cache's folder in the output folder: never in the dataset's, which may be
 /// read-only or shared.
 pub const DETECTIONS: &str = ".detections";
 
 /// Calibrate the real dataset `source` with calibration-rs's dataset runner: the manifest's
-/// topology picks the workflow, run with its default configuration and without a laser extractor.
-/// Detections are cached in `out`/[`DETECTIONS`], so a second run detects nothing again.
+/// topology picks the workflow, run with its default configuration. A laser topology's stripes are
+/// found by etendue's stripe detector ([`StripeExtractor`], P20d). Detections and stripe pixels are
+/// cached in `out`/[`DETECTIONS`], so a second run detects nothing again.
 ///
 /// # Errors
 ///
-/// An unreadable manifest, a laser topology, or a failed detection, pairing or solve.
+/// An unreadable manifest or upstream calibration, or a failed detection, extraction, pairing or
+/// solve.
 pub fn calibrate(source: &DatasetSource, out: &Path) -> Result<Run> {
     let spec = DatasetSpec::from_path(source.manifest())
         .with_context(|| format!("reading {}", source.manifest))?;
@@ -33,7 +36,7 @@ pub fn calibrate(source: &DatasetSource, out: &Path) -> Result<Run> {
         &base,
         None,
         Detection::Cached(&cache),
-        None,
+        Some(&StripeExtractor),
         &RunControl::default(),
     )
     .with_context(|| format!("calibrating {}", source.name()))?;
