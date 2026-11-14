@@ -118,14 +118,15 @@ pub fn run(command: RealCommand) -> Result<()> {
 
 fn print_split_half(dataset: &str, s: &real::SplitHalf) {
     println!(
-        "{dataset}: {} views, {}; planner noise {:.4} px{}",
+        "{dataset}: {} views, {}; planner noise {:.4} px{}, view scatter {:.2}",
         s.views,
         s.procedure,
-        s.noise_px,
-        s.robot.map_or(String::new(), |r| format!(
+        s.model.pixel_sigma_px,
+        s.model.robot.map_or(String::new(), |r| format!(
             ", robot {:.3e} rad, {:.3e} m",
             r.rot_sigma_rad, r.trans_sigma_m
-        ))
+        )),
+        s.model.view_scatter
     );
     for r in &s.splits {
         println!(
@@ -149,10 +150,13 @@ fn print_split_half(dataset: &str, s: &real::SplitHalf) {
         opt(s.real_mm),
         s.split_half_mm
     );
-    if let Some(v) = s.view_scatter {
+    if let (Some(w), Some(m)) = (s.white_model, s.planner_white_mm) {
         println!(
-            "  planner × √(view scatter {v:.2}) = {:.4} mm (a diagnostic)",
-            s.planner_mm * v.sqrt()
+            "  white views and the run's robot error{} (P20c's model): {m:.4} mm",
+            w.robot.map_or(String::new(), |r| format!(
+                " ({:.3e} rad, {:.3e} m)",
+                r.rot_sigma_rad, r.trans_sigma_m
+            ))
         );
     }
     println!(

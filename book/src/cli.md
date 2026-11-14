@@ -302,8 +302,13 @@ Checks the pose planner's σ (`scenario plan`) on a real calibration's own poses
 folder `real calibrate` kept, as for `real twin`. Three σ are set side by side:
 
 - **The planner's**, predicted on the twin: the twin's views (the real robot poses and the points
-  the detector found), the real run's pixel noise σ, and its robot pose error as the prior the
-  calibration weighs its pose corrections with. The planner's model with exact robot poses is
+  the detector found) and the noise learnt from the real run. That is its pixel noise σ; its
+  view scatter as a per-view term (each view counts for `1 / k` of what white noise would give
+  it, so every σ grows by `√k`, as calibration-rs scales its own covariance); and its robot pose
+  error, as the prior the calibration weighs its pose corrections with, without the part of the
+  corrections that is view-correlated pixel error (calibration-rs's estimate counts that part at
+  its white size, so with view-correlated residuals it overstates the robot's error). The
+  planner's σ with white views and calibration-rs's robot error, and with exact robot poses, are
   given beside it.
 - **The real calibration's**: calibration-rs's covariance of a calibration of every real view,
   which it scales by its view scatter (how much more the views disagree than the residual noise
@@ -323,13 +328,15 @@ is then conditional on it); a single camera's own workflow. `--procedure` runs a
 id or a procedure file, as `calibrate --procedure` takes it. The report (`-o`) holds every split,
 the three system σ and every parameter's.
 
-Gate P1 asks that the planner's system σ be within 25 % of the split-half σ. Where the residuals
-vary from view to view more than white noise would (a real board, a real detector), the halves
-disagree by more than the planner predicts, and the planner's σ is a lower bound; the command
-prints the planner's σ times the square root of the view scatter beside it, as a diagnostic.
-Where the robot pose error dominates the system σ, the planner is only as good as its prior: if
-the pose errors calibration-rs estimates are not independent from view to view, the halves agree
-better than the planner predicts.
+Gate P1 asks that the planner's system σ be within 25 % of the split-half σ. With white views
+(the planner's model for a synthetic cell, and `scenario plan`'s), the planner's σ is a lower bound
+wherever the residuals vary from view to view more than white noise would (a real board, a real
+detector): the halves disagree by more than it predicts. Where the robot pose error dominates the
+system σ, the planner is only as good as its prior. The learnt noise model addresses both, and on
+`kuka_1` and `DS8` it predicts the split-half σ within 25 %. Its robot error rests on the view
+scatter describing every direction alike (the assumption calibration-rs makes when it scales its
+covariance by it), so treat it as an estimate: on `DS8` it is sensitive to which calibration's view
+scatter it takes.
 
 ## `scenario from-poses`
 

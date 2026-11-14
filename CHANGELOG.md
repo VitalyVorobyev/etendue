@@ -34,8 +34,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The planner can marginalise each view's robot pose correction under a prior
   (`etendue_synth::plan::RobotPrior`), as calibration-rs refines robot poses by default;
   `scenario plan` is unchanged (exact poses).
+- **The planner's noise model learnt from a real calibration** (P20c2):
+  `etendue_synth::plan::NoiseModel` (pixel σ, robot prior, and a per-view term, the view scatter
+  `k`: each view counts for `1 / k` of its white information) and `NoiseModel::learnt`, which takes
+  a real run's pixel σ, robot pose error and view scatter, and leaves out of the robot error the
+  part of the pose corrections that is view-correlated pixel error. `etendue real split-half`
+  predicts with it, and reports P20c's model (white views) beside it. P1 is now a characterisation, not a
+  gate: `kuka_1` agrees, `DS8` is unresolved (`docs/measurements/p20c2_noise_model.md`). With `k = 1` (the default, and
+  every synthetic prediction) nothing changes; `scenario plan` is unchanged.
 
 ### Changed
+
+- `etendue_synth::plan::predict` takes a `NoiseModel` in place of the pixel σ and robot prior, and
+  `etendue_cli::real::split_half` likewise; the split calibrations are a step of their own
+  (`calibrate_splits`, then `judge` against a model). A split-half report holds its `model` (and
+  `white_model`, `planner_white_mm`) in place of `noise_px` and `robot`.
 
 - A calibration report's per-feature errors are calibration-rs's own (`error_px`) rather than
   recomputed, which differed in the last bit for about one residual in six.

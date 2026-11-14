@@ -2,7 +2,9 @@
 //! calibration-rs's own projection, each view's information, and the frames a view's chain is
 //! made of.
 
-use nalgebra::{DMatrix, Isometry3, Point3, Quaternion, Translation3, UnitQuaternion, Vector3};
+use nalgebra::{
+    DMatrix, Isometry3, Matrix6, Point3, Quaternion, Translation3, UnitQuaternion, Vector3,
+};
 use serde::{Deserialize, Serialize};
 use vision_calibration_core::{CameraModel, CameraParams, DistortionParams, SensorParams};
 
@@ -151,7 +153,7 @@ pub struct RobotPrior {
 
 impl RobotPrior {
     /// The prior's information on `δ`, or `None` for exact poses (either σ zero).
-    fn information(self) -> Option<[f64; 6]> {
+    pub(super) fn information(self) -> Option<[f64; 6]> {
         let (r, t) = (self.rot_sigma_rad, self.trans_sigma_m);
         (r > 0.0 && t > 0.0).then(|| {
             let (r, t) = (1.0 / (r * r), 1.0 / (t * t));
@@ -219,7 +221,8 @@ pub(super) struct View {
 /// A view's information `Jᵀ J / var` over `layout`'s parameters, and its pixel rows (two per
 /// sighting). Each sighting's system weights (`w · jᵀ j` over the cell's parameters) are added to
 /// `a`. With `robot`, the view's robot pose correction is a parameter too, under its prior, and is
-/// marginalised out (the Schur complement), as in a calibration that refines the robot poses.
+/// marginalised out (the Schur complement), as in a calibration that refines the robot poses;
+/// then the third value is the pixels' information on that correction alone (without the prior).
 pub(super) fn view_information(
     cams: &[Cam],
     layout: &Layout,
@@ -228,7 +231,7 @@ pub(super) fn view_information(
     var: f64,
     robot: Option<RobotPrior>,
     a: &mut DMatrix<f64>,
-) -> (DMatrix<f64>, usize) {
+) -> (DMatrix<f64>, usize, Option<Matrix6<f64>>) {
     let n = layout.len();
     let prior = robot.and_then(RobotPrior::information);
     let m = if prior.is_some() { n + 6 } else { n };
@@ -294,8 +297,11 @@ pub(super) fn view_information(
         }
     }
     match prior {
-        Some(p) => (marginalise(&info, n, &p), rows),
-        None => (info, rows),
+        Some(p) => {
+            let pose = Matrix6::from_fn(|r, c| info[(n + r, n + c)]);
+            (marginalise(&info, n, &p), rows, Some(pose))
+        }
+        None => (info, rows, None),
     }
 }
 
