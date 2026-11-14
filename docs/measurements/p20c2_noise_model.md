@@ -5,17 +5,24 @@ calibration's own pose set, is within 25 % of a split-half estimate of the real 
 scatter, on `kuka_1` and `DS8` (`DS8` with the rig refined). Same splits (interleaved, halves in
 capture order, 8 seeded random), same datasets, same estimator.
 
-**Verdict: PASS on both.**
+**Verdict: P1 is retired as a gate and kept as a characterisation** (user decision, 2026-11-14).
+`kuka_1` agrees (0.81). `DS8` is **unresolved**: it reads 0.90 or 0.63 depending on which
+calibration's view scatter the robot correction takes (see **Sensitivity**). On the twin, the
+split-half ratio also moves by 0.2–0.3 from one noise draw to the next. With 30–42 views, a
+split-half estimate cannot resolve a 25 % bar, so a pass or a fail here is not evidence either way.
 
-| Dataset | Before (P20c's model) | After (learnt) | P1 |
+| Dataset | Before (P20c's model) | After (learnt) | Reading |
 |---|---|---|---|
-| `kuka_1` | 0.519 | **0.806** | PASS |
-| `DS8`, rig refined | 2.102 | **0.899** | PASS |
-| `DS8`, default workflow (not gated) | 2.10 | 0.900 | — |
+| `kuka_1` | 0.519 | **0.806** | agrees |
+| `DS8`, rig refined | 2.102 | 0.899 (run's `k`), 0.626 (rig-refined `k`) | unresolved |
+| `DS8`, default workflow | 2.10 | 0.900 | — |
 
-The pass on `DS8` depends on which calibration's view scatter the robot correction takes (see
-**Sensitivity**): with the run's own (25.2) it passes; with the rig-refined calibration's (37.3) it
-reads 0.63.
+**What carries forward:**
+- The planner's per-view term (each view's information divided by the view scatter `k`). It is off
+  by default.
+- The finding that calibration-rs's robot pose σ absorbs view-correlated image error. On `DS8` it
+  reports 2.05 mm, which is implausible for a Denso arm; with the correlated error taken out it is
+  at the 1 µm floor. The fix goes upstream.
 
 ## When and where
 

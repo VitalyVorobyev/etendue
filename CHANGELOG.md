@@ -39,8 +39,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `k`: each view counts for `1 / k` of its white information) and `NoiseModel::learnt`, which takes
   a real run's pixel σ, robot pose error and view scatter, and leaves out of the robot error the
   part of the pose corrections that is view-correlated pixel error. `etendue real split-half`
-  predicts with it, and reports P20c's model (white views) beside it. Gate P1 now passes on
-  `kuka_1` and `DS8`: `docs/measurements/p20c2_noise_model.md`. With `k = 1` (the default, and
+  predicts with it, and reports P20c's model (white views) beside it. P1 is now a characterisation, not a
+  gate: `kuka_1` agrees, `DS8` is unresolved (`docs/measurements/p20c2_noise_model.md`). With `k = 1` (the default, and
   every synthetic prediction) nothing changes; `scenario plan` is unchanged.
 
 ### Changed

@@ -1149,9 +1149,11 @@ manifests:
     Until then the planner takes the pose σ the data supports, documented.
   - **Gate P1** (unchanged): the planner's system σ is within 25 % of the split-half estimate on
     `kuka_1` and `DS8` (rig refined).
-  - *Status (2026-11-14):* measured (`p20c2/noise-model`); **P1 passes on both**: planner /
-    split-half `kuka_1` 0.52 → **0.81**, `DS8` 2.10 → **0.90**
-    (`docs/measurements/p20c2_noise_model.md`). `etendue_synth::plan::NoiseModel::learnt` takes a
+  - *Status (2026-11-14):* done (`p20c2/noise-model`). **P1 is retired as a gate (user decision,
+    2026-11-14)**: with 30–42 views, a split-half estimate moves by 0.2–0.3 from one draw to the
+    next and cannot resolve 25 %. It is kept as a characterisation: planner / split-half
+    `kuka_1` 0.52 → 0.81 (agrees); `DS8` 2.10 → 0.90 or 0.63 depending on which run's `k`
+    (unresolved) (`docs/measurements/p20c2_noise_model.md`). No more tuning of P1. `etendue_synth::plan::NoiseModel::learnt` takes a
     real run's pixel σ, robot pose error and view scatter `k`:
     - **Per-view term:** calibration-rs's view scatter (its delete-one-view jackknife on the run's
       residuals), each view's information divided by `k`. On `kuka_1` it brings every parameter
@@ -1165,8 +1167,9 @@ manifests:
       at v0.18.0, the redundancy at lines 219 and 251) takes each correction's pixel part at its
       white size; with view-correlated residuals it is `k` times larger, and the excess is counted
       as robot error. Taken out (`Prediction::robot_prior_under_view_scatter`), `DS8`'s 1.65e-3
-      rad / 2.05 mm becomes 7.7e-4 rad / the 1 µm floor; `kuka_1`'s barely moves. A draft
-      calibration-rs fix (the same correction inside the estimate) is a local branch, not opened.
+      rad / 2.05 mm becomes 7.7e-4 rad / the 1 µm floor; `kuka_1`'s barely moves. The
+      calibration-rs fix (the same correction inside the estimate) goes upstream, with a synthetic
+      view-correlated case that shows the bias.
     - **Sensitivity:** the correction rests on calibration-rs's own assumption that `k` inflates
       every direction alike. With the rig-refined calibration's `k` (37 against the run's 25) it
       removes all of `DS8`'s robot error and P1 reads 0.63.
