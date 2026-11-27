@@ -17,6 +17,7 @@
 //! `local/datasets.toml` maps ids to manifests, so a private dataset's path never leaves the
 //! machine.
 
+mod laser;
 mod report;
 mod resolve;
 mod run;
@@ -25,6 +26,7 @@ mod splits;
 mod twin;
 mod versus;
 
+pub use laser::{LaserResiduals, laser_residuals};
 pub use report::{RealSummary, RejectedView, ViewResiduals, report};
 pub use resolve::{DatasetSource, LOCAL_DATASETS, PUBLIC, resolve};
 pub use run::{DETECTIONS, calibrate};

@@ -44,7 +44,8 @@ pub(crate) use stats::values;
 pub use stats::{ParamStats, RowStats, param_stats, row_stats};
 pub(crate) use truth::{Truth, distortion_of, nominal_values, tilt_of};
 pub(crate) use upstream::{
-    SeedValues, StageRun, camera_of, check_config, exported, handeye_mode, predicted, residuals,
+    SeedValues, StageRun, camera_of, check_config, exported, handeye_mode, plane_of, predicted,
+    residuals,
 };
 pub(crate) use workflows::{head, intrinsics, single};
 

@@ -49,7 +49,8 @@ export type Workflow =
   | "rig_handeye_laserline"
   | "laserline_device"
   | "planar_intrinsics"
-  | "rig_extrinsics";
+  | "rig_extrinsics"
+  | "rig_laserline_device";
 
 /**
  * The runs kept under a folder, and the folders that hold a run this etendue cannot read.
@@ -602,6 +603,10 @@ export interface Measurement {
  */
 export interface RealSummary {
   /**
+   * A laser workflow's stripe residuals, per camera with laser pixels.
+   */
+  lasers?: LaserResiduals[];
+  /**
    * Each detection the runner left out, with its reason.
    */
   rejected: RejectedView[];
@@ -621,6 +626,36 @@ export interface RealSummary {
    * Residuals of each calibrated view and camera, by view then camera.
    */
   views: ViewResiduals[];
+}
+/**
+ * The laser residuals of one camera.
+ */
+export interface LaserResiduals {
+  /**
+   * The camera, by id.
+   */
+  camera: string;
+  /**
+   * Largest distance from the line (px).
+   */
+  max_px: number;
+  /**
+   * Laser pixels with a residual.
+   */
+  pixels: number;
+  /**
+   * Root mean square of the back-projected pixels' distances from the calibrated plane (m).
+   */
+  rms_m: number;
+  /**
+   * Root mean square of the pixels' distances from the calibrated laser line in the image
+   * (px): the residual the laser solve minimises.
+   */
+  rms_px: number;
+  /**
+   * Views with laser pixels.
+   */
+  views: number;
 }
 /**
  * A detection the dataset runner left out of the calibration.

@@ -1,6 +1,6 @@
 //! The report of a real dataset's calibration: [`Report`]'s no-truth form. No rows, no gate, no
-//! offsets; residuals per feature and per view, calibration-rs's σ and quality verdict, and the
-//! views the runner left out.
+//! offsets; residuals per feature and per view, calibration-rs's σ and quality verdict, the views
+//! the runner left out, and with lasers the planes and each camera's stripe residuals.
 
 use std::collections::BTreeMap;
 
@@ -12,9 +12,10 @@ use vision_calibration_pipeline::common::{CalibratedCameras, HandeyeSolution};
 use vision_calibration_pipeline::dataset_runner::{CalibrationExport, DatasetCalibration};
 use vision_calibration_pipeline::single_cam_handeye::SingleCamHandeyeSolution;
 
+use super::{LaserResiduals, laser_residuals};
 use crate::calibrate::{
     Estimate, FeatureResidual, REPORT_VERSION, Report, Residuals, Workflow, camera_of, exported,
-    predicted, residuals,
+    plane_of, predicted, residuals,
 };
 
 /// What a real dataset's calibration has that a synthetic one's does not: the manifest's view
@@ -31,6 +32,9 @@ pub struct RealSummary {
     pub rejected: Vec<RejectedView>,
     /// Residuals of each calibrated view and camera, by view then camera.
     pub views: Vec<ViewResiduals>,
+    /// A laser workflow's stripe residuals, per camera with laser pixels.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub lasers: Vec<LaserResiduals>,
 }
 
 /// A detection the dataset runner left out of the calibration.
@@ -66,7 +70,7 @@ pub struct ViewResiduals {
 ///
 /// # Errors
 ///
-/// A laser workflow's export (lasers are P20d), or a camera model etendue does not read.
+/// An export or a camera model etendue does not read.
 pub fn report(
     spec: &DatasetSpec,
     base_dir: &std::path::Path,
@@ -101,10 +105,23 @@ pub fn report(
                 HandeyeSolution::EyeToHand { rig_se3_base, .. } => rig_se3_base,
             }),
         ),
-        _ => bail!(
-            "a {:?} export: real laser datasets are not calibrated yet",
-            run.export.kind()
+        CalibrationExport::LaserlineDevice(e) => {
+            (Workflow::LaserlineDevice, e.mean_reproj_error, None)
+        }
+        CalibrationExport::RigLaserlineDevice(e) => {
+            (Workflow::RigLaserlineDevice, e.mean_reproj_error, None)
+        }
+        CalibrationExport::RigHandeyeLaserline(e) => (
+            Workflow::RigHandeyeLaserline,
+            e.mean_reproj_error,
+            Some(match e.handeye {
+                HandeyeSolution::EyeInHand {
+                    gripper_se3_rig, ..
+                } => gripper_se3_rig,
+                HandeyeSolution::EyeToHand { rig_se3_base, .. } => rig_se3_base,
+            }),
         ),
+        other => bail!("a {:?} export, which etendue does not read", other.kind()),
     };
     let export = &run.export;
     let params = export.camera_params();
@@ -124,6 +141,12 @@ pub fn report(
     let views = per_view(&residuals.features, &residuals.errors_px, &id);
     name_features(&mut residuals, &id);
     let (export_json, quality) = exported(export, &run.image_sizes)?;
+    let lasers = laser_residuals(export.diagnostics(), params.len(), &id);
+    let laser_pixels = lasers.iter().map(|l| l.pixels).sum();
+    let planes = export.laser_planes_cam();
+    let laser_planes = (0..cameras.len())
+        .map(|i| planes.get(i).map(plane_of))
+        .collect();
     let summary = RealSummary {
         topology: serde_json::to_value(spec.topology)?
             .as_str()
@@ -146,6 +169,7 @@ pub fn report(
             })
             .collect(),
         views,
+        lasers,
     };
     Ok(Report {
         version: REPORT_VERSION,
@@ -155,11 +179,11 @@ pub fn report(
         pass: true,
         views: run.usable_views,
         points: residuals.count,
-        laser_pixels: 0,
+        laser_pixels,
         noise: None,
         rows: Vec::new(),
         estimate: Estimate {
-            laser_planes: vec![None; cameras.len()],
+            laser_planes,
             cameras,
             handeye,
             offsets: None,

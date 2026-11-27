@@ -41,6 +41,7 @@ pub enum Workflow {
     LaserlineDevice,
     PlanarIntrinsics,
     RigExtrinsics,
+    RigLaserlineDevice,
 }
 
 impl std::fmt::Display for Workflow {
@@ -52,6 +53,7 @@ impl std::fmt::Display for Workflow {
             Self::LaserlineDevice => "laserline device",
             Self::PlanarIntrinsics => "planar intrinsics",
             Self::RigExtrinsics => "rig extrinsics",
+            Self::RigLaserlineDevice => "rig laserline device",
         })
     }
 }

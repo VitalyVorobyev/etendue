@@ -436,6 +436,51 @@
         "translation"
       ]
     },
+    "LaserResiduals": {
+      "description": "The laser residuals of one camera.",
+      "type": "object",
+      "properties": {
+        "camera": {
+          "description": "The camera, by id.",
+          "type": "string"
+        },
+        "max_px": {
+          "description": "Largest distance from the line (px).",
+          "type": "number",
+          "format": "double"
+        },
+        "pixels": {
+          "description": "Laser pixels with a residual.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        },
+        "rms_m": {
+          "description": "Root mean square of the back-projected pixels' distances from the calibrated plane (m).",
+          "type": "number",
+          "format": "double"
+        },
+        "rms_px": {
+          "description": "Root mean square of the pixels' distances from the calibrated laser line in the image\n(px): the residual the laser solve minimises.",
+          "type": "number",
+          "format": "double"
+        },
+        "views": {
+          "description": "Views with laser pixels.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "camera",
+        "views",
+        "pixels",
+        "rms_px",
+        "max_px",
+        "rms_m"
+      ]
+    },
     "Loss": {
       "description": "A robust loss, as calibration-rs names it.",
       "oneOf": [
@@ -880,6 +925,13 @@
       "description": "What a real dataset's calibration has that a synthetic one's does not: the manifest's view\ncounts, the views left out, and residuals per view.",
       "type": "object",
       "properties": {
+        "lasers": {
+          "description": "A laser workflow's stripe residuals, per camera with laser pixels.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/LaserResiduals"
+          }
+        },
         "rejected": {
           "description": "Each detection the runner left out, with its reason.",
           "type": "array",
@@ -1709,7 +1761,8 @@
         "rig_handeye_laserline",
         "laserline_device",
         "planar_intrinsics",
-        "rig_extrinsics"
+        "rig_extrinsics",
+        "rig_laserline_device"
       ]
     }
   }

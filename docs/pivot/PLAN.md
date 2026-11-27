@@ -1176,8 +1176,22 @@ manifests:
 - **P20d — Laser rigs.**
   - etendue's stripe detector (`detect/laser.rs`) becomes a `LaserPixelExtractor` for the dataset
     runner, so the private rigs' laser images calibrate their planes.
-  - The twin gains the laser: stripes simulated at the same poses, and G5.3c triangulation on the
-    twin against the real stripe residuals.
+  - *Scope (user decision, 2026-11-14):* value first, no fine-tuning; the twin's laser moves to
+    P20d2.
+  - *Status (2026-11-14):* done (`p20d/laser-rigs`, `docs/measurements/p20d_laser.md`). `etendue
+    real calibrate` passes `detect::laser::StripeExtractor` to the runner, so the laser topologies
+    calibrate; the report gains each camera's plane and stripe residuals. A real laser image has no
+    board image, so the extractor scans the manifest's axis and keeps only long continuous chains
+    as thin as the stripe (`detect::laser::chained`): without it 7–22 % of the pixels were the
+    board's dim light beyond the stripe's ends. `scheimpflug_rig` and `rtv3d` are one dataset (a
+    symlink). Its laser stage ran on a v0.18 copy of its manifest and of its rig hand-eye export
+    (an older calibration-rs's format) in `local/`. All 20 views, 0.66–0.85 px stripe RMS, and the
+    planes agree with calibration-rs's reference run (its own extractor, the same upstream) to
+    0.16–0.51 mrad and ≤ 6 µm. CI: `tests/laser_extractor.rs` (the extractor on `laser_ur5e`'s
+    analytic stripes over a dim checkerboard).
+- **P20d2 — The twin's laser (deferred).** The twin gains the laser: stripes simulated at the real
+  run's poses, and G5.3c triangulation on the twin against the real stripe residuals. Not planned
+  until asked for.
 - **P20e — Studio.** Open a dataset by id, calibrate it, and show the real report beside its
   twin's: residual maps, σ, verdicts.
 

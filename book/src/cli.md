@@ -237,7 +237,18 @@ Calibrates a **real** dataset: images and robot poses described by a calibration
 pair). It runs calibration-rs's dataset runner, the same code as calibration-rs's own `vcal run`:
 the target is detected in every image, the views are screened and paired with the robot poses, and
 the manifest's workflow (`single_cam_handeye`, `rig_handeye`, `planar_intrinsics`,
-`rig_extrinsics`) runs with its default configuration. Laser topologies are not calibrated yet.
+`rig_extrinsics`, and the laser topologies `laserline_device`, `rig_laserline_device` and
+`rig_handeye_laserline`) runs with its default configuration.
+
+A laser topology's laser images are read by etendue's stripe detector, the one `detect` runs on
+rendered laser images, in place of calibration-rs's own extractor (which is not on crates.io). A
+real laser image has no board image beside it, so the stripe is taken as it is, one centre per
+column (`scan_axis = "cols"`, the default) or per row (`"rows"`), and only the centres on long
+continuous chains as thin as the stripe are kept: beyond the stripe's ends a column's brightest
+pixel is the board's dim light. The manifest's `[laser]` `min_points` applies; its `sigma` and
+thresholds belong to calibration-rs's extractor and are not read. A `rig_laserline_device`
+manifest names its rig hand-eye calibration in `upstream_calibration`: a calibration-rs export of
+the same version.
 
 The dataset is named by:
 - a manifest path, or a folder holding `dataset.toml`;
@@ -255,8 +266,11 @@ folder detects nothing again. Nothing is written to the dataset's folder.
 There is no truth, so there are no compared rows and no closed-loop check. The report has the
 residuals of every feature and every view, calibration-rs's σ of each parameter and the noise the
 residuals imply, the quality verdict with its checks, and the views the runner left out with the
-reason. The command prints the views used, each camera's intrinsics with σ, the reprojection
-error, the worst views and the verdict.
+reason. With lasers it also has each camera's laser plane (in the camera's frame) and its stripe
+residuals: the views and stripe pixels, the pixels' RMS distance from the calibrated laser line in
+the image, and their RMS distance from the plane in space. The command prints the views used, each
+camera's intrinsics with σ, the reprojection error, the worst views, each laser's residuals and the
+verdict.
 
 ## `real twin`
 

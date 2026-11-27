@@ -42,8 +42,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   predicts with it, and reports P20c's model (white views) beside it. P1 is now a characterisation, not a
   gate: `kuka_1` agrees, `DS8` is unresolved (`docs/measurements/p20c2_noise_model.md`). With `k = 1` (the default, and
   every synthetic prediction) nothing changes; `scenario plan` is unchanged.
+- **Real laser rigs** (P20d): `etendue real calibrate` calibrates the laser topologies
+  (`laserline_device`, `rig_laserline_device`, `rig_handeye_laserline`). etendue's stripe detector is
+  calibration-rs's laser-line extractor (`etendue_cli::detect::laser::StripeExtractor`, cache name
+  `etendue-stripe-v1`): the scan axis the manifest names, and only the centres on long continuous
+  chains as thin as the stripe (`detect::laser::chained`), since a real laser image has no board
+  image to subtract. The report has each camera's laser plane and stripe residuals (`real.lasers`:
+  views, pixels, RMS from the laser line in px and from the plane in m), and the command prints
+  them. On the private Scheimpflug rig the planes agree with calibration-rs's reference run to
+  0.5 mrad (`docs/measurements/p20d_laser.md`).
 
 ### Changed
+
+- `detect/laser.rs` is split by responsibility (`detect/laser/{mod,stripe,chain,extractor}.rs`);
+  `extract_along` takes the stripe's direction, and `analytic_stripe` (the ground truth's stripe as
+  polylines) is public. `Workflow` gains `rig_laserline_device` (the report schemas and the
+  studio's labels with it).
 
 - `etendue_synth::plan::predict` takes a `NoiseModel` in place of the pixel σ and robot prior, and
   `etendue_cli::real::split_half` likewise; the split calibrations are a step of their own
